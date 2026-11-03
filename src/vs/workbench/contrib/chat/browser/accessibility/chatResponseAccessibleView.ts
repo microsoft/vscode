@@ -11,7 +11,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -21,7 +21,8 @@ import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js
 import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionTargetData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, isResponseVM, isRequestVM } from '../../common/model/chatViewModel.js';
+import { getChatRequestAccessibleText } from '../chatRequestText.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
@@ -45,6 +46,16 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 
 		const verifiedWidget: IChatWidget = widget;
 		let focusedItem = verifiedWidget.getFocus();
+		if (focusedItem && isRequestVM(focusedItem) && focusedItem.artifactRequest) {
+			const request = focusedItem;
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.PanelChat,
+				{ type: AccessibleViewType.View },
+				() => getChatRequestAccessibleText(request),
+				() => verifiedWidget.focus(request),
+				AccessibilityVerbositySettingId.Chat,
+			);
+		}
 		if (!focusedItem || !isResponseVM(focusedItem)) {
 			const responseItems = verifiedWidget.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responseItems?.at(-1);

@@ -12,6 +12,10 @@ import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
 import { isWeb } from '../../common/platform.js';
 import { URI } from '../../common/uri.js';
+import { DeferredPromise } from '../../common/async.js';
+import { FileAccess } from '../../common/network.js';
+import { addDisposableListener } from '../../browser/dom.js';
+import { errorHandler } from '../../common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 function strToNode(str: string): HTMLElement {
@@ -95,6 +99,91 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('Images', () => {
+		test('resolves only sanitized media through the registered browser transport', async () => {
+			const read: string[] = [];
+			const resource = URI.parse('test-filesystem://connection/image.png?metadata=original');
+			const resolved = new DeferredPromise<{ object: URI; dispose(): void }>();
+			let disposed = false;
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', {
+				resolve: uri => {
+					read.push(uri.toString());
+					return resolved.p;
+				},
+			}));
+			const result = store.add(renderMarkdown({ value: `![Image](${resource.toString()}) ![Blocked](https://attacker.test/image.png)` }, {
+				sanitizerConfig: {
+					allowedMediaSchemes: { augment: ['test-filesystem'] },
+					remoteImageIsAllowed: uri => uri.scheme === 'test-filesystem',
+					replaceWithPlaintext: true,
+				},
+			}));
+			const image = result.element.querySelector('img')!;
+			const before = image.getAttribute('src');
+			await resolved.complete({ object: URI.parse('data:image/png;base64,AA=='), dispose: () => { disposed = true; } });
+			await Promise.resolve();
+			const source = image.getAttribute('src');
+			result.dispose();
+			assert.deepStrictEqual({ before, source, resource: image.getAttribute('data-src'), read, disposed }, {
+				before: null, source: 'data:image/png;base64,AA==', resource: resource.toString(), read: [resource.toString()], disposed: true,
+			});
+		});
+
+		test('a disposed render never activates a pending media source', async () => {
+			const resolved = new DeferredPromise<{ object: URI; dispose(): void }>();
+			let disposed = false;
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', { resolve: () => resolved.p }));
+			const result = renderMarkdown({ value: '![Image](test-filesystem://connection/image.png)' }, {
+				sanitizerConfig: { allowedMediaSchemes: { augment: ['test-filesystem'] } },
+			});
+			const image = result.element.querySelector('img')!;
+			result.dispose();
+			await resolved.complete({ object: URI.parse('data:image/png;base64,AA=='), dispose: () => { disposed = true; } });
+			await Promise.resolve();
+			assert.deepStrictEqual({ source: image.getAttribute('src'), disposed }, { source: null, disposed: true });
+		});
+
+		test('custom media policy checks the URI metadata before activating a source', () => {
+			const href = 'test-filesystem://connection/image.png';
+			let resolutions = 0;
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', {
+				resolve: async () => { resolutions++; return { object: URI.parse('data:image/png;base64,AA=='), dispose: () => { } }; },
+			}));
+			const result = store.add(renderMarkdown({
+				value: `![Image](${href})`,
+				uris: { [href]: URI.parse('https://attacker.test/image.png') },
+			}, {
+				sanitizerConfig: {
+					allowedMediaSchemes: { augment: ['test-filesystem'] },
+					remoteImageIsAllowed: uri => uri.scheme === 'test-filesystem',
+					replaceWithPlaintext: true,
+				},
+			}));
+			assert.deepStrictEqual({ images: result.element.querySelectorAll('img').length, resolutions }, { images: 0, resolutions: 0 });
+		});
+
+		test('failed resource reads report an image error without reporting a product error', async () => {
+			let unexpectedErrors = 0;
+			let heightChanges = 0;
+			store.add(toDisposable(errorHandler.addListener(() => unexpectedErrors++)));
+			const error = new Error('Image file is unavailable');
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', { resolve: async () => { throw error; } }));
+			const result = store.add(renderMarkdown({ value: '![Image](test-filesystem://connection/image.png)' }, {
+				sanitizerConfig: { allowedMediaSchemes: { augment: ['test-filesystem'] } },
+				asyncRenderCallback: () => heightChanges++,
+			}));
+			const image = result.element.querySelector('img')!;
+			const failed = new DeferredPromise<Event>();
+			store.add(addDisposableListener(image, 'error', event => failed.complete(event)));
+			const event = await failed.p;
+			assert.deepStrictEqual({
+				error: event instanceof ErrorEvent ? event.error : undefined,
+				source: image.getAttribute('src'),
+				alt: image.alt,
+				unexpectedErrors,
+				heightChanges,
+			}, { error, source: null, alt: 'Image', unexpectedErrors: 0, heightChanges: 1 });
+		});
+
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
@@ -151,6 +240,51 @@ suite('MarkdownRenderer', () => {
 					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png">' },
 				]
 			);
+		});
+
+		test('remote image validation checks mapped destinations', () => {
+			const destinations = [
+				'https://example.com/image.png',
+				'file://remote-host/share/image.png',
+				'vscode-remote://ssh-remote+host/other-image.png',
+			];
+			const source = 'file:///image.png';
+			const checkedUris: string[] = [];
+			const results = destinations.map(destination => store.add(renderMarkdown({
+				value: `![image](${source})`,
+				uris: { [source]: URI.parse(destination) },
+			}, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual({
+				checkedUris,
+				imageCounts: results.map(result => result.querySelectorAll('img').length),
+			}, {
+				checkedUris: destinations.map(destination => URI.parse(destination).toString()),
+				imageCounts: [0, 0, 0],
+			});
+		});
+
+		test('local file images mapped by a remote extension host remain allowed', () => {
+			const source = 'file:///images/image.png';
+			const result = store.add(renderMarkdown({
+				value: `![image](${source})`,
+				uris: { [source]: URI.parse('vscode-remote://ssh-remote+host/images/image.png') },
+			}, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img[src]').length, 1);
 		});
 
 		test('relative image with a network-backed file base URI is rendered as plaintext', () => {
@@ -220,7 +354,7 @@ suite('MarkdownRenderer', () => {
 				return;
 			}
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](file:///images/cat.gif)` })).element;
-			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
+			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image" data-src="file:///images/cat.gif"></p></div>');
 		});
 	});
 
@@ -732,7 +866,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`<img src="file:///images/cat.gif">`);
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif" data-src="file:///images/cat.gif">`);
 		});
 
 		test('Should only allow checkbox inputs', () => {

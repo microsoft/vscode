@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isThenable } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -79,6 +80,9 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				clientContext: observed.clientContext,
 				...(observed.credentials ? { credentials: observed.credentials } : {}),
 			}, undefined);
+		}
+		if (action.type === ActionType.ChatPendingMessageRemoved && action.kind === PendingMessageKind.Steering) {
+			this._withdrawSubmittedSteering(observed.channel, action.id);
 		}
 		if (this._handlePendingMessageAction(observed.channel, action)) {
 			this._tryConsumeNextQueuedMessage(observed.channel);
@@ -158,6 +162,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			&& getPendingSteeringMessages(state).some(message => message.id === action.id);
 	}
 
+	/** A client removed steering that was already handed to the provider, which would otherwise still deliver it. */
+	private _withdrawSubmittedSteering(channel: ProtocolURI, id: string): void {
+		if (!this._context.memento(SubmittedSteering, channel).get().has(id)) {
+			return;
+		}
+		const session = this._chatOwnership.getChatOwner(channel);
+		const provider = session !== undefined ? this._providerService.getProviderForChat(session, channel) : undefined;
+		provider?.withdrawSteeringMessage?.(URI.parse(channel), id);
+	}
+
 	private _syncPendingMessages(channel: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(channel);
 		if (!state) {
@@ -171,7 +185,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (session === undefined) {
 			return;
 		}
-		const provider = this._providerService.getProviderForSession(session);
+		const provider = this._providerService.getProviderForChat(session, channel);
 		const pending = getPendingSteeringMessages(state);
 		const submitted = this._context.memento(SubmittedSteering, channel);
 		const pendingIds = new Set(pending.map(message => message.id));
@@ -186,9 +200,45 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			}
 			submitted.set(new Set([...submitted.get(), message.id]), undefined);
 			const sender = this._context.memento(PendingSender, channel, message.id).get();
-			if (provider.sendSteeringMessage(URI.parse(channel), message, sender) === false) {
+			const handoff = provider.sendSteeringMessage(URI.parse(channel), message, sender);
+			if (handoff === false) {
 				submitted.set(new Set([...submitted.get()].filter(id => id !== message.id)), undefined);
+			} else if (isThenable(handoff)) {
+				handoff.then(sent => {
+					if (!sent) {
+						this._onSteeringHandedBack(channel, message.id);
+					} else {
+						this._onSteeringHandoffSettled(channel);
+					}
+				}, error => this._logService.error('[QueueDrainContribution] Steering handoff failed', error));
 			}
+		}
+	}
+
+	/**
+	 * The provider finished with a steering message: it sent it, or dropped it because sending failed.
+	 * Handed-back steering waits while any handoff is still held, so in an idle chat this may be the last one.
+	 */
+	private _onSteeringHandoffSettled(channel: ProtocolURI): void {
+		const state = this._store.isDisposed ? undefined : this._stateManager.getChatState(channel);
+		// Cancellation clears pending steering, so this never starts queued work after a cancel.
+		if (state && !state.activeTurn && getPendingSteeringMessages(state).length > 0) {
+			this._tryConsumeNextQueuedMessage(channel);
+		}
+	}
+
+	/** The provider returned steering unsent because the turn it targeted ended; steer the current turn or run it next. */
+	private _onSteeringHandedBack(channel: ProtocolURI, id: string): void {
+		const state = this._store.isDisposed ? undefined : this._stateManager.getChatState(channel);
+		if (!state || !getPendingSteeringMessages(state).some(message => message.id === id)) {
+			return;
+		}
+		const submitted = this._context.memento(SubmittedSteering, channel);
+		submitted.set(new Set([...submitted.get()].filter(submittedId => submittedId !== id)), undefined);
+		if (state.activeTurn) {
+			this._syncPendingMessages(channel);
+		} else {
+			this._tryConsumeNextQueuedMessage(channel);
 		}
 	}
 
@@ -200,19 +250,26 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const state = this._stateManager.getSessionState(channel);
-		if (!state?.queuedMessages?.length || getPendingSteeringMessages(state).length > 0) {
+		if (!state) {
+			return;
+		}
+		// Steering the provider still holds starts its own turn once delivered; queued work waits for it.
+		const steering = getPendingSteeringMessages(state);
+		const submitted = this._context.memento(SubmittedSteering, channel).get();
+		if (steering.some(message => submitted.has(message.id))) {
 			return;
 		}
 		const latestTurn = state.turns.at(-1);
 		if (latestTurn?.state === TurnState.Error && getErrorResponsePart(latestTurn)?.resumable) {
 			return;
 		}
-		const host = this._getHost();
-		if (!host) {
+		// Steering that arrived too late to steer a turn runs next, ahead of queued messages.
+		const message = steering[0] ?? state.queuedMessages?.find(message => message.kind !== PendingMessageKind.Steering);
+		if (!message) {
 			return;
 		}
-		const message = state.queuedMessages.find(message => message.kind !== PendingMessageKind.Steering);
-		if (!message) {
+		const host = this._getHost();
+		if (!host) {
 			return;
 		}
 		const sender = this._context.memento(PendingSender, channel, message.id).get() ?? {

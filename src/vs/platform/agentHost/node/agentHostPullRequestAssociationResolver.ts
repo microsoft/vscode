@@ -141,7 +141,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const store = new DisposableStore();
 		try {
 			const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal, source, session));
-			const repository = { owner, name: repo };
+			const repository = { owner, repo };
 			const options = { priority: 'background', caller: 'agentHost.pullRequestAssociation' } as const;
 			const pullRequestByBranch = await findPullRequestByHeadBranch(client.pullRequests, repository, `${headOwner}:${headBranch}`, signal, { ...options, allowedPullRequestUrls });
 			if (pullRequestByBranch || requireHeadBranch) {

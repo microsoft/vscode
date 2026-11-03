@@ -673,6 +673,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[AgentsVoiceSettingId.SessionAwareness]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.sessionAwareness', "Share a bounded briefing of tracked sessions and the active chat's recent conversation with OpenAI BYOK Voice Mode, so it can answer session status questions directly. This includes session titles, response summaries, pending prompt details, the selected model, and attachment names, but not attachment contents. Disable to restore input-only context. Changes take effect when Voice Mode reconnects."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
+		},
 		'agents.voice.backendUrl': {
 			type: 'string',
 			description: nls.localize('agents.voice.backendUrl', "Voice backend WebSocket URL. Leave empty to use the default hosted backend. Set to e.g. `ws://localhost:8000/api/v1/realtime/voice` to point at a backend running on your machine."),

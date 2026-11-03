@@ -21,9 +21,9 @@ suite('McpCopilotConfiguration', () => {
 			toCopilotMcpServerConfiguration({ type: McpServerType.REMOTE, url: 'https://example.com/mcp' }),
 			toCopilotMcpServerConfiguration({ type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse', headers: { Authorization: '$TOKEN' }, oauth: { clientId: 'client' } }),
 		], [
-			{ type: 'local', command: 'node', args: [], tools: ['*'] },
-			{ type: 'local', command: 'node', args: ['server.js'], tools: ['*'], env: { TOKEN: '$TOKEN', PORT: '3000' }, cwd: '/configured' },
-			{ type: 'local', command: 'node', args: [], tools: ['*'], cwd: '/resolved' },
+			{ type: 'stdio', command: 'node', args: [], tools: ['*'] },
+			{ type: 'stdio', command: 'node', args: ['server.js'], tools: ['*'], env: { TOKEN: '$TOKEN', PORT: '3000' }, cwd: '/configured' },
+			{ type: 'stdio', command: 'node', args: [], tools: ['*'], cwd: '/resolved' },
 			{ type: 'http', url: 'https://example.com/mcp', tools: ['*'] },
 			{ type: 'sse', url: 'https://example.com/sse', tools: ['*'], headers: { Authorization: '$TOKEN' }, oauthClientId: 'client' },
 		]);

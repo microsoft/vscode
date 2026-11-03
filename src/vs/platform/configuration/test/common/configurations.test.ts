@@ -11,19 +11,16 @@ import { allSettings, Extensions, IConfigurationNode, IConfigurationRegistry } f
 import { DefaultConfiguration } from '../../common/configurations.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { Registry } from '../../../registry/common/platform.js';
+import { restoreConfigurationRegistryAfterSuite } from './configurationRegistryTestUtils.js';
 
 suite('DefaultConfiguration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const reset = restoreConfigurationRegistryAfterSuite();
 
 	setup(() => reset());
 	teardown(() => reset());
-
-	function reset() {
-		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
-	}
 
 	test('hidden experimental defaults update and unregister without entering settings schemas', async () => {
 		const key = 'test.hiddenExperimentalDefault';

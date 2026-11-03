@@ -178,6 +178,7 @@ class StandaloneDialogService implements IDialogService {
 
 	_serviceBrand: undefined;
 
+	readonly hasDialog = false;
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
@@ -969,6 +970,12 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 		return false;
 	}
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+		// noop
+	}
+	isWorkspaceTrustSourceResolved(): boolean {
+		return true;
+	}
+	async resolveWorkspaceTrust(): Promise<void> {
 		// noop
 	}
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {

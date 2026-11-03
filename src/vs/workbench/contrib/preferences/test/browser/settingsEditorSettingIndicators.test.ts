@@ -35,7 +35,7 @@ suite('SettingsTreeIndicatorsLabel', () => {
 		const specific = descriptions.at(-1);
 		element.policyValueDescription = undefined;
 		label.updateScopeOverrides(element, clicks, filters);
-		assert.deepStrictEqual({ specific, fallback: descriptions.at(-1), indicator: container.textContent?.includes('Managed by organization') }, {
+		assert.deepStrictEqual({ specific, fallback: descriptions.at(-1), indicator: container.textContent?.includes('Managed by your organization') }, {
 			specific: 'Organization default explanation',
 			fallback: 'This setting is managed by your organization and its actual value cannot be changed.',
 			indicator: true,

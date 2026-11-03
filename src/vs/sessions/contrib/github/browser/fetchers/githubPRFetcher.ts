@@ -5,6 +5,9 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { localize } from '../../../../../nls.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { RepositoryRef } from '../../../../../platform/github/common/client/types.js';
 import { Account } from '../../../../../platform/github/common/core/core.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { PullRequest } from '../../../../../platform/github/common/core/pullRequests.js';
@@ -15,6 +18,7 @@ import {
 	IGitHubChangedFile,
 	IGitHubPRComment,
 	IGitHubPullRequest,
+	IGitHubPullRequestChanges,
 	IGitHubPullRequestMergeability,
 	IGitHubPullRequestReview,
 	IGitHubPullRequestReviewThread,
@@ -27,12 +31,12 @@ export class GitHubPRFetcher {
 
 	getPullRequest(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequest> {
 		return this.client.withClient(async (client, signal) =>
-			mapPullRequest(await client.pullRequests.get({ owner, name: repo }, prNumber, signal, options)), token);
+			mapPullRequest(await client.pullRequests.get({ owner, repo }, prNumber, signal, options)), token);
 	}
 
 	getReviews(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubPullRequestReview[]> {
 		return this.client.withClient(async (client, signal) => {
-			const reviews = await client.reviews.list({ owner, name: repo }, prNumber, signal, {
+			const reviews = await client.reviews.list({ owner, repo }, prNumber, signal, {
 				...options,
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
@@ -42,25 +46,30 @@ export class GitHubPRFetcher {
 	}
 
 	getChangedFiles(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubChangedFile[]> {
+		return this.client.withClient((client, signal) => listChangedFiles(client, { owner, repo }, prNumber, signal));
+	}
+
+	getChanges(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestChanges> {
 		return this.client.withClient(async (client, signal) => {
-			const files = await client.pullRequests.listFiles({ owner, name: repo }, prNumber, signal, {
-				query: { page: 1, per_page: 100 },
-				maxPages: 100,
-			});
-			return files.map(file => ({
-				filename: file.filename,
-				previous_filename: file.previous_filename,
-				status: file.status,
-				additions: file.additions,
-				deletions: file.deletions,
-				patch: file.patch,
-			}));
+			const repository = { owner, repo };
+			const pullRequest = await client.pullRequests.get(repository, prNumber, signal, { noCache: true });
+			// Pull request files are diffed against the merge base, not the base branch tip.
+			const [comparison, files] = await Promise.all([
+				client.repositories.compare(repository, pullRequest.base.sha, pullRequest.head.sha, signal, { query: { per_page: 1 } }),
+				listChangedFiles(client, repository, prNumber, signal, { noCache: true }),
+			]);
+			// The file list is mutable, even though the comparison uses immutable SHAs.
+			const current = await client.pullRequests.get(repository, prNumber, signal, { noCache: true });
+			if (current.head.sha !== pullRequest.head.sha || current.base.sha !== pullRequest.base.sha || current.base.ref !== pullRequest.base.ref) {
+				throw new Error(localize('pullRequestChanges.changedDuringLoad', "Pull request #{0} changed while loading its files. Please try again.", prNumber));
+			}
+			return { title: current.title, baseRef: pullRequest.base.ref, baseSha: comparison.merge_base_commit.sha, headSha: pullRequest.head.sha, totalFileCount: pullRequest.changed_files, files };
 		});
 	}
 
 	getReviewThreads(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequestReviewThread[]> {
 		return this.client.withClient(async (client, signal) => {
-			const pullRequest = await client.pullRequests.get({ owner, name: repo }, prNumber, signal, options);
+			const pullRequest = await client.pullRequests.get({ owner, repo }, prNumber, signal, options);
 			const threads = await client.reviews.listThreads(pullRequest.node_id, signal, {
 				...options,
 				query: { first: 100, commentsFirst: 100 },
@@ -102,7 +111,7 @@ export class GitHubPRFetcher {
 
 	postReviewComment(owner: string, repo: string, prNumber: number, body: string, inReplyTo: number, token?: CancellationToken): Promise<IGitHubPRComment> {
 		return this.client.withClient(async (client, signal) =>
-			mapReviewComment(await client.reviews.replyToComment({ owner, name: repo }, prNumber, inReplyTo, body, signal)), token);
+			mapReviewComment(await client.reviews.replyToComment({ owner, repo }, prNumber, inReplyTo, body, signal)), token);
 	}
 
 	postPullRequestReviewComment(
@@ -117,7 +126,7 @@ export class GitHubPRFetcher {
 					...(startLine !== undefined ? { startLine, startSide: 'RIGHT' } : {}),
 				}, signal);
 			} else {
-				await client.reviews.create({ owner, name: repo }, prNumber, {
+				await client.reviews.create({ owner, repo }, prNumber, {
 					commit_id: commitId,
 					comments: [{
 						body, path, line, side: 'RIGHT',
@@ -130,7 +139,7 @@ export class GitHubPRFetcher {
 
 	postIssueComment(owner: string, repo: string, prNumber: number, body: string, token?: CancellationToken): Promise<IGitHubPRComment> {
 		return this.client.withClient(async (client, signal) => {
-			const data = await client.issues.createComment({ owner, name: repo }, prNumber, body, signal);
+			const data = await client.issues.createComment({ owner, repo }, prNumber, body, signal);
 			return {
 				id: data.id,
 				body: data.body ?? '',
@@ -194,6 +203,22 @@ function mapUser(user: Account | null): IGitHubUser {
 		login: user?.login ?? 'ghost',
 		avatarUrl: user?.avatar_url ?? ''
 	};
+}
+
+async function listChangedFiles(client: IGitHubAccountClient, repository: RepositoryRef, prNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly IGitHubChangedFile[]> {
+	const files = await client.pullRequests.listFiles(repository, prNumber, signal, {
+		...options,
+		query: { page: 1, per_page: 100 },
+		maxPages: 100,
+	});
+	return files.map(file => ({
+		filename: file.filename,
+		previous_filename: file.previous_filename,
+		status: file.status,
+		additions: file.additions,
+		deletions: file.deletions,
+		patch: file.patch,
+	}));
 }
 
 function mapPullRequest(data: PullRequest): IGitHubPullRequest {

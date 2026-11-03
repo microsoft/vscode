@@ -15,15 +15,16 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { savedChatToDto } from '../../common/agentHostSavedChat.js';
 import type { IAgentCreateChatResult } from '../../common/agent.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, MessageKind, SessionStatus, isSessionStatusArchived, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { SessionArtifactType, stringifySessionArtifacts } from '../../common/sessionArtifacts.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, SessionStatus, isSessionStatusArchived, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { encodeAgentHostCatalogPayload, decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { encodeProviderData } from '../../node/agentChatBackings.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { SESSION_ARTIFACTS_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostProviderService, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
@@ -109,6 +110,9 @@ suite('AgentHostSavedChatContinuation', () => {
 	const source = URI.parse('ahp-session:/saved-source');
 	const chat = URI.parse('ahp-chat:/saved-source-default');
 	const destination = URI.parse('ahp-session:/verified-copilot');
+	const artifacts = stringifySessionArtifacts([{
+		id: 'original-artifact', chat: chat.toString(), type: SessionArtifactType.File, label: 'Original artifact', isArtifact: true, uri: 'file:///saved/artifact',
+	}]);
 
 	async function fixture(live: boolean, localDatabase?: SessionDatabase) {
 		const log = new NullLogService();
@@ -135,7 +139,7 @@ suite('AgentHostSavedChatContinuation', () => {
 		await local.setMetadataValues({
 			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(['file:///saved/project']),
 			[ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{ handle: '11111111-1111-4111-8111-111111111111', workingDirectory: 'file:///saved/additional', repositoryRoot: 'file:///repository' }]),
-			sessionArtifacts: '[{"id":"original-artifact","type":"file","uri":"file:///saved/artifact"}]',
+			[SESSION_ARTIFACTS_KEY]: artifacts,
 		});
 		for (const [session, providerId, defaultChat] of [[source, 'claude', chat], [destination, 'copilotcli', URI.parse('ahp-chat:/copilot-copy-default')]] as const) {
 			await database.registerSessionV2(session.toString(), { provider: providerId, startTime: 1, source: 'explicit' }, { checkTombstone: false });
@@ -167,11 +171,12 @@ suite('AgentHostSavedChatContinuation', () => {
 		test(`archives ${live ? 'idle live' : 'cold surfaced'} metadata and publishes without source or worktree execution`, async () => {
 			const { svc, database, local, stateManager, provider, worktreeCalls } = await fixture(live);
 			const saved = await svc.readSavedChat(source);
-			const artifacts = await local.getMetadata('sessionArtifacts');
 			const worktrees = await local.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY);
 			const changed = Event.toPromise(Event.filter(svc.onDidNotification, event => event.type === 'root/sessionSummaryChanged' && event.session === source.toString() && isSessionStatusArchived(event.changes.status)));
 			const completed = await svc.completeSavedChatContinuation({ session: source, chat, identity: saved.identity, destination });
 			await changed;
+			// Summary publication queues catalog persistence; include that write in the immutability assertion.
+			await svc.whenCatalogReconciliationIdle();
 			const row = await database.getSessionV2(source.toString());
 			assert.ok(row);
 			const payload = decodeAgentHostCatalogPayload(row.payload);
@@ -180,7 +185,7 @@ suite('AgentHostSavedChatContinuation', () => {
 				completed, archived: await local.getMetadata(AH_META_IS_ARCHIVED_DB_KEY), catalogArchived: payload.value.data.isArchived,
 				published: isSessionStatusArchived((stateManager.getSessionSummary(source.toString()) ?? stateManager.getSurfacedSessionSummary(source.toString()))?.status),
 				live: !!stateManager.getSessionState(source.toString()), sourceCalls: provider.lifecycle, releases: provider.releaseSessionCalls.length, worktreeCalls,
-				artifactsUnchanged: await local.getMetadata('sessionArtifacts') === artifacts,
+				artifactsUnchanged: await local.getMetadata(SESSION_ARTIFACTS_KEY) === artifacts,
 				worktreesUnchanged: await local.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY) === worktrees,
 				availability: savedChatToDto(await svc.readSavedChat(source)).availability,
 			}, {
@@ -194,11 +199,11 @@ suite('AgentHostSavedChatContinuation', () => {
 	test.skip('records a busy source completion and retries archive when its turn has finished', async () => {
 		const { svc, local, stateManager, provider, worktreeCalls } = await fixture(true);
 		const saved = await svc.readSavedChat(source);
-		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'busy', startedAt: new Date(2).toISOString(), message: { text: 'Busy source', origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(chat.toString(), chatTurnStarted('busy', 'Busy source', new Date(2).toISOString()));
 		const request = { session: source, chat, identity: saved.identity, destination };
 		const busy = await svc.completeSavedChatContinuation(request);
 		const before = await local.getMetadata(AH_META_IS_ARCHIVED_DB_KEY);
-		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'busy', duration: 0 });
+		stateManager.dispatchServerAction(chat.toString(), chatTurnComplete('busy', 0));
 		const idle = await svc.completeSavedChatContinuation(request);
 		assert.deepStrictEqual({ busy, before, idle, sourceCalls: provider.lifecycle, worktreeCalls }, { busy: { archived: false }, before: undefined, idle: { archived: true }, sourceCalls: [], worktreeCalls: [] });
 	});
@@ -306,7 +311,7 @@ suite('AgentHostSavedChatContinuation', () => {
 		let committed = false;
 		local.afterArchiveCommit = () => {
 			committed = true;
-			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'late-busy', startedAt: new Date(3).toISOString(), message: { text: 'Started after the saved copy', origin: { kind: MessageKind.User } } });
+			stateManager.dispatchServerAction(chat.toString(), chatTurnStarted('late-busy', 'Started after the saved copy', new Date(3).toISOString()));
 		};
 		await assert.rejects(svc.completeSavedChatContinuation({ session: source, chat, identity: saved.identity, destination }), /busy/i);
 		const row = await database.getSessionV2(source.toString());
@@ -328,7 +333,7 @@ suite('AgentHostSavedChatContinuation', () => {
 		let acknowledged = false;
 		local.afterCatalogAcknowledgement = () => {
 			acknowledged = true;
-			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'busy-during-acknowledgement', startedAt: new Date(4).toISOString(), message: { text: 'Started during archive acknowledgement', origin: { kind: MessageKind.User } } });
+			stateManager.dispatchServerAction(chat.toString(), chatTurnStarted('busy-during-acknowledgement', 'Started during archive acknowledgement', new Date(4).toISOString()));
 		};
 		const completed = await svc.completeSavedChatContinuation({ session: source, chat, identity: saved.identity, destination });
 		const row = await database.getSessionV2(source.toString());

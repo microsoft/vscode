@@ -7,7 +7,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { API } from '@typescript/native/unstable/async';
+import { API } from '@typescript/native/async';
 import * as vscode from 'vscode';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 
@@ -294,7 +294,7 @@ class TestTypeScript7Api {
 	async getApi() {
 		return {
 			clearSourceFileCache: () => this.api.clearSourceFileCache(),
-			updateSnapshot: () => this.api.updateSnapshot({ openProjects: [this.configFile] }),
+			createSnapshot: () => this.api.createSnapshot({ openProjects: [this.configFile] }),
 		};
 	}
 

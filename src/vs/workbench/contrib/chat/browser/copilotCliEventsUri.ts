@@ -70,6 +70,7 @@ export function buildRemoteEventsUri(connection: IRemoteAgentHostConnectionInfo,
 		path: `${trimmed}/.copilot/session-state/${rawSessionId}/events.jsonl`,
 	});
 	const authority = agentHostAuthority(connection.address);
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- addresses the remote CLI events log through the Agent Host filesystem provider
 	return toAgentHostUri(remoteFileUri, authority);
 }
 
@@ -88,6 +89,7 @@ export function buildRemoteCopilotLogsUri(connection: IRemoteAgentHostConnection
 		path: `${trimmed}/.copilot/logs`,
 	});
 	const authority = agentHostAuthority(connection.address);
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- addresses the remote CLI logs directory through the Agent Host filesystem provider
 	return toAgentHostUri(remoteFileUri, authority);
 }
 
@@ -114,29 +116,55 @@ export function getCopilotCliSessionRawId(sessionResource: URI | undefined): str
 }
 
 /**
- * Drops the legacy extension-host row for any Copilot CLI session that also has
- * a local agent-host row, so a migrated session is listed once.
+ * Lists each Copilot CLI session that has both a legacy extension-host row and a
+ * local agent-host row once.
  *
- * Only `copilotcli:` is ever dropped, and only against `agent-host-copilotcli:`.
+ * The agent-host row wins once the session has been adopted. While it is still
+ * un-opened (`isUnopenedTwin`), the legacy row wins instead: the extension host
+ * still owns the conversation, so its row tracks a run in progress and its
+ * archive state, and opening it probes adoption with a fallback to the legacy
+ * session. With no legacy row (its provider retired), the agent-host row stays.
+ *
+ * Only `copilotcli:` rows are ever matched against `agent-host-copilotcli:` rows.
  * A remote agent-host session (`remote-<authority>-copilotcli:`) shares the
  * Copilot CLI session type and can carry the same raw id as a local one, but is
  * a different session and must never be deduped against it.
  */
-export function dedupeMigratedCopilotCliSessions<T>(items: readonly T[], resourceOf: (item: T) => URI): T[] {
-	let migratedRawIds: Set<string> | undefined;
+export function dedupeMigratedCopilotCliSessions<T>(items: readonly T[], resourceOf: (item: T) => URI, isUnopenedTwin: (item: T) => boolean = () => false): T[] {
+	let legacyRawIds: Set<string> | undefined;
 	for (const item of items) {
 		const resource = resourceOf(item);
-		if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+		if (resource.scheme === COPILOT_CLI_EH_SCHEME) {
 			const rawId = getCopilotCliSessionRawId(resource);
 			if (rawId) {
-				(migratedRawIds ??= new Set<string>()).add(rawId);
+				(legacyRawIds ??= new Set<string>()).add(rawId);
 			}
 		}
 	}
-	if (!migratedRawIds) {
+	if (!legacyRawIds) {
 		return items.slice();
 	}
+	const migratedRawIds = new Set<string>();
+	const supersededTwins = new Set<T>();
+	for (const item of items) {
+		const resource = resourceOf(item);
+		if (resource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME) {
+			continue;
+		}
+		const rawId = getCopilotCliSessionRawId(resource);
+		if (!rawId || !legacyRawIds.has(rawId)) {
+			continue;
+		}
+		if (isUnopenedTwin(item)) {
+			supersededTwins.add(item);
+		} else {
+			migratedRawIds.add(rawId);
+		}
+	}
 	return items.filter(item => {
+		if (supersededTwins.has(item)) {
+			return false;
+		}
 		const resource = resourceOf(item);
 		if (resource.scheme !== COPILOT_CLI_EH_SCHEME) {
 			return true;
@@ -158,6 +186,21 @@ export function migratedCopilotCliResource(resource: URI | undefined): URI | und
 	}
 	const rawId = getCopilotCliSessionRawId(resource);
 	return rawId ? URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${rawId}` }) : undefined;
+}
+
+/**
+ * The legacy extension-host resource a local agent-host Copilot CLI session
+ * was migrated from, or `undefined` when `resource` is not such a session.
+ * The inverse of {@link migratedCopilotCliResource}; never maps a remote
+ * agent-host session, which is a different session, or a peer chat (a URI
+ * fragment), which never existed in the legacy session.
+ */
+export function legacyCopilotCliResource(resource: URI | undefined): URI | undefined {
+	if (resource?.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME || resource.fragment || resource.query) {
+		return undefined;
+	}
+	const rawId = getCopilotCliSessionRawId(resource);
+	return rawId ? URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${rawId}` }) : undefined;
 }
 
 export type ResolveEventsUriResult =
@@ -242,5 +285,6 @@ export function buildHostLocalEventsPath(
 	// real path on the remote host where the agent (and the skill) execute. Strip
 	// the leading slash from a Windows drive-letter path (`/c:/…` → `c:/…`) so the
 	// injected path is usable by host-side tooling; POSIX paths are left as-is.
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts a host-local skill filesystem path for host-side tooling, including Windows drive normalization
 	return fromAgentHostUri(result.resource).path.replace(/^\/([a-zA-Z]:)/, '$1');
 }

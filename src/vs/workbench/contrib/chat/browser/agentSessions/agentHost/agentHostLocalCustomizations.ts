@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -18,7 +18,7 @@ import { type ICustomizationSyncProvider } from '../../../common/customizationHa
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -194,7 +194,7 @@ export async function resolveLocalCustomAgents(
 }
 
 /**
- * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
+ * Collects MCP servers with resolved, representable configurations, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than `.vscode/mcp.json` entries.
  * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine and is never forwarded.
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
@@ -331,6 +331,14 @@ export async function resolveCustomizationRefs(
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
 	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
 	const syncedFiles = looseFiles.filter(file => !isStandaloneSkillOrAgent(file));
+	if (isRemoteAgentHostSessionType(sessionType) && parseAgentHostHarness(sessionType) === 'copilot') {
+		syncedFiles.push({
+			uri: URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/builtin/vscode-local-images.mdc' }),
+			type: PromptsType.instructions,
+			source: AICustomizationSources.builtin,
+			content: '---\ndescription: Showing image files in VS Code\nalwaysApply: true\n---\n\nTo show the user an image file, reference its absolute path with `![alt](/absolute/path.png)`. If no earlier tool call in this session (such as a screenshot) already returned that image, call `view` on the path once first; never re-view an image just to show it.\n',
+		});
+	}
 	if (syncedFiles.length > 0) {
 		refs.push(bundlers.synced.bundle(syncedFiles, []).then(r => r?.ref));
 	}

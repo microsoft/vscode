@@ -8,7 +8,9 @@ import type { IPtyServiceContribution, ITerminalChildProcess } from '../../../co
 import { TerminalAutoResponder } from './terminalAutoResponder.js';
 
 export class AutoRepliesPtyServiceContribution implements IPtyServiceContribution {
-	private readonly _autoReplies: Map<string, string> = new Map();
+	// Replies are shared by the pty host, but each workbench contribution owns its configuration.
+	// For a shared prompt, the most recently installed owner's reply takes precedence.
+	private readonly _autoReplies: Map<string, Map<string, string>> = new Map();
 	private readonly _terminalProcesses: Map<number, ITerminalChildProcess> = new Map();
 	private readonly _autoResponders: Map<number, Map<string, TerminalAutoResponder>> = new Map();
 
@@ -17,24 +19,35 @@ export class AutoRepliesPtyServiceContribution implements IPtyServiceContributio
 	) {
 	}
 
-	async installAutoReply(match: string, reply: string) {
-		this._autoReplies.set(match, reply);
-		// If the auto reply exists on any existing terminals it will be overridden
-		for (const persistentProcessId of this._autoResponders.keys()) {
-			const process = this._terminalProcesses.get(persistentProcessId);
-			if (!process) {
-				this._logService.error('Could not find terminal process to install auto reply');
-				continue;
-			}
-			this._processInstallAutoReply(persistentProcessId, process, match, reply);
+	async installAutoReply(match: string, reply: string, ownerId: string) {
+		let owners = this._autoReplies.get(match);
+		if (!owners) {
+			owners = new Map();
+			this._autoReplies.set(match, owners);
 		}
+		// Move this owner to the end to preserve the last installed reply's precedence.
+		owners.delete(ownerId);
+		owners.set(ownerId, reply);
+		this._installAutoReplyOnProcesses(match, reply);
 	}
 
-	async uninstallAllAutoReplies() {
-		for (const match of this._autoReplies.keys()) {
-			for (const processAutoResponders of this._autoResponders.values()) {
-				processAutoResponders.get(match)?.dispose();
-				processAutoResponders.delete(match);
+	async uninstallAllAutoReplies(ownerId: string) {
+		for (const [match, owners] of this._autoReplies) {
+			const previousReply = Array.from(owners.values()).at(-1);
+			if (!owners.delete(ownerId)) {
+				continue;
+			}
+			const reply = Array.from(owners.values()).at(-1);
+			if (reply !== undefined) {
+				if (reply !== previousReply) {
+					this._installAutoReplyOnProcesses(match, reply);
+				}
+			} else {
+				this._autoReplies.delete(match);
+				for (const processAutoResponders of this._autoResponders.values()) {
+					processAutoResponders.get(match)?.dispose();
+					processAutoResponders.delete(match);
+				}
 			}
 		}
 	}
@@ -49,8 +62,8 @@ export class AutoRepliesPtyServiceContribution implements IPtyServiceContributio
 		}
 		this._terminalProcesses.set(persistentProcessId, process);
 		this._autoResponders.set(persistentProcessId, new Map());
-		for (const [match, reply] of this._autoReplies.entries()) {
-			this._processInstallAutoReply(persistentProcessId, process, match, reply);
+		for (const [match, owners] of this._autoReplies) {
+			this._processInstallAutoReply(persistentProcessId, process, match, Array.from(owners.values()).at(-1)!);
 		}
 	}
 
@@ -81,6 +94,17 @@ export class AutoRepliesPtyServiceContribution implements IPtyServiceContributio
 			for (const listener of processAutoResponders.values()) {
 				listener.handleResize();
 			}
+		}
+	}
+
+	private _installAutoReplyOnProcesses(match: string, reply: string): void {
+		for (const persistentProcessId of this._autoResponders.keys()) {
+			const process = this._terminalProcesses.get(persistentProcessId);
+			if (!process) {
+				this._logService.error('Could not find terminal process to install auto reply');
+				continue;
+			}
+			this._processInstallAutoReply(persistentProcessId, process, match, reply);
 		}
 	}
 

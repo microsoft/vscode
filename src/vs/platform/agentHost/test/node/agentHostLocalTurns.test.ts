@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MessageKind, TurnState, type Turn } from '../../common/state/sessionState.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, interleaveLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { TestSessionDatabase, createSessionDataService } from '../common/sessionTestHelpers.js';
 
 suite('AgentHostLocalTurns', () => {
@@ -92,5 +92,21 @@ suite('AgentHostLocalTurns', () => {
 			{ kind: 'failed', turnId: 'failed-a', seq: 4 },
 			{ kind: 'local', turnId: 'local-b', seq: 5 },
 		]);
+	});
+
+	test('restores local anchors against visible host or native turns without changing persisted anchors', async () => {
+		const db = new TestSessionDatabase();
+		const chat = 'ahp-chat://default/a';
+		await db.setTurnEventId('host', 'native');
+		await db.insertPersistedTurn({ kind: 'local', turnId: 'local', chatUri: chat, anchorTurnId: 'host', payload: JSON.stringify(turn('local')) });
+		const registry = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(db), disposables), new NullLogService());
+		for (const visible of ['native', 'host', 'unrelated']) {
+			const records = await registry.loadForChat(session, chat, new Set([visible]));
+			assert.deepStrictEqual({
+				turns: interleaveLocalTurns([turn(visible)], records, new NullLogService()).map(turn => turn.id),
+				anchor: registry.resolveConcreteTurnId(chat, 'local'),
+			}, visible === 'unrelated' ? { turns: ['unrelated'], anchor: 'host' } : { turns: [visible, 'local'], anchor: visible });
+		}
+		assert.strictEqual((await db.getPersistedTurns())[0].anchorTurnId, 'host');
 	});
 });

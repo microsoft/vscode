@@ -8,15 +8,18 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, ISessionSummaryHoverWorkspace, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
-import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
+import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../common/sessionApplication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { getHarnessPresentationOrDefault } from '../../../services/sessions/common/sessionsProvider.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
@@ -81,7 +84,6 @@ export function getSessionSummaryHoverData(
 	sessionsProvidersService: ISessionsProvidersService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
-	preferencesService: IPreferencesService,
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 	includeUpdatedAt = false,
 	mainChatBranchChangesObserved = false,
@@ -103,7 +105,7 @@ export function getSessionSummaryHoverData(
 		),
 		pullRequests: toHoverPullRequests(topPullRequestRefs.values(), openerService),
 		createdBy,
-		externalSession: getExternalSession(session, preferencesService),
+		application: getApplication(session, openerService),
 		...(sessionWorkspace && isMultiFolder ? {
 			sessionSummary: {
 				workspaces: getWorkspaceSummaries(sessionWorkspace, session.worktreePending?.get() ?? false, labelService),
@@ -125,13 +127,15 @@ export function getChatSummaryHoverData(
 	sessionsProvidersService: ISessionsProvidersService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
-	preferencesService: IPreferencesService,
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 	includeUpdatedAt = false,
 ): ISessionSummaryHoverData {
 	const updatedAt = includeUpdatedAt ? chat.updatedAt.get() : undefined;
+	const chatHarnessLabel = getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, undefined);
 	return {
 		...getProviderDetails(session, sessionsProvidersService),
+		// A chat answered by another harness than its session's names that harness, as its tab does.
+		...(chatHarnessLabel !== undefined ? { providerLabel: chatHarnessLabel } : {}),
 		title: chat.title.get().trim() || localize('untitledChat', "Untitled Chat"),
 		...(updatedAt ? { updatedAt } : {}),
 		location: getLocation(
@@ -142,14 +146,14 @@ export function getChatSummaryHoverData(
 		),
 		pullRequests: getPullRequests(chat.workspace.get(), openerService),
 		createdBy,
-		externalSession: getExternalSession(session, preferencesService),
+		application: getApplication(session, openerService),
 	};
 }
 
-/** Owns live external status for each display of the hover, including cached reopens. */
-export function createSessionSummaryHover(session: ISession, data: ISessionSummaryHoverData, preferencesService: IPreferencesService): Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'> {
+/** Owns live provenance for each display of the hover, including cached reopens. */
+export function createSessionSummaryHover(session: ISession, data: ISessionSummaryHoverData, openerService: IOpenerService): Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'> {
 	const widget = new SessionSummaryHoverWidget(data);
-	let external = session.isExternal?.get();
+	let application = session.application?.get();
 	let hoverDisposables: DisposableStore | undefined;
 	return {
 		content: widget.domNode,
@@ -157,10 +161,10 @@ export function createSessionSummaryHover(session: ISession, data: ISessionSumma
 			hoverDisposables?.dispose();
 			hoverDisposables = new DisposableStore();
 			hoverDisposables.add(autorun(reader => {
-				const current = session.isExternal?.read(reader);
-				if (current !== external) {
-					external = current;
-					widget.updateExternalSession(getExternalSession(session, preferencesService));
+				const currentApplication = session.application?.read(reader);
+				if (currentApplication !== application) {
+					application = currentApplication;
+					widget.updateApplication(getApplication(session, openerService));
 				}
 			}));
 		},
@@ -270,25 +274,33 @@ function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerServic
 		title: ref.title ?? `#${ref.number}`,
 		icon: ref.icon,
 		uri: ref.uri,
-		onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
+		// Contributed openers let an installed extension (e.g. GitHub Pull Requests) open the pull request in product.
+		onOpen: () => openerService.open(ref.uri, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true }).catch(onUnexpectedError),
 	}));
 	return pullRequests.length ? pullRequests : undefined;
 }
 
-/** Links a session still treated as external to its visibility setting. */
-function getExternalSession(session: ISession, preferencesService: IPreferencesService): ISessionSummaryHoverData['externalSession'] {
-	if (session.isExternal?.get() !== true) {
+function getApplication(session: ISession, openerService: IOpenerService): ISessionSummaryHoverData['application'] {
+	const application = session.application?.get();
+	if (!application || application.id === 'vscode' || application.id === UNKNOWN_SESSION_APPLICATION_ID) {
 		return undefined;
 	}
 
 	return {
+		label: application.label,
 		onOpen: () => {
-			preferencesService.openSettings({
-				jsonEditor: false,
-				query: `@id:${ChatConfiguration.ShowExternalAgentSessions}`,
-			}).catch(onUnexpectedError);
+			openerService.open(URI.from({ scheme: Schemas.command, path: SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID }), { allowCommands: true }).catch(onUnexpectedError);
 		},
 	};
+}
+
+/**
+ * The label of a chat's harness when it differs from its session's (with the generic
+ * fallback while unknown), or `undefined` for a chat on the session's harness.
+ */
+export function getDistinctChatHarnessLabel(session: ISession, chat: IChat, sessionsProvidersService: ISessionsProvidersService, reader: IReader | undefined): string | undefined {
+	const harness = getChatHarness(session, chat);
+	return harness === session.harness ? undefined : getHarnessPresentationOrDefault(sessionsProvidersService.getProvider(session.providerId), harness, reader).label;
 }
 
 function getProviderDetails(

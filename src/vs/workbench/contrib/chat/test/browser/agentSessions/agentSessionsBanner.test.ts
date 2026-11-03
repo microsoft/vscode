@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -14,10 +16,14 @@ import { IConfigurationChangeEvent } from '../../../../../../platform/configurat
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../../platform/window/common/window.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 import { canShowAgentsBanner, createAgentsBanner, IAgentsBannerOptions } from '../../../browser/agentSessions/agentSessionsBanner.js';
-import { ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
+import { AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
+import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
 suite('AgentsBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,7 +32,7 @@ suite('AgentsBanner', () => {
 	function createBanner(initialAccount: IDefaultAccount | null, options: { source?: IAgentsBannerOptions['source']; offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
 		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
 		const onDidChangeSentiment = store.add(new Emitter<void>());
-		const configurationService = options.configuration ?? new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: true });
+		const configurationService = options.configuration ?? new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
 		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
@@ -198,8 +204,8 @@ suite('AgentsBanner', () => {
 		}, { display: '', disabled: false });
 	});
 
-	test('signed-out users can sign in without opening the Agents window', async () => {
-		const banner = createBanner(null);
+	test('resolved signed-out users see the sign-in action by default without opening the Agents window', async () => {
+		const banner = createBanner(null, { configuration: new TestConfigurationService() });
 		await Promise.resolve();
 		banner.button.click();
 
@@ -288,27 +294,25 @@ suite('AgentsBanner', () => {
 		});
 	});
 
-	for (const enabled of [undefined, false]) {
-		test(`keeps the Agents window action when the setting is ${enabled}`, async () => {
-			const configuration = new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: enabled });
-			const banner = createBanner(null, { configuration });
-			await Promise.resolve();
-			banner.button.click();
+	test('keeps the Agents window action when the setting is false', async () => {
+		const configuration = new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: false });
+		const banner = createBanner(null, { configuration });
+		await Promise.resolve();
+		banner.button.click();
 
-			assert.deepStrictEqual(banner.state(), {
-				label: 'Try out the new Agents window',
-				title: 'Try out the new Agents window',
-				icon: 'codicon icon-widget codicon-agent',
-				iconHidden: 'true',
-				signInCalls: 0,
-				onButtonClickCalls: 1,
-				commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
-			});
+		assert.deepStrictEqual(banner.state(), {
+			label: 'Try out the new Agents window',
+			title: 'Try out the new Agents window',
+			icon: 'codicon icon-widget codicon-agent',
+			iconHidden: 'true',
+			signInCalls: 0,
+			onButtonClickCalls: 1,
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
-	}
+	});
 
 	test('updates the button and action when the experiment setting changes', async () => {
-		const banner = createBanner(null, { configuration: new TestConfigurationService() });
+		const banner = createBanner(null, { configuration: new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: false }) });
 		await banner.setSignInEnabled(true);
 		banner.button.click();
 		const enabled = banner.state();
@@ -388,5 +392,125 @@ suite('AgentsBanner', () => {
 		banner.button.click();
 
 		assert.deepStrictEqual(banner.state(), before);
+	});
+});
+
+suite('AgentsBanner graphic', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const graphicTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowGraphic}`;
+	const sectionStyleTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowSectionStyle}`;
+
+	/** Creates the banner with the graphic, like the Welcome page does. */
+	function createBannerWithGraphic(variant: string, telemetryService: TestExperimentTriggerTelemetryService, options: { agentEnabled?: boolean; exposed?: boolean } = {}) {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
+			[ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override sentiment = {};
+			override onDidChangeSentiment = Event.None;
+		}();
+		const hostService = new class extends mock<IHostService>() {
+			override async getWindows() { return [{ id: 1, title: '', dirty: false }]; }
+		}();
+		const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
+			override agentSessionsWorkspace = URI.file('/agent-sessions.code-workspace');
+		}();
+		const graphic = store.add(new AgentsWindowGraphic(configurationService, hostService, environmentService));
+		const exposed = observableValue('exposed', options.exposed ?? true);
+		const banner = createAgentsBanner(
+			{ cssClass: 'agents-banner', source: 'welcomePage', graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: exposed } },
+			new class extends mock<ICommandService>() { }(),
+			telemetryService,
+			configurationService,
+			chatEntitlementService,
+		);
+		store.add(banner.disposables);
+		const setConfiguration = async (key: string, value: string | boolean) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === key;
+				}
+			}());
+		};
+		return {
+			setVariant: (value: string) => setConfiguration(ChatConfiguration.WelcomePageAgentsWindowGraphic, value),
+			setAgentEnabled: (enabled: boolean) => setConfiguration(ChatConfiguration.AgentEnabled, enabled),
+			setExposed: (value: boolean) => exposed.set(value, undefined),
+			layout: () => ({
+				visible: banner.visible.get(),
+				display: banner.element.style.display,
+				children: [...banner.element.children].map(child => child.className),
+			}),
+		};
+	}
+
+	test('shows the graphic above the button and hides them together', async () => {
+		const banner = createBannerWithGraphic(AgentsWindowGraphicVariant.WindowComparison, new TestExperimentTriggerTelemetryService());
+		const states = [banner.layout()];
+		await banner.setAgentEnabled(false);
+		states.push(banner.layout());
+
+		const children = ['agents-window-graphic-container', 'agents-banner-button'];
+		assert.deepStrictEqual(states, [
+			{ visible: true, display: '', children },
+			{ visible: false, display: 'none', children },
+		]);
+	});
+
+	for (const variant of [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto]) {
+		test(`logs the experiment triggers once the banner is visible and exposed (${variant})`, async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const banner = createBannerWithGraphic(variant, telemetryService, { agentEnabled: false, exposed: false });
+			const triggers = async () => {
+				await timeout(0);
+				return [...telemetryService.triggers];
+			};
+			const steps = [await triggers()];
+			banner.setExposed(true);
+			steps.push(await triggers());
+			await banner.setAgentEnabled(true);
+			steps.push(await triggers());
+			banner.setExposed(false);
+			banner.setExposed(true);
+			createBannerWithGraphic(variant, telemetryService);
+			steps.push(await triggers());
+
+			// The section style only applies while a graphic is shown, so its trigger waits for one
+			const shown = variant === AgentsWindowGraphicVariant.None ? [graphicTreatment] : [graphicTreatment, sectionStyleTreatment];
+			assert.deepStrictEqual(steps, [[], [], shown, shown]);
+		});
+	}
+
+	test('logs the section style trigger when a graphic is shown later', async () => {
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const banner = createBannerWithGraphic(AgentsWindowGraphicVariant.None, telemetryService);
+		const steps = [[...telemetryService.triggers]];
+		await banner.setVariant(AgentsWindowGraphicVariant.WindowComparison);
+		steps.push([...telemetryService.triggers]);
+
+		assert.deepStrictEqual(steps, [[graphicTreatment], [graphicTreatment, sectionStyleTreatment]]);
+	});
+
+	test('does not log the experiment trigger without the graphic option', () => {
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const configurationService = new TestConfigurationService();
+		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
+		const banner = createAgentsBanner(
+			{ cssClass: 'agents-banner', source: 'agentSessionsWelcome' },
+			new class extends mock<ICommandService>() { }(),
+			telemetryService,
+			configurationService,
+			new class extends mock<IChatEntitlementService>() {
+				override sentiment = {};
+				override onDidChangeSentiment = Event.None;
+			}(),
+		);
+		store.add(banner.disposables);
+
+		assert.deepStrictEqual({ triggers: telemetryService.triggers, children: [...banner.element.children].map(child => child.className) }, { triggers: [], children: ['agents-banner-button'] });
 	});
 });

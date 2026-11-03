@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
@@ -50,8 +51,8 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 		try {
 			const token = CancellationToken.fromAbortSignal(signal, lifetime);
 			const resolved = authorization
-				? parseClientResponse(await this.channel.call('acquireClient', { clientId, authorization }, token), parseAuthorization)
-				: await this.channel.call<void>('acquireAnonymousClient', { clientId }, token);
+				? parseClientResponse(await raceCancellationError(this.channel.call('acquireClient', { clientId, authorization }, token), token), parseAuthorization)
+				: await raceCancellationError(this.channel.call<void>('acquireAnonymousClient', { clientId }, token), token);
 			signal.throwIfAborted();
 
 			const controller = new AbortController();
@@ -65,6 +66,7 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 			const client = resolved ? new AccountClient(resolved, {
 				rest: provider, graphql, rawContent,
 				missionControl: new RemoteApiRequestProvider(this.channel, clientId, 'missionControl', controller.signal),
+				connectors: new RemoteApiRequestProvider(this.channel, clientId, 'connectors', controller.signal),
 				onDidInvalidate: this.channel.listen('onDidInvalidate', { clientId }),
 				onDidChangeCredentials: this.channel.listen('onDidChangeCredentials', { clientId }),
 			}, lease) : new AnonymousClient(provider, rawContent, lease);

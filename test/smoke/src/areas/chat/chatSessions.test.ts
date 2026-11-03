@@ -88,11 +88,17 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 }
 
 async function openSession(app: Application, session: { readonly command: string; readonly kind: 'editor' | 'view' }): Promise<void> {
-	await app.workbench.quickaccess.runCommand(session.command);
 	if (session.kind === 'editor') {
+		await app.workbench.quickaccess.runCommand(session.command);
 		await app.workbench.chat.waitForChatEditor(600);
 	} else {
-		await app.workbench.chat.waitForChatView();
+		// The chat view may already be open, so wait for the command to bind a
+		// new session to it rather than just for the view to exist. Otherwise
+		// the prompt can be sent into the outgoing session, which the view then
+		// replaces with an empty one.
+		const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
+		await app.workbench.quickaccess.runCommand(session.command);
+		await app.workbench.chat.waitForChatViewSessionChange(previousSessionResource, 600);
 	}
 }
 
