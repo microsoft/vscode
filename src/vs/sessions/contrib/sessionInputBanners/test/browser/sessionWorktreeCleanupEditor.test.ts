@@ -689,13 +689,15 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(2_100);
-		assert.deepStrictEqual({ rows: [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
-			title: row.querySelector('.session-worktree-cleanup-session-link')?.textContent,
-			reason: rowStatus(row),
-			path: row.querySelector('.session-worktree-cleanup-reason')?.textContent,
-			storage: row.querySelector('.storage')?.textContent,
-			checkbox: row.querySelector('[role="checkbox"]'),
-		})) }, { rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: '/repos/app.worktrees/removed', storage: '0B', checkbox: null }] });
+		assert.deepStrictEqual({
+			rows: [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
+				title: row.querySelector('.session-worktree-cleanup-session-link')?.textContent,
+				reason: rowStatus(row),
+				path: row.querySelector('.session-worktree-cleanup-reason')?.textContent,
+				storage: row.querySelector('.storage')?.textContent,
+				checkbox: row.querySelector('[role="checkbox"]'),
+			}))
+		}, { rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: '/repos/app.worktrees/removed', storage: '0B', checkbox: null }] });
 	}));
 
 	test('live results preserve selection and show verified removals despite stale host errors without showing failures', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -58,7 +58,7 @@ type WorktreeColumn = 'selection' | 'title' | 'workspace' | 'lastUsed' | 'storag
 function getWorktreePath(worktree: ISessionWorktree): string {
 	return worktree.unlinkedWorktree ? URI.parse(worktree.unlinkedWorktree.worktree).path
 		: worktree.session.workspace.get()?.folders.flatMap(folder => folder.gitRepository?.workTreeUri?.path ?? []).join(', ')
-			|| localize('sessionWorktreeCleanup.pathUnavailable', "Checkout path unavailable");
+		|| localize('sessionWorktreeCleanup.pathUnavailable', "Checkout path unavailable");
 }
 
 function getPartialStorageLabel(worktrees: readonly ISessionWorktreeCleanupCandidate[]): string | undefined {
@@ -674,10 +674,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.getWorktreeStorageLabel(worktree, true),
 			this.getWorktreeCleanupLabel(worktree, this.isWorktreeCleaning(worktree)) ?? '',
 			this.isManuallySelectable(worktree)
-					? this.selectedSessionIds.has(getWorktreeCleanupId(worktree))
-						? localize('sessionWorktreeCleanup.selected', "Selected for cleanup.")
-						: localize('sessionWorktreeCleanup.notSelected', "Not selected for cleanup.")
-					: '',
+				? this.selectedSessionIds.has(getWorktreeCleanupId(worktree))
+					? localize('sessionWorktreeCleanup.selected', "Selected for cleanup.")
+					: localize('sessionWorktreeCleanup.notSelected', "Not selected for cleanup.")
+				: '',
 		);
 	}
 
@@ -1136,8 +1136,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			case 'inUse': return localize('sessionWorktreeCleanup.inUse', "Cleanup blocked: another session or chat uses this worktree.");
 			case 'skipped': return localize('sessionWorktreeCleanup.doneSkipped', "Cleanup deferred: the worktree could not be safely removed.");
 			case 'failed': return worktree.cleanupStatus.message
-					? localize('sessionWorktreeCleanup.failedRetryReason', "Cleanup failed; retry scheduled: {0}", worktree.cleanupStatus.message)
-					: localize('sessionWorktreeCleanup.failedRetry', "Cleanup failed; retry scheduled.");
+				? localize('sessionWorktreeCleanup.failedRetryReason', "Cleanup failed; retry scheduled: {0}", worktree.cleanupStatus.message)
+				: localize('sessionWorktreeCleanup.failedRetry', "Cleanup failed; retry scheduled.");
 			default: return worktree.worktreeExists === true
 				? localize('sessionWorktreeCleanup.existsRetry', "Worktree still exists. Select to retry cleanup.")
 				: localize('sessionWorktreeCleanup.unverifiedRetry', "Worktree removal has not been confirmed. Select to retry cleanup.");
