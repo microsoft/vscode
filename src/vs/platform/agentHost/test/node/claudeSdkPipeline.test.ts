@@ -227,6 +227,37 @@ function createPipeline(
 	return { pipeline, warm, controller };
 }
 
+async function createPipelineWithGatedShutdown(disposables: Pick<DisposableStore, 'add'>) {
+	const warm = new FakeWarmQuery();
+	const query: Query = new ImmediatelyDoneQuery();
+	const reading = new DeferredPromise<void>();
+	const ended = new DeferredPromise<IteratorResult<SDKMessage, void>>();
+	const shutdownStarted = new DeferredPromise<void>();
+	const releaseShutdown = new DeferredPromise<void>();
+	disposables.add(toDisposable(() => {
+		releaseShutdown.complete();
+		ended.complete({ done: true, value: undefined });
+	}));
+	sinon.stub(warm, 'query').returns(query);
+	sinon.stub(query, 'next').callsFake(() => {
+		reading.complete();
+		return ended.p;
+	});
+	sinon.stub(query, 'return').callsFake(async () => {
+		shutdownStarted.complete();
+		try {
+			await releaseShutdown.p;
+			return { done: true, value: undefined };
+		} finally {
+			ended.complete({ done: true, value: undefined });
+		}
+	});
+	const harness = createPipeline(disposables, warm);
+	const cancelledTurn = assert.rejects(harness.pipeline.send(makePrompt('paused'), 'turn-paused'), isCancellationError);
+	await reading.p;
+	return { ...harness, query, shutdownStarted, releaseShutdown, cancelledTurn };
+}
+
 function makePrompt(uuid: string, text: string = uuid): SDKUserMessage {
 	return {
 		type: 'user',
@@ -321,7 +352,12 @@ suite('ClaudeSdkPipeline', () => {
 		test('interrupts before closing and waits for exit before rebuilding, ignoring cancelled results', async () => {
 			const warm = new FakeWarmQuery();
 			const query = makeControllableQuery();
-			sinon.stub(warm, 'query').returns(query);
+			const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+			sinon.stub(warm, 'query').callsFake(prompt => {
+				assert.ok(typeof prompt !== 'string');
+				prompts.complete(prompt[Symbol.asyncIterator]());
+				return query;
+			});
 			const reading = new DeferredPromise<void>();
 			const message = new DeferredPromise<IteratorResult<SDKMessage, void>>();
 			const consumed = new DeferredPromise<void>();
@@ -344,6 +380,9 @@ suite('ClaudeSdkPipeline', () => {
 			disposables.add(pipeline.onDidProduceSignal(signal => signals.push(signal.kind)));
 			const cancelled = assert.rejects(pipeline.send(makePrompt('paused'), 'paused'), isCancellationError);
 			await reading.p;
+			const promptIterator = await prompts.p;
+			await promptIterator.next();
+			const waitingPrompt = DeferredPromise.fromPromise(promptIterator.next());
 
 			const abort = pipeline.abort();
 			assert.strictEqual(pipeline.abort(), abort, 'concurrent cancellation shares the same shutdown');
@@ -362,10 +401,11 @@ suite('ClaudeSdkPipeline', () => {
 				interrupts: interrupt.callCount,
 				aborted: pipeline.isAborted,
 				transportClosed: controller.signal.aborted,
+				promptStreamClosed: waitingPrompt.isSettled,
 				disposals: warm.asyncDisposeCount,
 				rebuilt,
 				signals,
-			}, { interrupts: 1, aborted: true, transportClosed: false, disposals: 0, rebuilt: false, signals: [] });
+			}, { interrupts: 1, aborted: true, transportClosed: false, promptStreamClosed: false, disposals: 0, rebuilt: false, signals: [] });
 
 			interrupted.complete(undefined);
 			await returning.p;
@@ -376,7 +416,7 @@ suite('ClaudeSdkPipeline', () => {
 			}, { transportClosed: true, disposals: 1, rebuilt: false });
 			exited.complete();
 			await Promise.all([abort, recovery, cancelled]);
-			assert.strictEqual(rebuilt, true);
+			assert.deepStrictEqual({ rebuilt, waitingPrompt: await waitingPrompt.p }, { rebuilt: true, waitingPrompt: { done: true, value: undefined } });
 		});
 
 		test('interrupt failure is surfaced after closing the transport and cancelling the send', async () => {
@@ -398,6 +438,95 @@ suite('ClaudeSdkPipeline', () => {
 				disposals: warm.asyncDisposeCount,
 				activeTurn: pipeline.hasActiveTurn,
 			}, { transportClosed: true, disposals: 1, activeTurn: false });
+		});
+
+		test('replacement waiting for previous shutdown can be cancelled before recovery starts', async () => {
+			const { pipeline, shutdownStarted, releaseShutdown, cancelledTurn } = await createPipelineWithGatedShutdown(disposables);
+			const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+			const rematerializer: IRematerializer = { async rematerialize() { return fresh; } };
+			const rebuild = sinon.spy(rematerializer, 'rematerialize');
+			pipeline.attachRematerializer(rematerializer);
+			const abort = pipeline.abort();
+			await shutdownStarted.p;
+			const replacement = assert.rejects(pipeline.send(makePrompt('replacement'), 'turn-replacement'), isCancellationError);
+			const cancelReplacement = pipeline.abort();
+			releaseShutdown.complete();
+			await Promises.settled([abort, cancelReplacement, cancelledTurn, replacement]);
+
+			assert.deepStrictEqual({
+				rebuilds: rebuild.callCount,
+				freshQueries: fresh.warm.queryCallCount,
+				aborted: pipeline.isAborted,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { rebuilds: 0, freshQueries: 0, aborted: true, activeTurn: false });
+		});
+
+		test('replacement waiting for previous shutdown recovers after an interrupt failure', async () => {
+			const { pipeline, query, shutdownStarted, releaseShutdown, cancelledTurn } = await createPipelineWithGatedShutdown(disposables);
+			const failure = new Error('interrupt failed');
+			sinon.stub(query, 'interrupt').rejects(failure);
+			const freshWarm = new FakeWarmQuery();
+			const freshQuery: Query = new ImmediatelyDoneQuery();
+			const messages = new AsyncIterableSource<SDKMessage>();
+			disposables.add(toDisposable(() => messages.resolve()));
+			const iterator = messages.asyncIterable[Symbol.asyncIterator]();
+			const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+			sinon.stub(freshQuery, 'next').callsFake(() => iterator.next());
+			sinon.stub(freshWarm, 'query').callsFake(prompt => {
+				assert.ok(typeof prompt !== 'string');
+				prompts.complete(prompt[Symbol.asyncIterator]());
+				return freshQuery;
+			});
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					return { warm: freshWarm, abortController: new AbortController() };
+				},
+			});
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(signal => signals.push(signal)));
+			const aborted = assert.rejects(pipeline.abort(), error => error === failure);
+			await shutdownStarted.p;
+			const replacement = pipeline.send(makePrompt('replacement'), 'turn-replacement');
+			const nextPrompt = (async () => (await prompts.p).next())();
+			releaseShutdown.complete();
+			try {
+				const submitted = await Promise.race([nextPrompt, replacement]);
+				assert.ok(submitted && !submitted.done);
+				messages.emitMany(makeTextResponseMessages('sess-1', 'replacement response'));
+				await replacement;
+				assert.deepStrictEqual({
+					prompt: submitted.value.message.content,
+					responses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatDelta
+						? [{ turnId: signal.action.turnId, content: signal.action.content }] : []),
+					completed: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []),
+				}, {
+					prompt: 'replacement',
+					responses: [{ turnId: 'turn-replacement', content: 'replacement response' }],
+					completed: ['turn-replacement'],
+				});
+			} finally {
+				messages.resolve();
+				await Promises.settled([aborted, cancelledTurn, replacement]);
+			}
+		});
+
+		test('replacement waiting for previous shutdown still fails when shutdown fails', async () => {
+			const { pipeline, shutdownStarted, releaseShutdown, cancelledTurn } = await createPipelineWithGatedShutdown(disposables);
+			const failure = new Error('shutdown failed');
+			const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+			const rematerializer: IRematerializer = { async rematerialize() { return fresh; } };
+			const rebuild = sinon.spy(rematerializer, 'rematerialize');
+			pipeline.attachRematerializer(rematerializer);
+			const aborted = assert.rejects(pipeline.abort(), error => error === failure);
+			await shutdownStarted.p;
+			const replacement = assert.rejects(pipeline.send(makePrompt('replacement'), 'turn-replacement'), error => error === failure);
+			releaseShutdown.error(failure);
+			await Promises.settled([aborted, cancelledTurn, replacement]);
+			assert.deepStrictEqual({
+				rebuilds: rebuild.callCount,
+				freshQueries: fresh.warm.queryCallCount,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { rebuilds: 0, freshQueries: 0, activeTurn: false });
 		});
 
 		for (const first of ['rebuild', 'interrupt'] as const) {

@@ -30,6 +30,10 @@ export interface IRematerializer {
 	rematerialize(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
 }
 
+interface IInterruptFailure {
+	readonly error: unknown;
+}
+
 /**
  * Owns one SDK Query lifecycle for a Claude session. Knows nothing about
  * protocol turns, the workbench mapper, file-edit observers, or
@@ -281,9 +285,14 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	get isResumed(): boolean { return this._isResumed; }
 
-	private _abortPromise: Promise<void> | undefined;
+	/** Keeps shutdown completion separate from the interruption error reported to the abort caller. */
+	private _abortOperation: {
+		readonly controller: AbortController;
+		readonly shutdown: Promise<IInterruptFailure | undefined>;
+		readonly result: Promise<void>;
+	} | undefined;
 
-	get isAborted(): boolean { return !!this._abortPromise || this._abortController.signal.aborted; }
+	get isAborted(): boolean { return !!this._abortOperation || this._abortController.signal.aborted; }
 
 	/**
 	 * Whether a turn is currently in flight or queued. False between turns (the
@@ -477,8 +486,13 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/** Interrupts the turn before closing its transport, then drains shutdown before recovery. */
 	abort(): Promise<void> {
-		if (this._abortPromise) {
-			return this._abortPromise;
+		const pendingAbort = this._abortOperation;
+		if (pendingAbort) {
+			if (this._abortController !== pendingAbort.controller) {
+				this._abortController.abort();
+				this._queue.failAll(new CancellationError());
+			}
+			return pendingAbort.result;
 		}
 		if (this._abortController.signal.aborted) {
 			return Promise.resolve();
@@ -489,20 +503,31 @@ export class ClaudeSdkPipeline extends Disposable {
 			this._queue.failAll(new CancellationError());
 			return Promise.resolve();
 		}
-		this._abortPromise = this._interruptAndAbort(this._query, this._warm, this._abortController)
-			.finally(() => { this._abortPromise = undefined; });
-		return this._abortPromise;
+		const controller = this._abortController;
+		const shutdown = this._interruptAndAbort(this._query, this._warm, controller)
+			.finally(() => { this._abortOperation = undefined; });
+		const result = (async () => {
+			const failure = await shutdown;
+			if (failure) {
+				throw failure.error;
+			}
+		})();
+		this._abortOperation = { controller, shutdown, result };
+		return result;
 	}
 
-	private async _interruptAndAbort(query: Query, warm: WarmQuery, controller: AbortController): Promise<void> {
+	private async _interruptAndAbort(query: Query, warm: WarmQuery, controller: AbortController): Promise<IInterruptFailure | undefined> {
+		let failure: IInterruptFailure | undefined;
 		try {
 			await query.interrupt();
-		} finally {
-			controller.abort();
-			this._queue.failAll(new CancellationError());
-			await warm[Symbol.asyncDispose]();
-			await query.return(undefined);
+		} catch (error) {
+			failure = { error };
 		}
+		controller.abort();
+		this._queue.failAll(new CancellationError());
+		await warm[Symbol.asyncDispose]();
+		await query.return(undefined);
+		return failure;
 	}
 
 	/**
@@ -588,9 +613,6 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * effort / permission mode to the fresh Query.
 	 */
 	private async _rebindQuery(reason: 'restart' | 'recover'): Promise<void> {
-		if (this._abortPromise) {
-			await this._abortPromise;
-		}
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -598,12 +620,16 @@ export class ClaudeSdkPipeline extends Disposable {
 			throw new Error(`ClaudeSdkPipeline.rebind: no rematerializer attached (reason=${reason})`);
 		}
 		const oldWarm = this._warm;
-		// Install a placeholder controller BEFORE awaiting the
-		// rematerializer so a concurrent {@link abort} has a live target
-		// instead of returning early as idempotent against the already-
-		// aborted old controller.
 		const placeholder = new AbortController();
-		this._bindAbortController(placeholder);
+		// Accept recovery cancellation without closing the old prompt stream before interruption.
+		this._abortController = placeholder;
+		if (this._abortOperation) {
+			await this._abortOperation.shutdown;
+		}
+		if (this._store.isDisposed || placeholder.signal.aborted) {
+			throw new CancellationError();
+		}
+		this._queue.bindAbortSignal(placeholder.signal);
 		const built = await this._rematerializer.rematerialize(reason);
 		// Dispose may have run while we were awaiting the rematerializer.
 		// The dispose chain has already torn down the OLD warm/controller;
@@ -616,7 +642,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			throw new CancellationError();
 		}
 		// Cancellation starts before the old query acknowledges interruption and aborts the placeholder.
-		const pendingAbort = this._abortPromise;
+		const pendingAbort = this._abortOperation;
 		if (placeholder.signal.aborted || pendingAbort) {
 			built.abortController.abort();
 			void Promise.resolve(built.warm[Symbol.asyncDispose]()).catch((err: unknown) =>
