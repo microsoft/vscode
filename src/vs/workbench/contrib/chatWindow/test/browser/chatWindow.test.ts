@@ -48,6 +48,12 @@ suite('Chat window', () => {
 			this.testEditors = this.testEditors.filter(candidate => candidate !== editor);
 			this.onCloseEditor.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 		}
+		override moveEditor(editor: EditorInput, target: IEditorGroup): boolean {
+			this._events.push(`move to ${(target as TestGroup)._name}`);
+			(target as TestGroup).open(editor);
+			this.fireCloseEditor(editor, EditorCloseContext.MOVE);
+			return true;
+		}
 	}
 
 	function createPart(events: string[], name: string, options?: { veto?: boolean }) {
@@ -187,6 +193,22 @@ suite('Chat window', () => {
 			inputOnly: true,
 			terminalPosition: ChatWindowTerminalPosition.FullWidth,
 			events: ['reset layout', 'reset layout'],
+		});
+	});
+
+	test('a layout command moves the chat\'s editor back into the chat part first, such as after it was dropped into the main part, so that the chat never hides with the part it is in', () => {
+		const { window, state, main, chat, chatInput, events } = createWindow();
+		state.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+		// The chat dropped onto the middle of the main part: it moves into the main part's group.
+		main.group.open(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+		const merged = { inChat: chat.group.contains(chatInput), inMain: main.group.contains(chatInput), mode: window.layoutMode.get() };
+		window.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+
+		assert.deepStrictEqual({ merged, afterChatOnly: { inChat: chat.group.contains(chatInput), inMain: main.group.contains(chatInput), mode: window.layoutMode.get() }, events }, {
+			merged: { inChat: false, inMain: true, mode: ChatWindowLayoutMode.SideBySide },
+			afterChatOnly: { inChat: true, inMain: false, mode: ChatWindowLayoutMode.ChatOnly },
+			events: ['move to chat'],
 		});
 	});
 

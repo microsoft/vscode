@@ -107,7 +107,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		super();
 
 		this._register(trackMainPartEditors(mainPart, {
-			onDidOpenEditor: () => this.showEditor(),
+			onDidOpenEditor: () => this._showMainPart(),
 			onDidCloseLastEditor: () => this.state.showChatOnly(),
 			isClosing: () => this._closing || this._host.isUnloading(),
 		}));
@@ -166,33 +166,57 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	}
 
 	setLayoutMode(mode: ChatWindowLayoutMode): void {
+		this._returnChat();
 		this.state.setLayoutMode(mode);
 	}
 
 	setSplitLayout(splitLayout: ChatWindowSplitLayout): void {
+		this._returnChat();
 		this.state.setSplitLayout(splitLayout);
 	}
 
 	showChatOnly(): void {
+		this._returnChat();
 		this.state.showChatOnly();
 	}
 
 	toggleConversation(): void {
+		this._returnChat();
 		if (this.state.layoutMode.get() === ChatWindowLayoutMode.Stacked) {
 			this.state.setInputOnly(!this.state.inputOnly.get());
 		}
 	}
 
 	resetLayout(): void {
+		this._returnChat();
 		this._host.resetLayout();
 		this.state.reset();
 		showChatInsteadOfEmptyMainPart(this.mainPart, this, true);
 	}
 
 	showEditor(): void {
+		this._returnChat();
+		this._showMainPart();
+	}
+
+	/** Shows the main part beside the chat, as the window shows it once an editor opens in it. */
+	private _showMainPart(): void {
 		if (this.state.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
 			this.state.showBoth();
 		}
+	}
+
+	/**
+	 * Moves the chat's editor back into the chat part, before the window shows as a layout says: a layout shows the
+	 * window's parts as the chat part showing the chat, so that the chat never hides with the part it was dropped into.
+	 */
+	private _returnChat(): void {
+		const input = this.content.input;
+		if (this.chatPart.groups.some(group => group.contains(input))) {
+			return;
+		}
+		const group = this.mainPart.groups.find(candidate => candidate.contains(input));
+		group?.moveEditor(input, this.chatPart.activeGroup, { preserveFocus: true });
 	}
 
 	/** Focuses the chat while it shows, else the main part, so that focusing a window that shows only its main part keeps it so. */
