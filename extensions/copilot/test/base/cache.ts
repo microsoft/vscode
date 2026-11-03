@@ -236,34 +236,6 @@ export class Cache extends EventEmitter {
 		return false;
 	}
 
-	async checkDatabase(): Promise<Map<string, string[]>> {
-		const keys = new Map<string, string>();
-		const result = new Map<string, string[]>();
-
-		const checkDatabase = async (name: string, database: SqliteKeyValueStore) => {
-			for (const key of database.keys()) {
-				if (result.has(key)) {
-					result.get(key)!.push(name);
-				} else if (keys.has(key)) {
-					result.set(key, [keys.get(key)!, name]);
-					keys.delete(key);
-				} else {
-					keys.set(key, name);
-				}
-			}
-		};
-
-		// Base database
-		await checkDatabase('base', this.base);
-
-		// Layer databases
-		for (const [uuid, database] of this.layers.entries()) {
-			await checkDatabase(uuid, database);
-		}
-
-		return result;
-	}
-
 	async gcStart(): Promise<void> {
 		if (this.gcBase || this.gcBaseKeys) {
 			throw new Error('GC is currently in progress');

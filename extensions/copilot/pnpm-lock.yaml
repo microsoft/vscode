@@ -82,9 +82,6 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: ^2.5.1
         version: 2.8.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/semantic-conventions':
-        specifier: ^1.39.0
-        version: 1.39.0
       '@sinclair/typebox':
         specifier: ^0.34.41
         version: 0.34.41
@@ -155,12 +152,6 @@ importers:
       '@azure/keyvault-secrets':
         specifier: ^4.10.0
         version: 4.10.0
-      '@azure/msal-node':
-        specifier: ^3.6.3
-        version: 3.8.10
-      '@c4312/scip':
-        specifier: ^0.1.0
-        version: 0.1.0
       '@fluentui/react-components':
         specifier: ^9.66.6
         version: 9.66.6(@types/react-dom@18.2.17)(@types/react@17.0.44)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
@@ -173,21 +164,12 @@ importers:
       '@octokit/types':
         specifier: ^14.1.0
         version: 14.1.0
-      '@stylistic/eslint-plugin':
-        specifier: ^3.0.1
-        version: 3.1.0(@typescript/typescript6@6.0.2)
       '@types/eslint':
         specifier: ^9.0.0
         version: 9.6.1
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
-      '@types/google-protobuf':
-        specifier: ^3.15.12
-        version: 3.15.12
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
       '@types/markdown-it':
         specifier: ^14.0.0
         version: 14.1.2
@@ -218,9 +200,6 @@ importers:
       '@types/tar':
         specifier: ^6.1.13
         version: 6.1.13
-      '@types/vinyl':
-        specifier: ^2.0.12
-        version: 2.0.12
       '@types/vscode-webview':
         specifier: ^1.57.5
         version: 1.57.5
@@ -230,36 +209,15 @@ importers:
       '@types/yargs':
         specifier: ^17.0.24
         version: 17.0.33
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^8.35.0
-        version: 8.36.0(@typescript-eslint/parser@8.36.0(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)
-      '@typescript-eslint/parser':
-        specifier: ^8.32.0
-        version: 8.36.0(@typescript/typescript6@6.0.2)
       '@typescript-eslint/typescript-estree':
         specifier: ^8.26.1
         version: 8.36.0(@typescript/typescript6@6.0.2)
       '@typescript/native':
         specifier: npm:typescript@7.1.0-dev.20261027.1
         version: typescript@7.1.0-dev.20261027.1
-      '@vitest/coverage-v8':
-        specifier: ^4.1.8
-        version: 4.1.11(vitest@4.1.11)
       '@vitest/snapshot':
         specifier: ^1.5.0
         version: 1.6.1
-      '@vscode/debugadapter':
-        specifier: ^1.68.0
-        version: 1.68.0
-      '@vscode/debugprotocol':
-        specifier: ^1.68.0
-        version: 1.68.0
-      '@vscode/dts':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@vscode/lsif-language-service':
-        specifier: ^0.1.0-pre.4
-        version: 0.1.0-pre.4
       '@vscode/test-cli':
         specifier: ^0.0.11
         version: 0.0.11
@@ -275,9 +233,6 @@ importers:
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
-      copyfiles:
-        specifier: ^2.4.1
-        version: 2.4.1
       csv-parse:
         specifier: ^6.0.0
         version: 6.2.1
@@ -290,15 +245,9 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
-      fastq:
-        specifier: ^1.19.1
-        version: 1.19.1
       glob:
         specifier: ^11.1.0
         version: 11.1.0
-      js-yaml:
-        specifier: ^4.3.0
-        version: 4.3.2
       minimist:
         specifier: ^1.2.8
         version: 1.2.8
@@ -335,9 +284,6 @@ importers:
       picomatch:
         specifier: ^4.0.4
         version: 4.0.4
-      playwright:
-        specifier: ^1.61.1
-        version: 1.61.1
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -347,9 +293,6 @@ importers:
       react-dom:
         specifier: 17.0.2
         version: 17.0.2(react@17.0.2)
-      rimraf:
-        specifier: ^6.0.1
-        version: 6.0.1
       run-script-os:
         specifier: ^1.1.6
         version: 1.1.6
