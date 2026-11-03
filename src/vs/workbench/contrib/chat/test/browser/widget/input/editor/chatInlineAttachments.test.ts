@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
@@ -26,6 +27,9 @@ import { IFileService, IFileSystemWatcher } from '../../../../../../../../platfo
 import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
+import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { AccessibleViewType } from '../../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
@@ -60,7 +64,7 @@ suite('ChatInlineAttachments', () => {
 	 * whose chat widget does not own the input, such as the Automation dialog's,
 	 * does not.
 	 */
-	function createInput(text: string, showsPills = true): ITestInput {
+	function createInput(text: string, showsPills = true, hoverContent?: HTMLElement, hoverService: IHoverService = NullHoverService): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
@@ -72,9 +76,19 @@ suite('ChatInlineAttachments', () => {
 		});
 		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { });
 		instantiationService.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { });
+		instantiationService.stub(IHoverService, hoverService);
 
 		const model = disposables.add(instantiateTextModel(instantiationService, text));
 		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+		if (hoverService !== NullHoverService) {
+			const sandbox = sinon.createSandbox();
+			disposables.add(toDisposable(() => sandbox.restore()));
+			const host = dom.$('div', { tabIndex: 0 });
+			sandbox.stub(editor, 'getContainerDomNode').returns(host);
+			sandbox.stub(editor, 'focus').callsFake(() => host.focus());
+			sandbox.stub(editor, 'hasTextFocus').callsFake(() => dom.getActiveElement() === host);
+			sandbox.stub(editor, 'hasWidgetFocus').callsFake(() => dom.isAncestorOfActiveElement(host));
+		}
 		const attachments = disposables.add(instantiationService.createInstance(ChatAttachmentModel));
 		const onDidChangeParsedInput = disposables.add(new Emitter<void>());
 		const onDidChangeReferences = disposables.add(new Emitter<void>());
@@ -100,7 +114,14 @@ suite('ChatInlineAttachments', () => {
 			widget: showsPills ? widget : undefined,
 			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement) => {
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
-				return { element, onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => element.remove() };
+				return {
+					element, onDidDelete: Event.None, onDidOpen: Event.None,
+					getPreviewHoverContent: () => hoverContent ? {
+						element: hoverContent,
+						get tabbableElements() { return [...hoverContent.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]; },
+					} : undefined,
+					dispose: () => element.remove(),
+				};
 			},
 			removeAttachments: (removed: readonly IChatRequestVariableEntry[]) => attachments.delete(...removed.map(attachment => attachment.id)),
 		}));
@@ -118,6 +139,127 @@ suite('ChatInlineAttachments', () => {
 			}),
 		};
 	}
+
+	test('opens the active pill preview and transfers Tab into its links without editing the draft', async () => {
+		const preview = dom.$('div');
+		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+		let shown = 0;
+		let disposed = 0;
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			showInstantHover: options => {
+				shown++;
+				assert.strictEqual(options.content, preview);
+				dom.getActiveDocument().body.appendChild(preview);
+				let isDisposed = false;
+				return {
+					get isDisposed() { return isDisposed; },
+					dispose: () => {
+						if (!isDisposed) {
+							isDisposed = true;
+							disposed++;
+							preview.remove();
+						}
+					},
+				};
+			},
+		};
+		const input = createInput('review ', true, preview, hoverService);
+		const host = input.editor.getContainerDomNode();
+		dom.getActiveDocument().body.appendChild(host);
+		store.add(toDisposable(() => host.remove()));
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		assert.strictEqual(shown, 0, 'Adding an attachment must not open the preview');
+
+		input.editor.setPosition(new Position(1, 8), 'keyboard');
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		const before = input.state();
+		const press = (key: string, shiftKey = false) => {
+			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+			dom.getActiveElement()!.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const opened = shown;
+		const tabConsumed = press('Tab');
+		const linkFocused = dom.getActiveElement() === link;
+		const provider = store.add(input.controller.getAccessiblePreviewProvider(AccessibleViewType.View)!);
+		assert.strictEqual(ChatInlineAttachments.getPreviewOwner(link), input.controller);
+		assert.ok(provider.provideContent().includes('Repository'));
+		const observation = provider.onOpen?.();
+		if (observation) {
+			store.add(observation);
+		}
+		const accessibleHost = dom.append(dom.getActiveDocument().body, dom.$('div', { tabIndex: 0 }));
+		store.add(toDisposable(() => accessibleHost.remove()));
+		accessibleHost.focus();
+		accessibleHost.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		assert.strictEqual(disposed, 0, 'Accessible View must not dispose the preview it reads');
+		provider.onClose();
+		assert.strictEqual(dom.getActiveElement(), link, 'Closing Accessible View restores its invoking link');
+		provider.dispose();
+		const backTabConsumed = press('Tab', true);
+		const inputFocused = input.editor.hasTextFocus();
+		press('Escape');
+		const escaped = disposed;
+		input.controller.refresh();
+		await settle();
+		assert.strictEqual(shown, 1, 'Rerender must not reopen an Escape-dismissed preview');
+		input.editor.setPosition(new Position(1, 8), 'keyboard');
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		input.controller.refresh();
+		await settle();
+		assert.strictEqual(shown, 3, 'Rerender must reopen a previously visible preview');
+		input.editor.setPosition(new Position(1, 10), 'keyboard');
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		const outside = dom.append(dom.getActiveDocument().body, dom.$('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		assert.strictEqual(dom.getActiveElement(), outside);
+		outside.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		const closedOnBlur = disposed;
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8), 'keyboard');
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		input.editor.setSelection(new Selection(1, 8, 1, 9), 'keyboard');
+
+		assert.deepStrictEqual({
+			opened, tabConsumed, linkFocused, backTabConsumed, inputFocused, escaped,
+			closedOnBlur, shown, disposed, unchanged: input.state(),
+		}, {
+			opened: 1, tabConsumed: true, linkFocused: true, backTabConsumed: true, inputFocused: true, escaped: 1,
+			closedOnBlur: 4, shown: 5, disposed: 5, unchanged: before,
+		});
+	});
+
+	test('Tab during loading focuses the preview and leaves late-arriving links reachable', async () => {
+		const preview = dom.$('div');
+		const input = createInput('review ', true, preview, {
+			...NullHoverService,
+			showInstantHover: () => {
+				dom.getActiveDocument().body.appendChild(preview);
+				return { isDisposed: false, dispose: () => preview.remove() };
+			},
+		});
+		const host = input.editor.getContainerDomNode();
+		dom.getActiveDocument().body.appendChild(host);
+		store.add(toDisposable(() => host.remove()));
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		input.editor.setPosition(new Position(1, 8), 'keyboard');
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+		dom.getActiveElement()!.dispatchEvent(event);
+		assert.deepStrictEqual({ focused: dom.getActiveElement() === preview, consumed: event.defaultPrevented }, { focused: true, consumed: true });
+		dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+		input.attachments.delete('file:a.ts');
+		await settle();
+		assert.strictEqual(preview.isConnected, false);
+	});
 
 	function file(name: string): IChatRequestVariableEntry {
 		return { kind: 'file', id: `file:${name}`, name, value: URI.file(`/${name}`) };

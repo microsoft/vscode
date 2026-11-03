@@ -91,6 +91,27 @@ suite('HoverService', () => {
 
 	// #region Helper functions
 
+	test('interactive previews have a named dialog while ordinary hovers remain tooltips', () => {
+		const ordinary = showHover('Plain tooltip');
+		const ordinaryRole = asHoverWidget(ordinary).domNode.getAttribute('role');
+		ordinary.dispose();
+		const interactive = showHover('Preview', undefined, {
+			accessibility: { role: 'dialog', label: 'Reference preview' },
+			trapFocus: true,
+		});
+		assert.deepStrictEqual({
+			ordinaryRole,
+			role: asHoverWidget(interactive).domNode.getAttribute('role'),
+			label: asHoverWidget(interactive).domNode.getAttribute('aria-label'),
+			modal: asHoverWidget(interactive).domNode.hasAttribute('aria-modal'),
+		}, { ordinaryRole: 'tooltip', role: 'dialog', label: 'Reference preview', modal: false });
+		interactive.setVisible?.(false);
+		assert.strictEqual(asHoverWidget(interactive).domNode.parentElement?.style.visibility, 'hidden');
+		interactive.setVisible?.(true);
+		assert.strictEqual(asHoverWidget(interactive).domNode.parentElement?.style.visibility, '');
+		interactive.dispose();
+	});
+
 	function createTarget(): HTMLElement {
 		const target = document.createElement('div');
 		target.style.width = '100px';

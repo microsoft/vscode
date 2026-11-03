@@ -80,6 +80,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
+	setVisible(visible: boolean): void {
+		this._hoverContainer.style.visibility = visible ? '' : 'hidden';
+		this._hoverContainer.setAttribute('aria-hidden', String(!visible));
+	}
+
 	private readonly _onDispose = this._register(new Emitter<void>());
 	get onDispose(): Event<void> { return this._onDispose.event; }
 	private readonly _onRequestLayout = this._register(new Emitter<void>());
@@ -145,6 +150,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
+		if (options.accessibility) {
+			this._hover.containerDomNode.setAttribute('role', options.accessibility.role);
+			this._hover.containerDomNode.setAttribute('aria-label', options.accessibility.label);
+		}
 		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');

@@ -20,6 +20,10 @@ import { isImageVariableEntry, type IImageVariableEntry } from '../../../../comm
 import { coerceImageBuffer } from '../../../../common/chatImageExtraction.js';
 import { createChatImageHoverContent } from '../../../../../../browser/chatImagePreview.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { getActiveElement, isHTMLElement } from '../../../../../../../base/browser/dom.js';
+import { ChatInlineAttachments } from './chatInlineAttachments.js';
+import { AccessibleViewRegistry } from '../../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibleViewType } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 
 export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAgentHoverPart> {
 
@@ -176,3 +180,15 @@ export class ChatAttachmentReferenceHoverPart implements IHoverPart {
 }
 
 HoverParticipantRegistry.register(ChatAttachmentReferenceHoverParticipant);
+
+for (const type of [AccessibleViewType.View, AccessibleViewType.Help]) {
+	AccessibleViewRegistry.register({
+		type,
+		name: 'chat-reference-preview',
+		priority: 125,
+		getProvider: () => {
+			const active = getActiveElement();
+			return ChatInlineAttachments.getPreviewOwner(isHTMLElement(active) ? active : undefined)?.getAccessiblePreviewProvider(type);
+		},
+	});
+}

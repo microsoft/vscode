@@ -89,6 +89,11 @@ import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 import { createChatImageCopyActions } from '../chatImageActions.js';
 import { createChatImageHoverContent } from '../../../../browser/chatImagePreview.js';
 import { ChatImageReveal, IChatImageRevealOrigin } from './chatImageReveal.js';
+import { GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX } from '../../common/attachments/chatInlineAttachments.js';
+import { GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../../github/browser/githubResourceDetails.js';
+import { IChatPillHoverContent } from '../../../../browser/chatPillHover.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -955,6 +960,9 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private _hoverContent: (() => IChatPillHoverContent) | undefined;
+	private readonly _onDidChangePreview = this._register(new event.Emitter<void>());
+	readonly onDidChangePreview = this._onDidChangePreview.event;
 
 	constructor(
 		resource: URI | undefined,
@@ -974,6 +982,8 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -1033,9 +1043,61 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._setupTooltipHover(attachment.tooltip);
 		}
 
+		if (attachment.kind === 'generic' && attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
+			const link = URI.parse(attachment.id.substring(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length));
+			const issue = parseGitHubReferenceTarget(link, 'issue');
+			const target = issue ?? parseGitHubReferenceTarget(link, 'pullRequest');
+			if (target) {
+				const resolver = this._register(this.instantiationService.createInstance(GitHubResourceDetailsResolver));
+				const repository = URI.parse(`https://github.com/${target.owner}/${target.repo}`);
+				const open = (uri: URI) => { void this.openerService.open(uri, { openExternal: true }); };
+				const createHover = () => resolver.createHover(attachment, {
+					kind: issue ? 'issue' : 'pullRequest',
+					target,
+					resource: link,
+					onDidClickRepository: () => open(repository),
+					onDidClickReference: () => open(link),
+					onDidClickBaseBranch: branch => { void this.clipboardService.writeText(branch); },
+					onDidClickHeadBranch: branch => { void this.clipboardService.writeText(branch); },
+				});
+				let currentContent: IChatPillHoverContent | undefined;
+				this._hoverContent = () => {
+					const hover = createHover();
+					const content = hover.hover.content;
+					if (typeof content !== 'function') {
+						throw new Error('Expected GitHub reference hover content');
+					}
+					currentContent = {
+						element: content(),
+						get tabbableElements() { return hover.hover.getTabbableElements?.() ?? []; },
+					};
+					return currentContent;
+				};
+				this._register(this.gitHubService.onDidChangeDefaultClient(() => {
+					this._onDidChangePreview.fire();
+					if (currentContent && dom.isAncestorOfActiveElement(currentContent.element)) {
+						this.element.focus();
+					}
+					currentContent?.element.replaceChildren(dom.$('span', undefined, localize('chat.attachment.previewAccountChanged', "Reference details changed. Reopen the preview to refresh.")));
+					currentContent = undefined;
+				}));
+				const getHoverContent = this._hoverContent;
+				this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, () => ({
+					...commonHoverOptions,
+					accessibility: { role: 'dialog', label: localize('chat.attachment.referencePreview', "Reference preview") },
+					content: getHoverContent().element,
+					persistence: { hideOnHover: false },
+				}), commonHoverLifecycleOptions);
+			}
+		}
+
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
+	}
+
+	getPreviewHoverContent(): IChatPillHoverContent | undefined {
+		return this._hoverContent?.();
 	}
 
 	private _applyLabel(attachment: IChatRequestVariableEntry, attachmentLabel: string, description: string | undefined, iconPath: ChatContextIconPath | undefined): void {
