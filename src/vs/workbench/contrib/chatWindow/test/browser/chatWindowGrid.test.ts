@@ -211,6 +211,28 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
+		const { mode, position, grid, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 500, height: 200 });
+		const read = () => ({
+			topology: grid.partGrid!.describe(),
+			visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals].filter(cell => grid.partGrid!.isCellVisible(cell)),
+			terminalsVisible: grid.terminalsVisible.get(),
+		});
+
+		// What Close Editor Area of an empty main part does.
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		const editorAreaClosed = { ...read(), height: height(), acrossTheWindow: grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).width === grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width };
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ editorAreaClosed, editorShownAgain: read() }, {
+			editorAreaClosed: { topology: 'column(titleRow, row(chat, main), terminals)', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200, acrossTheWindow: true },
+			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals)))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true },
+		});
+	});
+
 	test('the terminal position moves the terminals\' part in the grid, which keeps its height, and the arrangement it moves to is the one a new grid shows', () => {
 		const { position, grid, open, height } = setupWithTerminals();
 		open();
