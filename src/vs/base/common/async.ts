@@ -322,7 +322,9 @@ export class ThrottlerByKey<TKey> implements IDisposable {
 		return entry.throttler.queue(task).finally(() => {
 			if (--entry!.count === 0) {
 				entry!.throttler.dispose();
-				this.throttlers.delete(key);
+				if (this.throttlers.get(key) === entry) {
+					this.throttlers.delete(key);
+				}
 			}
 		});
 	}
