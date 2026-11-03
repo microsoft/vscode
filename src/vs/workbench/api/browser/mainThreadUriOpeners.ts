@@ -19,6 +19,7 @@ import { defaultExternalUriOpenerId } from '../../contrib/externalUriOpener/comm
 import { ContributedExternalUriOpenersStore } from '../../contrib/externalUriOpener/common/contributedOpeners.js';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../services/host/browser/host.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
@@ -43,6 +44,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
@@ -57,10 +59,14 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 	 * window the link was activated in becomes the active window first. Focus may be in a page of that window, outside
 	 * its workbench, from which the workbench cannot tell its window.
 	 */
-	private async focusSourceWindow(sourceWindowId: number | undefined): Promise<void> {
+	private async focusSourceWindow(sourceWindowId: number | undefined, sourceEditorGroupId: number | undefined): Promise<void> {
 		const sourceWindow = sourceWindowId === undefined ? undefined : getWindowById(sourceWindowId)?.window;
 		if (sourceWindow) {
 			await this.hostService.focus(sourceWindow);
+		}
+		// The group the link was activated in, so that the editor an extension opens is in its editor part.
+		if (sourceEditorGroupId !== undefined) {
+			this.editorGroupsService.getGroup(sourceEditorGroupId)?.focus();
 		}
 	}
 
@@ -89,7 +95,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			},
 			openExternalUri: async (href, ctx, token) => {
 				try {
-					await this.focusSourceWindow(ctx.sourceWindowId);
+					await this.focusSourceWindow(ctx.sourceWindowId, ctx.sourceEditorGroupId);
 					await this.proxy.$openUri(id, {
 						resolvedUri: URI.parse(href),
 						sourceUri: ctx.sourceUri,

@@ -55,6 +55,11 @@ export type OpenExternalOptions = {
 	 * open in that window, rather than in the window that appears to have focus.
 	 */
 	readonly sourceWindowId?: number;
+	/**
+	 * The editor group the link was activated in, such as the group that shows the web page that opens it. Contributed
+	 * external openers open in the editor part of that group, rather than in the one that appears to be active.
+	 */
+	readonly sourceEditorGroupId?: number;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
@@ -76,6 +81,8 @@ export interface IExternalUriOpenContext {
 	readonly viewColumn?: ViewColumn;
 	/** The window the link was activated in; see {@link OpenExternalOptions.sourceWindowId}. */
 	readonly sourceWindowId?: number;
+	/** The editor group the link was activated in; see {@link OpenExternalOptions.sourceEditorGroupId}. */
+	readonly sourceEditorGroupId?: number;
 }
 
 export interface IExternalOpener {

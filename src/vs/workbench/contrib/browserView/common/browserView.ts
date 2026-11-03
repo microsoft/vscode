@@ -424,8 +424,11 @@ export interface IBrowserViewWorkbenchService {
 	 * in a page of that window: without an explicit or configured placement, the
 	 * browser opens in that window's active group rather than in the one of the
 	 * window that appears to have focus.
+	 * @param sourceEditorGroupId The editor group the open was requested from, such
+	 * as the group that shows the page of a link: the browser then opens in that
+	 * group, so in the same editor part, rather than in the active group of its window.
 	 */
-	getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined>;
+	getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number, sourceEditorGroupId?: number): Promise<PreferredGroup | undefined>;
 
 	/**
 	 * Register a handler that decides whether an editor should be opened for a

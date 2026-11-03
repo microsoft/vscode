@@ -25,15 +25,15 @@ suite('Localhost Link Opener', () => {
 	async function createOpener(openLocalhostLinks: boolean, remote: boolean = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const opened: { url: unknown; group: PreferredGroup | undefined }[] = [];
-		const placements: { preferredGroup: PreferredGroup | undefined; sourceWindowId: number | undefined }[] = [];
+		const placements: { preferredGroup: PreferredGroup | undefined; sourceWindowId: number | undefined; sourceEditorGroupId: number | undefined }[] = [];
 		instantiationService.stub(IExternalUriOpenerService, { registerExternalOpenerProvider: () => Disposable.None });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			'workbench.browser.openLocalhostLinks': openLocalhostLinks
 		}));
 		instantiationService.stub(IBrowserViewWorkbenchService, {
 			resolveNetwork: () => remote ? { authority: 'remote-host' } : undefined,
-			getPreferredGroup: async (preferredGroup, sourceWindowId) => {
-				placements.push({ preferredGroup, sourceWindowId });
+			getPreferredGroup: async (preferredGroup, sourceWindowId, sourceEditorGroupId) => {
+				placements.push({ preferredGroup, sourceWindowId, sourceEditorGroupId });
 				return preferredGroup;
 			}
 		});
@@ -84,12 +84,12 @@ suite('Localhost Link Opener', () => {
 		const { opener, placements } = await createOpener(true);
 		const href = 'https://github.com/microsoft/vscode/issues/1';
 		for (const [viewColumn, sourceWindowId] of [[undefined, 3], [ViewColumn.Beside, 3], [undefined, undefined]] as const) {
-			await opener.openExternalUri(href, { sourceUri: URI.parse(href), sourceHref: href, viewColumn, sourceWindowId }, CancellationToken.None);
+			await opener.openExternalUri(href, { sourceUri: URI.parse(href), sourceHref: href, viewColumn, sourceWindowId, sourceEditorGroupId: sourceWindowId === undefined ? undefined : 9 }, CancellationToken.None);
 		}
 		assert.deepStrictEqual(placements, [
-			{ preferredGroup: undefined, sourceWindowId: 3 },
-			{ preferredGroup: SIDE_GROUP, sourceWindowId: 3 },
-			{ preferredGroup: undefined, sourceWindowId: undefined },
+			{ preferredGroup: undefined, sourceWindowId: 3, sourceEditorGroupId: 9 },
+			{ preferredGroup: SIDE_GROUP, sourceWindowId: 3, sourceEditorGroupId: 9 },
+			{ preferredGroup: undefined, sourceWindowId: undefined, sourceEditorGroupId: undefined },
 		]);
 	});
 

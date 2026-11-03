@@ -348,7 +348,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
-	async getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined> {
+	async getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number, sourceEditorGroupId?: number): Promise<PreferredGroup | undefined> {
 		// "Open to side" requests are routed into the dedicated side group.
 		if (preferredGroup === SIDE_GROUP) {
 			return this._getOrCreateDedicatedGroup('sideGroup');
@@ -372,8 +372,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return this.editorGroupsService.mainPart.activeGroup;
 		}
 
-		// The active group of the window the open was requested from, rather than of the window that appears to have focus.
-		return this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
+		// The group the open was requested from, or else the active group of its window, rather than of the window that appears to have focus.
+		return this._getGroupById(sourceEditorGroupId) ?? this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
+	}
+
+	private _getGroupById(groupId: number | undefined): IEditorGroup | undefined {
+		return groupId === undefined ? undefined : this.editorGroupsService.getGroup(groupId);
 	}
 
 	/** The active group of the window `windowId`, among the editor parts of that window. */

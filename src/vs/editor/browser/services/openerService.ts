@@ -281,6 +281,7 @@ export class OpenerService implements IOpenerService {
 				preferredOpenerId,
 				viewColumn: options?.openToSide ? ViewColumn.Beside : undefined,
 				sourceWindowId: options?.sourceWindowId,
+				sourceEditorGroupId: options?.sourceEditorGroupId,
 			}, CancellationToken.None);
 			if (didOpen) {
 				return true;

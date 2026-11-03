@@ -197,7 +197,7 @@ suite('OpenerService', function () {
 		});
 	});
 
-	test('external URI opener contexts normalize placement without forwarding openToSide, and carry the window the link was activated in', async () => {
+	test('external URI opener contexts normalize placement without forwarding openToSide, and carry the window and editor group the link was activated in', async () => {
 		const openerService = new OpenerService(editorService, commandService);
 		const sourceUri = URI.parse('https://source.example.com');
 		const contexts: Parameters<IExternalOpener['openExternal']>[1][] = [];
@@ -212,16 +212,16 @@ suite('OpenerService', function () {
 			{ openToSide: true },
 			{ openToSide: false },
 			{},
-			{ sourceWindowId: 7 },
+			{ sourceWindowId: 7, sourceEditorGroupId: 3 },
 		]) {
 			await openerService.open(sourceUri, { ...options, allowContributedOpeners: true });
 		}
 
 		assert.deepStrictEqual(contexts, [
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: ViewColumn.Beside, sourceWindowId: undefined },
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: undefined },
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: undefined },
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: 7 },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: ViewColumn.Beside, sourceWindowId: undefined, sourceEditorGroupId: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: undefined, sourceEditorGroupId: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: undefined, sourceEditorGroupId: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: 7, sourceEditorGroupId: 3 },
 		]);
 	});
 

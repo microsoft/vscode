@@ -148,6 +148,27 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('opens in the group the open was requested from, so in its editor part, rather than the active group of its window', async () => {
+		const group = (id: number) => upcastPartial<IEditorGroup>({ id });
+		const sourceGroup = group(5);
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: group(1),
+			getGroup: (id: number) => id === 5 ? sourceGroup : undefined,
+			getPart: () => upcastPartial<IEditorPart>({ activeGroup: group(2) }),
+		}));
+		const id = (preferred: PreferredGroup | undefined) => typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred;
+
+		assert.deepStrictEqual({
+			fromGroup: id(await service.getPreferredGroup(undefined, mainWindow.vscodeWindowId, 5)),
+			closedGroup: id(await service.getPreferredGroup(undefined, mainWindow.vscodeWindowId, 6)),
+			explicit: id(await service.getPreferredGroup(group(3), mainWindow.vscodeWindowId, 5)),
+		}, {
+			fromGroup: 5,
+			closedGroup: 2,
+			explicit: 3,
+		});
+	});
+
 	test('preserves restored metadata on early disposal without overriding fresh native state', async () => {
 		const { service, events } = createService();
 		const results = [];
