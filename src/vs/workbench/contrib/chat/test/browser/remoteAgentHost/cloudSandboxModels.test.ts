@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -114,28 +114,64 @@ suite('CloudSandboxModels', () => {
 		});
 	});
 
-	test('offers an explicit retry after a failed request', async () => {
-		let calls = 0;
-		const { catalog, createCatalog, errors, retries, notified } = setup(async () => {
-			if (++calls === 1) {
-				throw new Error('catalog unavailable');
+	for (const initiallySignedIn of [false, true]) {
+		test(`waits for sign-in without notifying after ${initiallySignedIn ? 'signing out' : 'starting without credentials'}`, async () => {
+			let signedIn = initiallySignedIn;
+			let calls = 0;
+			const { catalog, sharedCatalog, accounts, errors } = setup(async () => {
+				calls++;
+				if (!signedIn) {
+					throw new CloudSandboxAuthenticationRequiredError();
+				}
+				return { models: [{ id: 'model', provider: 'copilot', name: 'Model' }] };
+			});
+			const initialReady = initiallySignedIn ? Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready)) : undefined;
+			catalog.load();
+			if (initialReady) {
+				await initialReady;
+				signedIn = false;
+				accounts.fire(undefined);
 			}
-			return { models: [{ id: 'model', provider: 'copilot', name: 'Model' }] };
+			await timeout(0);
+			const signedOut = { calls, errors: [...errors], ready: catalog.ready, models: catalog.models, catalog: sharedCatalog.catalog };
+			signedIn = true;
+			const ready = Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready));
+			accounts.fire('signed-in');
+			await ready;
+			assert.deepStrictEqual({
+				signedOut,
+				signedIn: { calls, errors, ready: catalog.ready, ids: catalog.models.map(model => model.metadata.id) },
+			}, {
+				signedOut: { calls: initiallySignedIn ? 2 : 1, errors: [], ready: false, models: [], catalog: undefined },
+				signedIn: { calls: initiallySignedIn ? 3 : 2, errors: [], ready: true, ids: ['model'] },
+			});
 		});
-		const otherCatalog = createCatalog('other');
-		catalog.load();
-		otherCatalog.load();
-		await notified.p;
-		const lateCatalog = createCatalog('late');
-		lateCatalog.load();
-		const consumers = [catalog, otherCatalog, lateCatalog];
-		const ready = Promise.all(consumers.map(consumer => Event.toPromise(Event.filter(consumer.onDidChange, () => consumer.ready))));
-		await retries[0].run();
-		await ready;
-		assert.deepStrictEqual({ calls, errors, ready: consumers.map(consumer => consumer.ready), ids: consumers.map(consumer => consumer.models.map(model => model.metadata.id)) }, {
-			calls: 2, errors: ['Could not load models for GitHub sandboxes.'], ready: [true, true, true], ids: [['model'], ['model'], ['model']],
+	}
+
+	for (const error of [new Error('catalog unavailable'), new CloudSandboxRequestError(401, 'credential rejected')]) {
+		test(`offers an explicit retry after a failed request (${error.message})`, async () => {
+			let calls = 0;
+			const { catalog, createCatalog, errors, retries, notified } = setup(async () => {
+				if (++calls === 1) {
+					throw error;
+				}
+				return { models: [{ id: 'model', provider: 'copilot', name: 'Model' }] };
+			});
+			const otherCatalog = createCatalog('other');
+			catalog.load();
+			otherCatalog.load();
+			await notified.p;
+			const lateCatalog = createCatalog('late');
+			lateCatalog.load();
+			const consumers = [catalog, otherCatalog, lateCatalog];
+			const ready = Promise.all(consumers.map(consumer => Event.toPromise(Event.filter(consumer.onDidChange, () => consumer.ready))));
+			await retries[0].run();
+			await ready;
+			assert.deepStrictEqual({ calls, errors, ready: consumers.map(consumer => consumer.ready), ids: consumers.map(consumer => consumer.models.map(model => model.metadata.id)) }, {
+				calls: 2, errors: ['Could not load models for GitHub sandboxes.'], ready: [true, true, true], ids: [['model'], ['model'], ['model']],
+			});
 		});
-	});
+	}
 
 	test('cancels an in-flight catalog request when its owner is disposed', async () => {
 		const cancelled = new DeferredPromise<void>();
