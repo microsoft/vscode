@@ -191,6 +191,10 @@ export class ChatWindowGrid extends Disposable {
 	private _topologyKey: string | undefined;
 	/** The key the sizes of what shows are remembered under; see {@link getSizesKey}. */
 	private _sizesKey: string | undefined;
+	/** The key the sizes of the chat and the main part are also remembered under, without the terminals: they come back to it after a restart, for example, until the terminals are restored. */
+	private _baseSizesKey: string | undefined;
+	/** The height the terminals take when they first show: they join the grid empty, until their first terminal shows in them. */
+	private _terminalsFirstShowHeight: number | undefined;
 	/** The key of the arrangement without the terminals: while it stays, the terminals join or move rather than rebuild. */
 	private _baseTopologyKey: string | undefined;
 	private _terminalsInGrid = false;
@@ -295,6 +299,7 @@ export class ChatWindowGrid extends Disposable {
 		}
 		this._arranged = grid.describe();
 		this._sizesKey = getSizesKey(this._topologyKey!, mode);
+		this._baseSizesKey = getSizesKey(this._baseTopologyKey!, mode);
 		this._updateTerminalsVisible();
 	}
 
@@ -318,6 +323,10 @@ export class ChatWindowGrid extends Disposable {
 			}
 		}
 		this._sizes[this._sizesKey] = { ...this._sizes[this._sizesKey], ...sizes };
+		if (this._baseSizesKey && this._baseSizesKey !== this._sizesKey) {
+			const { [ChatWindowGridCell.Terminals]: _terminals, ...parts } = sizes;
+			this._sizes[this._baseSizesKey] = { ...this._sizes[this._baseSizesKey], ...parts };
+		}
 		if (sizes[ChatWindowGridCell.Terminals]) {
 			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: sizes[ChatWindowGridCell.Terminals] };
 		}
@@ -349,15 +358,18 @@ export class ChatWindowGrid extends Disposable {
 				this._pendingTerminalsHeight = height;
 			} else {
 				const remembered = this._sizes[sizesKey] ?? {};
-				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), this._terminalsHeight(remembered, dimension.height));
+				const height = this._terminalsHeight(remembered, dimension.height);
+				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), height);
 				this._terminalsInGrid = true;
+				this._terminalsFirstShowHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? undefined : height;
 			}
 			return;
 		}
 		this._baseTopologyKey = baseKey;
 		this._terminalsInGrid = !!terminals;
 
-		const remembered = this._sizes[sizesKey] ?? {};
+		// The sizes of the arrangement, else those of the chat and the main part as they showed without the terminals.
+		const remembered = { ...this._sizes[getSizesKey(baseKey, mode)], ...this._sizes[sizesKey] };
 		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
 		// The grid keeps the outer insets to the edges of the window: its cells share what is inside them.
 		const insets = this._outerInsets;
@@ -370,7 +382,15 @@ export class ChatWindowGrid extends Disposable {
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
-		this._gridListener.value = partGrid.onDidChangePartEmpty(() => this._updateTerminalsVisible());
+		this._terminalsFirstShowHeight = undefined;
+		this._gridListener.value = partGrid.onDidChangePartEmpty(e => {
+			const height = this._terminalsFirstShowHeight;
+			if (e.id === ChatWindowGridCell.Terminals && !e.empty && height !== undefined && partGrid.isCellVisible(ChatWindowGridCell.Terminals)) {
+				this._terminalsFirstShowHeight = undefined;
+				this._resizeTerminals(partGrid, height);
+			}
+			this._updateTerminalsVisible();
+		});
 		partGrid.setGap(this._gap.get());
 		partGrid.setOuterInsets(insets);
 		partGrid.layout(dimension.width, dimension.height);

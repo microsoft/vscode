@@ -14,6 +14,7 @@ import { IContentPart, IEditorGroup } from '../../../../services/editor/common/e
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
+import { ChatWindowPartSizes } from '../../common/chatWindowState.js';
 
 suite('Chat window grid', () => {
 
@@ -309,6 +310,35 @@ suite('Chat window grid', () => {
 			{ [ChatWindowLayoutMode.EditorOnly]: 199 },
 			{ [ChatWindowLayoutMode.SideBySide]: 199 },
 		]);
+	});
+
+	test('QA\'s second INFO-2 walk, through every mode with the side part showing an editor and the window saving its state, keeps the split and the terminals, also in a new grid after a restart', () => {
+		const create = (sizes: ChatWindowPartSizes | undefined) => {
+			const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+			const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
+			const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+			const terminalsPart = createPartWithEditors('terminals');
+			const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), sizes, constObservable(ChatWindowTerminalPosition.FullWidth)));
+			grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+			grid.layout(1200, 800);
+			terminals.set(terminalsPart.part, undefined);
+			terminalsPart.setEmpty(false);
+			const read = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}, terminals ${grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height}`;
+			return { mode, grid, read };
+		};
+		const { mode, grid, read } = create(undefined);
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 476, height: 500 });
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: 105 });
+		const walk: string[] = [read()];
+		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
+			mode.set(candidate, undefined);
+			// The window saves its state from time to time, in whatever mode.
+			grid.exportSizes();
+		}
+		walk.push(read());
+		const restarted = create(grid.exportSizes());
+
+		assert.deepStrictEqual({ walk, restarted: restarted.read() }, { walk: ['476/716, terminals 105', '476/716, terminals 105'], restarted: '476/716, terminals 105' });
 	});
 
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
