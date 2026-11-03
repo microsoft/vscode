@@ -11,7 +11,7 @@
  *  Section 3: cgmanifest.json git components CG can't harvest from ClearlyDefined
  *  Section 4: Cargo.lock crates missing or stubbed in CG (crates.io + repo LICENSE)
  *  Section 5: Platform-specific binary packages (arch optionalDependencies)
- *  Section 6: OS-gated whole packages skipped by npm on the build host (lockfile)
+ *  Section 6: OS-gated or pnpm-skipped whole packages missing on the build host (lockfile)
  *  Section 7: Pre-built built-in extension deps (disk extensionsCG/<name>/, else
  *             self-fetched from the extension's public package-lock.json)
  *
@@ -30,7 +30,7 @@ import https from 'https';
 import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
 import { parseArgs } from './utils.js';
-import { readPnpmLockfileImporters, type PnpmLockfilePackageEntry } from './pnpm-lockfile.js';
+import { readPnpmLockfileImporters, readPnpmSkippedPackages, type PnpmLockfilePackageEntry } from './pnpm-lockfile.js';
 
 interface LicenseEntry {
 	name: string;
@@ -631,6 +631,24 @@ export function isOsGatedShippedElsewhere(osList: string[], hostPlatform: string
 		}
 	}
 	return false;
+}
+
+/**
+ * Returns why Section 6 seeds a lockfile package into the presence index, or `undefined` if it
+ * doesn't: its `os` constraint excludes the build host but includes a platform VS Code ships (see
+ * {@link isOsGatedShippedElsewhere}), or it is a production package that pnpm skipped installing on
+ * the host (`skipped`: the ids from `node_modules/.modules.yaml`). pnpm skips some packages whose
+ * lockfile entry records no `os`, such as `windows-foreground-love`, so the `os` check alone misses
+ * them.
+ */
+export function getSection6SeedReason(entry: Pick<PnpmLockfilePackageEntry, 'name' | 'version' | 'os' | 'dev'>, skipped: ReadonlySet<string>, hostPlatform: string): string | undefined {
+	if (entry.os && isOsGatedShippedElsewhere([...entry.os], hostPlatform)) {
+		return `os:[${entry.os.join(', ')}]`;
+	}
+	if (!entry.dev && skipped.has(`${entry.name}@${entry.version}`)) {
+		return `skipped by pnpm on ${hostPlatform}`;
+	}
+	return undefined;
 }
 
 /**
@@ -1826,8 +1844,12 @@ async function main(): Promise<void> {
 	//
 	// Fix: read the pnpm-lock.yaml files (the manifest of EVERY dependency,
 	// installed or not) and seed any package that (a) will not install on the
-	// host but (b) ships on a platform we target into the presence index. The
-	// cglicenses.json override then supplies the human-authored license text; if
+	// host but (b) ships on a platform we target into the presence index. A
+	// package qualifies by its `os` field, or because pnpm skipped a production
+	// package on the host (`skipped` in node_modules/.modules.yaml): pnpm skips
+	// some packages whose lockfile entry records no `os`, such as
+	// windows-foreground-love. The cglicenses.json override then supplies the
+	// human-authored license text; if
 	// no override exists the package surfaces as "present but unlicensed" (loud,
 	// shift-left) instead of vanishing (silent). Arch-suffixed binaries
 	// (@img/sharp-win32-x64, @esbuild/linux-x64, ...) are NOT handled here -
@@ -1863,8 +1885,16 @@ async function main(): Promise<void> {
 			console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
 			continue;
 		}
+		let skipped: Set<string>;
+		try {
+			skipped = readPnpmSkippedPackages(path.dirname(lockPath));
+		} catch (err) {
+			console.warn(`  WARN: could not read the packages pnpm skipped in ${path.dirname(lockPath)}: ${(err as Error).message}`);
+			skipped = new Set();
+		}
 		for (const meta of rootPackages) {
-			if (!isOsGatedShippedElsewhere(meta.os as string[], hostPlatform)) {
+			const reason = getSection6SeedReason(meta, skipped, hostPlatform);
+			if (!reason) {
 				continue;
 			}
 			const name = meta.name;
@@ -1890,10 +1920,10 @@ async function main(): Promise<void> {
 			}
 			noLicenseSeen.set(key, { name, version: meta?.version || '' });
 			s6Seeded++;
-			console.log(`  SEEDED (os:[${(meta!.os as string[]).join(', ')}]): ${name}@${meta?.version || ''}`);
+			console.log(`  SEEDED (${reason}): ${name}@${meta?.version || ''}`);
 		}
 	}
-	console.log(`  Section 6 seeded ${s6Seeded} os-gated package(s) into the presence index ` +
+	console.log(`  Section 6 seeded ${s6Seeded} os-gated or skipped package(s) into the presence index ` +
 		`(${s6AlreadyResolved} already licensed, ${s6AlreadyPresent} already present).`);
 
 	// =========================================================================

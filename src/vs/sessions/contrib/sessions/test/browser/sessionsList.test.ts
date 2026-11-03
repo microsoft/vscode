@@ -9556,6 +9556,37 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows the workspace kind of the main chat on the row of a multi-folder session', () => {
+			const repo: ISessionFolder = {
+				root: URI.file('/workspace/repo'),
+				workingDirectory: URI.file('/workspace/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: { uri: URI.file('/workspace/repo'), workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+			};
+			const worktree = (name: string): ISessionFolder => {
+				const workingDirectory = URI.file(`/workspace/repo.worktrees/${name}`);
+				return { ...repo, workingDirectory, gitRepository: { ...repo.gitRepository!, workTreeUri: workingDirectory } };
+			};
+			const peerWorktree = worktree('peer');
+			const mainWorktree = worktree('main');
+			const rowIcon = (session: ISession) => {
+				const icon = renderSessionChatsList(session, undefined, false, false).container.querySelector('.session-item .session-details-icon > .codicon');
+				return icon?.classList.contains(`codicon-${Codicon.worktreeCompact.id}`) ? 'worktree' : icon?.classList.contains(`codicon-${Codicon.folderCompact.id}`) ? 'folder' : undefined;
+			};
+
+			assert.deepStrictEqual({
+				// The session keeps its first folder when only its main chat moves to a worktree.
+				mainChatMovedToWorktree: rowIcon(createMultiFolderSession([repo, peerWorktree, mainWorktree], [[mainWorktree], [peerWorktree]])),
+				mainChatMovedToFolder: rowIcon(createMultiFolderSession([mainWorktree, repo], [[repo], [mainWorktree]])),
+				onlyPeerChatInWorktree: rowIcon(createMultiFolderSession([repo, peerWorktree], [[repo], [peerWorktree]])),
+			}, {
+				mainChatMovedToWorktree: 'worktree',
+				mainChatMovedToFolder: 'folder',
+				onlyPeerChatInWorktree: 'folder',
+			});
+		});
+
 		test('shows the own folder of a chat in a quick chat and no folder for its scratch chats', () => {
 			const repo = { root: URI.file('/workspace/repo'), workingDirectory: URI.file('/workspace/repo'), name: 'repo', description: undefined };
 			const base = createTestSession('Quick chat', { isQuickChat: true }).session;

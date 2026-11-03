@@ -121,6 +121,7 @@ Scanner sections:
 - Section 3 reads `licenseDetail` from `cgmanifest.json`, and for uncovered git components without inline text it tries `fetchLicenseFromGitRepo()` at the pinned `commitHash`.
 - Section 4 harvests Rust crate licenses from `Cargo.lock`; details below.
 - Section 5 enumerates platform-specific npm binary packages; details below.
+- Section 6 seeds packages that ship on another OS into the presence index, so their `cglicenses.json` override is injected: packages whose lockfile `os` excludes the Linux agent, and production packages that pnpm skipped on the agent (`skipped` in each install root's `node_modules/.modules.yaml`), such as `windows-foreground-love`, whose lockfile entry records no `os`.
 
 ### `merge-notices.ts`
 

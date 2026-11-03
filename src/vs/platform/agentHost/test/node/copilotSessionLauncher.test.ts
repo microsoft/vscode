@@ -4273,6 +4273,34 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('progress-update eligibility follows the family-aliased prompt model and a system prompt override', async () => {
+		const store = new DisposableStore();
+		const eligibilityOf = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, model: ModelSelection | undefined) => {
+			let eligible: boolean | undefined;
+			await buildResumeConfig(createLauncher(store, values), model, undefined, undefined, { setProgressUpdatesPromptEligible: value => { eligible = value; } });
+			return eligible;
+		};
+
+		assert.deepStrictEqual({
+			gpt: await eligibilityOf({}, { id: 'gpt-6-luna' }),
+			auto: await eligibilityOf({}, { id: 'auto' }),
+			noModel: await eligibilityOf({}, undefined),
+			claude: await eligibilityOf({}, { id: 'claude-sonnet-5' }),
+			customAliasedToGpt: await eligibilityOf({ modelCapabilityOverrides: { 'preview-model-x': { family: 'gpt-6' } } }, { id: 'preview-model-x' }),
+			gptAliasedToClaude: await eligibilityOf({ modelCapabilityOverrides: { 'gpt-6-luna': { family: 'claude-opus-4.8' } } }, { id: 'gpt-6-luna' }),
+			gptWithSystemPromptOverride: await eligibilityOf({ modelCapabilityOverrides: { 'gpt-6-luna': { promptOverrideString: 'systemPrompt: Replacement prompt' } } }, { id: 'gpt-6-luna' }),
+		}, {
+			gpt: true,
+			auto: true,
+			noModel: true,
+			claude: false,
+			customAliasedToGpt: true,
+			gptAliasedToClaude: false,
+			gptWithSystemPromptOverride: false,
+		});
+		store.dispose();
+	});
+
 	test('an app named toolSearch does not activate the trusted tool-search override', async () => {
 		const store = new DisposableStore();
 		const decisions: boolean[] = [];
