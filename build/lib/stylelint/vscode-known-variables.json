@@ -1246,6 +1246,8 @@
 		"--part-grid-card-inset-left",
 		"--part-grid-card-inset-right",
 		"--part-grid-card-radius",
+		"--part-grid-motion-background",
+		"--part-grid-motion-radius",
 		"--part-grid-gap",
 		"--sash-grip-opacity",
 		"--sash-grip-transition-duration",

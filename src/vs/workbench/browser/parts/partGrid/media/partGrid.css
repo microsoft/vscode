@@ -139,3 +139,43 @@
 		outline-offset: -2px;
 	}
 }
+
+/*
+ * Cards in motion, as a card moves or makes way for one dragged: the cells
+ * move by transforms, clipped as they get smaller, and the cards of native
+ * content move as plain cards, in a layer over the cells.
+ */
+.part-grid-cell.part-grid-moving {
+	z-index: 1;
+	will-change: transform, clip-path;
+}
+
+.monaco-enable-motion .part-grid-cell.part-grid-moving,
+.monaco-enable-motion .part-grid-motion-layer > .part-grid-motion-card {
+	transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), clip-path 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-motion-layer {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	pointer-events: none;
+}
+
+.part-grid-motion-layer > .part-grid-motion-card {
+	position: fixed;
+	box-sizing: border-box;
+	border-radius: var(--part-grid-motion-radius, 0);
+	background-color: var(--part-grid-motion-background, var(--vscode-editor-background));
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-agentsCard-border, var(--vscode-widget-border, transparent));
+	will-change: transform, clip-path;
+}
+
+/* The slot a dragged card opens, with the look of a card. */
+.part-grid-motion-layer > .part-grid-motion-slot {
+	position: fixed;
+	box-sizing: border-box;
+	border-radius: var(--part-grid-motion-radius, 0);
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
