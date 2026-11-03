@@ -38,7 +38,7 @@ steps:
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
   # Publish builds only (CIBUILD=false) — CI test jobs never ship a notice.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
+    - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
@@ -60,14 +60,14 @@ steps:
         vscodePlatform: linux
         VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
-  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+  - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX (background)
 
   - template: ../../common/mixin-vscode-capi.yml@self
 
-  - script: npm run gulp core-ci
+  - script: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
@@ -79,17 +79,17 @@ steps:
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - script: |
         set -e
-        npm run compile --prefix test/smoke
-        npm run compile --prefix test/integration/browser
+        pnpm -C test/smoke run compile
+        pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
+    - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
 
-  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+  - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
@@ -97,7 +97,7 @@ steps:
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # right before gulp packages it. Non-fatal: falls back to legacy on any problem.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+    - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
@@ -107,7 +107,7 @@ steps:
 
   - script: |
       set -e
-      npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+      pnpm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
@@ -116,7 +116,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
     - script: |
         set -e
-        npm run gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+        pnpm run gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
       env:
@@ -131,7 +131,7 @@ steps:
 
     - script: |
         set -e
-        npm run gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+        pnpm run gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
       env:
         GITHUB_TOKEN: "$(github-token-code-oss)"

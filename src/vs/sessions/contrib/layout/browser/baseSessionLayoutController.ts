@@ -7,6 +7,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, IReader, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
@@ -33,6 +34,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../workb
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IUntitledTextEditorService } from '../../../../workbench/services/untitled/common/untitledTextEditorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -292,6 +294,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IEditorService protected readonly _editorService: IEditorService,
 		@IEditorGroupsService protected readonly _editorGroupsService: IEditorGroupsService,
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionChangesService protected readonly _sessionChangesService: ISessionChangesService,
 		@IChangesViewService protected readonly _changesViewService: IChangesViewService,
@@ -325,7 +328,7 @@ export abstract class BaseLayoutController extends Disposable {
 					this._onActiveSessionSwitched(session, session);
 					const key = this._ownerKeyForChat(previous.owner.sessionResource, previous.owner.chatResource, session.mainChat.get().resource);
 					if (key) {
-						this._saveWorkingSet(key);
+						this._saveOutgoingWorkingSet(key);
 					}
 				}
 			}));
@@ -545,7 +548,7 @@ export abstract class BaseLayoutController extends Disposable {
 				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !wasReplaced) {
 					const ownerKey = this._ownerKeyFor(previousSession);
 					if (ownerKey) {
-						this._saveWorkingSet(ownerKey);
+						this._saveOutgoingWorkingSet(ownerKey);
 					}
 				}
 			}
@@ -1335,6 +1338,33 @@ export abstract class BaseLayoutController extends Disposable {
 				this._hideEditorPartForWorkingSet();
 			}
 		});
+	}
+
+	private _saveOutgoingWorkingSet(sessionResource: URI): void {
+		this._discardEmptyUntitledEditorsWithPath();
+		this._saveWorkingSet(sessionResource);
+	}
+
+	/**
+	 * Discards empty untitled editors that are bound to a file path (for example a link to a
+	 * file that does not exist). Such editors are always dirty, so applying a working set keeps
+	 * them open and they would otherwise be captured into every session's working set and
+	 * reappear after being closed. Discarding disposes the inputs, which are skipped when the
+	 * working set is serialized. Untitled editors with content are never discarded.
+	 */
+	private _discardEmptyUntitledEditorsWithPath(): void {
+		for (const group of this._editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				const resource = editor.resource;
+				if (!resource || !this._untitledTextEditorService.isUntitledWithAssociatedResource(resource)) {
+					continue;
+				}
+				const model = this._untitledTextEditorService.get(resource);
+				if (model?.isResolved() && model.textEditorModel.getValueLength() === 0) {
+					model.revert().catch(onUnexpectedError);
+				}
+			}
+		}
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {

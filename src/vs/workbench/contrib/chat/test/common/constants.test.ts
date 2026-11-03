@@ -35,6 +35,19 @@ suite('ChatConfiguration defaults', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const localWorkspace = createWorkspace(URI.file('/workspace'));
 
+	test('Copilot harness defaults on without experiment controls or experimental tags', () => {
+		const setting = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[ChatConfiguration.DefaultToCopilotHarness];
+		assert.deepStrictEqual({
+			default: setting.default,
+			experiment: setting.experiment,
+			tags: setting.tags,
+		}, {
+			default: true,
+			experiment: undefined,
+			tags: undefined,
+		});
+	});
+
 	function createWorkspace(...resources: URI[]): Workspace {
 		return new Workspace(
 			resources.map(resource => resource.toString()).join(','),
@@ -529,7 +542,7 @@ suite('ChatConfiguration defaults', () => {
 
 	test('editor default prefers agent host Copilot when the agent host is enabled', () => {
 		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.DefaultToCopilotHarness]: true,
+			[ChatConfiguration.DefaultToCopilotHarness]: Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[ChatConfiguration.DefaultToCopilotHarness].default,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
@@ -545,13 +558,13 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('editor default stays local when the agent host is enabled but the Copilot default is not opted in', () => {
-		const configurationService = new TestConfigurationService();
+	test('editor default stays local when the Copilot default is explicitly disabled', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
-		// The agent host is enabled but `chat.defaultToCopilotHarness` is off (its
-		// default), so the computed default remains the local harness.
 		assert.deepStrictEqual({
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
 			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
@@ -1178,12 +1191,12 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('managed sandbox floor hides the local harness and defaults to the Copilot SDK', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		// `chat.editor.localAgent.enabled` and `chat.defaultToCopilotHarness` are left at their
-		// defaults: an enterprise-mandated sandbox floor implies both.
 		assert.deepStrictEqual({
 			localEnabled: isEditorLocalAgentEnabled(configurationService, localWorkspace, true),
 			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true),

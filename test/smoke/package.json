@@ -4,18 +4,20 @@
   "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "compile": "cd ../automation && npm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc6",
-    "watch-automation": "cd ../automation && npm run watch",
+    "compile": "cd ../automation && pnpm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc6",
+    "watch-automation": "cd ../automation && pnpm run watch",
     "watch-smoke": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
     "watch": "npm-run-all2 -lp watch-automation watch-smoke",
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
-    "ncp": "^2.0.0",
-    "node-fetch": "^2.6.7"
+    "axios": "^1.20.0",
+    "graceful-fs": "^4.2.11",
+    "node-fetch": "^2.6.7",
+    "tree-kill": "1.2.2",
+    "vscode-jsonrpc": "^8.2.1"
   },
   "devDependencies": {
-    "@types/ncp": "2.0.1",
     "@types/node": "24.x",
     "@types/node-fetch": "^2.5.10",
     "npm-run-all2": "^8.0.4"

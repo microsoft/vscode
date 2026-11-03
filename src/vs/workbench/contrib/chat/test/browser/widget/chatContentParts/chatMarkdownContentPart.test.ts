@@ -13,6 +13,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { resolvePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -49,10 +50,11 @@ import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatConte
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
-import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { ChatRequestSlashPromptPart } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -256,6 +258,39 @@ suite('ChatMarkdownContentPart', () => {
 
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	test('preserves Unicode prompt names and Markdown delimiters in request decorations', () => {
+		const decorationsRenderer = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+		const names = [
+			// allow-any-unicode-next-line
+			'龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎',
+			'prompt)',
+			'prompt(',
+			'prompt[link]',
+			'prompt[',
+			'prompt\\]',
+			'prompt*bold*',
+			'prompt_code_',
+			'prompt`code`',
+			'prompt<tag>',
+			'prompt&copy;',
+		];
+		const actual = names.map(name => {
+			const text = `/${name}`;
+			const part = new ChatRequestSlashPromptPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), name);
+			const markdown = decorationsRenderer.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), { text, parts: [part] });
+			const rendered = disposables.add(renderer.render(new MarkdownString(markdown)));
+			const anchor = rendered.element.querySelector('a');
+			const href = anchor?.getAttribute('data-href');
+			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString(markdown) }, rendered.element));
+			return {
+				text: rendered.element.textContent,
+				decorationCount: rendered.element.querySelectorAll('.chat-resource-widget').length,
+				href: href && decodeURIComponent(href),
+			};
+		});
+		assert.deepStrictEqual(actual, names.map(name => ({ text: `/${name}`, decorationCount: 1, href: `http://_vscodedecoration_?${JSON.stringify({ title: name })}` })));
 	});
 
 	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {
@@ -1291,6 +1326,30 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(!renderedCodeBlocks[0].text.includes('<vscode_codeblock_uri'));
 		assert.strictEqual(renderedCodeBlocks[0].codemapperUri?.toString(), 'file:///test.ts');
 	});
+
+	for (const marker of [
+		'<vscode_codeblock_uri isEdit subAgentInvocationId="agent%2Fone">file:///example.ts</vscode_codeblock_uri>',
+		'<vscode_codeblock_uri isEdit subAgentInvocationId="agent%2',
+	]) {
+		test(`request code preserves literal marker text: ${marker}`, () => {
+			const context = {
+				...createRenderContext(),
+				element: upcastPartial<IChatRequestViewModel>({
+					id: 'literal-request',
+					sessionResource: URI.parse('chat-session://test/session1'),
+					message: { text: marker, parts: [] },
+					contentReferences: [],
+				}),
+			};
+			const markdown = new MarkdownString(`\`\`\`html\n${marker}\n\`\`\``);
+			createMarkdownPart(markdown, context);
+			createMarkdownPart(JSON.parse(JSON.stringify(markdown)), context);
+			assert.deepStrictEqual(renderedCodeBlocks.map(block => ({ text: block.text, resource: block.codemapperUri })), [
+				{ text: marker, resource: undefined },
+				{ text: marker, resource: undefined },
+			]);
+		});
+	}
 
 	test('code block toolbar context is set correctly with code text', () => {
 		// Simulates the scenario in #255290: the copy button should have

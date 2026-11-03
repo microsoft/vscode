@@ -169,8 +169,25 @@
 }
 
 .chat-pet-achievements-intro {
-	margin-bottom: var(--vscode-spacing-size240);
+	margin-bottom: var(--vscode-spacing-size160);
 	color: var(--vscode-descriptionForeground);
+}
+
+.chat-pet-appearance-target {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size240);
+}
+
+.chat-pet-appearance-target-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-pet-appearance-target > .monaco-custom-radio {
+	width: fit-content;
+	max-width: 100%;
 }
 
 .chat-pet-achievements-collection-header h2 {
@@ -208,7 +225,7 @@
 	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120);
 }
 
-.chat-pet-colors-widget .chat-pet-achievements-intro {
+.chat-pet-colors-widget .chat-pet-appearance-target {
 	margin-bottom: var(--vscode-spacing-size200);
 }
 

@@ -125,6 +125,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
@@ -9824,6 +9825,242 @@ suite('ChatListRenderer', () => {
 		}, { pillCounts: ['+7', '-3'], chainDiff: { added: 7, removed: 3 }, counts: ['+7', '-3'] });
 	});
 
+	test('structured concurrent subagent edit streams render one attributed pill per file', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always, editingSession: new MockChatEditingSession([]) });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will delegate.') });
+		const agents = ['agent/one &"two', 'agent-two'].map(id => new ChatToolInvocation(
+			{ invocationMessage: 'Editing files', toolSpecificData: { kind: 'subagent', description: id, isActive: true } },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			id, undefined, {},
+		));
+		for (const agent of agents) {
+			model.acceptResponseProgress(request, agent);
+		}
+		for (let file = 0; file < 2; file++) {
+			for (const agent of agents) {
+				model.acceptResponseProgress(request, new ChatToolInvocation(
+					{ invocationMessage: 'Editing file' },
+					{ id: 'edit', displayName: 'Edit', modelDescription: 'Edit file', source: ToolDataSource.Internal },
+					`${agent.toolCallId}-${file}`, agent.toolCallId, {},
+				));
+				if (file === 0) {
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
+				}
+				model.acceptResponseProgress(request, { kind: 'codeblockUri', uri: URI.file(`/workspace/${agents.indexOf(agent)}-${file}.ts`), isEdit: true, subAgentInvocationId: agent.toolCallId });
+			}
+		}
+		for (const _agent of agents) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n') });
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The edits succeeded.') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const parts = template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+		for (const part of parts) {
+			part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
+		await timeout(0);
+		assert.deepStrictEqual({
+			files: parts.map(part => [...part.domNode.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent)),
+			editors: template.value.querySelectorAll('.monaco-editor').length,
+			leakedMarkers: template.value.textContent?.includes('vscode_codeblock_uri'),
+		}, { files: [['0-0.ts', '0-1.ts'], ['1-0.ts', '1-1.ts']], editors: 0, leakedMarkers: false });
+		const value: unknown = revive(JSON.parse(JSON.stringify(model.toJSON())));
+		assert.ok(isSerializableSessionData(value));
+		const restored = createPersistentProgressRenderer({
+			chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always, editingSession: new MockChatEditingSession([]),
+			initialData: { value, serializer: new ChatSessionOperationLog() },
+		});
+		restored.renderer.renderElement(restored.node, 0, restored.template);
+		const restoredParts = restored.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+		for (const part of restoredParts) {
+			part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
+		await timeout(0);
+		assert.deepStrictEqual({
+			files: restoredParts.map(part => [...part.domNode.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent)),
+			editors: restored.template.value.querySelectorAll('.monaco-editor').length,
+			copyMarkers: /vscode_codeblock_uri|subAgentInvocationId|```/.test(restored.request.response!.response.toString()),
+			parentProse: restored.request.response!.response.toString().includes('The edits succeeded.'),
+		}, { files: [['0-0.ts', '0-1.ts'], ['1-0.ts', '1-1.ts']], editors: 0, copyMarkers: false, parentProse: true });
+	}));
+
+	test('standalone child edits preserve parent code across automatic undo stops and reload', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+		const options = { chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always, editingSession: new MockChatEditingSession([]) };
+		const live = createPersistentProgressRenderer(options);
+		const agent = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating', toolSpecificData: { kind: 'subagent', description: 'Child', isActive: true } },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'agent', undefined, {},
+		);
+		live.model.acceptResponseProgress(live.request, agent);
+		live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString('```ts\nconst value = ') });
+		live.model.acceptResponseProgress(live.request, new ChatToolInvocation(
+			{ invocationMessage: 'Editing child' },
+			{ id: 'edit', displayName: 'Edit', modelDescription: 'Edit file', source: ToolDataSource.Internal },
+			'child-edit', agent.toolCallId, {},
+		));
+		live.model.acceptResponseProgress(live.request, { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, isStandalone: true, subAgentInvocationId: agent.toolCallId });
+		live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString('42;\n```') });
+		const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+			setup.renderer.renderElement(setup.node, 0, setup.template);
+			await timeout(50);
+			setup.template.value.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+			await timeout(50);
+			return {
+				code: setup.instantiationService.get(ICodeEditorService).listCodeEditors()
+					.filter(editor => setup.template.value.contains(editor.getDomNode()))
+					.map(editor => editor.getValue({ preserveBOM: false, lineEnding: '\n' })),
+				files: [...setup.template.value.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent),
+				copyCode: setup.request.response!.response.toString().includes('```ts\nconst value = 42;\n```'),
+				copyChild: setup.request.response!.response.toString().includes('Editing child'),
+			};
+		};
+		assert.deepStrictEqual(await snapshot(live), { code: ['const value = 42;'], files: ['child.ts'], copyCode: true, copyChild: true });
+		live.request.response?.complete();
+		const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+		assert.ok(isSerializableSessionData(value));
+		live.disposables.dispose();
+		const restored = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+		assert.deepStrictEqual(await snapshot(restored), { code: ['const value = 42;'], files: ['child.ts'], copyCode: true, copyChild: true });
+	}));
+
+	for (const agentCount of [1, 2]) {
+		for (const editCount of [1, 3]) {
+			for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+				test(`structured subagent edits survive streaming and reload (${agentCount} agents, ${editCount} edits, ${collapsedTools})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+					const options = { chatMode: ChatModeKind.Agent, collapsedTools, editingSession: new MockChatEditingSession([]), rendererOptions: { renderTextEditsAsSummary: () => true } };
+					const live = createPersistentProgressRenderer(options);
+					const agents = ['agent/one &"two', 'agent-two'].slice(0, agentCount).map(id => new ChatToolInvocation(
+						{ invocationMessage: 'Editing files', toolSpecificData: { kind: 'subagent', description: id, hasStarted: true, isActive: true } },
+						{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+						id, undefined, {},
+					));
+					for (const agent of agents) {
+						live.model.acceptResponseProgress(live.request, agent);
+					}
+					const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+						setup.renderer.renderElement(setup.node, 0, setup.template);
+						await timeout(50);
+						const parts = setup.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+						for (const part of parts) {
+							const header = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content');
+							if (header?.getAttribute('aria-expanded') === 'false') {
+								header.click();
+							}
+						}
+						await timeout(0);
+						return {
+							files: parts.map(part => [...part.domNode.querySelectorAll('.chat-codeblock-pill-container .icon-label')].map(label => label.textContent)),
+							editors: setup.template.value.querySelectorAll('.monaco-editor').length,
+							errors: setup.template.value.querySelectorAll('.chat-notification-widget').length,
+							markers: setup.template.value.textContent?.includes('vscode_codeblock_uri'),
+						};
+					};
+					const expectedFiles: string[][] = agents.map(() => []);
+					for (let file = 0; file < editCount; file++) {
+						for (const [index, agent] of agents.entries()) {
+							const uri = URI.file(`/workspace/${index}-${file}.ts`);
+							live.model.acceptResponseProgress(live.request, { kind: 'codeblockUri', uri, isEdit: true, subAgentInvocationId: agent.toolCallId, isStandalone: true });
+							live.model.acceptResponseProgress(live.request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: `export const value = ${file};` }], done: true });
+							expectedFiles[index].push(`${index}-${file}.ts`);
+							assert.deepStrictEqual(await snapshot(live), { files: expectedFiles, editors: 0, errors: 0, markers: false });
+						}
+					}
+					live.request.response?.complete();
+					assert.deepStrictEqual(await snapshot(live), { files: expectedFiles, editors: 0, errors: 0, markers: false });
+					const copyText = live.request.response!.response.toString();
+					const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+					assert.ok(isSerializableSessionData(value));
+					live.disposables.dispose();
+					const restored = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+					assert.deepStrictEqual({
+						rendering: await snapshot(restored),
+						copyRoundTrip: restored.request.response!.response.toString() === copyText,
+						copyFiles: expectedFiles.flat().every(file => copyText.includes(file)),
+						copyMarkers: /vscode_codeblock_uri|subAgentInvocationId|```/.test(copyText),
+					}, { rendering: { files: expectedFiles, editors: 0, errors: 0, markers: false }, copyRoundTrip: true, copyFiles: true, copyMarkers: false });
+					const accessibility = new ChatAccessibilityProvider(undefined, upcastPartial<IAccessibleViewService>({ getOpenAriaHint: () => '' }), restored.instantiationService);
+					const ariaLabel = accessibility.getAriaLabel(restored.response);
+					const openEditor = sinon.stub(restored.instantiationService.get(IEditorService), 'openEditor').resolves(undefined);
+					restored.disposables.add(toDisposable(() => openEditor.restore()));
+					restored.template.value.querySelector<HTMLElement>('.chat-codeblock-pill-widget')?.click();
+					await timeout(0);
+					assert.deepStrictEqual({
+						accessibleFiles: expectedFiles.flat().every(file => ariaLabel.includes(file)),
+						accessibleMarkers: /vscode_codeblock_uri|subAgentInvocationId|```/.test(ariaLabel),
+						openedResource: openEditor.firstCall?.firstArg.resource?.toString(),
+					}, { accessibleFiles: true, accessibleMarkers: false, openedResource: 'file:///workspace/0-0.ts' });
+				}));
+			}
+		}
+	}
+
+	for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+		test(`standalone subagent read references retain attribution during streaming and reload (${collapsedTools})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+			const options = { chatMode: ChatModeKind.Agent, collapsedTools };
+			const live = createPersistentProgressRenderer(options);
+			const agent = new ChatToolInvocation(
+				{ invocationMessage: 'Read files', toolSpecificData: { kind: 'subagent', description: 'Read files', hasStarted: true, isActive: true } },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+				'reader', undefined, {},
+			);
+			live.model.acceptResponseProgress(live.request, agent);
+			live.model.acceptResponseProgress(live.request, { kind: 'thinking', id: 'parent', value: 'Parent reasoning continues.' });
+			live.model.acceptResponseProgress(live.request, { kind: 'codeblockUri', uri: URI.file('/workspace/read.ts'), subAgentInvocationId: agent.toolCallId, isStandalone: true });
+			const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+				setup.renderer.renderElement(setup.node, 0, setup.template);
+				await timeout(50);
+				const subagent = setup.template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+				assert.ok(subagent instanceof ChatSubagentContentPart);
+				const header = subagent.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content');
+				if (header?.getAttribute('aria-expanded') === 'false') {
+					header.click();
+				}
+				return {
+					childText: [...subagent.domNode.querySelectorAll('.chat-markdown-part')].map(part => part.textContent?.trim()),
+					editors: setup.template.value.querySelectorAll('.monaco-editor').length,
+				};
+			};
+			const streaming = await snapshot(live);
+			const thinking = live.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+			assert.ok(thinking instanceof ChatThinkingContentPart && thinking.getIsActive());
+			live.request.response?.complete();
+			const completed = await snapshot(live);
+			const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+			assert.ok(isSerializableSessionData(value));
+			live.disposables.dispose();
+			const restored = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+			const expected = { childText: ['read.ts'], editors: 0 };
+			assert.deepStrictEqual({ streaming, completed, restored: await snapshot(restored) }, { streaming: expected, completed: expected, restored: expected });
+		}));
+	}
+
+	test('literal request marker examples remain readable after JSON session reload', async () => {
+		const marker = '<vscode_codeblock_uri isEdit subAgentInvocationId="example">file:///example.ts</vscode_codeblock_uri>';
+		const requestText = `\`\`\`html\n${marker}\n\`\`\``;
+		const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+			const element = setup.viewModel.getItems().find(isRequestVM)!;
+			setup.renderer.renderElement({ ...setup.node, element }, 0, setup.template);
+			await timeout(0);
+			return {
+				editors: [...setup.renderer.editorsInUse()].map(editor => editor.editor.getValue()),
+				errors: setup.template.value.querySelectorAll('.chat-notification-widget').length,
+				request: setup.request.message.text,
+			};
+		};
+		const live = createPersistentProgressRenderer({ requestText });
+		const before = await snapshot(live);
+		const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+		assert.ok(isSerializableSessionData(value));
+		live.disposables.dispose();
+		const restored = createPersistentProgressRenderer({ initialData: { value, serializer: new ChatSessionOperationLog() } });
+		assert.deepStrictEqual({ before, after: await snapshot(restored) }, {
+			before: { editors: [marker], errors: 0, request: requestText },
+			after: { editors: [marker], errors: 0, request: requestText },
+		});
+	});
+
 	test('re-streamed subagent edit markdown replaces its previous revision instead of adding to it', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 		const diff = {
 			originalURI: URI.file('/snapshots/before/tests.ts'), modifiedURI: URI.file('/workspace/tests.ts'),
@@ -14251,7 +14488,7 @@ suite('ChatListRenderer', () => {
 					title: button?.textContent,
 					first: text?.includes('First'),
 					second: text?.includes('Second'),
-				}, { title: 'Thought for 1s', first: true, second: true });
+				}, { title: 'Thought for 2s', first: true, second: true });
 			});
 		}
 
@@ -14268,7 +14505,7 @@ suite('ChatListRenderer', () => {
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
-				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 2s');
+				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');
 			} finally {
 				disposables.dispose();
 			}
