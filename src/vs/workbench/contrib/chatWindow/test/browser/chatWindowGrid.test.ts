@@ -17,6 +17,7 @@ import { IPartGridPartFactory, PartGridLocation } from '../../../../browser/part
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
+import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../../common/chatWindowState.js';
@@ -281,6 +282,83 @@ suite('Chat window grid', () => {
 		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
 		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, height, userResize };
 	}
+
+	test('the terminals merged into the main part leave the grid, their editors in the main part, and do not come back while the terminals part stays empty', () => {
+		const terminalEditor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'workbench.editors.terminal';
+			override readonly resource = undefined;
+			override getName() { return 'terminal'; }
+		}();
+		const moved: string[] = [];
+		const mainGroup = new class extends mock<IEditorGroup>() {
+			override readonly id = 10;
+			override readonly isEmpty = false;
+			override readonly onDidModelChange = Event.None;
+			override getEditors() { return []; }
+			override focus(): void { }
+		}();
+		const main = new class extends mock<IContentPart>() {
+			override readonly element = $('.main');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [mainGroup];
+			override get activeGroup() { return mainGroup; }
+			override getGroups() { return this.groups; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		const onDidModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
+		let terminalEditors: EditorInput[] = [terminalEditor];
+		const terminalsGroup = new class extends mock<IEditorGroup>() {
+			override get isEmpty() { return terminalEditors.length === 0; }
+			override readonly onDidModelChange = onDidModelChange.event;
+			override getEditors() { return terminalEditors; }
+			override moveEditors(editors: { editor: EditorInput }[], target: IEditorGroup) {
+				moved.push(`${editors.map(e => e.editor.getName()).join()} → ${target.id}`);
+				terminalEditors = [];
+				onDidModelChange.fire({ kind: GroupModelChangeKind.EDITOR_CLOSE } as IGroupModelChangeEvent);
+				return true;
+			}
+		}();
+		const terminalsPart = new class extends mock<IContentPart>() {
+			override readonly element = $('.terminals');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [terminalsGroup];
+			override get activeGroup() { return terminalsGroup; }
+			override getGroups() { return this.groups; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main, chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(terminalsPart) }, observableValue('mode', ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const before = { visible: grid.terminalsVisible.get(), shape: grid.partGrid!.describe() };
+
+		const merged = grid.partGrid!.mergeCell(ChatWindowGridCell.Terminals, ChatWindowGridCell.Main);
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ before, merged, moved, after: { visible: grid.terminalsVisible.get(), terminalsCellVisible: grid.partGrid!.isCellVisible(ChatWindowGridCell.Terminals) } }, {
+			before: { visible: true, shape: before.shape },
+			merged: true,
+			moved: ['terminal → 10'],
+			after: { visible: false, terminalsCellVisible: false },
+		});
+	});
 
 	test('the terminals join the grid below the chat, below the main part or across the window, across the chat and the main part while stacked, and below the strip in editor only', () => {
 		const { mode, position, grid, open } = setupWithTerminals();
