@@ -40,6 +40,7 @@ packages:
   - extensions/vscode-colorize-perf-tests
   - extensions/vscode-test-resolver
   - test/automation
+  - test/componentFixtures/playwright
   - test/integration/browser
   - test/monaco
   - test/smoke

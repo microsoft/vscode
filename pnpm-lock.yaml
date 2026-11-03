@@ -1353,6 +1353,18 @@ importers:
         specifier: ^8.0.4
         version: 8.0.4
 
+  test/componentFixtures/playwright:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   test/integration/browser:
     devDependencies:
       '@types/node':
@@ -8819,6 +8831,11 @@ packages:
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -17720,6 +17737,8 @@ snapshots:
   typescript@4.9.5: {}
 
   typescript@5.5.4: {}
+
+  typescript@5.9.3: {}
 
   typescript@6.0.3: {}
 

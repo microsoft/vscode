@@ -45,11 +45,12 @@ jobs:
           key-prefix: node_modules-component-fixtures
           key-args: "compile $(node -p process.arch)"
 
-      # Only the dependencies of the root project, without the root install scripts that install
-      # every other install root.
+      # Only the dependencies of the root project and the Playwright fixture tests, without the
+      # root install scripts that install every other install root. Both jobs share this cache, so
+      # both install the same projects.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter ./test/componentFixtures/playwright
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -69,16 +70,11 @@ jobs:
         env:
           COMPONENT_EXPLORER_STATIC_BUILD: 1
 
-      - name: Install Playwright test dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: test/componentFixtures/playwright
-
       # Pushes to main save this cache, so pull requests don't download the browsers.
       - name: Restore Playwright browsers
         uses: ./.github/actions/restore-playwright
         with:
           browsers: chromium
-          pnpm-lock: test/componentFixtures/playwright/pnpm-lock.yaml
           save-cache: ${{ github.event_name != 'pull_request' }}
 
       - name: Install Playwright Chromium
@@ -123,11 +119,12 @@ jobs:
           key-prefix: node_modules-component-fixtures
           key-args: "compile $(node -p process.arch)"
 
-      # Only the dependencies of the root project, without the root install scripts that install
-      # every other install root.
+      # Only the dependencies of the root project and the Playwright fixture tests, without the
+      # root install scripts that install every other install root. Both jobs share this cache, so
+      # both install the same projects.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter ./test/componentFixtures/playwright
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
