@@ -22,8 +22,6 @@ import { type CanvasDefinitionSnapshot, ICanvas, ICanvasContext, ICanvasDefiniti
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
-	readonly extensionId: string | undefined;
-	readonly canvasId: string | undefined;
 	readonly instanceId: string | undefined;
 	readonly title: string;
 	readonly status: string | undefined;
@@ -37,8 +35,6 @@ export class AgentHostCanvas implements ICanvas {
 		@ILogService logService: ILogService,
 	) {
 		this.resource = resource;
-		this.extensionId = canvas?.extensionId;
-		this.canvasId = canvas?.canvasId;
 		this.instanceId = canvas?.instanceId;
 		this.extensionId = canvas?.extensionId;
 		this.canvasId = canvas?.canvasId;

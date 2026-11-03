@@ -24,8 +24,6 @@ export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCa
 
 export interface ICanvas {
 	readonly resource: URI;
-	readonly extensionId?: string;
-	readonly canvasId?: string;
 	readonly instanceId: string | undefined;
 	readonly title: string;
 	readonly status?: string;
