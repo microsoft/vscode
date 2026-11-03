@@ -750,7 +750,7 @@ interface ICopilotCanvasProjection {
 /** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
 export interface ICopilotCanvasHandoff {
 	readonly projections: readonly ICopilotCanvasProjection[];
-	readonly pendingCloseInstanceIds?: ReadonlySet<string>;
+	pendingCloseInstanceIds?: Set<string>;
 }
 
 /** A projected canvas; `handedOver` marks one seeded from a handoff that the replacement runtime has not reported since. */
@@ -1996,6 +1996,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Closed events still expected, by instance ID, for closes applied when the runtime acknowledged them first. */
 	private readonly _expectedCanvasClosedEvents = new Map<string, number>();
 	private readonly _deferredCanvasCloseInstanceIds = new Set<string>();
+	private readonly _settledDeferredCanvasCloseInstanceIds = new Set<string>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private _canvasRegistryGeneration = 0;
 	private _canvasRegistrySettlementPending = false;
@@ -4949,19 +4950,21 @@ export class CopilotAgentSession extends Disposable {
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
 		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({ resource, canvas }));
+		const pendingCloseInstanceIds = new Set([...this._deferredCanvasCloseInstanceIds, ...this._settledDeferredCanvasCloseInstanceIds]);
 		this._releaseCanvasRegistrySnapshot();
 		this._canvasPhase = 'released';
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		this._expectedCanvasClosedEvents.clear();
-		if (projections.length === 0) {
+		this._deferredCanvasCloseInstanceIds.clear();
+		this._settledDeferredCanvasCloseInstanceIds.clear();
+		this._settledDeferredCanvasCloseInstanceIds.clear();
+		if (projections.length === 0 && pendingCloseInstanceIds.size === 0) {
 			return undefined;
 		}
 		for (const projection of projections) {
 			this._publishCanvasState(projection);
 		}
-		const pendingCloseInstanceIds = new Set(this._deferredCanvasCloseInstanceIds);
-		this._deferredCanvasCloseInstanceIds.clear();
 		return { projections, pendingCloseInstanceIds };
 	}
 
@@ -4971,9 +4974,11 @@ export class CopilotAgentSession extends Disposable {
 			return false;
 		}
 		for (const instanceId of handoff.pendingCloseInstanceIds ?? []) {
-			this._deferredCanvasCloseInstanceIds.add(instanceId);
 			this._canvasByInstanceId.delete(instanceId);
 			this._ignoredRestoredCanvasInstanceIds.add(instanceId);
+			if (!this._settledDeferredCanvasCloseInstanceIds.delete(instanceId)) {
+				this._deferredCanvasCloseInstanceIds.add(instanceId);
+			}
 		}
 		this._pendingCanvasHandoff = undefined;
 		this._publishAuthoritativeCanvasRegistry();
@@ -4994,6 +4999,7 @@ export class CopilotAgentSession extends Disposable {
 			this._ignoredRestoredCanvasInstanceIds.add(instanceId);
 			this._expectedCanvasClosedEvents.delete(instanceId);
 			this._deferredCanvasCloseInstanceIds.add(instanceId);
+			this._settledDeferredCanvasCloseInstanceIds.delete(instanceId);
 		}
 		this._publishAuthoritativeCanvasRegistry();
 		void this._flushDeferredCanvasCloses(this._wrapper);
@@ -5038,6 +5044,13 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Handles the runtime's closed event for an instance whose projection may belong to a later lifetime than the event. */
 	private _handleCanvasClosed(wrapper: CopilotSessionWrapper, instanceId: string): void {
+		if (this._settleDeferredCanvasClose(instanceId)) {
+			const projection = this._canvasByInstanceId.get(instanceId);
+			if (projection) {
+				void this._removeCanvasUnlessOpen(wrapper, projection);
+			}
+			return;
+		}
 		const expected = this._expectedCanvasClosedEvents.get(instanceId);
 		if (!expected) {
 			if (this._canvasByInstanceId.delete(instanceId)) {
@@ -5252,16 +5265,26 @@ export class CopilotAgentSession extends Disposable {
 	private async _applyDeferredCanvasCloses(wrapper: CopilotSessionWrapper, openByInstanceId: Map<string, CopilotSession['openCanvases'][number]>): Promise<void> {
 		for (const instanceId of [...this._deferredCanvasCloseInstanceIds]) {
 			if (!openByInstanceId.has(instanceId)) {
-				this._deferredCanvasCloseInstanceIds.delete(instanceId);
+				this._settleDeferredCanvasClose(instanceId);
 				continue;
 			}
 			await this._awaitControlPlaneRpc('rpc.canvas.close', wrapper.session.rpc.canvas.close({ instanceId }));
 			openByInstanceId.delete(instanceId);
-			this._deferredCanvasCloseInstanceIds.delete(instanceId);
+			if (this._settleDeferredCanvasClose(instanceId)) {
+				this._expectedCanvasClosedEvents.set(instanceId, (this._expectedCanvasClosedEvents.get(instanceId) ?? 0) + 1);
+			}
 			if (this._store.isDisposed) {
 				return;
 			}
 		}
+	}
+
+	private _settleDeferredCanvasClose(instanceId: string): boolean {
+		if (!this._deferredCanvasCloseInstanceIds.delete(instanceId)) {
+			return false;
+		}
+		this._settledDeferredCanvasCloseInstanceIds.add(instanceId);
+		return true;
 	}
 
 	private _publishCanvasState(projection: ICopilotCanvasProjection): void {

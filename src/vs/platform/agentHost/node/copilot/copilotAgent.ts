@@ -3214,19 +3214,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
-		await this._canvasRestores.get(chat);
 		let context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		const liveSession = context.target;
+		const continuity = this._releasedCanvasContinuity(context) ?? this._claimedReleasedCanvasContinuity(context);
+		if (continuity) {
+			this._closeReleasedCanvas(continuity, request.resource);
+		}
+		let liveSession = context.target;
 		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
 			await liveSession.closeCanvas(request);
 			return;
 		}
-		context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		const continuity = this._releasedCanvasContinuity(context) ?? this._claimedReleasedCanvasContinuities.get(context.chatKey);
-		if (!continuity) {
+		const restoration = this._canvasRestores.get(chat);
+		if (!restoration) {
 			return;
 		}
-		this._closeReleasedCanvas(continuity, request.resource);
+		await restoration;
+		context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		liveSession = context.target;
+		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
+			await liveSession.closeCanvas(request);
+		}
 	}
 
 	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases'): Promise<CopilotAgentSession> {
@@ -7809,6 +7816,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._getReleasedCanvasContinuity(context.chat, context.sdkSessionId, context.ownerSession);
 	}
 
+	private _claimedReleasedCanvasContinuity(context: IResolvedCopilotChatContext): IReleasedCanvasContinuity | undefined {
+		const continuity = this._claimedReleasedCanvasContinuities.get(context.chatKey);
+		return continuity
+			&& continuity.generation === this._canvasContinuityGeneration(context.chatKey)
+			&& (context.sdkSessionId === undefined || continuity.sdkSessionId === context.sdkSessionId)
+			&& isEqual(continuity.ownerSession, context.ownerSession)
+			? continuity
+			: undefined;
+	}
+
 	private _getReleasedCanvasContinuity(chat: URI, expectedSdkSessionId?: string, expectedOwner?: URI): IReleasedCanvasContinuity | undefined {
 		const chatKey = chat.toString();
 		const continuity = this._releasedCanvasContinuities.get(chatKey, Touch.AsNew);
@@ -7899,7 +7916,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _publishReleasedCanvasContinuity(continuity: IReleasedCanvasContinuity, published?: readonly string[]): void {
-		for (const projection of continuity.handoff.projections) {
+		const pendingCloseInstanceIds = continuity.handoff.pendingCloseInstanceIds;
+		const projections = continuity.handoff.projections.filter(projection => !pendingCloseInstanceIds?.has(projection.canvas.instanceId));
+		for (const projection of projections) {
 			this._onDidChatProgress.fire({
 				kind: 'canvas',
 				chat: continuity.chat,
@@ -7907,9 +7926,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				state: projection.canvas,
 			});
 		}
-		const resources = continuity.handoff.projections.map(projection => projection.resource.toString());
+		const resources = projections.map(projection => projection.resource.toString());
 		const current = published ?? [];
-		if (resources.length !== current.length || resources.some((resource, index) => resource !== current[index])) {
+		if (published === undefined || resources.length !== current.length || resources.some((resource, index) => resource !== current[index])) {
 			this._onDidChatProgress.fire({
 				kind: 'action',
 				resource: continuity.chat,
@@ -7936,20 +7955,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const pendingCloseInstanceIds = continuity.handoff.pendingCloseInstanceIds instanceof Set
 			? continuity.handoff.pendingCloseInstanceIds
-			: new Set(continuity.handoff.pendingCloseInstanceIds);
+			: new Set<string>(continuity.handoff.pendingCloseInstanceIds);
+		continuity.handoff.pendingCloseInstanceIds = pendingCloseInstanceIds;
 		pendingCloseInstanceIds.add(projection.canvas.instanceId);
-		if (this._claimedReleasedCanvasContinuities.get(continuity.chat.toString()) === continuity) {
-			return;
+		if (this._claimedReleasedCanvasContinuities.get(continuity.chat.toString()) !== continuity) {
+			this._retainReleasedCanvasContinuity(continuity);
 		}
-		const updated: IReleasedCanvasContinuity = {
-			...continuity,
-			handoff: {
-				projections: continuity.handoff.projections.filter(candidate => !isEqual(candidate.resource, resource)),
-				pendingCloseInstanceIds,
-			},
-		};
-		this._retainReleasedCanvasContinuity(updated);
-		this._publishReleasedCanvasContinuity(updated, this._canvasWatches.get(continuity.chat)?.published());
+		this._publishReleasedCanvasContinuity(continuity, this._canvasWatches.get(continuity.chat)?.published());
 	}
 
 	private _refreshCanvasWatch(chat: URI): void {
@@ -7967,7 +7979,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._publishReleasedCanvasContinuity(continuity, host.published());
-		if (continuity.handoff.projections.length > 0) {
+		if (continuity.handoff.projections.some(projection => !continuity.handoff.pendingCloseInstanceIds?.has(projection.canvas.instanceId))) {
 			this._restoreReleasedCanvasContinuity(chat, host);
 		}
 	}
@@ -7985,7 +7997,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			const context = this._resolveChatContext(chat, operationContext);
-			if (!this._releasedCanvasContinuity(context)?.handoff.projections.length) {
+			const continuity = this._releasedCanvasContinuity(context);
+			if (!continuity?.handoff.projections.some(projection => !continuity.handoff.pendingCloseInstanceIds?.has(projection.canvas.instanceId))) {
 				return;
 			}
 			if (this._canvasWatches.get(chat) !== host) {
@@ -7993,7 +8006,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			await this._resolveSessionCanvasChat(context.ownerSession, chat, operationContext, 'restoreCanvases');
 			if (!this._canvasWatches.has(chat)) {
-				await this._releaseChat(chat, operationContext, { reason: () => 'other' });
+				await this._releaseChat(chat, operationContext, {
+					reason: () => continuity.generation === this._canvasContinuityGeneration(context.chatKey) ? 'idle' : 'other',
+				});
 			}
 		})().catch(error => {
 			this._logService.warn(`[Copilot] Failed to restore released canvases for ${chat.toString()}: ${getErrorMessage(error)}`);
