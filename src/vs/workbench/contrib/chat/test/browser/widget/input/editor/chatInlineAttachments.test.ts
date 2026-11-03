@@ -771,6 +771,68 @@ suite('ChatInlineAttachments', () => {
 		}, { firstShown: true, firstDismissed: true, secondShownImmediately: true, secondExpanded: 'true' });
 	}));
 
+	test('a rejected pointer replacement preserves the locked keyboard preview and its owner', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
+		store.add(toDisposable(() => fixture.remove()));
+		const previews: HTMLElement[] = [];
+		const input = createInput('review ', true, () => {
+			const preview = dom.$('div');
+			dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, `Reference ${previews.length + 1}`));
+			previews.push(preview);
+			return preview;
+		}, createRealHoverService(fixture, 500));
+		const host = input.editor.getContainerDomNode();
+		fixture.appendChild(host);
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'), file('b.ts'));
+		await settle();
+		for (const target of input.attachmentElements) {
+			host.appendChild(target.closest('.chat-inline-attachment')!);
+		}
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		await timeout(500);
+		const previewId = previews[0].id;
+		input.attachmentElements[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(500);
+		focusPreview(input);
+		assert.deepStrictEqual({
+			firstVisible: previews[0].isConnected,
+			secondVisible: previews[1].isConnected,
+			firstOwner: ChatInlineAttachments.getPreviewOwner(previews[0]) === input.controller,
+			firstControls: input.attachmentElements[0].getAttribute('aria-controls'),
+			focusedText: dom.getActiveElement()?.textContent,
+		}, { firstVisible: true, secondVisible: false, firstOwner: true, firstControls: previewId, focusedText: 'Reference 1' });
+	}));
+
+	test('modified Tab shortcuts are not intercepted at either preview boundary', async () => {
+		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
+		store.add(toDisposable(() => fixture.remove()));
+		const preview = dom.$('div');
+		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+		const input = createInput('review ', true, preview, createRealHoverService(fixture));
+		const host = input.editor.getContainerDomNode();
+		fixture.appendChild(host);
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		await settle();
+		focusPreview(input);
+		const modifiers = ['ctrlKey', 'altKey', 'metaKey'] as const;
+		const results: { modifier: string; shiftKey: boolean; prevented: boolean; previewVisible: boolean }[] = [];
+		for (const modifier of modifiers) {
+			for (const shiftKey of [false, true]) {
+				const event = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey, [modifier]: true, bubbles: true, cancelable: true });
+				link.dispatchEvent(event);
+				results.push({ modifier, shiftKey, prevented: event.defaultPrevented, previewVisible: preview.isConnected });
+			}
+		}
+		assert.deepStrictEqual(results, modifiers.flatMap(modifier => [false, true].map(shiftKey => ({ modifier, shiftKey, prevented: false, previewVisible: true }))));
+	});
+
 	test('grouped duplicate references preserve the owner of their shared cached preview', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
 		store.add(toDisposable(() => fixture.remove()));
@@ -870,6 +932,32 @@ suite('ChatInlineAttachments', () => {
 		const atDeadline = preview.isConnected;
 		await timeout(300);
 		assert.deepStrictEqual({ atDeadline, later: preview.isConnected, expanded: target.getAttribute('aria-expanded') }, { atDeadline: false, later: false, expanded: 'false' });
+	}));
+
+	test('leaving after Escape cancels a pending pointer preview even while its pill stays selected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
+		store.add(toDisposable(() => fixture.remove()));
+		const preview = dom.$('div', undefined, 'Details');
+		const input = createInput('review ', true, preview, createRealHoverService(fixture, 500));
+		const host = input.editor.getContainerDomNode();
+		fixture.appendChild(host);
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		const target = input.attachmentElements[0];
+		host.appendChild(target.closest('.chat-inline-attachment')!);
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		await timeout(500);
+		host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		const selectedAfterEscape = input.isActive();
+		target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(499);
+		target.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(1);
+		const atDeadline = preview.isConnected;
+		await timeout(300);
+		assert.deepStrictEqual({ selectedAfterEscape, atDeadline, later: preview.isConnected }, { selectedAfterEscape: true, atDeadline: false, later: false });
 	}));
 
 	function file(name: string): IChatRequestVariableEntry {

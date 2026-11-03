@@ -221,9 +221,10 @@ export class ChatInlineAttachments extends Disposable {
 	private _activePillHoverWidget: IHoverWidget | undefined;
 	private _previewInAccessibleView = false;
 	private _deferredPreviewRender = false;
-	private _restorePillPreview: InlineAttachmentPill | undefined;
+	private _restorePillPreview: { pill: InlineAttachmentPill; fromKeyboard: boolean } | undefined;
 	private _previewPill: InlineAttachmentPill | undefined;
 	private _previewShown = false;
+	private _previewFromKeyboard = false;
 	/**
 	 * Whether the cursor was placed by an edit rather than by the user, as when a
 	 * prompt is pasted or restored, in which case the pill before it is not
@@ -1053,7 +1054,7 @@ export class ChatInlineAttachments extends Disposable {
 			return;
 		}
 		const pill = new InlineAttachmentPill(this._editor, data, range, offset, () => this._removePill(pill), () => this._showPillPreview(pill), () => {
-			if (this._previewPill === pill && this._activePill !== pill && !this._previewShown) {
+			if (this._previewPill === pill && !this._previewFromKeyboard && !this._previewShown) {
 				this._activePillHover.clear();
 			}
 		});
@@ -1121,7 +1122,9 @@ export class ChatInlineAttachments extends Disposable {
 			// Keep the accessible reader's DOM owner stable until its preview closes.
 			this._deferredPreviewRender = true;
 		} else {
-			this._restorePillPreview = this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed && (this._previewShown || this._activePill === this._previewPill) ? this._previewPill : undefined;
+			this._restorePillPreview = this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed && this._previewPill && (this._previewShown || this._previewFromKeyboard)
+				? { pill: this._previewPill, fromKeyboard: this._previewFromKeyboard }
+				: undefined;
 			this._activePillHover.clear();
 		}
 		this._needsRender = false;
@@ -1313,8 +1316,8 @@ export class ChatInlineAttachments extends Disposable {
 				this._showPillPreview(active, true);
 			}
 		}
-		if (this._restorePillPreview && this._pills.has(this._restorePillPreview)) {
-			this._showPillPreview(this._restorePillPreview, this._activePill === this._restorePillPreview);
+		if (this._restorePillPreview && this._pills.has(this._restorePillPreview.pill)) {
+			this._showPillPreview(this._restorePillPreview.pill, this._restorePillPreview.fromKeyboard);
 		}
 		this._restorePillPreview = undefined;
 		// Enter opens the pill only when that does something, and otherwise sends the request.
@@ -1328,30 +1331,22 @@ export class ChatInlineAttachments extends Disposable {
 		const content = pill.getHoverContent();
 		const target = pill.getHoverTarget();
 		if (!content || !target) {
-			this._activePillHover.clear();
 			return;
 		}
-		const previousHover = this._activePillHover.clearAndLeak();
 		const store = new DisposableStore();
-		this._activePillHover.value = store;
-		if (previousHover) {
-			store.add(previousHover);
-		}
-		this._previewPill = pill;
-		this._activePillHoverContent = content;
-		content.element.id = `chat-reference-preview-${generateUuid()}`;
 		store.add(toDisposable(() => {
+			if (this._activePillHover.value !== store) {
+				return;
+			}
 			const hadFocus = dom.isAncestorOfActiveElement(content.element.closest('.monaco-hover') ?? content.element);
 			ChatInlineAttachments._previewOwners.delete(content.element);
 			target.setAttribute('aria-expanded', 'false');
 			target.removeAttribute('aria-controls');
-			if (this._activePillHover.value !== store) {
-				return;
-			}
 			this._activePillHoverContent = undefined;
 			this._activePillHoverWidget = undefined;
 			this._previewPill = undefined;
 			this._previewShown = false;
+			this._previewFromKeyboard = false;
 			if (this._deferredPreviewRender) {
 				this._deferredPreviewRender = false;
 				this._needsRender = true;
@@ -1361,6 +1356,8 @@ export class ChatInlineAttachments extends Disposable {
 				this._editor.focus();
 			}
 		}));
+		const previewId = `chat-reference-preview-${generateUuid()}`;
+		let shown = false;
 		const isInteractive = () => content.tabbableElements.some(element => element.tabIndex >= 0);
 		const hover = this._hoverService.showDelayedHover({
 			content: content.element,
@@ -1370,9 +1367,12 @@ export class ChatInlineAttachments extends Disposable {
 			trapFocus: false,
 			persistence: { sticky: fromKeyboard, hideOnHover: false },
 			onDidShow: () => {
-				this._previewShown = true;
+				shown = true;
+				if (this._activePillHover.value === store) {
+					this._previewShown = true;
+				}
 				target.setAttribute('aria-expanded', 'true');
-				target.setAttribute('aria-controls', content.element.id);
+				target.setAttribute('aria-controls', previewId);
 			},
 			onDidHide: () => {
 				if (this._activePillHover.value === store) {
@@ -1382,12 +1382,18 @@ export class ChatInlineAttachments extends Disposable {
 				}
 			},
 		}, { groupId: this._previewHoverGroupId });
-		previousHover?.dispose();
-		if (!hover) {
-			this._activePillHover.clear();
+		if (!hover || hover.isDisposed) {
+			store.dispose();
 			return;
 		}
-		this._activePillHoverWidget = store.add(hover);
+		store.add(hover);
+		this._activePillHover.value = store;
+		this._activePillHoverWidget = hover;
+		this._previewPill = pill;
+		this._previewShown = shown;
+		this._previewFromKeyboard = fromKeyboard;
+		this._activePillHoverContent = content;
+		content.element.id = previewId;
 		ChatInlineAttachments._previewOwners.set(content.element, this);
 		const loadingObserver = new MutationObserver(() => {
 			if (content.element.getAttribute('aria-busy') === 'false') {
@@ -1411,7 +1417,7 @@ export class ChatInlineAttachments extends Disposable {
 		store.add(dom.addDisposableListener(content.element, dom.EventType.KEY_DOWN, e => {
 			const first = content.tabbableElements[0];
 			const last = content.tabbableElements.at(-1);
-			if (e.key === 'Tab' && (!first || (e.shiftKey && dom.getActiveElement() === first) || (!e.shiftKey && dom.getActiveElement() === last))) {
+			if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && (!first || (e.shiftKey && dom.getActiveElement() === first) || (!e.shiftKey && dom.getActiveElement() === last))) {
 				dom.EventHelper.stop(e, true);
 				this._activePillHover.clear();
 				this._editor.focus();
