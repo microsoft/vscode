@@ -398,7 +398,10 @@ export class PartGrid extends Disposable {
 
 		const { id, part } = this.partFactory.createPart();
 		this.created.add(id);
-		this.addPart(id, part, location);
+		// The new part takes its room from the part the editors come from, not from the other parts
+		const sourcePart = this.editorGroupsService.getPart(sourceGroup);
+		const sourceCell = Array.from(this.cells.values()).find(cell => cell.part && (cell.part as IEditorPart) === sourcePart);
+		this.addCell(this.register(id, { part }), location, undefined, sourceCell?.id);
 
 		const targetGroup = part.activeGroup;
 		sourceGroup.moveEditors(editors.map(({ editor }) => ({ editor, options: { pinned: true } })), targetGroup);
@@ -450,13 +453,17 @@ export class PartGrid extends Disposable {
 		return cell;
 	}
 
-	private addCell(cell: PartGridCell, location: PartGridLocation, size: number | undefined): void {
+	/**
+	 * @param donorId At an edge of the window, the cell whose room the added
+	 * cell takes, so that the other cells keep their sizes.
+	 */
+	private addCell(cell: PartGridCell, location: PartGridLocation, size: number | undefined, donorId?: string): void {
 		if (!this.grid) {
 			this.setGrid(new SerializableGrid<PartGridCell>(cell, { proportionalLayout: false }));
 		} else if (hasKey(location, { reference: true })) {
 			this.grid.addView(cell, size ?? Sizing.Split, this.getCell(location.reference), location.direction);
 		} else {
-			this.addAtEdge(cell, location.edge, size);
+			this.addAtEdge(cell, location.edge, size, donorId);
 		}
 
 		this.updateAllVisibility();
@@ -552,11 +559,11 @@ export class PartGrid extends Disposable {
 		return this.empty.has(id);
 	}
 
-	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined): void {
+	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string): void {
 		const grid = this.grid!;
 		const orientation = edge === Direction.Up || edge === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 		const atEnd = edge === Direction.Right || edge === Direction.Down;
-		if (this.addAtEdgeOfParts(cell, orientation, atEnd, size)) {
+		if (this.addAtEdgeOfParts(cell, orientation, atEnd, size, donorId)) {
 			return;
 		}
 
@@ -565,7 +572,7 @@ export class PartGrid extends Disposable {
 
 		// Beside the only cell, or beside a cell at that edge of the root
 		// along the grid's orientation, the grid adds it in place
-		if (!isGridBranchNode(edgeChild) && (root.children.length === 1 || grid.orientation === orientation)) {
+		if (!isGridBranchNode(edgeChild) && (root.children.length === 1 || (grid.orientation === orientation && donorId === undefined))) {
 			grid.addView(cell, size ?? Sizing.Distribute, edgeChild.view, edge);
 			return;
 		}
@@ -573,13 +580,16 @@ export class PartGrid extends Disposable {
 		// Otherwise the grid is rebuilt with the cell at the edge of its root
 		const state = grid.serialize();
 		const extent = orientation === Orientation.VERTICAL ? state.height : state.width;
-		const cellSize = Math.min(size ?? Math.round(extent / (grid.orientation === orientation ? root.children.length + 1 : 2)), extent);
-		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
 		const children = state.root.type === 'branch' ? state.root.data : [state.root];
+		let cellSize = Math.min(size ?? Math.round(extent / (grid.orientation === orientation ? root.children.length + 1 : 2)), extent);
 		let newRoot: ISerializedNode;
 		if (grid.orientation === orientation) {
-			newRoot = { ...state.root, type: 'branch', data: atEnd ? [...children, added] : [added, ...children] };
+			const donated = this.takeRoom(children, cellSize, size, donorId);
+			cellSize = donated.size;
+			const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
+			newRoot = { ...state.root, type: 'branch', data: atEnd ? [...donated.children, added] : [added, ...donated.children] };
 		} else {
+			const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
 			const rest: ISerializedNode = { type: 'branch', data: children, size: Math.max(0, extent - cellSize) };
 			newRoot = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: orientation === Orientation.VERTICAL ? state.width : state.height };
 		}
@@ -592,7 +602,7 @@ export class PartGrid extends Disposable {
 	 * holds the parts: a cell added there goes beside the parts, and the
 	 * views keep spanning the window. Returns whether it added the cell.
 	 */
-	private addAtEdgeOfParts(cell: PartGridCell, orientation: Orientation, atEnd: boolean, size: number | undefined): boolean {
+	private addAtEdgeOfParts(cell: PartGridCell, orientation: Orientation, atEnd: boolean, size: number | undefined, donorId: string | undefined): boolean {
 		const state = this.grid!.serialize();
 		const isView = (child: ISerializedNode) => child.type === 'leaf' && !this.cells.get((child.data as { id: string }).id)?.part;
 		const path: number[] = [];
@@ -624,11 +634,13 @@ export class PartGrid extends Disposable {
 
 		const extent = orientation === Orientation.VERTICAL ? state.height : state.width;
 		const cellSize = Math.min(size ?? Math.round(extent / (nodeOrientation === orientation ? node.data.length + 1 : 2)), extent);
-		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
 		let replacement: ISerializedNode;
 		if (nodeOrientation === orientation) {
-			replacement = { ...node, data: [...node.data.slice(0, index), added, ...node.data.slice(index)] };
+			const donated = this.takeRoom(node.data, cellSize, size, donorId);
+			const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: donated.size };
+			replacement = { ...node, data: [...donated.children.slice(0, index), added, ...donated.children.slice(index)] };
 		} else {
+			const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
 			const rest: ISerializedNode = { type: 'branch', data: node.data, size: Math.max(0, (node.size ?? extent) - cellSize) };
 			replacement = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: node.size };
 		}
@@ -639,6 +651,30 @@ export class PartGrid extends Disposable {
 		this.setGrid(this.deserialize({ ...state, root: replace(state.root, 0) }));
 
 		return true;
+	}
+
+	/**
+	 * With a donor, the room of a cell added among `children`: the donor's
+	 * child, or the largest part's, gives it, by default half of its own,
+	 * and the other children keep their sizes. Without one, the children
+	 * share the room, as they make way for the given size.
+	 */
+	private takeRoom(children: readonly ISerializedNode[], size: number, requested: number | undefined, donorId: string | undefined): { readonly children: readonly ISerializedNode[]; readonly size: number } {
+		if (donorId === undefined) {
+			return { children, size };
+		}
+
+		const contains = (node: ISerializedNode, id: string): boolean => node.type === 'leaf' ? (node.data as { id: string }).id === id : node.data.some(child => contains(child, id));
+		const isPart = (node: ISerializedNode): boolean => node.type === 'branch' || !!this.cells.get((node.data as { id: string }).id)?.part;
+		const sizeOf = (node: ISerializedNode) => node.size ?? 0;
+		const donor = children.find(child => contains(child, donorId))
+			?? children.filter(isPart).reduce<ISerializedNode | undefined>((largest, child) => !largest || sizeOf(child) > sizeOf(largest) ? child : largest, undefined);
+		if (!donor) {
+			return { children, size };
+		}
+
+		const room = Math.min(requested ?? Math.round(sizeOf(donor) / 2), sizeOf(donor));
+		return { children: children.map(child => child === donor ? { ...child, size: sizeOf(child) - room } : child), size: room };
 	}
 
 	private getCellsInGrid(node: GridNode<PartGridCell>, into: PartGridCell[] = []): PartGridCell[] {
