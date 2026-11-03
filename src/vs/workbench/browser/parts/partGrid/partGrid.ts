@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -15,7 +15,8 @@ import { IEditorGroupView } from '../editor/editor.js';
 import { PART_GRID_CLASS } from '../editor/partGridClass.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../common/editor.js';
 import { getPartName } from '../editor/editorPartActions.js';
-import { PartGridDropTarget, registerPartDragHandle, registerPartTitleDrag } from './partGridDnd.js';
+import { PartGridCardDrag, PartGridCardDrop } from './partGridCardDrag.js';
+import { getPartTitleDragSource, PartGridDropTarget } from './partGridDnd.js';
 import { PartGridMotion } from './partGridMotion.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
@@ -153,12 +154,20 @@ class PartGridCell implements ISerializableView {
 	 * frames are as far apart as those of cards.
 	 */
 	private get cardInsets(): IGridEdgeInsets {
+		return this.getCardInsets(this.insets);
+	}
+
+	/**
+	 * The insets the card would have for given insets of the cell, such as
+	 * in a preview of a move.
+	 */
+	getCardInsets(insets: IGridEdgeInsets): IGridEdgeInsets {
 		if (!this.contentOwnsFrame) {
-			return this.insets;
+			return insets;
 		}
 
 		const inset = (gap: number, frame: number) => gap > 0 ? Math.max(0, gap - frame) : gap;
-		return { top: inset(this.insets.top, this.border.top), right: inset(this.insets.right, this.border.right), bottom: inset(this.insets.bottom, this.border.bottom), left: inset(this.insets.left, this.border.left) };
+		return { top: inset(insets.top, this.border.top), right: inset(insets.right, this.border.right), bottom: inset(insets.bottom, this.border.bottom), left: inset(insets.left, this.border.left) };
 	}
 
 	private border: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
@@ -370,23 +379,55 @@ export class PartGrid extends Disposable {
 		}));
 
 		this._register(new PartGridDropTarget({
-			grid: this,
 			container,
 			getVisibleCells: () => Array.from(this.cells.values()).filter(cell => cell.part && this.isCellVisible(cell.id)),
-			moveCell: (id, location) => {
-				this.moveCell(id, location);
-				const part = this.cells.get(id)?.part;
-				if (part) {
-					status(localize('movedPart', "Moved {0}", getPartName(part)));
-				}
-			},
 			canCreateParts: () => !!this.partFactory,
-			moveEditorsIntoNewPart: (editors, edge) => this.moveEditorsIntoNewPart(editors, { edge }),
-			canMerge: (id, targetId) => this.canMergeCell(id, targetId),
-			mergeCell: (id, targetId) => this.mergeCell(id, targetId),
-			previewMove: (id, location) => this.previewMove(id, location),
-			getCardStyle: id => this.cells.get(id)?.cardElement
+			moveEditorsIntoNewPart: (editors, edge) => this.moveEditorsIntoNewPart(editors, { edge })
 		}));
+
+		this.cardDrag = this._register(new PartGridCardDrag({
+			container,
+			isMotionEnabled: () => this.motion.isMotionEnabled(),
+			getVisibleCells: () => Array.from(this.cells.values())
+				.filter(cell => this.grid?.isViewVisible(cell) && this.isCellVisible(cell.id))
+				.map(cell => ({ id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, setContentVisible: visible => cell.setVisible(visible) })),
+			canMerge: (id, targetId) => this.canMergeCell(id, targetId),
+			previewArrangement: (id, drop) => this.previewArrangement(id, drop),
+			drop: (id, drop) => this.dropCell(id, drop)
+		}));
+	}
+
+	private readonly cardDrag: PartGridCardDrag;
+
+	/**
+	 * Starts dragging the card of a part by the pointer, from a pointer down
+	 * on it, such as on its grabber or on room of its own that drags it: the
+	 * card lifts once the pointer moves, follows it, and the other cards make
+	 * way for it; dropped, the part moves there. Escape cancels. Returns
+	 * whether the drag started, for a part that shows.
+	 */
+	startPartDrag(id: string, e: PointerEvent): boolean {
+		return this.cardDrag.start(id, e);
+	}
+
+	/**
+	 * Moves or merges a part dragged by its card, as dropped: once, with no
+	 * glide, as the drag settles the cards itself.
+	 */
+	private dropCell(id: string, drop: PartGridCardDrop): void {
+		if (hasKey(drop, { merge: true })) {
+			this.mergeCell(id, drop.merge);
+			return;
+		}
+
+		const part = this.cells.get(id)?.part;
+		if (!this.grid || this.cells.size < 2 || !part) {
+			return;
+		}
+
+		moveInArrangement(this.arrangement(), this.getCell(id), cellId => this.getCell(cellId), drop.location);
+		this.updateAllVisibility();
+		status(localize('movedPart', "Moved {0}", getPartName(part)));
 	}
 
 	private mergeAllowed = true;
@@ -435,6 +476,16 @@ export class PartGrid extends Disposable {
 	 * cells, and lays it out as it is laid out.
 	 */
 	previewMove(id: string, location: PartGridLocation): IPartGridRect | undefined {
+		return this.previewArrangement(id, { location })?.get(id);
+	}
+
+	/**
+	 * Where the cards of the cells that show would be, in client
+	 * coordinates, after a part moved to a location or merged into another
+	 * part: a dry run of the move on a copy of the grid, with what stands in
+	 * for its cells, laid out as the grid is.
+	 */
+	previewArrangement(id: string, drop: PartGridCardDrop): Map<string, IPartGridRect> | undefined {
 		const current = this.grid;
 		if (!current || !this.dimension || !this.cells.has(id) || this.cells.size < 2) {
 			return undefined;
@@ -459,16 +510,21 @@ export class PartGrid extends Disposable {
 
 		let grid = deserialize(state);
 		try {
-			const arrangement: IArrangement<PreviewView> = {
-				get grid() { return grid; },
-				isPart: cellId => !!this.cells.get(cellId)?.part,
-				replace: serialized => {
-					const next = deserialize(serialized);
-					grid.dispose();
-					grid = next;
-				}
-			};
-			moveInArrangement(arrangement, stubOf(id), stubOf, location);
+			if (hasKey(drop, { merge: true })) {
+				// A part that merges goes away, as a part without editors does
+				grid.setViewVisible(stubOf(id), false);
+			} else {
+				const arrangement: IArrangement<PreviewView> = {
+					get grid() { return grid; },
+					isPart: cellId => !!this.cells.get(cellId)?.part,
+					replace: serialized => {
+						const next = deserialize(serialized);
+						grid.dispose();
+						grid = next;
+					}
+				};
+				moveInArrangement(arrangement, stubOf(id), stubOf, drop.location);
+			}
 			this.previewAdjuster?.({
 				leads: cellId => leads(grid, cellId, stub => !!stub.part && grid.isViewVisible(stub)),
 				isCellVisible: cellId => stubs.has(cellId) || this.cells.has(cellId) ? grid.isViewVisible(stubOf(cellId)) : false,
@@ -476,20 +532,27 @@ export class PartGrid extends Disposable {
 			});
 			grid.layout(state.width, state.height);
 
-			const box = stubOf(id).box;
-			if (!box) {
-				return undefined;
+			const origin = current.element.getBoundingClientRect();
+			const visibleStubs = Array.from(stubs.values()).filter(stub => grid.isViewVisible(stub));
+			const rects = new Map<string, IPartGridRect>();
+			for (const stub of visibleStubs) {
+				const box = stub.box;
+				if (!box) {
+					continue;
+				}
+
+				// The card inside the cell, inset by its share of the gaps to the cells beside it, as the grid's look insets it
+				const gapInsets = stub.keepsNoGap || visibleStubs.length < 2 ? NO_GRID_EDGE_INSETS : getGridEdgeInsets(grid, stub, this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.keepsNoGap);
+				const insets = this.getCell(stub.id).getCardInsets(gapInsets);
+				rects.set(stub.id, {
+					left: origin.left + box.left + insets.left,
+					top: origin.top + box.top + insets.top,
+					width: Math.max(0, box.width - insets.left - insets.right),
+					height: Math.max(0, box.height - insets.top - insets.bottom)
+				});
 			}
 
-			const insets = getGridEdgeInsets(grid, stubOf(id), this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.keepsNoGap);
-			const origin = current.element.getBoundingClientRect();
-
-			return {
-				left: origin.left + box.left + insets.left,
-				top: origin.top + box.top + insets.top,
-				width: Math.max(0, box.width - insets.left - insets.right),
-				height: Math.max(0, box.height - insets.top - insets.bottom)
-			};
+			return rects;
 		} finally {
 			grid.dispose();
 		}
@@ -609,10 +672,19 @@ export class PartGrid extends Disposable {
 		}
 
 		if (cell.part && cell.dragHandle) {
-			const part = cell.part;
-			disposables.add(registerPartDragHandle(cell.dragHandle, this, id, () => getPartName(part)));
-			// The title of a group that is not at the top edge of the window, which moves the window, drags the part too
-			disposables.add(registerPartTitleDrag(cell.element, this, id, () => getPartName(part), group => !group.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS)));
+			disposables.add(addDisposableListener(cell.dragHandle, EventType.POINTER_DOWN, e => this.startPartDrag(id, e)));
+			// The empty space of the title of a group that is not at the top edge of the window, which moves the window, drags the part too
+			disposables.add(addDisposableListener(cell.element, EventType.POINTER_DOWN, e => {
+				if (getPartTitleDragSource(e.target, cell.element, group => !group.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS))) {
+					this.startPartDrag(id, e);
+				}
+			}, true));
+			// While its card drags, the title does not start a drag of its group
+			disposables.add(addDisposableListener(cell.element, EventType.DRAG_START, e => {
+				if (this.cardDrag.isActive) {
+					EventHelper.stop(e, true);
+				}
+			}, true));
 		}
 
 		return cell;

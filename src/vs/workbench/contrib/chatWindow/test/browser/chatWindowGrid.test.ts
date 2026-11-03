@@ -104,14 +104,18 @@ suite('Chat window grid', () => {
 	test('a part dragged onto the center of another part does not merge into it: the center is not a drop target, the sides are', () => {
 		const { container } = setup();
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) => target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
 		const dragChatOverMain = (fraction: number) => {
 			const handle = cellOf(ChatWindowGridCell.Chat).querySelector('.part-grid-drag-handle')!;
-			handle.dispatchEvent(new DragEvent('dragstart', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }));
+			const start = handle.getBoundingClientRect();
+			pointer(handle, 'pointerdown', start.left + start.width / 2, start.top + start.height / 2);
+			pointer(handle, 'pointermove', start.left + start.width / 2 + 10, start.top + start.height / 2 + 10);
 			const main = cellOf(ChatWindowGridCell.Main).getBoundingClientRect();
-			cellOf(ChatWindowGridCell.Main).dispatchEvent(new DragEvent('dragover', { dataTransfer: new DataTransfer(), clientX: main.left + main.width * fraction, clientY: main.top + main.height / 2, bubbles: true, cancelable: true }));
-			const shown = indicator.style.display !== 'none' && !indicator.classList.contains('merge');
-			handle.dispatchEvent(new DragEvent('dragend', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }));
+			pointer(handle, 'pointermove', main.left + main.width * fraction, main.top + main.height / 2);
+			const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator.part');
+			const shown = !!indicator && indicator.style.display !== 'none' && !indicator.classList.contains('merge');
+			// Escape: the part goes nowhere
+			mainWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 			return shown;
 		};
 

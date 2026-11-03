@@ -170,3 +170,88 @@
 	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-agentsCard-border, var(--vscode-widget-border, transparent));
 	will-change: transform, clip-path;
 }
+
+/*
+ * A card dragged by the pointer lifts, smaller and with a shadow, and
+ * follows the pointer by `translate`; the other cards slide to where they
+ * go by `translate` and `clip-path`, over card frames, under the cells,
+ * that show where each card goes. A running slide changes course from where
+ * it is, as transitions do. Dropped, the cards settle by the same means.
+ */
+.part-grid-card-dragging,
+.part-grid-card-dragging * {
+	cursor: grabbing !important;
+}
+
+.part-grid-frame-layer {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+}
+
+.part-grid-frame-layer > .part-grid-frame {
+	position: fixed;
+	box-sizing: border-box;
+	background-color: var(--part-grid-frame-border, var(--vscode-agentsCard-border, var(--vscode-widget-border, transparent)));
+	clip-path: var(--part-grid-frame-clip);
+	will-change: clip-path;
+}
+
+.part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill {
+	position: absolute;
+	inset: 0;
+	background-color: var(--part-grid-frame-background, var(--vscode-editor-background));
+	clip-path: var(--part-grid-frame-fill-clip);
+}
+
+/* Where the dragged card goes: an empty slot, framed as a card is. */
+.part-grid-frame-layer > .part-grid-frame.slot {
+	background-color: var(--vscode-focusBorder);
+}
+
+.part-grid-frame-layer > .part-grid-frame.slot > .part-grid-frame-fill {
+	background-color: var(--vscode-editorGroup-dropBackground);
+}
+
+/* The cards leave their looks to their frames, which take the size of where they go. */
+.part-grid-card-dragging .part-grid-cell.part-grid-reflow > .part-grid-card {
+	border-color: transparent;
+	background-color: transparent;
+}
+
+.part-grid-cell:is(.part-grid-reflow, .part-grid-settle) {
+	z-index: 1;
+	will-change: translate, clip-path;
+}
+
+.part-grid-cell.part-grid-lifted {
+	z-index: 3;
+	will-change: translate, scale;
+}
+
+.part-grid-cell.part-grid-lifted > .part-grid-card,
+.part-grid-motion-layer > .part-grid-motion-card.part-grid-lifted-card {
+	box-shadow: 0 8px 24px var(--vscode-widget-shadow);
+}
+
+.part-grid-reflowing .part-grid-frame-layer > .part-grid-frame,
+.part-grid-reflowing .part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill,
+.part-grid-settling .part-grid-frame-layer > .part-grid-frame,
+.part-grid-settling .part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill {
+	transition: clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-reflowing .part-grid-cell.part-grid-reflow {
+	transition: translate 200ms cubic-bezier(0.22, 1, 0.36, 1), clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The lifted card follows the pointer at once: only its lift is a transition. */
+.part-grid-reflowing .part-grid-cell.part-grid-lifted,
+.part-grid-reflowing .part-grid-motion-layer > .part-grid-motion-card.part-grid-lifted-card {
+	transition: scale 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-settling .part-grid-cell:is(.part-grid-reflow, .part-grid-lifted, .part-grid-settle),
+.part-grid-settling .part-grid-motion-layer > .part-grid-motion-card.part-grid-lifted-card {
+	transition: translate 200ms cubic-bezier(0.22, 1, 0.36, 1), scale 200ms cubic-bezier(0.22, 1, 0.36, 1), clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}

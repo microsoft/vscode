@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, getWindow } from '../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IPartGridRect } from './partGrid.js';
 
 /**
@@ -43,6 +43,37 @@ export interface IPartGridMotionHost {
  */
 const NATIVE_CONTENT_SELECTOR = '.browser-container-wrapper, .session-canvas-editor, [id^="webview-editor-element-"], .notebookOverlay';
 
+/**
+ * Whether a cell shows what is drawn over the window rather than in it,
+ * which does not move with the cell.
+ */
+export function hasNativeContent(cell: HTMLElement): boolean {
+	// What the cell shows is not built here: it is found by what marks it as drawn natively or in an overlay
+	// eslint-disable-next-line no-restricted-syntax
+	return !!cell.querySelector(NATIVE_CONTENT_SELECTOR);
+}
+
+/**
+ * Lets cells move out of the branches of the grid they are in, which clip
+ * what overflows them, until disposed: the elements from each cell up to
+ * the container overflow visibly meanwhile.
+ */
+export function unclipCells(container: HTMLElement, cells: readonly HTMLElement[]): IDisposable {
+	const unclipped = new Map<HTMLElement, string>();
+	for (const cell of cells) {
+		for (let element = cell.parentElement; element && element !== container && !unclipped.has(element); element = element.parentElement) {
+			unclipped.set(element, element.style.overflow);
+			element.style.overflow = 'visible';
+		}
+	}
+
+	return toDisposable(() => {
+		for (const [element, overflow] of unclipped) {
+			element.style.overflow = overflow;
+		}
+	});
+}
+
 interface IMoving {
 	readonly cell: HTMLElement;
 	/** For a card with native content: the plain card that moves instead of it. */
@@ -66,6 +97,7 @@ export class PartGridMotion extends Disposable {
 	private layer: HTMLElement | undefined;
 	private readonly moving = new Map<string, IMoving>();
 	private settleTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly unclipped = this._register(new MutableDisposable());
 
 	constructor(private readonly host: IPartGridMotionHost) {
 		super();
@@ -96,13 +128,15 @@ export class PartGridMotion extends Disposable {
 				continue;
 			}
 
-			const moving: IMoving = { cell, ghost: this.hasNativeContent(cell) ? this.createGhost(id) : undefined };
+			const moving: IMoving = { cell, ghost: hasNativeContent(cell) ? this.createGhost(id) : undefined };
 			this.moving.set(id, moving);
 			glides.push({ moving, origin, target });
 		}
 		if (!glides.length) {
 			return;
 		}
+
+		this.unclipped.value = unclipCells(this.host.container, glides.map(({ moving }) => moving.cell));
 
 		// Each starts where it was, then, with one style flush for all, goes where it is
 		for (const { moving, origin, target } of glides) {
@@ -139,12 +173,6 @@ export class PartGridMotion extends Disposable {
 		const clipRight = Math.max(0, layout.width - box.width);
 		const clipBottom = Math.max(0, layout.height - box.height);
 		style.clipPath = clipRight || clipBottom ? `inset(0 ${clipRight}px ${clipBottom}px 0)` : '';
-	}
-
-	private hasNativeContent(cell: HTMLElement): boolean {
-		// What the cell shows is not built here: it is found by what marks it as drawn natively or in an overlay
-		// eslint-disable-next-line no-restricted-syntax
-		return !!cell.querySelector(NATIVE_CONTENT_SELECTOR);
 	}
 
 	private createGhost(id: string): HTMLElement {
@@ -201,6 +229,7 @@ export class PartGridMotion extends Disposable {
 			cell.classList.remove('part-grid-moving');
 		}
 		this.moving.clear();
+		this.unclipped.clear();
 		this.layer?.remove();
 		this.layer = undefined;
 	}

@@ -24,7 +24,8 @@ import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
-import { DraggedPartIdentifier, getPartGridDrop, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
+import { getPartGridDrop, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
+import { PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridCardDrag.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -496,6 +497,34 @@ suite('Part Grid', () => {
 		});
 	});
 
+	function pointer(target: EventTarget, type: string, clientX: number, clientY: number): void {
+		target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, isPrimary: true, bubbles: true, cancelable: true }));
+	}
+
+	/**
+	 * Drags the card of a part by its grabber: down on the grabber, a move
+	 * that lifts it, then moves to each point, and, unless it stays held,
+	 * up at the last one.
+	 */
+	function dragCard(container: HTMLElement, id: string, points: readonly (readonly [number, number])[], options?: { readonly hold?: boolean }): void {
+		const handle = container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] .part-grid-drag-handle`)!;
+		const start = handle.getBoundingClientRect();
+		const [x, y] = [start.left + start.width / 2, start.top + start.height / 2];
+		pointer(handle, 'pointerdown', x, y);
+		pointer(handle, 'pointermove', x + 10, y + 10);
+		for (const [px, py] of points) {
+			pointer(handle, 'pointermove', px, py);
+		}
+		if (!options?.hold) {
+			const [px, py] = points[points.length - 1];
+			pointer(handle, 'pointerup', px, py);
+		}
+	}
+
+	function pressEscape(): void {
+		mainWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+	}
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
@@ -510,29 +539,25 @@ suite('Part Grid', () => {
 		grid.layout(1000, 800);
 
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const slot = () => container.querySelector<HTMLElement>('.part-grid-drop-indicator.part');
 		const drag = (id: string, x: (rect: DOMRect) => number, y: (rect: DOMRect) => number, over = 'side') => {
-			dispatch(cellOf(id).querySelector('.part-grid-drag-handle')!, 'dragstart');
 			const rect = over === 'window' ? container.getBoundingClientRect() : cellOf(over).getBoundingClientRect();
 			const point = [x(rect), y(rect)] as const;
-			dispatch(cellOf(over === 'window' ? 'side' : over), 'dragover', ...point);
-			const indicatorShown = indicator.style.display !== 'none';
-			const editorOverlay = !!container.querySelector('#monaco-workbench-editor-drop-overlay');
-			dispatch(cellOf(over === 'window' ? 'side' : over), 'drop', ...point);
-			dispatch(cellOf(id).querySelector('.part-grid-drag-handle')!, 'dragend');
-			return { indicatorShown, editorOverlay, shape: grid.describe() };
+			dragCard(container, id, [point], { hold: true });
+			const indicatorShown = !!slot() && slot()!.style.display !== 'none';
+			pointer(mainWindow.document.body, 'pointerup', ...point);
+			return { indicatorShown, shape: grid.describe() };
 		};
 
 		const besideSide = drag('bottom', rect => rect.left + rect.width * 0.2, rect => rect.top + rect.height / 2);
 		const toBottomEdge = drag('bottom', rect => rect.left + rect.width / 2, rect => rect.bottom - 4, 'window');
 		const ontoItself = drag('side', rect => rect.left + rect.width / 2, rect => rect.top + rect.height / 2);
 
-		assert.deepStrictEqual({ besideSide, toBottomEdge, ontoItself, transfer: LocalSelectionTransfer.getInstance<DraggedPartIdentifier>().hasData(DraggedPartIdentifier.prototype), indicatorAfter: indicator.style.display }, {
-			besideSide: { indicatorShown: true, editorOverlay: false, shape: 'row(bottom, side, chat)' },
-			toBottomEdge: { indicatorShown: true, editorOverlay: false, shape: 'column(row(side, chat), bottom)' },
-			ontoItself: { indicatorShown: false, editorOverlay: false, shape: 'column(row(side, chat), bottom)' },
-			transfer: false,
-			indicatorAfter: 'none'
+		assert.deepStrictEqual({ besideSide, toBottomEdge, ontoItself, indicatorAfter: !!slot() }, {
+			besideSide: { indicatorShown: true, shape: 'row(bottom, side, chat)' },
+			toBottomEdge: { indicatorShown: true, shape: 'column(row(side, chat), bottom)' },
+			ontoItself: { indicatorShown: false, shape: 'column(row(side, chat), bottom)' },
+			indicatorAfter: false
 		});
 	});
 
@@ -548,18 +573,14 @@ suite('Part Grid', () => {
 		grid.resizeCell('left', { width: 700, height: 800 });
 
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
 		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
-		const handle = cellOf('right').querySelector('.part-grid-drag-handle')!;
 
 		// The right part over the left side of the left part takes the left slot, the left part moving right
-		dispatch(handle, 'dragstart');
 		const target = cellOf('left').getBoundingClientRect();
 		const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
-		dispatch(cellOf('left'), 'dragover', ...point);
-		const shown = rectOf(indicator);
-		dispatch(cellOf('left'), 'drop', ...point);
-		dispatch(handle, 'dragend');
+		dragCard(container, 'right', [point], { hold: true });
+		const shown = rectOf(container.querySelector<HTMLElement>('.part-grid-drop-indicator.part')!);
+		pointer(mainWindow.document.body, 'pointerup', ...point);
 
 		assert.deepStrictEqual({ shape: grid.describe(), shown, slotAfterDrop: rectOf(cellOf('right')), halfOfTarget: shown[2] === Math.round(target.width / 2) }, {
 			shape: 'row(right, left)',
@@ -580,83 +601,161 @@ suite('Part Grid', () => {
 		grid.layout(900, 600);
 
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const partTransfer = LocalSelectionTransfer.getInstance<DraggedPartIdentifier>();
 		const groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
-		const drag = (id: string) => {
-			const titleSpace = cellOf(id).querySelector('.title .tabs-container')!;
-			dispatch(titleSpace, 'dragstart');
-			const dragged = { part: partTransfer.getData(DraggedPartIdentifier.prototype)?.[0]?.cellId, group: groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) };
-			return { titleSpace, dragged };
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		const lifted = () => container.classList.contains('part-grid-card-dragging');
+		const press = (element: Element, to: readonly [number, number]) => {
+			const rect = element.getBoundingClientRect();
+			const [x, y] = [rect.left + rect.width - 4, rect.top + rect.height / 2];
+			pointer(element, 'pointerdown', x, y);
+			pointer(element, 'pointermove', x + 10, y + 10);
+			pointer(element, 'pointermove', ...to);
+			const dragStart = new DragEvent('dragstart', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true });
+			element.dispatchEvent(dragStart);
+			const result = { lifted: lifted(), nativeDrag: !dragStart.defaultPrevented, group: groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype), editor: editorTransfer.hasData(DraggedEditorIdentifier.prototype) };
+			// A drag of a group or an editor that ends here is not dropped elsewhere: its transfer goes, as at its end
+			groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+			editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			pointer(element, 'pointerup', ...to);
+			return result;
 		};
 
-		const fromTop = drag('top');
-		dispatch(fromTop.titleSpace, 'dragend');
-
-		// A tab drags its editor, and the drag handle the part, wherever the part is
-		const tab = cellOf('below').querySelector('.title .tab')!;
-		dispatch(tab, 'dragstart');
-		const fromTab = { part: partTransfer.hasData(DraggedPartIdentifier.prototype), editor: LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>().hasData(DraggedEditorIdentifier.prototype) };
-		dispatch(tab, 'dragend');
-		const handle = cellOf('top').querySelector('.part-grid-drag-handle')!;
-		dispatch(handle, 'dragstart');
-		const fromHandle = partTransfer.getData(DraggedPartIdentifier.prototype)?.[0]?.cellId;
-		dispatch(handle, 'dragend');
-
-		const fromBelow = drag('below');
 		const target = cellOf('top').getBoundingClientRect();
 		const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
-		dispatch(cellOf('top'), 'dragover', ...point);
-		dispatch(cellOf('top'), 'drop', ...point);
-		dispatch(fromBelow.titleSpace, 'dragend');
+		const fromTop = press(cellOf('top').querySelector('.title .tabs-container')!, point);
+		const fromTab = press(cellOf('below').querySelector('.title .tab')!, point);
+		const shapeBefore = grid.describe();
+		const fromBelow = press(cellOf('below').querySelector('.title .tabs-container')!, point);
 
-		assert.deepStrictEqual({ fromTop: fromTop.dragged, fromTab, fromHandle, fromBelow: fromBelow.dragged, shape: grid.describe(), afterEnd: partTransfer.hasData(DraggedPartIdentifier.prototype) || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
-			fromTop: { part: undefined, group: true },
-			fromTab: { part: false, editor: true },
-			fromHandle: 'top',
-			fromBelow: { part: 'below', group: false },
+		assert.deepStrictEqual({ fromTop, fromTab, shapeBefore, fromBelow, shape: grid.describe(), afterEnd: lifted() || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
+			fromTop: { lifted: false, nativeDrag: true, group: true, editor: false },
+			fromTab: { lifted: false, nativeDrag: true, group: false, editor: true },
+			shapeBefore: 'column(top, below)',
+			fromBelow: { lifted: true, nativeDrag: false, group: false, editor: false },
 			shape: 'row(below, top)',
 			afterEnd: false
 		});
 	});
 
-	test('while a part is dragged, no part moves, only its slot shows; dropped, the parts glide to where they go, only with motion', async () => {
+	async function createRowOfThree(motion: boolean) {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 900, 600);
+		if (motion) {
+			container.classList.add('monaco-enable-motion');
+		}
 		const grid = disposables.add(new PartGrid(container, parts));
-		const [a, b] = [createPart(parts), createPart(parts)];
-		await Promise.all([openEditor(a, '/a.txt'), openEditor(b, '/b.txt')]);
+		const [a, b, c] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(a, '/a.txt'), openEditor(b, '/b.txt'), openEditor(c, '/c.txt')]);
 		grid.addPart('a', a);
 		grid.addPart('b', b, { edge: Direction.Right });
+		grid.addPart('c', c, { edge: Direction.Right });
 		grid.layout(900, 600);
 
+		let previews = 0;
+		const preview = grid.previewArrangement;
+		grid.previewArrangement = (id, drop) => { previews++; return preview.call(grid, id, drop); };
+		let arrangementChanges = 0;
+		disposables.add(grid.onDidChangeArrangement(() => arrangementChanges++));
+
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
-		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); };
-		const moving = () => [...container.querySelectorAll<HTMLElement>('.part-grid-moving')].map(cell => cell.dataset.partGridCell).sort();
-		const dragBeforeA = (id: string) => {
-			const handle = cellOf(id).querySelector('.part-grid-drag-handle')!;
-			dispatch(handle, 'dragstart');
-			const target = cellOf(id === 'a' ? 'b' : 'a').getBoundingClientRect();
-			const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
-			dispatch(cellOf(id === 'a' ? 'b' : 'a'), 'dragover', ...point);
-			const hovering = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')), moving: moving(), slotShown: indicator.style.display !== 'none' };
-			dispatch(cellOf(id === 'a' ? 'b' : 'a'), 'drop', ...point);
-			dispatch(handle, 'dragend');
-			return { hovering, dropped: moving() };
-		};
+		// Where the cards that make way go, rounded; the dragged card follows the pointer
+		const translates = () => Object.fromEntries(['a', 'b'].map(id => [id, cellOf(id).style.translate.split(' ').map(value => Math.round(parseFloat(value))).filter(value => !isNaN(value))]));
+		const start = Object.fromEntries(['a', 'b', 'c'].map(id => [id, cellOf(id).getBoundingClientRect()]));
+		// Where a card shows while the dragged card is held: where it was, moved by its translate
+		const shownLeft = (id: string) => start[id].left + (parseFloat(cellOf(id).style.translate) || 0);
 
-		const before = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
-		const withoutMotion = dragBeforeA('b');
-		container.classList.add('monaco-enable-motion');
-		const afterFirst = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
-		const withMotion = dragBeforeA('a');
-		await timeout(250);
+		return { grid, container, cellOf, translates, start, shownLeft, previews: () => previews, arrangementChanges: () => arrangementChanges };
+	}
 
-		assert.deepStrictEqual({ withoutMotion, withMotion, afterGlide: moving(), shape: grid.describe() }, {
-			withoutMotion: { hovering: { ...before, moving: [], slotShown: true }, dropped: [] },
-			withMotion: { hovering: { ...afterFirst, moving: [], slotShown: true }, dropped: ['a', 'b'] },
-			afterGlide: [],
-			shape: 'row(a, b)'
+	test('a dragged card finds where the cards go once for each place, in zones where the cards show, and drops there once', async () => {
+		const { grid, container, cellOf, translates, start, shownLeft, previews, arrangementChanges } = await createRowOfThree(true);
+		const width = Math.round(start.c.width);
+
+		// c over the left side of a, by small moves: the others make way at once, with one dry run
+		dragCard(container, 'c', [[30, 300], [32, 302], [28, 298], [31, 305]], { hold: true });
+		const overA = { previews: previews(), translates: translates(), lifted: cellOf('c').classList.contains('part-grid-lifted'), slot: !!container.querySelector('.part-grid-frame.slot') };
+
+		// The left side of a where it shows, not where it was, is where c goes already
+		const x = shownLeft('a') + (shownLeft('b') - shownLeft('a')) * 0.1;
+		const inShownZoneOnly = x > start.a.left + start.a.width * 0.25;
+		pointer(mainWindow.document.body, 'pointermove', x, 300);
+		const overShownA = { inShownZoneOnly, previews: previews(), translates: translates() };
+
+		pointer(mainWindow.document.body, 'pointerup', x, 300);
+		const dropped = { shape: grid.describe(), arrangementChanges: arrangementChanges() };
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ overA, overShownA, dropped, settled: { translates: translates(), moving: container.querySelectorAll('.part-grid-lifted, .part-grid-reflow, .part-grid-settle, .part-grid-frame-layer').length } }, {
+			overA: { previews: 1, translates: { a: [width], b: [width] }, lifted: true, slot: true },
+			overShownA: { inShownZoneOnly: true, previews: 1, translates: { a: [width], b: [width] } },
+			dropped: { shape: 'row(c, a, b)', arrangementChanges: 1 },
+			settled: { translates: { a: [], b: [] }, moving: 0 }
+		});
+	});
+
+	test('a card sliding to where the dragged card makes way changes course without starting over, and only past the border of a zone', async () => {
+		const { container, cellOf, shownLeft, previews } = await createRowOfThree(true);
+
+		// Every style b had, in order
+		const styles: string[] = [];
+		const observer = new MutationObserver(records => styles.push(...records.map(record => record.oldValue ?? '')));
+		observer.observe(cellOf('b'), { attributes: true, attributeFilter: ['style'], attributeOldValue: true });
+
+		dragCard(container, 'c', [[30, 300]], { hold: true });
+		const translateFirst = cellOf('b').style.translate;
+
+		// Just past the left side of a, where it shows, toward its center, then well into the bottom edge of the window below b
+		const aWidth = shownLeft('b') - shownLeft('a');
+		pointer(mainWindow.document.body, 'pointermove', shownLeft('a') + aWidth * 0.25 + 4, 300);
+		const nearBorder = previews();
+		pointer(mainWindow.document.body, 'pointermove', shownLeft('b') + 20, 600 - 4);
+		const translateSecond = cellOf('b').style.translate;
+		styles.push(...observer.takeRecords().map(record => record.oldValue ?? ''), cellOf('b').style.cssText);
+		observer.disconnect();
+
+		pressEscape();
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		// Where b went, change by change: from where it was to where it makes way, then on to where it makes way next, with no reset between
+		const course = styles.map(style => /translate: ([^;]*)/.exec(style)?.[1] ?? '').filter((translate, index, all) => index === 0 || translate !== all[index - 1]);
+		assert.deepStrictEqual({ nearBorder, previews: previews(), changedCourse: translateFirst !== translateSecond, course: course.length, restarted: styles.some(style => /transition/.test(style)) }, {
+			nearBorder: 1,
+			previews: 2,
+			changedCourse: true,
+			course: 3,
+			restarted: false
+		});
+	});
+
+	test('Escape puts the dragged card and the others back, and moves nothing', async () => {
+		const { grid, container, translates, start, arrangementChanges } = await createRowOfThree(true);
+		const before = grid.describe();
+		const width = Math.round(start.c.width);
+
+		dragCard(container, 'c', [[30, 300]], { hold: true });
+		const dragging = translates();
+		pressEscape();
+		const cancelling = container.classList.contains('part-grid-settling');
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		pointer(mainWindow.document.body, 'pointerup', 30, 300);
+
+		assert.deepStrictEqual({ dragging, cancelling, after: { shape: grid.describe(), translates: translates(), arrangementChanges: arrangementChanges(), layers: container.querySelectorAll('.part-grid-frame-layer, .part-grid-motion-layer, .part-grid-drop-indicator.part').length } }, {
+			dragging: { a: [width], b: [width] },
+			cancelling: true,
+			after: { shape: before, translates: { a: [], b: [] }, arrangementChanges: 0, layers: 0 }
+		});
+	});
+
+	test('without motion, no card lifts or slides: where it goes shows as a slot, and the drop moves the part at once', async () => {
+		const { grid, container, cellOf, translates, arrangementChanges } = await createRowOfThree(false);
+
+		dragCard(container, 'c', [[30, 300]], { hold: true });
+		const dragging = { translates: translates(), lifted: cellOf('c').classList.contains('part-grid-lifted'), frames: !!container.querySelector('.part-grid-frame-layer'), slot: !!container.querySelector('.part-grid-drop-indicator.part:not([style*="display: none"])') };
+		pointer(mainWindow.document.body, 'pointerup', 30, 300);
+
+		assert.deepStrictEqual({ dragging, dropped: { shape: grid.describe(), arrangementChanges: arrangementChanges(), moving: container.querySelectorAll('.part-grid-moving, .part-grid-settle').length } }, {
+			dragging: { translates: { a: [], b: [] }, lifted: false, frames: false, slot: true },
+			dropped: { shape: 'row(c, a, b)', arrangementChanges: 1, moving: 0 }
 		});
 	});
 
@@ -671,17 +770,14 @@ suite('Part Grid', () => {
 		grid.layout(1000, 800);
 
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
 		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
 		const dragToCenter = () => {
-			const handle = cellOf('right').querySelector('.part-grid-drag-handle')!;
-			dispatch(handle, 'dragstart');
 			const target = cellOf('left').getBoundingClientRect();
 			const point = [target.left + target.width / 2, target.top + target.height / 2] as const;
-			dispatch(cellOf('left'), 'dragover', ...point);
-			const feedback = indicator.style.display === 'none' ? 'none' : { merge: indicator.classList.contains('merge'), wholeTarget: rectOf(indicator).join() === rectOf(cellOf('left')).join() };
-			dispatch(cellOf('left'), 'drop', ...point);
-			dispatch(handle, 'dragend');
+			dragCard(container, 'right', [point], { hold: true });
+			const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator.part');
+			const feedback = !indicator || indicator.style.display === 'none' ? 'none' : { merge: indicator.classList.contains('merge'), wholeTarget: rectOf(indicator).join() === rectOf(cellOf('left')).join() };
+			pointer(mainWindow.document.body, 'pointerup', ...point);
 			return { feedback, shape: grid.describe(), rightVisible: grid.isCellVisible('right') };
 		};
 
