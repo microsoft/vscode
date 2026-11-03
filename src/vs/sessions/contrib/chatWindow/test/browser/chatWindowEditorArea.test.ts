@@ -16,6 +16,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
 import { IEditorPane } from '../../../../../workbench/common/editor.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -45,12 +46,13 @@ suite('Chat window editor area', () => {
 	/** The keys of a chat window: an auxiliary window of the Agents window with layout modes. */
 	const chatWindowKeys = { [IsSessionsWindowContext.key]: true, [IsAuxiliaryWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [LayoutModeContext.key]: ChatWindowLayoutMode.SideBySide };
 
-	function createWindow(windowId: number, events: string[]): IChatWindow {
+	function createWindow(windowId: number, events: string[], editors: EditorInput[] = []): IChatWindow {
 		const group = new class extends mock<IEditorGroup>() {
 			override readonly id = windowId * 10;
-			override readonly count = 0;
+			override readonly count = editors.length;
 			override findEditors() { return []; }
-			override getEditors() { return []; }
+			override getEditors() { return editors; }
+			override async openEditor(editor: EditorInput) { events.push(`activate:${editor.resource?.path}`); return undefined; }
 		}();
 		const mainPart = new class extends mock<IContentPart>() {
 			override readonly activeGroup = group;
@@ -123,6 +125,26 @@ suite('Chat window editor area', () => {
 		await withoutWindow.invokeFunction(accessor => CommandsRegistry.getCommand(changes.id)!.handler(accessor));
 
 		assert.deepStrictEqual(events, ['2:showEditor', 'changes:/session-2:/chat-2:20']);
+	});
+
+	test('the Changes entry activates a Changes tab of the session the main part shows, such as one that moved in with the chat or was restored, rather than opening another', async () => {
+		const events: string[] = [];
+		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as IActiveSession;
+		// Of the session, not of its chat, and of another session.
+		const ofSession = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/session-2'); }();
+		const ofOther = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/other'); }();
+		const instantiationService = createInstantiationService(createWindow(2, events, [ofOther, ofSession]), session);
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getSessionResource(resource: URI) { return resource.scheme === 'changes' ? URI.parse(`test:${resource.path}`) : undefined; }
+			override async openChangesEditor(resource: URI) {
+				events.push(`changes:${resource.path}`);
+				return undefined;
+			}
+		}());
+		const changes = chatWindowTabEntries.find(entry => entry.id === 'sessions.chatWindow.openChanges')!;
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(changes.id)!.handler(accessor));
+
+		assert.deepStrictEqual(events, ['2:showEditor', 'activate:/session-2']);
 	});
 
 	test('the Browser entry opens a browser in the main part of its chat window and focuses its URL input', async () => {

@@ -6,6 +6,7 @@
 import './media/chatWindowLayoutButtons.css';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
@@ -192,10 +193,15 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	async open(accessor, session, group) {
 		if (session) {
 			const sessionChangesService = accessor.get(ISessionChangesService);
-			// The window's own Changes editor, of the chat it shows; an existing tab is activated in place rather than moved to the end.
-			const chatResource = session.scopedChatResource;
-			const index = group.findEditors(sessionChangesService.getChangesEditorResource(session.resource, chatResource)).length > 0 ? undefined : group.count;
-			await sessionChangesService.openChangesEditor(session.resource, { index, chatResource }, group);
+			// An existing Changes tab of the session is activated in place, such as one that moved in with the chat or was
+			// restored, which may show the changes of the session rather than of the chat.
+			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.resource && isEqual(sessionChangesService.getSessionResource(editor.resource), session.resource));
+			if (existing) {
+				await group.openEditor(existing);
+				return;
+			}
+			// Otherwise the window's own Changes editor, of the chat it shows, at the end.
+			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: session.scopedChatResource }, group);
 		}
 	},
 }, {
