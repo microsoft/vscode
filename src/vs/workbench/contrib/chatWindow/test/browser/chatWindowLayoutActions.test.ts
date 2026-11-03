@@ -16,7 +16,7 @@ import { IsSessionsWindowContext, LayoutModeContext } from '../../../../common/c
 import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../browser/chatWindow.js';
-import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../browser/chatWindowLayoutActions.js';
+import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID, toggleChatWindowEditorAsSidePanel } from '../../browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
@@ -137,14 +137,14 @@ suite('Chat window layout actions', () => {
 		});
 	});
 
-	test('the side panel key hides the main part, leaving the chat, and shows it again as it showed with the chat, from any layout', () => {
-		const { a, run } = createEnvironment();
+	test('the side panel\'s command hides the main part, leaving the chat, and shows it again as it showed with the chat, from any layout', () => {
+		const { a } = createEnvironment();
 		const steps: ChatWindowLayoutMode[] = [];
 		for (const mode of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
 			a.state.setLayoutMode(mode);
-			run(TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID);
+			toggleChatWindowEditorAsSidePanel(a.window);
 			steps.push(a.state.layoutMode.get());
-			run(TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID);
+			toggleChatWindowEditorAsSidePanel(a.window);
 			steps.push(a.state.layoutMode.get());
 		}
 		assert.deepStrictEqual(steps, [

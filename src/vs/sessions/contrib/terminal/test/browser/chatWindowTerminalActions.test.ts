@@ -27,10 +27,10 @@ import { ActiveEditorContext, IsSessionsWindowContext, LayoutModeContext } from 
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowContextKeys.js';
-import { TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { terminalEditorId } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ADD_CHAT_WINDOW_TERMINAL_COMMAND_ID, ChatWindowTerminalPositionMenu, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID } from '../../browser/chatWindowTerminalActions.js';
 import { IChatWindowTerminalsService } from '../../browser/chatWindowTerminals.js';
@@ -75,15 +75,14 @@ suite('Chat window terminal actions', () => {
 		return { instantiationService, run };
 	}
 
-	test('the keys of the panel, the terminal and the side panel act in a chat window, above the main window\'s rules, and are not sent to the shell', () => {
-		const ids = [TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID];
-		const keybindings = KeybindingsRegistry.getDefaultKeybindings().filter(rule => ids.includes(rule.command ?? ''));
+	test('the keys of the panel and the terminal act in a chat window, above the main window\'s rules; they and the side panel\'s key, whichever command they run, are not sent to the shell', () => {
+		const keybindings = KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID);
 		assert.deepStrictEqual({
-			bound: keybindings.map(rule => rule.command).sort(),
+			bound: keybindings.length,
 			scoped: keybindings.every(rule => rule.when?.keys().includes(LayoutModeContext.key) && rule.when.keys().includes(IsSessionsWindowContext.key)),
-			skipShell: ids.every(id => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(id)),
+			skipShell: [TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID, TOGGLE_SIDE_PANEL_COMMAND_ID].every(id => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(id)),
 		}, {
-			bound: [TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID],
+			bound: 2,
 			scoped: true,
 			skipShell: true,
 		});

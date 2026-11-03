@@ -42,6 +42,8 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -758,9 +760,13 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
-					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
-						CustomViewVisibleContext.negate()
+					// In a chat window it toggles the window's editor, whatever the main window shows.
+					precondition: ContextKeyExpr.or(
+						ChatWindowLayoutCommandsContext,
+						ContextKeyExpr.and(
+							ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
+							CustomViewVisibleContext.negate()
+						)
 					),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
@@ -790,6 +796,13 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			run(accessor: ServicesAccessor): void {
+				// In a chat window, whichever key runs it: the window's editor, never the side panel of the main window.
+				const chatWindow = accessor.get(IChatWindowService).activeWindow;
+				if (chatWindow) {
+					toggleChatWindowEditorAsSidePanel(chatWindow);
+					return;
+				}
+
 				const nowVisible = accessor.get(IAgentWorkbenchLayoutService).toggleSidePane();
 
 				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);

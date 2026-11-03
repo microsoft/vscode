@@ -5,7 +5,6 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
@@ -13,7 +12,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IsSessionsWindowContext, LayoutModeContext, SplitLayoutContext } from '../../../common/contextkeys.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
 import { isWindowCommandContext } from '../../../common/windowCommandContext.js';
@@ -65,7 +63,6 @@ export const TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID = 'workbench.action.chatWindow.t
 export const TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID = 'workbench.action.chatWindow.toggleEditor';
 export const TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID = 'workbench.action.chatWindow.toggleArrangement';
 export const TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID = 'workbench.action.chatWindow.toggleConversation';
-export const TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID = 'workbench.action.chatWindow.toggleEditorByKey';
 
 /**
  * The chat window a command acts on: the window of the editor group its arguments name, such as when it runs from the
@@ -232,36 +229,18 @@ registerAction2(class ToggleChatWindowConversationAction extends Action2 {
 	}
 });
 
-// The key of the side panel, which toggles the side panel of the main window, toggles the main part of a chat window:
-// hiding it leaves the chat, so that the window is never empty, and showing it brings back how it showed with the chat.
-registerAction2(class ToggleChatWindowEditorByKeyAction extends Action2 {
-	constructor() {
-		super({
-			id: TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID,
-			title: localize2('chatWindowToggleEditorByKey', "Toggle Editor in Chat Window"),
-			category: ChatWindowCategory,
-			f1: false,
-			precondition: ChatWindowLayoutCommandsContext,
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB,
-				weight: KeybindingWeight.SessionsContrib + 10,
-				when: ChatWindowLayoutCommandsContext,
-			},
-		});
+/**
+ * What the side panel's command does in a chat window, whichever key the user gives it: as it toggles the side panel of
+ * the main window, it hides the main part of the window, leaving the chat, so that the window is never empty, and shows it
+ * again as it showed with the chat.
+ */
+export function toggleChatWindowEditorAsSidePanel(window: IChatWindow): void {
+	if (window.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
+		window.showEditor();
+	} else {
+		showChatWindowLayout(window, ChatWindowLayoutMode.ChatOnly);
 	}
-
-	override run(accessor: ServicesAccessor): void {
-		const window = accessor.get(IChatWindowService).activeWindow;
-		if (!window) {
-			return;
-		}
-		if (window.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
-			window.showEditor();
-		} else {
-			showChatWindowLayout(window, ChatWindowLayoutMode.ChatOnly);
-		}
-	}
-});
+}
 
 export const RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID = 'workbench.action.chatWindow.resetLayout';
 
