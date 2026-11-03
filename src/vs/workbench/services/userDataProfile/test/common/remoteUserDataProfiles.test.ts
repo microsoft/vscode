@@ -82,7 +82,7 @@ suite('RemoteUserDataProfilesService', () => {
 		const server = createProfilesService('remote');
 
 		// Local profile uses the Default profile's extensions from the start
-		const localProfile = await local.createProfile('p1', 'github', { useDefaultFlags: { extensions: true } });
+		const localProfile = await local.createProfile('p1', 'MyProfile', { useDefaultFlags: { extensions: true } });
 
 		// On connect, the server creates the missing profile from the id only (see RemoteAgentEnvironmentChannel._getEnvironmentData)
 		await server.createProfile('p1', 'p1');
@@ -90,8 +90,10 @@ suite('RemoteUserDataProfilesService', () => {
 		const testObject = createTestObject(local, server, localProfile);
 		const remoteProfile = await testObject.getRemoteProfile(localProfile);
 
-		assert.deepStrictEqual(remoteProfile.useDefaultFlags, { extensions: true });
-		assert.strictEqual(remoteProfile.extensionsResource.toString(), server.defaultProfile.extensionsResource.toString());
+		assert.deepStrictEqual(
+			{ useDefaultFlags: remoteProfile.useDefaultFlags, extensionsResource: remoteProfile.extensionsResource.toString() },
+			{ useDefaultFlags: { extensions: true }, extensionsResource: server.defaultProfile.extensionsResource.toString() }
+		);
 	});
 
 	test('remote profile picks up useDefaultFlags changed locally after it was created', async () => {
@@ -99,8 +101,8 @@ suite('RemoteUserDataProfilesService', () => {
 		const server = createProfilesService('remote');
 
 		// Profile existed locally and on the remote with its own extensions
-		let localProfile = await local.createProfile('p1', 'github');
-		await server.createProfile('p1', 'github');
+		let localProfile = await local.createProfile('p1', 'MyProfile');
+		await server.createProfile('p1', 'MyProfile');
 
 		// User later switches "Extensions" to use the Default profile
 		localProfile = await local.updateProfile(localProfile, { useDefaultFlags: { extensions: true } });
@@ -108,15 +110,30 @@ suite('RemoteUserDataProfilesService', () => {
 		const testObject = createTestObject(local, server, localProfile);
 		const remoteProfile = await testObject.getRemoteProfile(localProfile);
 
-		assert.deepStrictEqual(remoteProfile.useDefaultFlags, { extensions: true });
-		assert.strictEqual(remoteProfile.extensionsResource.toString(), server.defaultProfile.extensionsResource.toString());
+		assert.deepStrictEqual(
+			{ useDefaultFlags: remoteProfile.useDefaultFlags, extensionsResource: remoteProfile.extensionsResource.toString() },
+			{ useDefaultFlags: { extensions: true }, extensionsResource: server.defaultProfile.extensionsResource.toString() }
+		);
+	});
+
+	test('remote profile flags are cleared when the local profile has no flags', async () => {
+		const local = createProfilesService('local');
+		const server = createProfilesService('remote');
+
+		const localProfile = await local.createProfile('p1', 'MyProfile');
+		await server.createProfile('p1', 'MyProfile', { useDefaultFlags: { extensions: true } });
+
+		const testObject = createTestObject(local, server, localProfile);
+		const remoteProfile = await testObject.getRemoteProfile(localProfile);
+
+		assert.strictEqual(remoteProfile.extensionsResource.toString(), joinPath(remoteProfile.location, 'extensions.json').toString());
 	});
 
 	test('remote profile is created with local useDefaultFlags', async () => {
 		const local = createProfilesService('local');
 		const server = createProfilesService('remote');
 
-		const localProfile = await local.createProfile('p1', 'github', { useDefaultFlags: { extensions: true } });
+		const localProfile = await local.createProfile('p1', 'MyProfile', { useDefaultFlags: { extensions: true } });
 
 		const testObject = createTestObject(local, server, localProfile);
 		const remoteProfile = await testObject.getRemoteProfile(localProfile);

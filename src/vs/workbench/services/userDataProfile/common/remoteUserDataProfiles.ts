@@ -106,9 +106,11 @@ export class RemoteUserDataProfilesService extends Disposable implements IRemote
 		}
 
 		let profile = remoteUserDataProfilesService.profiles.find(p => p.id === localProfile.id);
-		if (profile && !equals(profile.useDefaultFlags, localProfile.useDefaultFlags)) {
-			// The remote profile may have been created without the local flags (e.g. by the server on connect)
-			profile = await remoteUserDataProfilesService.updateProfile(profile, { useDefaultFlags: localProfile.useDefaultFlags });
+		// The remote profile may have been created without the local flags (e.g. by the server on connect).
+		// Use `{}` for no flags, since `updateProfile` keeps the existing flags when given `undefined`.
+		const useDefaultFlags = localProfile.useDefaultFlags ?? {};
+		if (profile && !equals(profile.useDefaultFlags ?? {}, useDefaultFlags)) {
+			profile = await remoteUserDataProfilesService.updateProfile(profile, { useDefaultFlags });
 		}
 		if (!profile) {
 			profile = await remoteUserDataProfilesService.createProfile(localProfile.id, localProfile.name, {
