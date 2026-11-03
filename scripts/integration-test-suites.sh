@@ -93,7 +93,9 @@ run_suites() {
 	done < <(printf '%s' "$weights" | awk '{ sum[$2] += $1 } END { for (g in sum) print sum[g], g }' | sort -k1,1nr -k2,2)
 
 	local state lane pids=()
-	state=$(mktemp -d 2>/dev/null)
+	# A short folder: macOS limits the IPC socket path inside each user data folder to 103 characters,
+	# which the default macOS $TMPDIR already uses most of.
+	state=$(mktemp -d /tmp/vscode-it.XXXXXX)
 	echo 0 > "$state/next"
 	echo
 	echo "Running ${#INTEGRATION_SUITES[@]} suites in $lanes parallel lanes; each suite's output follows when it finishes."

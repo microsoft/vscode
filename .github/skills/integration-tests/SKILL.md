@@ -92,10 +92,10 @@ GitHub pull request CI runs the two parts as separate steps. `🧪 Run integrati
 
 ### `INTEGRATION_TEST_PARALLEL=<lanes>` - Run extension host suites in parallel
 
-Most of an extension host suite is starting VS Code, so with this environment variable, `scripts/test-integration.sh` and `scripts/test-remote-integration.sh` (macOS/Linux) run up to `<lanes>` suites at the same time, the longest first, each with its own user data and logs folders. Each suite's output is printed when it finishes, and the run fails at the end when any suite failed. Without it, the suites run one after another and the first failure stops the run. The Linux and macOS PR jobs set it (see `scripts/integration-test-suites.sh`).
+Most of an extension host suite is starting VS Code, so with this environment variable, `scripts/test-integration.sh` and `scripts/test-remote-integration.sh` (macOS/Linux) run up to `<lanes>` suites at the same time, the longest first, each with its own user data and logs folders. Each suite's output is printed when it finishes, and the run fails at the end when any suite failed. Without it, the suites run one after another and the first failure stops the run. The Linux and macOS PR jobs set it to 2 (see `scripts/integration-test-suites.sh`): with 4 lanes on an 8-core runner, the instances compete for the CPU so much that the API tests take four times as long and their timing-sensitive tests fail.
 
 ```bash
-INTEGRATION_TEST_PARALLEL=4 ./scripts/test-integration.sh --only-extension-host-tests
+INTEGRATION_TEST_PARALLEL=2 ./scripts/test-integration.sh --only-extension-host-tests
 ```
 
 ### `--help`, `-h` - Show help
