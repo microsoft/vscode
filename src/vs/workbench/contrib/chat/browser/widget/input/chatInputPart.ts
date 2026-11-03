@@ -2329,7 +2329,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const mode = reader ? this._currentModeObservable.read(reader) : this._currentModeObservable.get();
 		const models = reader ? mode.model?.read(reader) : mode.model?.get();
 		const policy = reader ? mode.modelPolicy?.read(reader) : mode.modelPolicy?.get();
-		return models?.length ? { models, required: policy === 'required' } : undefined;
+		const uri = reader ? mode.uri?.read(reader) : mode.uri?.get();
+		const name = reader ? mode.name.read(reader) : mode.name.get();
+		return models?.length ? { models, required: policy === 'required', source: uri ? { name, uri } : undefined } : undefined;
 	}
 
 	/**

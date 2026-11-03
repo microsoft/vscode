@@ -3927,10 +3927,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setAgent(session.sessionId, undefined);
 		assert.deepStrictEqual({
 			unavailable: unavailable.models.map(model => model.identifier),
+			source: available.agentModelPreferences?.source,
 			available: available.models.map(model => model.identifier),
 			current: session.modelId.get(),
 			cleared: provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier),
-		}, { unavailable: [], available: ids.slice(1), current: ids[2], cleared: ids });
+		}, { unavailable: [], source: { name: agent.name, uri: URI.parse(agent.uri) }, available: ids.slice(1), current: ids[2], cleared: ids });
 	});
 
 	test('agent model and effort are sent on first, follow-up, and running-session agent changes', async () => {
@@ -4047,17 +4048,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 				provider: 'copilotcli', title: 'Remote State', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
 				workingDirectories: ['file:///workspace/updated'], defaultChat,
 				chats: [{ resource: defaultChat, title: 'Remote State', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: ['file:///workspace/updated'] }],
+				customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///workspace', name: 'Workspace',
+					load: { kind: CustomizationLoadStatus.Loaded },
+					children: [{
+						type: CustomizationType.Agent, id: 'ask', uri: 'file:///workspace/ask.agent.md', name: 'Ask',
+						model: 'sonnet', _meta: { 'vscode.modelPolicy': 'required' },
+					}],
+				}],
 			});
 			agentHost.setChatState(defaultChat, {
 				resource: defaultChat, title: 'Remote State', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [],
 				draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'file:///workspace/ask.agent.md' } },
 			});
 			provider.setCustomizationEnablement(session.sessionId, 'server', [{ kind: CustomizationEnablementKind.Workspace, uri: kind.toClient(URI.file('/workspace')).toString(), enabled: false }]);
-			assert.deepStrictEqual({ initial, toggle: agentHost.dispatchedActions.at(-1)?.action, updated: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()), mode: session.mode.get(), diff: provider.mapDiff(URI.file('/workspace/file.ts')).toString() }, {
+			assert.deepStrictEqual({ initial, toggle: agentHost.dispatchedActions.at(-1)?.action, updated: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()), mode: session.mode.get(), agentSource: provider.getModelsSnapshot(session.sessionId).agentModelPreferences?.source?.uri.toString(), diff: provider.mapDiff(URI.file('/workspace/file.ts')).toString() }, {
 				initial: [kind.toClient(URI.file('/workspace')).toString()],
 				toggle: { type: ActionType.SessionCustomizationToggled, id: 'server', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] },
 				updated: [kind.toClient(URI.file('/workspace/updated')).toString()],
 				mode: { id: kind.toClient(URI.file('/workspace/ask.agent.md')).toString(), kind: 'agent' },
+				agentSource: kind.toClient(URI.file('/workspace/ask.agent.md')).toString(),
 				diff: kind.toClient(URI.file('/workspace/file.ts')).toString(),
 			});
 		});

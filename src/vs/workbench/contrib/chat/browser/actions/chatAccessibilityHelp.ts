@@ -122,6 +122,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(getChatViewModeAccessibilityHelp());
+		content.push(localize('chat.agentRequiredModels', "When the selected agent requires specific models, the model picker only offers those models. Its footer explains that the agent defines the models. Use Tab to reach the agent link, then Enter or Space to open its definition."));
 		content.push(localize('chat.permissionLevelPolicy', "When Assisted permissions or Allow all is unavailable for a session, the option remains in the permissions picker as a disabled option with its reason, such as Disabled by your organization. Its hover also explains the restriction. Disabled options cannot be selected."));
 		content.push(localize('chat.historyRefresh', "Cloud sandbox conversations can show previously loaded messages while refreshing silently. If recent messages cannot be loaded, use Tab to reach Refresh in the banner and press Enter or Space. Refresh retries recorded history without restarting the session, waking its environment, or sending your draft."));
 		content.push(localize('chat.remoteConnections.renameHelp', "In the Remote Connections menu, press Tab to reach the name link in the footer, then Enter or Space to rename the shared environment. The input starts with the current name. Enter saves the name shown on other clients, and Escape cancels. Shift+Tab returns to the connection options. Renaming while Off does not enable sharing."));

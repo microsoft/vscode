@@ -7235,13 +7235,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const uri = newSession?.getSelectedAgent()?.uri ?? (cached && cached.getChatMode(chat ?? this._activeChatResource(cached))?.id);
-		const agent = uri && (this.resolveCustomAgent(sessionId, uri) ?? this.getCustomAgents(sessionId).find(agent => agent.uri === uri));
+		const published = uri ? this.resolveCustomAgent(sessionId, uri) : undefined;
+		const agent = published ?? (uri ? this.getCustomAgents(sessionId).find(agent => agent.uri === uri) : undefined);
 		if (!agent) {
 			return undefined;
 		}
 		const meta = readAgentCustomizationMeta(agent);
 		const models = meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined);
-		return models?.length ? { models, required: meta['vscode.modelPolicy'] === 'required' } : undefined;
+		const source = newSession?.getSelectedAgentSource();
+		const sourceUri = newSession && source ? newSession.getClientAgentSourceUri(URI.parse(source.uri))
+			: published ? this._toClientAgentUri(published) : URI.parse(agent.uri);
+		return models?.length ? { models, required: meta['vscode.modelPolicy'] === 'required', source: { name: agent.name, uri: sourceUri } } : undefined;
 	}
 
 	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {

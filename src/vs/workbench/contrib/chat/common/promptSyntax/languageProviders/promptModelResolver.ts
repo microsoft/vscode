@@ -7,10 +7,12 @@ import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../cus
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../languageModels.js';
 import { Target } from '../promptTypes.js';
 import { localize } from '../../../../../../nls.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export interface IAgentModelPreferences {
 	readonly models: readonly string[];
 	readonly required: boolean;
+	readonly source?: { readonly name: string; readonly uri: URI };
 }
 
 /** Resolves every authored alternative against this chat's model pool. */
