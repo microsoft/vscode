@@ -37,8 +37,12 @@
 	display: none;
 }
 
-/* The last frame of the previous canvas, held while the next one loads so a switch does not flash. */
-.session-canvas-editor .session-canvas-held-frame {
+/*
+ * Last frames of pages the view keeps hidden: the previous canvas's, held while the next one loads so a
+ * switch does not flash, and a copy of this canvas's, frozen while its provider reconnects.
+ */
+.session-canvas-editor .session-canvas-held-frame,
+.session-canvas-editor .session-canvas-frozen-frame {
 	position: absolute;
 	inset: 0;
 	display: none;
@@ -46,15 +50,23 @@
 	background-size: contain;
 	background-repeat: no-repeat;
 	pointer-events: none;
-
-	&.held {
-		display: block;
-	}
 }
 
-/* While the provider reconnects, the hidden page's last frame stays dimmed beneath a status card. */
-.session-canvas-editor.provider-reconnecting .browser-placeholder-screenshot {
-	opacity: 0.4;
+.session-canvas-editor .session-canvas-held-frame.held {
+	display: block;
+}
+
+/* The frozen frame stays dimmed beneath a status card. */
+.session-canvas-editor.provider-reconnecting .session-canvas-frozen-frame {
+	display: block;
+
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background-color: var(--vscode-editor-background);
+		opacity: 0.6;
+	}
 }
 
 .session-canvas-editor.provider-reconnecting .session-canvas-message {

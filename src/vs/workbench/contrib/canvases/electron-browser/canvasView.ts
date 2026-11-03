@@ -9,7 +9,7 @@ import { $, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../.
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { encodeBase64 } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -104,6 +104,8 @@ export class CanvasView extends Disposable {
 	/** The last frame of the canvas this view switched away from, shown until the next canvas is revealed. */
 	private readonly heldFrame: HTMLElement;
 	private readonly heldFrameRelease = this._register(new MutableDisposable());
+	/** A copy of this canvas's last frame, shown while its provider reconnects. */
+	private readonly frozenFrame: HTMLElement;
 	private readonly host: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
 	/** The canvas whose page `model` is, by reference key. */
@@ -168,7 +170,9 @@ export class CanvasView extends Disposable {
 		this.host = this._register(instantiationService.createInstance(WebContentsViewHost, targetWindow, () => focusWebContentsViewContainer(this.container)));
 		this.heldFrame = $('.session-canvas-held-frame');
 		this.heldFrame.setAttribute('aria-hidden', 'true');
-		placeholder.append(this.host.screenshotElement, this.heldFrame, this.host.pauseElement);
+		this.frozenFrame = $('.session-canvas-frozen-frame');
+		this.frozenFrame.setAttribute('aria-hidden', 'true');
+		placeholder.append(this.host.screenshotElement, this.heldFrame, this.frozenFrame, this.host.pauseElement);
 		this.host.onContainerCreated(this.container);
 
 		liveViews.add(this);
@@ -240,7 +244,7 @@ export class CanvasView extends Disposable {
 		if (!screenshot) {
 			return;
 		}
-		this.heldFrame.style.backgroundImage = `url('data:image/jpeg;base64,${encodeBase64(screenshot)}')`;
+		this.heldFrame.style.backgroundImage = getFrameImage(screenshot);
 		this.heldFrame.classList.add('held');
 		this.heldFrameRelease.value = disposableTimeout(() => this.releaseFrame(), HELD_FRAME_TIMEOUT);
 	}
@@ -380,6 +384,10 @@ export class CanvasView extends Disposable {
 			}
 		}));
 		this.modelLifetime.add(model.onDidChangeLoadingState(event => {
+			// The reconnect status owns the message until the returning source has loaded.
+			if (this.reconnecting) {
+				return;
+			}
 			this.message.textContent = event.error
 				? localize('canvas.pageFailed', "The canvas page failed to load.")
 				: event.loading ? localize('canvas.pageLoading', "Loading canvas page…") : '';
@@ -458,11 +466,15 @@ export class CanvasView extends Disposable {
 		this.reconnecting = reconnecting;
 		this.element.classList.toggle('provider-reconnecting', reconnecting);
 		if (reconnecting) {
+			// A copy, because the host clears its own screenshot when the retained page fails to load.
+			const screenshot = this.model?.screenshot;
+			this.frozenFrame.style.backgroundImage = screenshot ? getFrameImage(screenshot) : '';
 			this.message.textContent = localize('canvas.reconnecting', "Reconnecting to the canvas provider…");
 			this.reconnectTimeout.value = disposableTimeout(() => {
 				this.message.textContent = localize('canvas.providerUnavailable', "The canvas provider is unavailable.");
 			}, PROVIDER_RECONNECT_TIMEOUT);
 		} else {
+			this.frozenFrame.style.backgroundImage = '';
 			this.reconnectTimeout.clear();
 		}
 		this.layout();
@@ -638,4 +650,8 @@ export class CanvasView extends Disposable {
 
 function getLoadKey(resource: URI, source: URI): string {
 	return `${resource.toString()}\u0000${source.toString()}`;
+}
+
+function getFrameImage(screenshot: VSBuffer): string {
+	return `url('data:image/jpeg;base64,${encodeBase64(screenshot)}')`;
 }
