@@ -11,7 +11,7 @@ import * as os from 'os';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
-import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
@@ -41,7 +41,7 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
-import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
+import type { AgentHostPrewarmSkipReason, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
@@ -61,7 +61,7 @@ import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
-import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
+import { AUTO_MODEL_ID, isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -386,6 +386,8 @@ interface IProvisionalSession {
 	readonly workspaceless?: boolean;
 	/** The SDK session launched before the first send, read through {@link CopilotAgent._getEarlyLaunch}. */
 	earlyLaunch?: ICopilotEarlyLaunch;
+	/** Why the draft has no {@link earlyLaunch}, reported by the first send that finds none. */
+	warmSkipReason?: AgentHostPrewarmSkipReason;
 	/** Whether a torn-down early launch left runtime state under {@link sdkSessionId} that must be deleted before the id is launched again. */
 	hasStaleSdkState?: boolean;
 }
@@ -5843,6 +5845,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly chats: IAgentChats = {
 		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
 		warmChat: (chat: URI, context: IAgentChatContext): Promise<boolean> => this._warmChat(chat, context),
+		noteWarmSkipped: (chat: URI, context: IAgentChatContext, reason: AgentHostPrewarmSkipReason): void => this._noteWarmSkipped(chat, context, reason),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -6897,10 +6900,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Cannot materialize unknown provisional session: ${context.provisionalKey}`);
 		}
 		const early = await this._takeEarlyLaunch(provisional, context, resolvedWorkingDirectories, send?.token);
-		if (early.launch || early.discardReason) {
-			const operationContext = send?.operationContext;
-			if (operationContext && !URI.isUri(operationContext)) {
+		const operationContext = send?.operationContext;
+		if (operationContext && !URI.isUri(operationContext)) {
+			if (early.launch || early.discardReason) {
 				operationContext.reportPrewarmedSession?.(early.discardReason);
+			} else if (!provisional.isEphemeral) {
+				operationContext.reportPrewarmSkipped?.(provisional.warmSkipReason ?? 'notRequested');
 			}
 		}
 		const launch = early.launch ?? await this._launchProvisional(provisional, resolvedWorkingDirectories, stageRecorder, false, send?.token);
@@ -7106,6 +7111,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 				expiry.value = disposableTimeout(() => void this._expireEarlyLaunch(chat, context, early), COPILOT_EARLY_LAUNCH_TTL_MS);
 				provisional.earlyLaunch = early;
+				provisional.warmSkipReason = undefined;
 				this._logService.info(`[Copilot:${current.ownerSessionId}] [warm] Started pre-warmed session: sdkSessionId=${launch.session.sessionId}, chat=${chat.toString()}`);
 				// Listing runs outside the chat queue, so a send is never held behind slow MCP server startup.
 				launch.session.startMcpServers().catch(error => {
@@ -7117,9 +7123,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (error) {
 				// The first send launches the session again and surfaces any error then.
 				this._logService.warn(`[Copilot:${current.ownerSessionId}] [warm] Pre-warmed session launch failed; the first send will launch it: chat=${chat.toString()}`, error);
+				provisional.warmSkipReason = 'warmFailed';
 				return false;
 			}
 		});
+	}
+
+	/**
+	 * Whether `setModel` reproduces the launch of a model whose options changed.
+	 * It does not pass the launch's per-model capability overrides or GPT-5.6's
+	 * verbosity, so a launch that set either starts cold instead.
+	 */
+	private _canApplyModelOptionsLive(modelId: string | undefined): boolean {
+		const overrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+		const hasOverride = !!overrides && (Object.hasOwn(overrides, '*') || (modelId !== undefined && Object.hasOwn(overrides, modelId)));
+		return !hasOverride && !isGpt56Model(modelId);
+	}
+
+	/** Records why a draft is not warming yet, unless a warm launch already holds it. */
+	private _noteWarmSkipped(chat: URI, context: IAgentChatContext, reason: AgentHostPrewarmSkipReason): void {
+		const provisional = this._provisionalSessions.get(this._resolveChatContext(chat, context).provisionalKey);
+		if (provisional && isEqual(provisional.chat, chat) && !provisional.earlyLaunch) {
+			provisional.warmSkipReason = reason;
+		}
 	}
 
 	/**
@@ -7143,6 +7169,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return { discardReason };
 		}
 		const session = early.launch.session;
+		// Compare with the options the runtime has, which a cancelled earlier claim may already have changed.
+		if (provisional.model && !structuralEquals(provisional.model, session.appliedModelSelection ?? early.model)) {
+			try {
+				await this._applyModelSelection(context, session, provisional.model, token ?? CancellationToken.None);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				// Launch cold rather than fail the send, as before options were applied live.
+				this._logService.warn(`[Copilot:${context.ownerSessionId}] [warm] Failed to apply model options to pre-warmed session ${session.sessionId}; launching cold`, error);
+				await this._discardEarlyLaunch(provisional, 'modelOptionsFailed');
+				return { discardReason: 'modelOptionsFailed' };
+			}
+		}
 		const tools = this._activeClients.get(context.ownerSession)?.toolsForChat(context.chatKey);
 		if (tools) {
 			await session.updateClientTools(tools, token);
@@ -7167,9 +7207,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return 'workingDirectoryChanged';
 		}
 		// Model-specific launch configuration (system prompt, tool search, per-model
-		// overrides) and the resolved custom agent are fixed at launch.
+		// overrides) and the resolved custom agent are fixed at launch. They follow
+		// the model id, so a change to only the model's options (such as reasoning
+		// effort or context size) is applied live when the send claims the launch.
 		// TODO@vritant24: Start cold only when the launch would differ (prompt contributor and overrides, `family` alias, tool search, per-model tool filters), and apply other model changes live by passing `modelCapabilities` and `verbosity` to `switchTo`. That also fixes live model changes clearing the runtime's capability overrides, which affects every session.
-		if (!structuralEquals(provisional.model, early.model)) {
+		if (provisional.model?.id !== early.model?.id) {
+			return early.model ? 'modelChanged' : 'modelSelected';
+		}
+		if (!structuralEquals(provisional.model, early.model) && !this._canApplyModelOptionsLive(provisional.model?.id)) {
 			return 'modelChanged';
 		}
 		if (!structuralEquals(provisional.agent, early.agent)) {
@@ -7208,6 +7253,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (early?.launch.session.isDisposed) {
 			provisional.earlyLaunch = undefined;
 			provisional.hasStaleSdkState = true;
+			provisional.warmSkipReason = 'released';
 			early.dispose();
 			this._logService.info(`[Copilot] [warm] Forgot pre-warmed session whose runtime was torn down: sdkSessionId=${early.launch.session.sessionId}, chat=${provisional.chat.toString()}`);
 			return undefined;
@@ -7265,6 +7311,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const provisional = this._provisionalSessions.get(this._resolveChatContext(chat, context).provisionalKey);
 				if (provisional && this._getEarlyLaunch(provisional) === early) {
 					await this._discardEarlyLaunch(provisional, 'expired');
+					provisional.warmSkipReason = 'expired';
 				}
 			});
 		} catch (error) {
@@ -7699,12 +7746,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				entry = await this._ensureResolvedChatSession(current, workingDirectories, stageRecorder, token);
+				entry = await this._ensureResolvedChatSession(current, workingDirectories, stageRecorder, token, operationContext);
 			}
 			if (!entry) {
 				this._logService.info(`[Copilot:${current.ownerSessionId}] No cached entry${hadCachedEntry ? ' (was evicted by configuration refresh)' : ''}, calling _resumeSession`);
 			}
-			entry ??= await this._ensureResolvedChatSession(current, workingDirectories, stageRecorder, token);
+			entry ??= await this._ensureResolvedChatSession(current, workingDirectories, stageRecorder, token, operationContext);
 			if (!entry) {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
@@ -8252,7 +8299,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Resolves the live session for an addressed chat from exact recorded backings. */
-	private async _ensureResolvedChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession | undefined> {
+	private async _ensureResolvedChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None, operationContext?: URI | IAgentChatContext): Promise<CopilotAgentSession | undefined> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -8263,7 +8310,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
-			return this._materializeProvisional(context, workingDirectories, stageRecorder, { token });
+			return this._materializeProvisional(context, workingDirectories, stageRecorder, { token, operationContext });
 		}
 		if (context.sdkSessionId !== undefined && context.sdkSessionId === context.sessionBackedId) {
 			return context.target ? this._withRecordedScratchFolder(context.target, context.ownerSessionId) : this._resumeSession(context.sdkSessionId, context.chat, context.workspaceless, workingDirectories, stageRecorder, token, context.surface);
@@ -8657,7 +8704,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const launched = await this._ensureResolvedChatSession(current, workingDirectories, undefined, token);
+			const launched = await this._ensureResolvedChatSession(current, workingDirectories, undefined, token, operationContext);
 			if (launched) {
 				if (credential) {
 					launched.assertScopedCredential(credential);
