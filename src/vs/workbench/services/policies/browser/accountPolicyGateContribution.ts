@@ -15,6 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -22,6 +23,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../accounts/browser/defaultAccount.js';
 import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, ChatAccountPolicyGateActiveContext, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../common/accountPolicyService.js';
+import { getOrganizationSupportActionLabel, openOrganizationSupport } from '../common/organizationSupport.js';
 
 const NOTIFICATION_DISMISSED_KEY = 'accountPolicy.gateNotificationDismissed';
 
@@ -81,6 +83,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
@@ -209,6 +212,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		}
 
 		const handleDisposables = new DisposableStore();
+		const supportUrl = getManagedSupportUrl(this.managedSettingsService);
 		const handle = this.notificationService.prompt(
 			Severity.Warning,
 			message,
@@ -217,6 +221,10 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 					label: localize('accountPolicy.notification.signin.action', "Sign In"),
 					run: () => this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND),
 				},
+				...(supportUrl ? [{
+					label: getOrganizationSupportActionLabel(),
+					run: () => openOrganizationSupport(this.openerService, supportUrl),
+				}] : []),
 				{
 					label: localize('accountPolicy.notification.learnMore', "Learn More"),
 					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview')),

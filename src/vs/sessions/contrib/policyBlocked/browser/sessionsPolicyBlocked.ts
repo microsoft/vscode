@@ -17,6 +17,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IManagedSettingsUpdateInfo } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../../workbench/services/policies/common/organizationSupport.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -39,6 +40,8 @@ export interface ISessionsBlockedOverlayOptions {
 	readonly accountName?: string;
 	readonly freshness?: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
 	readonly updateInfo?: IManagedSettingsUpdateInfo;
+	/** The organization's validated support page, offered wherever the overlay says to contact an administrator. */
+	readonly supportUrl?: string;
 	readonly shouldFocus?: boolean;
 }
 
@@ -230,9 +233,22 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			this.openerService.open(URI.parse('https://aka.ms/VSCode/Agents/docs'));
 		}));
 
+		this._renderOrganizationSupportButton(card, false);
 		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
 		button.label = localize('policyBlocked.openVSCode', "Open VS Code");
 		this._register(button.onDidClick(() => this._openVSCode()));
+	}
+
+	/** Offers the organization's support page, when it provides one, as the next step after "Contact your administrator". */
+	private _renderOrganizationSupportButton(card: HTMLElement, secondary: boolean): void {
+		const supportUrl = this.options.supportUrl;
+		if (!supportUrl) {
+			return;
+		}
+		const label = getOrganizationSupportActionLabel();
+		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary, title: getOrganizationSupportActionTooltip(supportUrl), ariaLabel: label }));
+		button.label = label;
+		this._register(button.onDidClick(() => openOrganizationSupport(this.openerService, supportUrl)));
 	}
 
 	private _renderLoading(card: HTMLElement): void {
@@ -287,6 +303,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this._register(signInButton.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.agenticSignIn');
 		}));
+		this._renderOrganizationSupportButton(card, true);
 	}
 
 	private _renderManagedSettingsRefresh(card: HTMLElement, freshness: ISessionsBlockedOverlayOptions['freshness']): void {
@@ -313,6 +330,11 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			const retryButton = this._register(new Button(card, { ...defaultButtonStyles }));
 			retryButton.label = localize('managedSettingsRefresh.retry', "Retry");
 			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true })));
+		}
+		if (freshness?.failure !== ManagedSettingsFreshnessFailure.NoToken
+			&& freshness?.failure !== ManagedSettingsFreshnessFailure.RateLimited
+			&& freshness?.failure !== ManagedSettingsFreshnessFailure.UpdateRequired) {
+			this._renderOrganizationSupportButton(card, true);
 		}
 
 		const openVSCodeButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));

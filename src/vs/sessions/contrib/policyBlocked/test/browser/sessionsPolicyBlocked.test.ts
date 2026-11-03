@@ -17,12 +17,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, ManagedSettingsData, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { DisablementReason, State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { AccountPolicyGateState, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
@@ -66,10 +68,17 @@ suite('Sessions policy update explanation', () => {
 			override readonly onDidChangeGateInfo = gateChange.event;
 		}();
 		const opened: string[] = [];
+		const openedExternally: string[] = [];
+		let managedSettings: ManagedSettingsData = {};
+		const managedSettingsChange = store.add(new Emitter<void>());
 		services.stub(IWorkbenchLayoutService, layout);
 		services.stub(IManagedSettingsUpdateService, { updateInfo });
 		services.stub(IConfigurationService, configuration);
 		services.stub(IAccountPolicyGateService, gate);
+		services.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+			override getManagedSettingValue(key: string) { return managedSettings[key]; }
+		}());
 		services.stub(ISessionsService, { activeSession });
 		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override focusSession(session: IActiveSession | undefined): void {
@@ -83,11 +92,64 @@ suite('Sessions policy update explanation', () => {
 		services.stub(IProductService, product);
 		services.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		services.stub(IOpenerService, new class extends mock<IOpenerService>() {
-			override async open(target: string | URI) { opened.push(target.toString()); return true; }
+			override async open(target: string | URI, options?: OpenOptions) {
+				opened.push(target.toString());
+				if (options?.openExternal) {
+					openedExternally.push(target.toString());
+				}
+				return true;
+			}
 		}());
 		const contribution = store.add(services.createInstance(SessionsPolicyBlockedContribution));
-		return { root, content, updateInfo, opened, contribution, layout, layoutEvent, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls };
+		const setManagedSettings = (values: ManagedSettingsData) => {
+			managedSettings = values;
+			managedSettingsChange.fire();
+		};
+		return { root, content, updateInfo, opened, openedExternally, setManagedSettings, contribution, layout, layoutEvent, gate, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls };
 	}
+
+	test('offers the organization support page wherever an agent restriction says to contact an administrator', () => {
+		const { root, gate, gateChange, openedExternally, setManagedSettings } = setup(undefined, false);
+		const buttons = () => [...root.querySelectorAll<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button')].map(button => button.textContent);
+		const states: { [state: string]: (string | null)[] } = {};
+		states.agentDisabledWithoutUrl = buttons();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'javascript:alert(1)' });
+		states.agentDisabledInvalidUrl = buttons();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		states.agentDisabled = buttons();
+		const contactAdministrator = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button:not(.secondary)')!;
+		const contactAdministratorAriaLabel = contactAdministrator.getAttribute('aria-label');
+		contactAdministrator.click();
+		gate.gateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
+		gateChange.fire(gate.gateInfo);
+		states.accountGate = buttons();
+		for (const failure of [ManagedSettingsFreshnessFailure.NoUrl, ManagedSettingsFreshnessFailure.NoToken, ManagedSettingsFreshnessFailure.RateLimited, ManagedSettingsFreshnessFailure.Network] as const) {
+			gate.gateInfo = {
+				state: AccountPolicyGateState.Restricted,
+				reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+				managedSettingsFreshness: { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure, lastAttemptAt: 0 },
+			};
+			gateChange.fire(gate.gateInfo);
+			states[failure] = buttons();
+		}
+		setManagedSettings({});
+		states.refreshFailedWithoutUrl = buttons();
+		assert.deepStrictEqual({ states, contactAdministratorAriaLabel, openedExternally }, {
+			states: {
+				agentDisabledWithoutUrl: ['Open VS Code'],
+				agentDisabledInvalidUrl: ['Open VS Code'],
+				agentDisabled: ['Contact Your Administrator', 'Open VS Code'],
+				accountGate: ['Sign In', 'Contact Your Administrator'],
+				[ManagedSettingsFreshnessFailure.NoUrl]: ['Contact Your Administrator', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.NoToken]: ['Sign In', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.RateLimited]: ['Retry', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.Network]: ['Retry', 'Contact Your Administrator', 'Open VS Code'],
+				refreshFailedWithoutUrl: ['Retry', 'Open VS Code'],
+			},
+			contactAdministratorAriaLabel: 'Contact Your Administrator',
+			openedExternally: ['https://example.com/copilot-help'],
+		});
+	});
 
 	test('initially blocked Agents shows versions and a keyboard-focusable update action below the title bar', () => {
 		const { root, content, opened, contribution, layout, layoutEvent } = setup(info);

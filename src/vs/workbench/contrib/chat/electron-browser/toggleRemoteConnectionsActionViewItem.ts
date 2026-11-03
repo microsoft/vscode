@@ -28,7 +28,10 @@ import { CONFIGURATION_KEY_HOST_NAME, IRemoteTunnelService, INACTIVE_TUNNEL_MODE
 import { promptToRenameRemoteTunnel, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../services/policies/common/organizationSupport.js';
 
 const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
 
@@ -81,6 +84,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super(undefined, action);
 
@@ -190,21 +195,34 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getListOptions(): IActionListOptions {
 		if (this._configurationService.inspect<boolean>(GitHubEnvironmentsEnabledSettingId).policyValue === false && this._availabilityService.available.get()) {
-			const label = localize('remoteConnections.viewSetting', "View Setting");
+			const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+			const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View Setting");
 			return {
 				minWidth: 300,
 				maxWidth: 320,
 				wrapDetails: true,
-				footerText: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
-				footerAction: toAction({
-					id: 'remoteConnections.viewSetting',
-					label,
-					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
-					run: async () => {
-						this._dropdown.hide();
-						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
-					},
-				}),
+				footerText: supportUrl
+					? localize('remoteConnections.policyFooterWithSupport', "GitHub Environments is disabled by your organization. {0}", label)
+					: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+				footerAction: supportUrl
+					? toAction({
+						id: 'remoteConnections.organizationSupport',
+						label,
+						tooltip: getOrganizationSupportActionTooltip(supportUrl),
+						run: async () => {
+							this._dropdown.hide();
+							await openOrganizationSupport(this._openerService, supportUrl);
+						},
+					})
+					: toAction({
+						id: 'remoteConnections.viewSetting',
+						label,
+						tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+						run: async () => {
+							this._dropdown.hide();
+							await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
+						},
+					}),
 				widgetClassName: 'remote-connections-picker',
 				hideDefaultKeybindingTooltip: true,
 			};

@@ -13,6 +13,8 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
+const supportUrl = 'https://example.com/copilot-help';
+
 function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOverlayOptions): void {
 	ctx.container.style.width = '600px';
 	ctx.container.style.height = '400px';
@@ -40,6 +42,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => createOverlay(ctx, { reason: SessionsBlockedReason.AgentDisabled }),
 	}),
+	PolicyBlockedWithSupport: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => createOverlay(ctx, { reason: SessionsBlockedReason.AgentDisabled, supportUrl }),
+	}),
 	Loading: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => createOverlay(ctx, { reason: SessionsBlockedReason.Loading }),
@@ -50,6 +56,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			reason: SessionsBlockedReason.AccountPolicyGate,
 			accountName: 'octocat',
 			approvedOrganizations: ['github', 'microsoft'],
+		}),
+	}),
+	AccountPolicyGateWithSupport: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => createOverlay(ctx, {
+			reason: SessionsBlockedReason.AccountPolicyGate,
+			accountName: 'octocat',
+			approvedOrganizations: ['github', 'microsoft'],
+			supportUrl,
 		}),
 	}),
 	AccountPolicyGateNoAccount: defineComponentFixture({
@@ -68,6 +83,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				failure: ManagedSettingsFreshnessFailure.Network,
 				lastAttemptAt: Date.now(),
 			},
+		}),
+	}),
+	ManagedSettingsUnavailableWithSupport: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => createOverlay(ctx, {
+			reason: SessionsBlockedReason.ManagedSettingsRefresh,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				lastAttemptAt: Date.now(),
+			},
+			supportUrl,
 		}),
 	}),
 });
