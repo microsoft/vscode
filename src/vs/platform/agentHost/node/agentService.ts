@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, type AgentChatReleaseReason, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -1381,7 +1381,7 @@ export class AgentService extends Disposable implements IAgentService {
 					const provider = this._providerService.getProviderForSession(session);
 					return provider ? {
 						canRelease: chats => this._canReleaseSession(provider, session, chats),
-						release: chats => this._releaseSession(provider, session, chats),
+						release: (chats, canContinue) => this._releaseSession(provider, session, chats, canContinue),
 					} : undefined;
 				},
 				evictSessionState: (session, chats) => this._evictSessionState(session, session.toString(), session.toString(), chats.map(chat => chat.toString())),
@@ -10410,19 +10410,25 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
-	private async _releaseSession(sessionProvider: IAgent, session: URI, chats: readonly URI[]): Promise<void> {
+	private async _releaseSession(sessionProvider: IAgent, session: URI, chats: readonly URI[], canContinue?: () => boolean): Promise<void> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
 		// Still release every catalog chat if one rejects; otherwise an idle-evicted
 		// session could leave a chat resident indefinitely.
 		let firstError: unknown;
 		for (const chat of chats) {
+			if (canContinue && !canContinue()) {
+				break;
+			}
 			const provider = this._chatAgentOf(sessionProvider, chat);
 			if (!provider) {
 				this._logService.warn(`[AgentService] Cannot release chat ${chat.toString()} of ${session.toString()}: its agent is not registered`);
 				continue;
 			}
 			try {
-				await provider.chats.releaseChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
+				await provider.chats.releaseChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)), {
+					reason: () => this._chatReleaseReason(session, chat, canContinue),
+					canContinue,
+				});
 			} catch (err) {
 				firstError ??= err;
 			}
@@ -10430,6 +10436,16 @@ export class AgentService extends Disposable implements IAgentService {
 		if (firstError !== undefined) {
 			throw firstError;
 		}
+	}
+
+	private _chatReleaseReason(session: URI, chat: URI, canContinue: (() => boolean) | undefined): AgentChatReleaseReason {
+		if (!canContinue) {
+			return 'other';
+		}
+		const sessionState = this._stateManager.getSessionState(session.toString());
+		const chatStatus = this._stateManager.getChatState(chat.toString())?.status
+			?? sessionState?.chats.find(candidate => candidate.resource === chat.toString())?.status;
+		return isSessionStatusArchived(sessionState?.status) || isSessionStatusArchived(chatStatus) ? 'archived' : 'idle';
 	}
 
 	/**
@@ -11771,7 +11787,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const owner = this._chatOwnership.requireChatOwner(chat.toString());
 		const provider = this._providerService.getProviderForChat(URI.parse(owner), chat);
-		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
+		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork || provider?.watchChatCanvases) {
 			const watches = new DisposableStore();
 			this._chatWatches.set(chat, watches);
 			this._chatWatchOwners.set(chat, owner);
@@ -11782,6 +11798,25 @@ export class AgentService extends Disposable implements IAgentService {
 			const backgroundWork = provider.watchChatBackgroundWork?.(chat, () => this._stateManager.getChatState(chat.toString())?.backgroundWork ?? []);
 			if (backgroundWork) {
 				watches.add(backgroundWork);
+			}
+			const canvases = provider.watchChatCanvases?.(chat, {
+				published: () => this._stateManager.getChatState(chat.toString())?.canvases?.map(canvas => canvas.resource),
+				resolveContext: async () => {
+					while (true) {
+						const owner = this._chatOwnership.requireChatOwner(chat.toString());
+						const credentials = await this._resolveExecutionCredentials(owner);
+						if (this._chatOwnership.requireChatOwner(chat.toString()) === owner) {
+							const session = URI.parse(owner);
+							return {
+								...this._chatContext(session, chat, this._chatStorageResource(session, chat)),
+								...(credentials ? { credentials } : {}),
+							};
+						}
+					}
+				},
+			});
+			if (canvases) {
+				watches.add(canvases);
 			}
 		}
 	}

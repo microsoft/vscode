@@ -1202,6 +1202,7 @@ suite('AgentHostChatContributions', () => {
 		const failingChat = buildChatUri(session, 'failing-peer');
 		const persisted: { session: string; chat: string; archived: boolean }[] = [];
 		const workspace: { session: string; chat: string; attached: boolean }[] = [];
+		const cleared: { session: string; chat: string | undefined }[] = [];
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error, ...args: unknown[]): void {
@@ -1233,10 +1234,17 @@ suite('AgentHostChatContributions', () => {
 		stateManager.addChat(session, failingChat, creationTimeChatStorageResource(session, failingChat, buildDefaultChatUri(session)));
 		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 		stateManager.dispatchServerAction(failingChat, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const agent = new class extends MockAgent {
+			clearCanvasContinuity(session: URI, chat?: URI): void {
+				cleared.push({ session: session.toString(), chat: chat?.toString() });
+			}
+		}('test');
+		disposables.add(toDisposable(() => agent.dispose()));
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
+			[IAgentHostProviderService, createTestAgentHostProviderService(() => agent)],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
 			[IAgentHostArchivedChatWorkspaceService, {
 				_serviceBrand: undefined,
@@ -1257,6 +1265,7 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual({
 			persisted,
 			workspace,
+			cleared,
 			errors,
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
@@ -1269,6 +1278,10 @@ suite('AgentHostChatContributions', () => {
 				{ session, chat: peerChat, attached: false },
 				{ session, chat: peerChat, attached: true },
 				{ session, chat: failingChat, attached: false },
+			],
+			cleared: [
+				{ session, chat: peerChat },
+				{ session, chat: failingChat },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
 			peerRead: true,
@@ -1285,10 +1298,13 @@ suite('AgentHostChatContributions', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		stateManager.createSession({ resource: session, defaultChat: recordedDefault, provider: 'test', title: 'Archive', status: SessionStatus.IsRead, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
 		stateManager.addChat(session, shapedPeer, creationTimeChatStorageResource(session, shapedPeer, stateManager.getDefaultChat(session)));
+		const agent = new MockAgent('test');
+		disposables.add(toDisposable(() => agent.dispose()));
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
+			[IAgentHostProviderService, createTestAgentHostProviderService(() => agent)],
 			[IAgentHostPeerChatPersistenceService, {
 				...createLegacyChatMetadataPersistence(createSessionDataService()),
 				_serviceBrand: undefined,
