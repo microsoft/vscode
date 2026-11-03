@@ -288,6 +288,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 	) {
 		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
+		// Markdown in the standalone editor often shows untrusted content, so remote images are opt-in.
+		options.markdownImages = { ...options.markdownImages, allowedOrigins: options.markdownImages?.allowedOrigins ?? [] };
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService, userInteractionService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
