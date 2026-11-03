@@ -1240,6 +1240,9 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
  * Represents a tree item in the quick tree.
  */
 export interface IQuickTreeItem extends IQuickItem {
+	/** Additional text matched by label filtering without displaying it in the row. */
+	filterText?: string;
+
 	/**
 	 * The checked state of the item. Can be true, false, or 'mixed' for tri-state.
 	 * When canSelectMany is false, this is ignored and the item is treated as a single selection.

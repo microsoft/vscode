@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { DeferredPromise, raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -14,11 +15,13 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IQuickInputService, IQuickTreeItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { showToolsPicker } from '../../../browser/actions/chatToolPicker.js';
 import { PromptToolsCodeLensProvider } from '../../../browser/promptSyntax/promptToolsCodeLensProvider.js';
@@ -35,15 +38,26 @@ suite('PromptToolsCodeLensProvider', () => {
 	let instantiationService: TestInstantiationService;
 	let provider: PromptToolsCodeLensProvider;
 	let activeTarget: Target;
-	let inventory: readonly IAgentFileToolInventoryEntry[];
+	let inventory: readonly IAgentFileToolInventoryEntry[] | undefined;
+	let inventoryWait: DeferredPromise<void> | undefined;
+	let interaction: ((picker: IQuickTree<IQuickTreeItem>) => void) | undefined;
+	let shown: DeferredPromise<IQuickTree<IQuickTreeItem>>;
+	let notifications: string[];
+	let validation: DeferredPromise<string>;
 	let offeredTools: readonly IQuickTreeItem[];
 	let offeredGroups: readonly IQuickTreeItem[];
 	let selectedNames: readonly string[] | undefined;
 	let pickerDisposed: boolean;
+	let toggleCheckbox: (id: string, checked: boolean) => void;
 
 	setup(() => {
 		activeTarget = Target.VSCode;
 		inventory = [];
+		inventoryWait = undefined;
+		interaction = undefined;
+		shown = new DeferredPromise<IQuickTree<IQuickTreeItem>>();
+		notifications = [];
+		validation = new DeferredPromise<string>();
 		offeredTools = [];
 		offeredGroups = [];
 		selectedNames = undefined;
@@ -74,7 +88,12 @@ suite('PromptToolsCodeLensProvider', () => {
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: async () => [],
-				provideAgentFileTools: async () => inventory,
+				provideAgentFileTools: async (_resource: URI, token: CancellationToken) => {
+					if (inventoryWait) {
+						await raceCancellation(inventoryWait.p, token);
+					}
+					return inventory;
+				},
 			},
 		};
 		instantiationService.stub(ICustomizationHarnessService, {
@@ -82,23 +101,61 @@ suite('PromptToolsCodeLensProvider', () => {
 			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilot : local,
 			getSessionResourceForHarness: () => URI.parse('test:/session'),
 		});
+		instantiationService.stub(INotificationService, 'warn', (message: string) => notifications.push(String(message)));
 		const accepted = disposables.add(new Emitter<void>());
-		const hidden = disposables.add(new Emitter<void>());
-		instantiationService.stub(IQuickInputService, 'createQuickTree', () => ({
+		const hidden = disposables.add(new Emitter<IQuickInputHideEvent>());
+		const changed = disposables.add(new Emitter<IQuickTreeItem>());
+		let scheduled = false;
+		let validationMessage: string | undefined;
+		const picker = upcastPartial<IQuickTree<IQuickTreeItem>>({
 			onDidAccept: accepted.event,
 			onDidHide: hidden.event,
+			onDidChangeCheckboxState: changed.event,
+			get validationMessage() { return validationMessage; },
+			set validationMessage(message: string | undefined) {
+				validationMessage = message;
+				if (message && !validation.isSettled) {
+					validation.complete(message);
+				}
+			},
 			setItemTree: (items: IQuickTreeItem[]) => {
 				offeredGroups = items;
-				offeredTools = items.flatMap(item => item.children ?? []);
+				offeredTools = items.flatMap(item => item.children ?? [item]);
+				if (!scheduled) {
+					scheduled = true;
+					queueMicrotask(() => {
+						if (interaction) {
+							interaction(picker);
+						} else if (selectedNames === undefined) {
+							picker.hide();
+						} else {
+							for (const item of offeredTools) {
+								item.checked = selectedNames.includes(item.id!);
+							}
+							picker.accept();
+							if (picker.validationMessage) {
+								picker.hide();
+							}
+						}
+					});
+				}
 			},
-			get checkedLeafItems() {
-				const selection = selectedNames;
-				return offeredTools.filter(item => selection?.includes(item.id!));
-			},
-			show: () => queueMicrotask(() => selectedNames === undefined ? hidden.fire() : accepted.fire()),
-			hide: () => hidden.fire(),
+			get checkedLeafItems() { return offeredTools.filter(item => item.checked === true); },
+			show: () => { shown.complete(picker); },
+			hide: () => hidden.fire({ reason: QuickInputHideReason.Other }),
+			accept: () => accepted.fire(),
 			dispose: () => { pickerDisposed = true; },
-		}));
+		});
+		instantiationService.stub(IQuickInputService, 'createQuickTree', () => picker);
+		toggleCheckbox = (id: string, checked: boolean) => {
+			const item = offeredGroups.find(item => item.id === id) ?? offeredTools.find(item => item.id === id);
+			assert.ok(item);
+			item.checked = checked;
+			for (const child of item.children ?? []) {
+				child.checked = checked;
+			}
+			changed.fire(item);
+		};
 		provider = disposables.add(instantiationService.createInstance(PromptToolsCodeLensProvider));
 	});
 
@@ -131,9 +188,9 @@ suite('PromptToolsCodeLensProvider', () => {
 		];
 		await runLens(createModel('target: github-copilot\ntools: [read, copilot/read_file]'));
 		assert.deepStrictEqual(offeredTools.map(tool => [tool.label, tool.checked]), [
-			['execute', false], ['read', true], ['edit', false], ['search', false],
-			['agent', false], ['web', false], ['todo', false], ['*', false],
-			['read_file', true], ['*', false], ['*', false],
+			['All Tools', false], ['execute', false], ['read', true], ['edit', false], ['search', false],
+			['agent', false], ['web', false], ['todo', false],
+			['read_file', true],
 		]);
 	});
 
@@ -148,17 +205,17 @@ suite('PromptToolsCodeLensProvider', () => {
 		const model = createModel('target: github-copilot\ntools: [vscode/usages]');
 		await runLens(model);
 		assert.deepStrictEqual({
-			groups: offeredGroups.map(group => [group.label, group.children?.map(tool => [tool.id, tool.label, tool.ariaLabel])]),
+			allTools: offeredGroups[0].id,
+			groups: offeredGroups.filter(group => group.children).map(group => [group.label, group.children?.map(tool => [tool.id, tool.label, tool.filterText])]),
 			content: model.getValue(),
 			pickerDisposed,
 		}, {
+			allTools: '*',
 			groups: [
-				['Built-In', ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*'].map(name => [name, name, name])],
+				['Built-In', ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo'].map(name => [name, name, name])],
 				['vscode', [['vscode/usages', 'usages', 'vscode/usages'], ['vscode/runTask', 'runTask', 'vscode/runTask']]],
 				['browser', [['browser/openBrowserPage', 'openBrowserPage', 'browser/openBrowserPage']]],
 				['custom', [['custom/nested/tool', 'nested/tool', 'custom/nested/tool']]],
-				['github', [['github/*', '*', 'github/*']]],
-				['playwright', [['playwright/*', '*', 'playwright/*']]],
 			],
 			content: '---\ntarget: github-copilot\ntools: [vscode/runTask, custom/nested/tool]\n---\n',
 			pickerDisposed: true,
@@ -169,7 +226,7 @@ suite('PromptToolsCodeLensProvider', () => {
 		activeTarget = Target.GitHubCopilot;
 		await runLens(createModel('tools: []'));
 		assert.deepStrictEqual(offeredTools.map(tool => tool.label), [
-			'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', '*', '*',
+			'All Tools', 'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo',
 		]);
 	});
 
@@ -197,15 +254,24 @@ suite('PromptToolsCodeLensProvider', () => {
 
 	for (const tools of ['[read, custom/tool]', 'read, custom/tool']) {
 		test(`writes Copilot names without registry mapping for ${tools}`, async () => {
+			inventory = [{ name: 'github/*', availability: 'available' }];
 			selectedNames = ['execute', 'github/*'];
 			const model = createModel(`target: github-copilot\ntools: ${tools}`);
 			await runLens(model);
 			const expected = 'custom/tool, execute, \'github/*\'';
-			assert.strictEqual(model.getValue(), `---\ntarget: github-copilot\ntools: ${tools.startsWith('[') ? `[${expected}]` : expected}\n---\n`);
+			assert.strictEqual(model.getValue(), `---\ntarget: github-copilot\ntools: [${expected}]\n---\n`);
 			model.undo();
 			assert.strictEqual(model.getValue(), `---\ntarget: github-copilot\ntools: ${tools}\n---\n`);
 		});
 	}
+
+	test('preserves an unlisted reference containing an apostrophe', async () => {
+		selectedNames = ['read'];
+		const model = createModel(`target: github-copilot\ntools: ["owner's/tool", search]`);
+		await runLens(model);
+		const value = new PromptFileParser().parse(model.uri, model.getValue()).header!.getAttribute('tools')!.value;
+		assert.deepStrictEqual(value.type === 'sequence' ? value.items.map(item => item.type === 'scalar' ? item.value : undefined) : [], ['owner\'s/tool', 'read']);
+	});
 
 	test('cancelling the Copilot picker leaves the file unchanged', async () => {
 		const model = createModel('target: github-copilot\ntools: [read]');
@@ -214,11 +280,125 @@ suite('PromptToolsCodeLensProvider', () => {
 		assert.deepStrictEqual({ content: model.getValue(), pickerDisposed }, { content: before, pickerDisposed: true });
 	});
 
-	test('accepting an empty selection writes an empty array', async () => {
+	test('accepting an empty selection does not broaden access', async () => {
 		selectedNames = [];
 		const model = createModel('target: github-copilot\ntools: [read]');
 		await runLens(model);
-		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: []\n---\n');
+		assert.deepStrictEqual({ content: model.getValue(), warning: await validation.p }, { content: '---\ntarget: github-copilot\ntools: [read]\n---\n', warning: 'Select at least one tool, or select All Tools. An empty tools list allows all tools in Copilot.' });
+	});
+
+	for (const tools of ['[]', '[\'*\']']) {
+		test(`shows effective all-tools coverage for ${tools}`, async () => {
+			await runLens(createModel(`target: github-copilot\ntools: ${tools}`));
+			assert.deepStrictEqual(offeredTools.map(item => [item.id, item.checked]), [
+				['*', true], ['execute', true], ['read', true], ['edit', true], ['search', true], ['agent', true], ['web', true], ['todo', true],
+			]);
+		});
+	}
+
+	test('checking Built-In does not select the global wildcard', async () => {
+		interaction = picker => { toggleCheckbox('group:', true); picker.accept(); };
+		const model = createModel('target: github-copilot\ntools: [read]');
+		await runLens(model);
+		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [execute, read, edit, search, agent, web, todo]\n---\n');
+	});
+
+	test('deselecting a covered tool removes the global wildcard', async () => {
+		interaction = picker => { toggleCheckbox('read', false); picker.accept(); };
+		const model = createModel('target: github-copilot\ntools: [\'*\']');
+		await runLens(model);
+		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [execute, edit, search, agent, web, todo]\n---\n');
+	});
+
+	test('selecting All Tools saves the explicit wildcard', async () => {
+		interaction = picker => { toggleCheckbox('*', true); picker.accept(); };
+		const model = createModel('target: github-copilot\ntools: [read]');
+		await runLens(model);
+		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [\'*\']\n---\n');
+	});
+
+	test('namespace wildcard coverage can be narrowed by deselecting a child', async () => {
+		inventory = ['custom/*', 'custom/first', 'custom/second'].map(name => ({ name, availability: 'available' }));
+		interaction = picker => { toggleCheckbox('custom/first', false); picker.accept(); };
+		const model = createModel('target: github-copilot\ntools: [\'custom/*\']');
+		await runLens(model);
+		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [custom/second]\n---\n');
+	});
+
+	test('accessible labels retain qualified IDs and descriptions', async () => {
+		inventory = [{ name: 'vscode/usages', description: 'Find references', availability: 'available' }];
+		await runLens(createModel('target: github-copilot\ntools: [vscode/usages]'));
+		const item = offeredTools.find(item => item.id === 'vscode/usages');
+		assert.deepStrictEqual([item?.label, item?.ariaLabel, item?.filterText], ['usages', 'vscode/usages, Find references', 'vscode/usages']);
+	});
+
+	test('reparses tools and their range when a stale code lens is invoked', async () => {
+		const model = createModel('target: github-copilot\ntools: [read]');
+		const lens = await getLens(model);
+		model.setValue('---\ndescription: changed\ntarget: github-copilot\ntools: [search]\n---\n');
+		interaction = picker => picker.accept();
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(lens.command!.id)!.handler, ...lens.command!.arguments!);
+		assert.strictEqual(model.getValue(), '---\ndescription: changed\ntarget: github-copilot\ntools: [search]\n---\n');
+	});
+
+	test('does not overwrite edits made while the picker is open', async () => {
+		const model = createModel('target: github-copilot\ntools: [read]');
+		interaction = picker => { model.setValue('---\ntarget: github-copilot\ntools: [edit]\n---\n'); picker.accept(); };
+		await runLens(model);
+		assert.deepStrictEqual({ content: model.getValue(), warnings: notifications.length }, { content: '---\ntarget: github-copilot\ntools: [edit]\n---\n', warnings: 1 });
+	});
+
+	test('cancels pending catalogue resolution when the model changes', async () => {
+		inventoryWait = new DeferredPromise<void>();
+		const model = createModel('target: github-copilot\ntools: [read]');
+		const operation = runLens(model);
+		const picker = await shown.p;
+		assert.strictEqual(picker.busy, true);
+		model.setValue('---\ntarget: github-copilot\ntools: [edit]\n---\n');
+		await operation;
+		assert.deepStrictEqual({ content: model.getValue(), warnings: notifications.length, pickerDisposed }, { content: '---\ntarget: github-copilot\ntools: [edit]\n---\n', warnings: 1, pickerDisposed: true });
+	});
+
+	test('waits for an inventory before populating the picker', async () => {
+		inventoryWait = new DeferredPromise<void>();
+		const operation = runLens(createModel('target: github-copilot\ntools: [read]'));
+		const picker = await shown.p;
+		assert.deepStrictEqual({ busy: picker.busy, offeredTools }, { busy: true, offeredTools: [] });
+		inventory = [{ name: 'vscode/usages', availability: 'available' }];
+		await inventoryWait.complete();
+		await operation;
+		assert.ok(offeredTools.some(item => item.id === 'vscode/usages'));
+	});
+
+	test('cancels pending inventory when the picker is dismissed', async () => {
+		inventoryWait = new DeferredPromise<void>();
+		const operation = runLens(createModel('target: github-copilot\ntools: [read]'));
+		const picker = await shown.p;
+		picker.hide();
+		await operation;
+		assert.deepStrictEqual({ offeredTools, pickerDisposed, notifications }, { offeredTools: [], pickerDisposed: true, notifications: [] });
+	});
+
+	test('cancels pending inventory when the model is disposed', async () => {
+		inventoryWait = new DeferredPromise<void>();
+		const model = createModel('target: github-copilot\ntools: [read]');
+		const operation = runLens(model);
+		await shown.p;
+		model.dispose();
+		await operation;
+		assert.deepStrictEqual({ offeredTools, pickerDisposed, notifications }, { offeredTools: [], pickerDisposed: true, notifications: [] });
+	});
+
+	test('does not present an unresolved inventory as complete', async () => {
+		inventory = undefined;
+		const model = createModel('target: github-copilot\ntools: [read]');
+		const operation = runLens(model);
+		const picker = await shown.p;
+		await validation.p;
+		picker.accept();
+		picker.hide();
+		await operation;
+		assert.deepStrictEqual({ offeredTools, content: model.getValue(), warning: await validation.p }, { offeredTools: [], content: '---\ntarget: github-copilot\ntools: [read]\n---\n', warning: 'The Copilot tool inventory is unavailable. Open a Copilot session and run Configure Tools again.' });
 	});
 
 	test('prompt files retain the VS Code target even in a Copilot session', async () => {
