@@ -19,10 +19,12 @@ export interface Shard {
  * a suite. Unlisted suites count as about one app launch.
  */
 const suiteDurations = new Map<string, number>([
-	['Data Loss (insiders -> insiders)', 210],
+	['Data Loss (insiders -> insiders)', process.platform === 'win32' ? 125 : 210],
 	['Terminal', 150],
 	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 115 : 5], // skips itself without Docker
-	['Agents Window (WSL Dev Container AgentHost)', 175], // includes the ~80s WSL setup step
+	// Windows only. Also counts the ~110s WSL setup step before the shard and the ~50s WSL Kerberos proxy
+	// run after it, which only the first shard runs (see pr-win32-test.yml).
+	['Agents Window (WSL Dev Container AgentHost)', 250],
 	['Chat Sessions', 85],
 	['Agents Window (SSH Dev Container AgentHost)', 75],
 	['Agents Window (Codex)', 65],
