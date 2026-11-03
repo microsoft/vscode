@@ -346,7 +346,8 @@ suite('View Editors', () => {
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
 		disposables.add(registerContentDropTarget(views[0].element));
 		const group = groupViewOf(parts, part.activeGroup);
-		const bounds = group.element.getBoundingClientRect();
+		// Where the view is in its group, which can be taller than the view, such as in a browser
+		const bounds = views[0].element.getBoundingClientRect();
 
 		const dragFile = async (path: string, clientX: number, clientY: number) => {
 			const file = disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
