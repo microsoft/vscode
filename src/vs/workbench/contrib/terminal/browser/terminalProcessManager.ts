@@ -370,7 +370,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}
 
-		if (this._parentWindowId !== undefined) {
+		if (this._parentWindowId !== undefined && this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
 			await this._resolveParentWindowHandle();
 		}
 
@@ -779,10 +779,18 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	async setParentWindow(windowId: number): Promise<void> {
-		if (!isWindows || this.remoteAuthority || !this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+		if (!isWindows || this.remoteAuthority) {
 			return;
 		}
-		this._parentWindowId = windowId;
+		// Track the window even while the setting is off, so processes started after it's turned on
+		// get the window the terminal is in now. The saved handle is for the previous window.
+		if (windowId !== this._parentWindowId) {
+			this._parentWindowId = windowId;
+			this._parentWindowHandle = undefined;
+		}
+		if (!this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			return;
+		}
 		const handle = await this._getNativeWindowHandle(windowId);
 		if (windowId !== this._parentWindowId || handle === undefined || this._parentWindowHandle?.equals(handle)) {
 			return;
@@ -817,7 +825,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private async _updateProcessParentWindow(): Promise<void> {
-		if (!this._process || this._parentWindowHandle === undefined) {
+		if (!this._process || this._parentWindowHandle === undefined || !this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
 			return;
 		}
 		try {

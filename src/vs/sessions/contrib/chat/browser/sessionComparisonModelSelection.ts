@@ -132,6 +132,9 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	private readonly _step = observableValue<ComparisonStep>(this, 'attempts');
 
 	readonly label = localize('comparisonPicker.compare', "Compare Models");
+	readonly description = derived(this, reader => this._reviewAvailable.read(reader)
+		? localize('comparisonPicker.attemptsDescription', "Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.")
+		: localize('comparisonPicker.chatAttemptsDescription', "Select two or more models to run one prompt in parallel and compare their responses side by side."));
 	readonly startCommandId = COMPARE_SESSION_MODELS_COMMAND_ID;
 	readonly enabled = derived(this, reader => !!this._committed.read(reader));
 	readonly configured = this.enabled;
@@ -158,9 +161,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			title: step === 'attempts' ? localize('comparisonPicker.attempts', "Attempts")
 				: step === 'judge' ? localize('comparisonPicker.judge', "Judge")
 					: localize('comparisonPicker.synthesizer', "Synthesizer"),
-			description: step === 'attempts' ? this._reviewAvailable.read(reader)
-				? localize('comparisonPicker.attemptsDescription', "Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.")
-				: localize('comparisonPicker.chatAttemptsDescription', "Select two or more models to run one prompt in parallel and compare their responses side by side.")
+			description: step === 'attempts' ? this.description.read(reader)
 				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Select a model to review the attempts and pick a winner. Skip this step to compare them yourself.")
 					: localize('comparisonPicker.synthesizerDescription', "Select a model to combine the best parts of each attempt. Synthesis starts only when you ask."),
 			summary: getAttemptsSummaryText(getAttempts(draft), this._getModelLabel),

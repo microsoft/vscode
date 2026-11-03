@@ -23,7 +23,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
-import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, getRoutingModelBadge, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
@@ -229,7 +229,10 @@ export class ModelCard extends DisposableStore {
 		for (const [group, control] of this._groupControls) {
 			const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
 			if (property && Object.hasOwn(values, property.key)) {
-				control.setActiveItem(Math.max(0, property.schema.enum?.indexOf(values[property.key]) ?? -1));
+				const index = property.schema.enum?.indexOf(values[property.key]) ?? -1;
+				if (index >= 0) {
+					control.setActiveItem(index);
+				}
 			}
 		}
 		try {
@@ -572,9 +575,14 @@ export class ModelCard extends DisposableStore {
 			};
 		});
 		const section = this._renderSection(title);
+		const usesModelDefault = !isAuto && group === MODEL_CONFIG_GROUP_EFFORT && property.value === undefined;
+		if (usesModelDefault && dom.isHTMLElement(section.firstElementChild)) {
+			dom.append(section.firstElementChild, dom.$('span.chat-model-card-section-value', undefined, getModelConfigValueLabel(property.schema, undefined)));
+		}
 		const control = this._contentDisposables.add(new Radio({
-			ariaLabel: title,
+			ariaLabel: usesModelDefault ? localize('chat.modelPicker.defaultEffortAria', "{0}: model default", title) : title,
 			className: 'segmented',
+			allowNoSelection: usesModelDefault,
 			// Arrow keys move focus without changing the model's configuration.
 			arrowKeyBehavior: 'focus',
 			items,

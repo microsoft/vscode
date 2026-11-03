@@ -602,6 +602,7 @@ interface IRemoteAgentRegistrationHarness {
 		readonly agents: DisposableMap<string, DisposableStore>;
 		readonly store: DisposableStore;
 	}>;
+	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_chatSessionsService: {
 		registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): never;
 	};
@@ -739,6 +740,7 @@ suite('Remote agent host provider ownership', () => {
 
 suite('Remote Agent Host chat session contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() { }();
 
 	function registerAgent(address: string, provider: string): IChatSessionsExtensionPoint | undefined {
 		const agent: AgentInfo = {
@@ -752,6 +754,9 @@ suite('Remote Agent Host chat session contribution', () => {
 		const agents = store.add(new DisposableMap<string, DisposableStore>());
 		const harness = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAgentRegistrationHarness;
 		harness._connections = new Map([[address, { agents, store: connectionStore }]]);
+		harness._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
 
 		let registeredContribution: IChatSessionsExtensionPoint | undefined;
 		harness._chatSessionsService = {
@@ -789,6 +794,6 @@ suite('Remote Agent Host chat session contribution', () => {
 			registerAgent('cloudsandbox:test-host', 'other-agent')?.inputPlaceholder,
 			registerAgent('test-host', 'copilot')?.inputPlaceholder,
 			registerAgent('test-host', 'other-agent')?.inputPlaceholder,
-		], ['Chat with Copilot', undefined, undefined, undefined]);
+		], ['Chat with Copilot Cloud', undefined, undefined, undefined]);
 	});
 });

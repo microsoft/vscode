@@ -192,6 +192,38 @@ suite('MenuService', function () {
 		});
 	});
 
+	test('getMenuActions evaluates submenu toggle state without checking its children', () => {
+		const submenuId = new MenuId(`testo/${generateUuid()}`);
+		const active = contextKeyService.createKey<boolean>('submenuActive', false);
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			title: 'Submenu',
+			submenu: submenuId,
+			toggled: ContextKeyExpr.has('submenuActive'),
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(submenuId, {
+			command: { id: 'child', title: 'Child' },
+		}));
+		const snapshot = () => {
+			const action = menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0];
+			assert.ok(action instanceof SubmenuItemAction);
+			return { checked: action.checked, childChecked: action.actions[0].checked };
+		};
+
+		const inactive = snapshot();
+		active.set(true);
+		const activeState = snapshot();
+
+		assert.deepStrictEqual({
+			inactive,
+			active: activeState,
+			contexts: [...menuService.getMenuContexts(testMenuId)],
+		}, {
+			inactive: { checked: false, childChecked: undefined },
+			active: { checked: true, childChecked: undefined },
+			contexts: ['submenuActive'],
+		});
+	});
+
 	test('getMenuActions observes implicit command palette items synchronously', () => {
 		const commandId = `testo/${generateUuid()}`;
 		const containsCommand = () => menuService.getMenuActions(MenuId.CommandPalette, contextKeyService)
@@ -350,6 +382,28 @@ suite('MenuService', function () {
 			labels: ['Short', 'Long title'],
 			hidden: [true, false, true],
 			calls: [['command', 'first', 'forwarded'], ['command', 'second']],
+		});
+	});
+
+	test('isModifiedFromDefault reflects divergence from the default state', async () => {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'hiddenByDefault', title: 'Hidden By Default' },
+			isHiddenByDefault: true,
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'visibleByDefault', title: 'Visible By Default' },
+		}));
+		const get = () => menuService.getMenuActions(testMenuId, contextKeyService)[0][1].map(a => a.hideActions?.isModifiedFromDefault);
+		const initial = get();
+		await menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0].hideActions?.toggle.run();
+		await menuService.getMenuActions(testMenuId, contextKeyService)[0][1][1].hideActions?.toggle.run();
+		const modified = get();
+		menuService.resetHiddenStates([testMenuId]);
+
+		assert.deepStrictEqual({ initial, modified, reset: get() }, {
+			initial: [false, false],
+			modified: [true, true],
+			reset: [false, false]
 		});
 	});
 

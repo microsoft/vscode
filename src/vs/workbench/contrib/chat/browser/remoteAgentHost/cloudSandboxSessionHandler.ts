@@ -555,11 +555,11 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
 		const live = this._liveProvider?.resolveChatResponseUri?.(resource, href, kind);
-		if (live !== undefined && (kind === 'link' || live.startsWith('data:image/'))) {
+		if (live !== undefined && (kind === 'link' ? live !== href : live.startsWith('data:image/'))) {
 			return live;
 		}
 		const recorded = this._readOnlyHandler.resolveChatResponseUri(resource, href, kind);
-		return kind === 'image' && recorded.startsWith('data:image/') ? recorded : live ?? recorded;
+		return kind === 'link' || recorded.startsWith('data:image/') ? recorded : live ?? recorded;
 	}
 
 	provideChatInputCompletions: NonNullable<IChatSessionContentProvider['provideChatInputCompletions']> =

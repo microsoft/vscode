@@ -20,7 +20,7 @@ import { getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesSe
 
 /**
  * Suggests installed extensions that could be useful in the Agents window: entry points to the Extensions section of
- * Agent Customizations show a badge, and the section lists the extensions in a Suggested group.
+ * Agent Customizations show a badge, and the section lists the extensions in an AI Features group.
  */
 export const AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING = 'extensions.experimental.agentsWindowSuggestions';
 

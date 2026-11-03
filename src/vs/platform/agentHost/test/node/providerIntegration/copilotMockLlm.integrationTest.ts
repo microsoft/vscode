@@ -19,7 +19,7 @@ import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSche
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { customizationId, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
@@ -58,6 +58,32 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 	let suiteHome: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let restrictedAgentType: string | undefined;
+
+	function forwardedAgentType(name: string): string {
+		const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+			typeof value === 'object' && value !== null && !Array.isArray(value);
+		const captured = server.mockLlm?.getRequests?.().at(-1);
+		assert.ok(isRecord(captured) && isRecord(captured.body) && Array.isArray(captured.body.tools));
+		const tools: readonly unknown[] = captured.body.tools;
+		for (const raw of tools) {
+			const tool = isRecord(raw) && isRecord(raw.function) ? raw.function : raw;
+			if (!isRecord(tool) || tool.name !== 'task' || typeof tool.description !== 'string') {
+				continue;
+			}
+			const schema = tool.input_schema ?? tool.parameters;
+			assert.ok(isRecord(schema) && isRecord(schema.properties) && isRecord(schema.properties.agent_type));
+			const agentType = schema.properties.agent_type;
+			assert.ok(Array.isArray(agentType.enum));
+			const values: readonly unknown[] = agentType.enum;
+			const description = tool.description;
+			const matches = values.filter((id): id is string => typeof id === 'string').filter(id =>
+				description.split('\n').some(line => line.startsWith(`- **${id}**: ${name}:`) || line === `- **${id}**: ${name}`));
+			assert.strictEqual(matches.length, 1, `The task catalog must expose exactly one agent named ${name}`);
+			return matches[0];
+		}
+		throw new Error('The model request did not expose the task tool');
+	}
 
 	suiteSetup(async function () {
 		this.timeout(120_000);
@@ -122,11 +148,14 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 							kind: 'tool-calls',
 							toolCalls: [{
 								toolNamePattern: /^task$/,
-								arguments: {
-									name: 'plugin-sibling',
-									description: 'Run the plugin sibling',
-									prompt: 'Complete the delegated task.',
-									agent_type: 'plugin-sibling',
+								arguments: () => {
+									restrictedAgentType = forwardedAgentType('plugin-restricted');
+									return {
+										name: 'plugin-sibling',
+										description: 'Run the plugin sibling',
+										prompt: 'Complete the delegated task.',
+										agent_type: forwardedAgentType('plugin-sibling'),
+									};
 								},
 							}],
 						},
@@ -142,11 +171,14 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 							kind: 'tool-calls',
 							toolCalls: [{
 								toolNamePattern: /^task$/,
-								arguments: {
-									name: 'plugin-restricted',
-									description: 'Run the restricted plugin sibling',
-									prompt: 'Complete the restricted delegated task.',
-									agent_type: 'plugin-restricted',
+								arguments: () => {
+									assert.ok(restrictedAgentType, 'the first turn must discover the agent before invocation is restricted');
+									return {
+										name: 'plugin-restricted',
+										description: 'Run the restricted plugin sibling',
+										prompt: 'Complete the restricted delegated task.',
+										agent_type: restrictedAgentType,
+									};
 								},
 							}],
 						},
@@ -227,7 +259,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Plugin Delegation' })),
 			writeFile(parentAgentFile, '---\nname: plugin-parent\ndescription: Delegates plugin work\n---\nDelegate work to plugin-sibling.'),
 			writeFile(siblingAgentFile, '---\nname: plugin-sibling\ndescription: Completes plugin work\n---\nComplete the delegated task.'),
-			writeFile(restrictedAgentFile, '---\nname: plugin-restricted\ndescription: Only runs when selected by the user\ninfer: false\n---\nComplete the restricted task.'),
+			writeFile(restrictedAgentFile, '---\nname: plugin-restricted\n---\nComplete the restricted task.'),
 		]);
 
 		const clientId = 'real-sdk-plugin-subagents';
@@ -253,7 +285,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			&& getActionEnvelope(notification).channel === sessionUri,
 			30_000,
 		);
-		const parentAgentUri = await retry(async () => {
+		let parentAgentUri = await retry(async () => {
 			const session = await fetchSessionWithChat(client, sessionUri);
 			const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
 				customization.type === CustomizationType.Plugin && customization.uri === pluginUri
@@ -310,9 +342,35 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			return { taskSucceeded: completeAction.result.success, parentResponse: response };
 		};
 
+		const modelInvocable = await delegate(2, 'turn-plugin-subagent', PLUGIN_SIBLING_SCENARIO_ID);
+		await writeFile(restrictedAgentFile, '---\nname: plugin-restricted\ninfer: false\n---\nComplete the restricted task.');
+		client.clearReceived();
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [{ ...pluginCustomization, nonce: '2' }] },
+			},
+		});
+		const updated = await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.SessionCustomizationUpdated)) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(notification);
+			return channel === sessionUri && action.type === ActionType.SessionCustomizationUpdated
+				&& action.customization.type === CustomizationType.Plugin && action.customization.uri === pluginUri
+				&& action.customization.load?.kind === CustomizationLoadStatus.Loaded
+				&& action.customization.children?.some(child => child.name === 'plugin-parent') === true;
+		}, 30_000);
+		const update = getActionEnvelope(updated).action;
+		assert.ok(update.type === ActionType.SessionCustomizationUpdated && update.customization.type === CustomizationType.Plugin);
+		const parent = update.customization.children?.find(child => child.name === 'plugin-parent');
+		assert.ok(parent);
+		parentAgentUri = parent.uri;
 		assert.deepStrictEqual({
-			modelInvocable: await delegate(2, 'turn-plugin-subagent', PLUGIN_SIBLING_SCENARIO_ID),
-			modelRestricted: await delegate(3, 'turn-plugin-restricted-subagent', PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID),
+			modelInvocable,
+			modelRestricted: await delegate(4, 'turn-plugin-restricted-subagent', PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID),
 		}, {
 			modelInvocable: {
 				taskSucceeded: true,

@@ -122,6 +122,23 @@ function resources(isArtifact: boolean): ISessionArtifact[] {
 	];
 }
 
+/**
+ * Artifacts that sit next to the {@link resources} references. A chat shows each resource once, so every artifact
+ * points to a different resource than its reference.
+ */
+function generatedResources(): ISessionArtifact[] {
+	return resources(true).map(item => {
+		const id = `artifact-${item.id}`;
+		switch (item.id) {
+			case 'commit': return { ...item, id, commitHash: 'def5678', link: URI.parse('https://github.com/microsoft/vscode/commit/def5678') };
+			case 'website': return { ...item, id, link: URI.parse('https://code.visualstudio.com/docs/copilot/overview') };
+			case 'settings': return { ...item, id, uri: URI.parse('vscode://settings/chat.agent') };
+			case 'ado': return { ...item, id, link: URI.parse('https://dev.azure.com/example/project/_workitems/edit/43') };
+			default: return { ...item, id, uri: item.uri?.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) };
+		}
+	});
+}
+
 type Scenario = 'single' | 'collections' | 'copied' | 'mixed' | 'cold' | 'resolved' | 'pullRequests' | 'file' | 'image' | 'website' | 'commitUrl' | 'commitPending' | 'customizations';
 
 async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario): Promise<void> {
@@ -136,7 +153,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			? gitHubArtifacts(false).map(artifact => ({ ...artifact, label: artifact.kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue' }))
 			: dedicatedCollection
 				? authored
-				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
+				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...generatedResources()];
 	const session = createMockSession({
 		artifacts: entries, removableArtifacts: true,
 		customizations: scenario === 'customizations' ? [

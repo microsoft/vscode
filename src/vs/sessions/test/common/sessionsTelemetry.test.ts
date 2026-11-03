@@ -105,17 +105,21 @@ suite('sessionsTelemetry helpers', () => {
 			{
 				name: 'agents/sessionArtifactOpen',
 				data: {
+					surface: 'agentsWindow',
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'artifact',
 					itemKind: 'file',
+					itemSource: 'recorded',
 				},
 			},
 			{
 				name: 'agents/sessionArtifactOpen',
 				data: {
+					surface: 'agentsWindow',
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'reference',
 					itemKind: 'website',
+					itemSource: 'recorded',
 				},
 			},
 		]);

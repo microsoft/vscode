@@ -19,6 +19,8 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 
 	/** The pill's sections after applying the user's visibility and status filter. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	/** In-progress entries for the transcript status, independent of the pill's status filter. */
+	readonly inProgressSections: IObservable<readonly IChatPillSection[]>;
 	/** Whether there are activities to show, regardless of the user's visibility choice. */
 	readonly hasData: IObservable<boolean>;
 
@@ -55,6 +57,7 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 		this._pillData = createSessionSubagentsPillData(subagents, visibility.subagents);
 		this.hasData = this._pillData.hasData;
 		this.sections = derived(this, reader => visible.read(reader) ? this._pillData.sections.read(reader) : []);
+		this.inProgressSections = derived(this, reader => visible.read(reader) ? this._pillData.inProgressSections.read(reader) : []);
 	}
 
 	getContextMenuActions() {

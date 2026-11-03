@@ -20,6 +20,18 @@ export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
+/** When automation sessions automatically also appear in the Sessions list. */
+export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
+
+export const enum AutomationSessionsListMode {
+	/** Every automation session is listed. */
+	Always = 'always',
+	/** An automation session is listed once the user sends a message in it. */
+	AfterReply = 'afterReply',
+	/** Automation sessions are only listed when the user shows them. */
+	Never = 'never',
+}
+
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
 

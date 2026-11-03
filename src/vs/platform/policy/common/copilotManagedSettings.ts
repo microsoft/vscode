@@ -48,6 +48,9 @@ export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableB
 /** Managed setting that disables the Assisted permission mode. */
 export const COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY = 'permissions.disableAssistedPermissionsMode';
 
+/** Managed setting for the starting permission mode of new sessions (`manual`, `assisted`, or `allow-all`). */
+export const COPILOT_DEFAULT_PERMISSIONS_MODE_KEY = 'permissions.defaultMode';
+
 /** Runtime-owned rule lists that the Local harness cannot enforce. */
 export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
 
@@ -147,7 +150,7 @@ export const COPILOT_FUSION_TIER_KEY = 'fusionTier';
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
-	'permissions.defaultMode': { type: 'string' },
+	[COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
 	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	'permissions.limitTo': { type: 'string' },
@@ -387,6 +390,28 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 		};
 	}
 	return managedModelValueCallback;
+}
+
+/**
+ * `value` callback for the `chat.defaultConfiguration` policy: projects the managed
+ * {@link COPILOT_DEFAULT_PERMISSIONS_MODE_KEY} onto the setting's `approvals` property, as the
+ * JSON-encoded object the setting expects. Like the Copilot runtime, an unrecognized mode starts
+ * in Manual, as does a mode the explicit permission restrictions disable.
+ */
+export function managedDefaultConfigurationValue(policyData: IPolicyData): string | undefined {
+	const settings = policyData.managedSettings;
+	const mode = settings?.[COPILOT_DEFAULT_PERMISSIONS_MODE_KEY];
+	if (typeof mode !== 'string') {
+		return undefined;
+	}
+	// The `chat.defaultConfiguration` approval vocabulary.
+	let approvals = 'manual';
+	if (mode === 'assisted' && settings?.[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY] !== true) {
+		approvals = 'assisted';
+	} else if (mode === 'allow-all' && settings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] !== 'disable') {
+		approvals = 'allowAll';
+	}
+	return JSON.stringify({ approvals });
 }
 
 /** Forces a boolean setting off while the user is governed by managed settings. */

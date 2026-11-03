@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/unstable/async';
+import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
 import {
 	ModifierFlags,
 	getLeadingCommentRanges,
@@ -36,7 +36,7 @@ import {
 	type SetAccessorDeclaration,
 	type SourceFile,
 	type TypeParameterDeclaration,
-} from '@typescript/native/unstable/ast';
+} from '@typescript/native/ast';
 import * as protocol from '../../common/serverProtocol';
 import type { RequestContext } from './contextProvider';
 import { ProgramContext, type SnippetProvider } from './types';

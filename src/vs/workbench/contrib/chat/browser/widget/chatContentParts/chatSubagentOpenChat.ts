@@ -15,6 +15,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -28,6 +29,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
@@ -247,6 +249,9 @@ class OpenSubagentChatAction extends Action2 {
 registerAction2(OpenSubagentChatAction);
 
 export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
+	private static readonly creditUsageSettings = new WeakMap<IConfigurationService, IObservable<boolean>>();
+	private static readonly modelChanges = new WeakMap<ILanguageModelsService, IObservable<void>>();
+
 	private readonly _sourceAction: IAction;
 	private readonly _showElapsedOnly: boolean;
 	private _resolvedTitle: string | undefined;
@@ -320,13 +325,19 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 				}
 			},
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.SubagentsShowCreditUsage)) {
-				this._updateCredits();
-				this.updateTooltip();
-			}
+		const showCredits = OpenSubagentChatActionViewItem.creditUsageSettings.get(configurationService)
+			?? observableConfigValue(ChatConfiguration.SubagentsShowCreditUsage, false, configurationService);
+		OpenSubagentChatActionViewItem.creditUsageSettings.set(configurationService, showCredits);
+		this._register(autorun(reader => {
+			showCredits.read(reader);
+			this._updateCredits();
+			this.updateTooltip();
 		}));
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+		const modelsChanged = OpenSubagentChatActionViewItem.modelChanges.get(languageModelsService)
+			?? observableSignalFromEvent('subagentModelsChanged', languageModelsService.onDidChangeLanguageModels);
+		OpenSubagentChatActionViewItem.modelChanges.set(languageModelsService, modelsChanged);
+		this._register(autorun(reader => {
+			modelsChanged.read(reader);
 			this._updateModelConfiguration();
 			this.updateTooltip();
 		}));

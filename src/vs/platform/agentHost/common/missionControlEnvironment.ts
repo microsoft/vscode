@@ -62,5 +62,7 @@ export interface IMissionControlEnvironmentService {
 	refresh(token: CancellationToken): Promise<void>;
 	connect(id: string, token: CancellationToken): Promise<void>;
 	disconnect(id: string): Promise<void>;
+	/** Delete a user-local registration and withdraw its connection without deleting the machine's files. */
+	delete(id: string, token: CancellationToken): Promise<void>;
 	setDisplayName(id: string, name: string | undefined): void;
 }

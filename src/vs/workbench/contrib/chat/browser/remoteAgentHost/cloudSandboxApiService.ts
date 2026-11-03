@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { Limiter, MAX_TIMEOUT_DELAY, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -11,11 +11,13 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Emitter } from '../../../../../base/common/event.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getGitHubRequestId } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
@@ -34,6 +36,7 @@ import {
 	ICloudSandboxReserveSessionRequest,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
+	ICloudSandboxDiscoveryOptions,
 	ICloudSandboxEnvironment,
 	ICloudSandboxAuthenticationTarget,
 	ICloudSandboxIdentityToken,
@@ -51,6 +54,7 @@ import { SessionModelInfo } from '../../../../../platform/agentHost/common/state
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
+import { nextLink } from '../../../../../platform/github/common/githubResponse.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
@@ -59,8 +63,10 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
+import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction, type ICloudSandboxDiscoveryTelemetryData } from './cloudSandboxTelemetry.js';
+import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
+import { createCloudSandboxContextTierSchema } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
 import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retryAfterSeconds } from './cloudSandboxRateLimit.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
@@ -121,11 +127,6 @@ interface ICachedSandboxTask {
 	/** An unattributed default-titled task whose recorded conversation may be an abandoned draft. */
 	readonly emptySessionSince?: number;
 	readonly hasEmptyHistory?: boolean;
-}
-
-interface ISandboxDiscoveryOptions {
-	readonly incremental?: boolean;
-	readonly taskIds?: readonly string[];
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -462,9 +463,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		} catch {
 			throw new Error('Mission Control returned an invalid session feed URL');
 		}
-		const reconnectAt = Date.parse(connection.reconnect_after);
+		const now = Date.now();
+		const reconnectIn = connection.reconnect_in ?? Date.parse(connection.reconnect_after) - now;
+		const expiresIn = connection.expires_in ?? Date.parse(connection.expires_at) - now;
 		if (url.protocol !== 'wss:' || !url.hostname || url.username || url.password || url.hash
-			|| reconnectAt <= Date.now() || reconnectAt >= Date.parse(connection.expires_at)) {
+			|| (connection.reconnect_in === undefined) !== (connection.expires_in === undefined)
+			|| reconnectIn <= 0 || reconnectIn >= expiresIn || reconnectIn > MAX_TIMEOUT_DELAY) {
 			throw new Error('Mission Control returned invalid session feed connection metadata');
 		}
 		if (token.isCancellationRequested) {
@@ -494,20 +498,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
-		return this._connectRequest('connect', request.environmentId, token, {
+		return this._connectRequest('connect', request, token, {
 			...(request.sessionId && { session_id: request.sessionId }),
-		}, request.onRequest);
+		});
 	}
 
 	async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
-		const result = await this._connectRequest('reconnect', request.environmentId, token, {
+		return this._connectRequest('reconnect', request, token, {
 			client_id: clientId,
 			...(request.sessionId && { session_id: request.sessionId }),
-		}, request.onRequest);
-		if (result.kind === 'token' && result.token.client_id !== clientId) {
-			throw new Error('Cloud sandbox reconnect returned credentials for a different client');
-		}
-		return result;
+		});
 	}
 
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
@@ -568,24 +568,69 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return values;
 	}
 
+	async deleteEnvironment(environmentId: string, token: CancellationToken, expectedAccountKey: string): Promise<void> {
+		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}`, 'mc.environmentClient.delete', 'deleteEnvironment', {
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE', undefined, { expectedAccountKey });
+		if (!isSuccess(context) && context.res.statusCode !== 404) {
+			await this._throwForStatus('environment delete', context);
+		}
+		this._environments = undefined;
+		this._discoveryGeneration++;
+	}
+
 	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
-	async listSessions(token: CancellationToken, options?: ISandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
+	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
+		const stopwatch = StopWatch.create();
+		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
+		const telemetry: ICloudSandboxDiscoveryTelemetryData = {
+			trigger: options?.trigger ?? 'unknown', requestedMode, mode: requestedMode, outcome: 'failed',
+			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0,
+			sandboxTaskCount: 0, changedSandboxTaskCount: 0, checkpointAdvanced: false,
+		};
 		const updates = new Map<string, ICachedSandboxTask | undefined>();
 		this._activeDiscoveryReads.add(updates);
 		try {
-			return await this._listSessions(token, options, updates);
+			const result = await this._listSessions(token, options, updates, telemetry);
+			telemetry.outcome = result.kind;
+			return result;
+		} catch (error) {
+			telemetry.outcome = isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed';
+			throw error;
 		} finally {
 			this._activeDiscoveryReads.delete(updates);
+			telemetry.durationMs = stopwatch.elapsed();
+			this._telemetry.reportDiscovery(telemetry);
 		}
 	}
 
-	private async _listSessions(token: CancellationToken, options: ISandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>): Promise<ICloudSandboxDiscoveryResult> {
+	private async _listSessions(token: CancellationToken, options: ICloudSandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>, telemetry: ICloudSandboxDiscoveryTelemetryData): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
 		const since = !targeted && options?.incremental ? this._discoverySince : undefined;
+		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
+		const returnedSandboxTasks = new Set<string>();
+		const changedSandboxTasks = new Set<string>();
+		const recordTask = (task: IScannedTask) => {
+			tasks.set(task.id, task);
+			if (isCloudSandboxTask(task)) {
+				returnedSandboxTasks.add(task.id);
+				if (!equals(task, cache.get(task.id)?.summary)) {
+					changedSandboxTasks.add(task.id);
+				} else {
+					changedSandboxTasks.delete(task.id);
+				}
+			} else {
+				returnedSandboxTasks.delete(task.id);
+				changedSandboxTasks.delete(task.id);
+			}
+			telemetry.taskCount = tasks.size;
+			telemetry.sandboxTaskCount = returnedSandboxTasks.size;
+			telemetry.changedSandboxTaskCount = changedSandboxTasks.size;
+		};
 		const removedTaskIds: string[] = [];
 		const failedTaskIds = new Set<string>();
 		let truncated = false;
@@ -601,7 +646,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						if (!task || task.id !== id) {
 							throw new Error('getTask returned an invalid task');
 						}
-						tasks.set(id, { ...task, hasRepository: (task.repository?.id ?? 0) > 0 });
+						recordTask({ ...task, hasRepository: (task.repository?.id ?? 0) > 0 });
 						details.set(id, task);
 					} catch (error) {
 						if (isCancellationError(error) || token.isCancellationRequested) {
@@ -626,40 +671,44 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
 			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
 		]) {
-			for (let page = 1; ; page++) {
+			const query: Record<string, string> = {
+				per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
+				sort: 'updated_at',
+				direction: 'desc',
+				with_repo: String(withRepository),
+				is_archived: String(archived),
+				...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
+			};
+			const requestedUrls = new Set<string>();
+			let url: string | undefined = `${this._tasksBaseUrl()}/tasks${toQuery({ ...query, page: '1' })}`;
+			for (let page = 1; url; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				const query: Record<string, string> = {
-					per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
-					page: String(page),
-					sort: 'updated_at',
-					direction: 'desc',
-					with_repo: String(withRepository),
-					is_archived: String(archived),
-					...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
-				};
 				try {
-					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks${toQuery(query)}`, 'list', token);
+					if (requestedUrls.has(url)) {
+						throw new Error('Task list repeated a pagination URL');
+					}
+					requestedUrls.add(url);
+					const context = await this._sendTask(url, 'list', token, () => telemetry.listRequestCount++);
 					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 					if (!Array.isArray(response?.tasks)) {
 						throw new Error('listTasks returned no tasks array');
 					}
+					telemetry.pageCount++;
 					const date = context.res.headers?.date;
 					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
 					if (!Number.isNaN(serverTime)) {
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
 					}
 					for (const task of response.tasks) {
-						tasks.set(task.id, { ...task, hasRepository: withRepository });
+						recordTask({ ...task, hasRepository: withRepository });
 						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
 						if (!Number.isNaN(updatedAt)) {
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
 						}
 					}
-					if (!hasNextLink(context.res.headers?.link)) {
-						break;
-					}
+					url = nextTaskPageUrl(context.res.headers?.link, url, query);
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
@@ -715,6 +764,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					let cached = cache.get(task.id);
+					const previousBinding = cached?.session;
 					const application = task.clients?.find(client => client.creator === true)?.slug;
 					// Missing creator evidence does not revoke previously learned creation provenance.
 					const applicationChanged = application !== undefined && application !== cached?.session?.application;
@@ -794,6 +844,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					cache.set(task.id, cached);
 					if (!cached.session) {
 						logExcludedTask(task.id, 'missingSessionBinding');
+					} else if (cached.session.environmentId !== previousBinding?.environmentId || cached.session.sessionId !== previousBinding?.sessionId) {
+						this._telemetry.lifecycle.record({
+							phase: 'binding', outcome: 'observed', operationId: generateUuid(),
+							environmentId: cached.session.environmentId, agentSessionId: cached.session.sessionId, taskId: task.id,
+						});
 					}
 					return cached.session;
 				} catch (error) {
@@ -823,7 +878,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			// Browsers may not expose Date through CORS; task timestamps also use the server's clock.
 			const nextCheckpoint = checkpoint ?? latestUpdate;
 			if (nextCheckpoint !== undefined) {
-				this._discoverySince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
+				const nextSince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
+				telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
+				this._discoverySince = nextSince;
 			}
 			if (!since) {
 				for (const id of cache.keys()) {
@@ -900,11 +957,24 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession> {
+		const operation = this._telemetry.lifecycle.start('task.reserve', { relatedTaskId: request.reservedTaskId });
+		try {
+			const reserved = await this._reserveSession(request, token, operation);
+			operation.complete('succeeded', { taskId: reserved.taskId, environmentId: reserved.environmentId, agentSessionId: reserved.sessionId });
+			return reserved;
+		} catch (error) {
+			operation.failed(error, isCancellationError(error) || token.isCancellationRequested);
+			throw error;
+		}
+	}
+
+	private async _reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken, operation: CloudSandboxLifecycleOperation): Promise<ICloudSandboxReservedSession> {
 		const context = await this._requestTaskCreation({
 			repoNwo: request.repoNwo,
 			expectedAccountKey: request.expectedAccountKey,
 			prompt: '',
 		}, token, undefined, { taskId: request.reservedTaskId });
+		operation.bind({ serverRequestId: getGitHubRequestId(context.res.headers?.['x-github-request-id']) });
 		const task = await this._readJson<ITaskDetail>(context);
 		const taskId = typeof task?.id === 'string' && task.id.trim().length > 0 ? task.id : undefined;
 		const binding = task && getTaskEnvironmentBinding(task);
@@ -927,18 +997,27 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 */
 	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
 		const startedAt = Date.now();
+		const operation = this._telemetry.lifecycle.start('task.create', {
+			environmentId: request.environmentId, relatedTaskId: request.reservedTaskId, taskCreationPath: getCloudSandboxTaskCreationPath(request),
+		});
 		try {
-			const created = await this._createSession(request, token, onRequest);
+			const created = await this._createSession(request, token, onRequest, operation);
+			operation.complete(token.isCancellationRequested ? 'cancelled' : 'succeeded', {
+				taskId: created.taskId, environmentId: created.environmentId, agentSessionId: created.sessionId,
+				taskCreationPath: getCloudSandboxTaskCreationPath(request, created),
+			});
 			this._telemetry.reportProvisioningOutcome(token.isCancellationRequested ? 'cancelled' : 'success', Math.max(0, Date.now() - startedAt), getCloudSandboxTaskCreationPath(request, created));
 			return created;
 		} catch (error) {
+			operation.failed(error, isCancellationError(error) || token.isCancellationRequested);
 			this._telemetry.reportProvisioningOutcome(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure', Math.max(0, Date.now() - startedAt), getCloudSandboxTaskCreationPath(request));
 			throw error;
 		}
 	}
 
-	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
+	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest: (() => void) | undefined, operation: CloudSandboxLifecycleOperation): Promise<ICloudSandboxCreatedSession> {
 		const context = await this._requestTaskCreation(request, token, onRequest);
+		operation.bind({ serverRequestId: getGitHubRequestId(context.res.headers?.['x-github-request-id']) });
 		const task = await this._readJson<ITaskDetail>(context);
 		const taskId = typeof task?.id === 'string' && task.id.trim().length > 0 ? task.id : undefined;
 		if (!taskId) {
@@ -1024,6 +1103,20 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async deleteTask(taskId: string, token: CancellationToken, expectedAccountKey?: string): Promise<void> {
+		const session = this._discoveredTasks.get(taskId)?.session;
+		const operation = this._telemetry.lifecycle.start('task.delete', {
+			taskId, environmentId: session?.environmentId, agentSessionId: session?.sessionId,
+		});
+		try {
+			await this._deleteTask(taskId, token, expectedAccountKey);
+			operation.complete('succeeded');
+		} catch (error) {
+			operation.failed(error, isCancellationError(error) || token.isCancellationRequested);
+			throw error;
+		}
+	}
+
+	private async _deleteTask(taskId: string, token: CancellationToken, expectedAccountKey?: string): Promise<void> {
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
@@ -1245,27 +1338,44 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	/** Shared handler for the `connect`/`reconnect` endpoints (200 token or 202 waking). */
 	private async _connectRequest(
 		action: CloudSandboxEnvironmentAction,
-		environmentId: string,
+		request: ICloudSandboxConnectionRequest,
 		token: CancellationToken,
 		searchParams: Record<string, string>,
-		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<CloudSandboxConnectResult> {
-		const context = await this._sendEnvironment(action, environmentId, token, searchParams, onRequest);
-
-		if (context.res.statusCode === 202) {
-			onRequest?.('waking');
-			const retryAfterSeconds = parseRetryAfter(context.res.headers?.['retry-after']);
-			this._logService.debug(`${LOG_PREFIX} ${action}: environment waking, retry after ${retryAfterSeconds}s`);
-			return { kind: 'waking', waking: { retryAfterSeconds } };
+		const { environmentId, environmentKind, onRequest } = request;
+		const operation = this._telemetry.lifecycle.start(action === 'connect' ? 'credentials.connect' : 'credentials.refresh', {
+			environmentKind, environmentId, agentSessionId: searchParams.session_id, connectionId: searchParams.client_id,
+		});
+		let failurePoint: CloudSandboxLifecycleFailurePoint = 'credentials.request';
+		try {
+			const context = await this._sendEnvironment(action, environmentId, token, searchParams, onRequest);
+			operation.bind({ serverRequestId: getGitHubRequestId(context.res.headers?.['x-github-request-id']) });
+			if (context.res.statusCode === 202) {
+				onRequest?.('waking');
+				const retryAfterSeconds = parseRetryAfter(context.res.headers?.['retry-after']);
+				this._logService.debug(`${LOG_PREFIX} ${action}: environment waking, retry after ${retryAfterSeconds}s`);
+				operation.complete('waking', {}, undefined, 202);
+				return { kind: 'waking', waking: { retryAfterSeconds } };
+			}
+			if (!isSuccess(context)) {
+				await this._throwForStatus(action, context);
+			}
+			failurePoint = 'credentials.invalidResponse';
+			const clientToken = await this._readJson<ICloudSandboxClientToken>(context);
+			if (!clientToken?.access_token || !clientToken?.wps_endpoint || !clientToken?.client_id || !clientToken?.groups) {
+				failurePoint = 'credentials.incompleteResponse';
+				throw new Error(`Mission Control ${action} returned an incomplete token response`);
+			}
+			if (action === 'reconnect' && clientToken.client_id !== searchParams.client_id) {
+				failurePoint = 'credentials.clientMismatch';
+				throw new Error('Cloud sandbox reconnect returned credentials for a different client');
+			}
+			operation.complete('succeeded', { connectionId: clientToken.client_id }, undefined, context.res.statusCode);
+			return { kind: 'token', token: clientToken };
+		} catch (error) {
+			operation.complete(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed', { failurePoint }, error);
+			throw error;
 		}
-		if (!isSuccess(context)) {
-			await this._throwForStatus(action, context);
-		}
-		const clientToken = await this._readJson<ICloudSandboxClientToken>(context);
-		if (!clientToken?.access_token || !clientToken?.wps_endpoint || !clientToken?.client_id || !clientToken?.groups) {
-			throw new Error(`Mission Control ${action} returned an incomplete token response`);
-		}
-		return { kind: 'token', token: clientToken };
 	}
 
 	/**
@@ -1288,11 +1398,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
-	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken): Promise<IRequestContext> {
+	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken, onRequest?: () => void): Promise<IRequestContext> {
 		const context = await this._retryWhileRateLimited(`task ${action}`, token, () => this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, DISCOVERY_TIMEOUT_MS));
+		}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, onRequest));
 		if (!isSuccess(context)) {
 			await this._throwForStatus(`task ${action}`, context);
 		}
@@ -1424,6 +1534,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const context = await this._request(`${this._tasksBaseUrl()}/swe/models`, 'mc.models.list', 'listModels', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+			'X-GitHub-Api-Version': '2026-06-01',
 		}, token, DISCOVERY_TIMEOUT_MS);
 		if (!isSuccess(context)) {
 			await this._throwForStatus('model catalog', context);
@@ -1442,6 +1553,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (model.model_picker_enabled === false || model.policy?.state === 'disabled') {
 				continue;
 			}
+			const billing = normalizeCAPIBilling(model.billing);
+			const contextTier = createCloudSandboxContextTierSchema(billing);
 			models.push({
 				id: model.id,
 				name: model.name,
@@ -1450,16 +1563,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				maxPromptTokens: model.capabilities?.limits?.max_prompt_tokens,
 				maxOutputTokens: model.capabilities?.limits?.max_output_tokens,
 				supportsVision: model.capabilities?.supports?.vision,
-				_meta: createPricingMetaFromBilling(normalizeCAPIBilling(model.billing), model.model_picker_price_category, model.model_picker_category),
-				...(efforts?.length ? {
+				_meta: createPricingMetaFromBilling(billing, model.model_picker_price_category, model.model_picker_category),
+				...(efforts?.length || contextTier ? {
 					configSchema: {
 						type: 'object',
 						properties: {
-							reasoningEffort: {
-								type: 'string',
-								title: localize('cloudSandbox.reasoningEffort', "Reasoning Effort"),
-								enum: [...efforts],
-							},
+							...(efforts?.length ? {
+								reasoningEffort: {
+									type: 'string',
+									title: localize('cloudSandbox.reasoningEffort', "Effort Level"),
+									enum: [...efforts],
+								}
+							} : {}),
+							...(contextTier ? { contextTier } : {}),
 						},
 					},
 				} : {}),
@@ -1610,10 +1726,32 @@ function isCloudSandboxTask(task: ITaskSummary): boolean {
 	return provider === 'sandboxes' || ((provider === undefined || provider === '') && task.current_environment?.kind === 'managed-sandbox');
 }
 
-/** Whether a `Link` header advertises another page (`rel="next"`). */
-function hasNextLink(value: string | string[] | undefined): boolean {
+/**
+ * The next task-list page advertised by a `Link` header, or `undefined` on the last page.
+ * Only the query is adopted: discovery stays on the CORS-enabled endpoint and keeps the
+ * scope filters a numbered link may omit.
+ */
+function nextTaskPageUrl(value: string | string[] | undefined, requestUrl: string, query: Record<string, string>): string | undefined {
 	const raw = Array.isArray(value) ? value.join(',') : value;
-	return raw ? /rel="?next"?/.test(raw) : false;
+	const link = nextLink(raw);
+	if (!link) {
+		if (raw && /\brel\s*=\s*["']?[^;,]*\bnext\b/i.test(raw)) {
+			throw new Error('Task list returned an unsupported pagination link');
+		}
+		return undefined;
+	}
+	const current = new URL(requestUrl);
+	const next = new URL(link, current);
+	if ((next.origin !== current.origin && next.origin !== GITHUB_DOT_COM_API_BASE_URI) || next.pathname !== current.pathname) {
+		throw new Error('Task list returned an invalid pagination URL');
+	}
+	for (const [key, value] of Object.entries(query)) {
+		if (!next.searchParams.has(key)) {
+			next.searchParams.set(key, value);
+		}
+	}
+	current.search = next.search;
+	return current.href;
 }
 
 function isConcreteEnvironmentId(value: unknown): value is string {

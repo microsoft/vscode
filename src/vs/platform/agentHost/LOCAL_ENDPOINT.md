@@ -20,6 +20,10 @@ All AHP JSONL writers in one process that use the same log directory share a cum
 
 When the next complete entry would exceed the budget, the process emits one `[AHPLog]` warning and stops capture for that log directory until the window or host process restarts. Already queued entries still flush. Subsequent messages are skipped before serialization; accounting uses memory only, without extra filesystem scans or metadata calls. Protocol traffic and other diagnostic logs are unaffected.
 
+## Mission Control authentication
+
+Mission Control hosts advertise public credential-encryption keys in root-state metadata. Every root snapshot, including subscriptions refreshed after authentication and reconnect snapshots, must retain these keys so clients can encrypt subsequent provider and MCP credentials. Listener-owned metadata stays scoped to that listener rather than modifying shared host state.
+
 ## Metadata location
 
 The registry is a **directory of per-instance entry files**:
@@ -100,7 +104,7 @@ Connections without the token, or with the wrong token, are rejected with HTTP 4
 
 ### TCP connections and windowed delivery
 
-Authenticated owner connections can open outbound sockets in the agent host's network when the host advertises the standard `tcpConnections` capability in `initialize`. Trusted local MessagePort connections also support this capability; unauthenticated WebSockets and multi-tenant relay connections do not.
+Accepted non-relay connections can open outbound sockets in the agent host's network when the host advertises the standard `tcpConnections` capability in `initialize`. TCP uses the endpoint's existing connection admission policy, without an additional authentication check. This includes local MessagePort connections and standalone WebSocket endpoints explicitly configured without a connection token. Token-protected endpoints still require a valid token during the WebSocket upgrade; relay connections do not support TCP.
 
 Default VS Code clients offer upstream's released `SUPPORTED_PROTOCOL_VERSIONS` plus the legacy `0.10.0` compatibility alias. TCP availability is capability-based, with no additional 1.1 version gate or version override. Web PubSub and Mission Control transports reject TCP before opening a destination because their relay envelopes do not preserve original AHP JSON sizes.
 

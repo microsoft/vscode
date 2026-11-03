@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
@@ -13,8 +14,11 @@ import { cacheWarmingJobs, detectMissingCaches, getCaches, type ICacheWarmingJob
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 
 interface IStep {
+	readonly name?: string;
 	readonly uses?: string;
 	readonly run?: string;
+	readonly shell?: string;
+	readonly 'working-directory'?: string;
 	readonly with?: Record<string, string>;
 }
 
@@ -42,13 +46,22 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
- * The runners of the cache warming jobs, as the cache keys see them.
+ * The runners of the cache warming jobs, as the cache keys see them. The Electron cache path is the
+ * `ELECTRON_CACHE_PATH` that `.github/actions/setup-electron` sets on the runner, which depends on its
+ * user profile and is part of the cache version.
  */
-const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os'] }> = {
-	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux' },
-	'1ES.Pool=1es-vscode-oss-windows-2022-x64': { platform: 'win32', arch: 'x64', os: 'Windows' },
-	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS' },
+const runners: Record<string, { platform: string; arch: string; runnerArch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
+	'vscode-large-runners-ubuntu-8-core': { platform: 'linux', arch: 'x64', runnerArch: 'X64', os: 'Linux', electronCachePath: '/home/runner/.cache/electron' },
+	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', runnerArch: 'X64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
+	'vscode-large-runners-macos-5-core-0': { platform: 'darwin', arch: 'arm64', runnerArch: 'ARM64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };
+
+function getRunner(job: IJob, name: string) {
+	const runsOn = typeof job['runs-on'] === 'string' ? [job['runs-on']] : job['runs-on'];
+	const runner = runners[runsOn.find(label => runners[label]) ?? ''];
+	assert.ok(runner, `Unknown runner of ${name}: ${runsOn.join(', ')}`);
+	return runner;
+}
 
 suite('Detect missing caches', () => {
 	test('the jobs match pr-node-modules.yml', () => {
@@ -59,9 +72,7 @@ suite('Detect missing caches', () => {
 			if (name === 'caches') {
 				continue;
 			}
-			const runsOn = typeof job['runs-on'] === 'string' ? [job['runs-on']] : job['runs-on'];
-			const runner = runners[runsOn.find(label => runners[label]) ?? ''];
-			assert.ok(runner, `Unknown runner of ${name}: ${runsOn.join(', ')}`);
+			const runner = getRunner(job, name);
 			const evaluate = (value: string) => value
 				.replaceAll('${{ env.VSCODE_ARCH }}', job.env?.VSCODE_ARCH ?? '')
 				.replaceAll('$(node -p process.platform)', runner.platform)
@@ -70,12 +81,14 @@ suite('Detect missing caches', () => {
 
 			const nodeModules = step('./.github/actions/restore-node-modules')?.with;
 			const electron = step('./.github/actions/setup-electron')?.with;
+			const playwright = step('./.github/actions/restore-playwright')?.with;
 			jobs[name] = {
 				os: runner.os,
 				nodeModules: { prefix: nodeModules?.['key-prefix'] ?? '', args: evaluate(nodeModules?.['key-args'] ?? '').split(/\s+/) },
 				...electron ? { electron: { arch: evaluate(electron.arch) } } : {},
 				...job.steps.some(step => step.with?.key?.startsWith('builtin-extensions-')) ? { builtInExtensions: { target: `${runner.platform}-${runner.arch}` } } : {},
 				...step('./.github/actions/restore-wsl-installer') ? { wslInstaller: true } : {},
+				...playwright ? { playwright: { arch: runner.runnerArch, browsers: playwright.browsers } } : {},
 			};
 			gates[name] = `${job.needs} ${job.if}`;
 		}
@@ -111,6 +124,7 @@ suite('Detect missing caches', () => {
 			electron: [...caches(loadActionSteps('setup-electron')), ...commands(loadActionSteps('setup-electron'), /ELECTRON_CACHE_PATH=|\$cacheRoot =/)],
 			builtInExtensions: [...caches(compile), ...commands(compile, /computeBuiltInDepsCacheKey/)],
 			wslInstaller: caches(loadActionSteps('restore-wsl-installer')),
+			playwright: [...caches(loadActionSteps('restore-playwright')), ...commands(loadActionSteps('restore-playwright'), /const (version|browsers) =/)],
 		}, {
 			nodeModules: [
 				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
@@ -134,7 +148,36 @@ suite('Detect missing caches', () => {
 				{ key: 'wsl-installer-v1-${{ runner.os }}-${{ hashFiles(\'build/checksums/wsl.txt\') }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
 			],
+			playwright: [
+				{ key: 'playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.version }}-${{ steps.prepare.outputs.browsers }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
+				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
+				'const version = /\\n  \\.:\\n(?:(?!\\n  \\S)[\\s\\S])*?\\n      \'@playwright\\/test\':\\n        specifier: .*\\n        version: ([^\\s(]+)/.exec(fs.readFileSync(process.env.PLAYWRIGHT_PNPM_LOCK, \'utf8\').replace(/\\r\\n/g, \'\\n\'))[1];',
+				'const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, \'-\').replace(/^-|-$/g, \'\');',
+			],
 		});
+	});
+
+	test('the Electron cache versions match the cache paths on the runners of the jobs', () => {
+		// The detector derives each version from its own copy of the cache path, so check it against the runners.
+		const { jobs } = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml');
+		const electronJobs = Object.keys(cacheWarmingJobs).filter(name => cacheWarmingJobs[name].electron);
+		const actual = Object.fromEntries(electronJobs.map(name => [name, getCaches(cacheWarmingJobs[name], readRepositoryFile).find(cache => cache.key.startsWith('electron-download-v1-'))?.version]));
+		const expected = Object.fromEntries(electronJobs.map(name => {
+			const runner = getRunner(jobs[name], name);
+			const components = [runner.electronCachePath, 'zstd-without-long', ...(runner.os === 'Windows' ? ['windows-only'] : []), '1.0'];
+			return [name, createHash('sha256').update(components.join('|')).digest('hex')];
+		}));
+		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('the Windows cache warmer installs on the Dev Drive of the Windows test jobs', () => {
+		// pr-win32-test.yml explains the step. It must come first, as it needs an empty workspace.
+		const devDrive = (relativePath: string, jobName: string) => {
+			const steps = loadYaml<{ jobs: Record<string, IJob> }>(relativePath).jobs[jobName].steps;
+			const index = steps.findIndex(step => step.name === 'Move the workspace to a Dev Drive');
+			return { index, run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
+		};
+		assert.deepStrictEqual(devDrive('.github/workflows/pr-node-modules.yml', 'windows'), devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit'));
 	});
 
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {

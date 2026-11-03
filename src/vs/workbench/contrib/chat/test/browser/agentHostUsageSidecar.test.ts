@@ -16,9 +16,8 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { FileOperation } from '../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { agentModelCallMetaKey } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { ActionType, type ActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -80,8 +79,7 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 	}
 
 	function setup(local = new FakeHost(), remote?: FakeHost) {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		let enabled = true;
 		const remoteHosts = remote ? new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = Event.None;

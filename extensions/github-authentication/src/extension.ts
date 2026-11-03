@@ -35,7 +35,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.l10n.t('Invalid GitHub Enterprise instance URI.'),
 			);
 			await githubEnterpriseAuthProvider.update([], { error: safeMessage });
-			void vscode.window.showErrorMessage(safeMessage);
+			void vscode.window.showErrorMessage(safeMessage, { notificationId: 'githubAuthentication.enterprise.invalidUri' });
 			return;
 		}
 		const legacy = configuration.get<string>(enterpriseUriSetting);
@@ -49,7 +49,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			void vscode.window.showErrorMessage(getSafeNotificationMessage(
 				vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)),
 				vscode.l10n.t('Could not update GitHub Enterprise authentication.'),
-			));
+			), { notificationId: 'githubAuthentication.enterprise.updateFailed' });
 		}
 	};
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
@@ -64,7 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		void vscode.window.showErrorMessage(getSafeNotificationMessage(
 			vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)),
 			vscode.l10n.t('Could not initialize GitHub Enterprise authentication.'),
-		));
+		), { notificationId: 'githubAuthentication.enterprise.initializationFailed' });
 	}
 
 	// Listener to prompt for reload when the fetch implementation setting changes

@@ -12,7 +12,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -161,6 +161,51 @@ suite('Release notes editor Try This integration', () => {
 		}, {
 			csp: true, scripts: 2, untrustedScript: false,
 			options: Array(3).fill({ allowCommands: ['workbench.action.openSettings', 'summarize.release.notes', RUN_ONBOARDING_TRYOUT_COMMAND_ID] }),
+		});
+	});
+
+	test('fenced code and code links remain independent of the webview inline-code tint', async () => {
+		markdown = '# Code styles\n\nNormal `inline`, [text link](https://example.com), and [`code link`](https://example.com).\n\n```\nplain code\n```';
+		await manager.show('1.100.0', true);
+		const response = await fetch(FileAccess.asBrowserUri('vs/workbench/contrib/webview/browser/pre/index.html').toString(true));
+		assert.ok(response.ok);
+		const shell = await response.text();
+		const defaults = /defaultStyles\.textContent\s*=\s*`(?<styles>[\s\S]*?)`/.exec(shell)?.groups?.styles;
+		assert.ok(defaults);
+		const document = new mainWindow.DOMParser().parseFromString(html[0], 'text/html');
+		const container = $('div');
+		store.add(toDisposable(() => container.remove()));
+		for (const [name, color] of Object.entries({
+			'--vscode-textPreformat-background': 'rgba(0, 0, 0, 0.12)',
+			'--vscode-textPreformat-foreground': '#3b3b3b',
+			'--vscode-textCodeBlock-background': '#ececec',
+			'--vscode-textLink-foreground': '#0069cc',
+			'--text-link-decoration': 'none',
+		})) {
+			container.style.setProperty(name, color);
+		}
+		const shadow = container.attachShadow({ mode: 'open' });
+		const styles = $('style');
+		styles.textContent = defaults + '\n' + Array.from(document.querySelectorAll('style'), style => style.textContent).join('\n');
+		shadow.appendChild(styles);
+		shadow.append(...Array.from(document.body.children).filter(element => element.tagName !== 'SCRIPT'));
+		mainWindow.document.body.appendChild(container);
+		const pre = shadow.querySelector('pre')!;
+		const blockCode = pre.querySelector('code')!;
+		const inline = shadow.querySelector('p > code')!;
+		const linkCode = shadow.querySelector('a code')!;
+		assert.deepStrictEqual({
+			blockBackground: getWindow(pre).getComputedStyle(pre).backgroundColor,
+			codeBackground: getWindow(blockCode).getComputedStyle(blockCode).backgroundColor,
+			inlineBackground: getWindow(inline).getComputedStyle(inline).backgroundColor,
+			linkColor: getWindow(linkCode).getComputedStyle(linkCode).color,
+			linkDecoration: getWindow(linkCode).getComputedStyle(linkCode).textDecorationLine,
+		}, {
+			blockBackground: 'rgb(236, 236, 236)',
+			codeBackground: 'rgba(0, 0, 0, 0)',
+			inlineBackground: 'rgba(0, 0, 0, 0.12)',
+			linkColor: 'rgb(59, 59, 59)',
+			linkDecoration: 'underline',
 		});
 	});
 

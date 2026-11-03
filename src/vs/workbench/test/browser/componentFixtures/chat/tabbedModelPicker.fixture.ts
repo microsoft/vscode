@@ -922,7 +922,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
-	/** Copilot Fusion leads the list on a row twice as tall, a line beneath its name saying what it does and its discount in the Copilot brand gradient. */
+	/** Copilot Fusion leads the list on a row twice as tall, a line beneath its name saying what it does and its discount in a pill bordered by the Copilot brand gradient. */
 	PickerWithCopilotFusionDiscount: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
@@ -930,7 +930,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerCopilotFusionSelected: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: COPILOT_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
 	}),
-	/** Copilot Fusion with no discount is badged Recommended, in the same Copilot brand gradient. */
+	/** Copilot Fusion with no discount is badged Recommended, in the same pill bordered by the Copilot brand gradient. */
 	PickerWithCopilotFusionRecommended: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { models: COPILOT_FUSION_FULL_PRICE_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),

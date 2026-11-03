@@ -23,7 +23,6 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, type Mes
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
 import { ClientArtifactIntegrationEndpoint } from '../../node/artifactIntegrations/clientArtifactIntegrationEndpoint.js';
-import type { IServerToolConfirmation } from '../../node/shared/serverToolConfirmation.js';
 import { artifactIntegrationServerToolDefinitions, createArtifactIntegrationsInstruction, createArtifactIntegrationServerToolGroup } from '../../node/shared/artifactIntegrationServerTools.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 
@@ -139,8 +138,6 @@ interface IHarnessOptions {
 	readonly message?: Message;
 	/** Whether the composed window integrations belong to the window that started the turn. */
 	readonly clientStartedTurn?: boolean;
-	/** Answers the in-chat confirmation; absent when the turn cannot ask. */
-	readonly confirm?: (confirmation: IServerToolConfirmation) => boolean;
 }
 
 suite('Artifact Integration Server Tools', () => {
@@ -157,7 +154,6 @@ suite('Artifact Integration Server Tools', () => {
 			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(),
 			message: options.message ?? { text: 'Help with my pull request', origin: { kind: MessageKind.User } },
 		});
-		const confirmations: IServerToolConfirmation[] = [];
 		const group = createArtifactIntegrationServerToolGroup({
 			isEnabled: () => true,
 			getIntegrations: () => options.integrations ?? [],
@@ -169,27 +165,23 @@ suite('Artifact Integration Server Tools', () => {
 				return new ImmortalReference({ model, clientStartedTurn: options.clientStartedTurn ?? true });
 			},
 		});
-		const confirm = options.confirm;
 		const execute = async (name: string, args?: unknown) => {
 			try {
-				const text = await group.execute(stateManager, {
-					sessionUri: session, chatUri: chat, turnId: 'turn-1',
-					...(confirm ? { requestConfirmation: async (confirmation: IServerToolConfirmation) => { confirmations.push(confirmation); return confirm(confirmation); } } : {}),
-				}, name, args);
+				const text = await group.execute(stateManager, { sessionUri: session, chatUri: chat, turnId: 'turn-1' }, name, args);
 				return text.startsWith('{') ? JSON.parse(text) : text;
 			} catch (error) {
 				return { error: (error as Error).message };
 			}
 		};
-		return { stateManager, group, execute, confirmations };
+		return { stateManager, group, execute };
 	}
 
-	test('defers every tool and uses tool approval only for native actions', () => {
+	test('defers every tool and uses tool approval for native actions and turning automation on', () => {
 		const group = createArtifactIntegrationServerToolGroup();
 		assert.deepStrictEqual(artifactIntegrationServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading, confirms: group.canRequireConfirmation?.(name) ?? false })), [
 			{ name: ArtifactIntegrationServerToolName.GetArtifactStatus, deferLoading: true, confirms: false },
 			{ name: ArtifactIntegrationServerToolName.RunArtifactAction, deferLoading: true, confirms: true },
-			{ name: ArtifactIntegrationServerToolName.SetArtifactAutomation, deferLoading: true, confirms: false },
+			{ name: ArtifactIntegrationServerToolName.SetArtifactAutomation, deferLoading: true, confirms: true },
 			{ name: ArtifactIntegrationServerToolName.DisableArtifactAutomation, deferLoading: true, confirms: false },
 		]);
 	});
@@ -288,55 +280,40 @@ suite('Artifact Integration Server Tools', () => {
 		});
 	}));
 
-	test('turns automation on only after the person confirms what it will do', async () => {
-		const declined = new FakeArtifactModel([contribution()]);
-		const declining = createHarness({ pr: declined }, { confirm: () => false });
-		const accepted = new FakeArtifactModel([contribution()]);
-		const accepting = createHarness({ pr: accepted }, { confirm: () => true });
-		const unconfirmable = new FakeArtifactModel([contribution()]);
-		const withoutConfirmation = createHarness({ pr: unconfirmable });
+	test('turns automation on through normal tool approval and shows the requested options in the approval', async () => {
+		const model = new FakeArtifactModel([contribution()]);
+		const { group, execute } = createHarness({ pr: model });
+		const automation = [{ id: 'merge', label: 'Merge Automatically When Ready', description: 'Merges once ready.', on: true, value: 'always', choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }], offValue: 'never' }];
+		const guidance = `Automation acts after this turn and posts a notice in the artifact's chat. Use \`${ArtifactIntegrationServerToolName.DisableArtifactAutomation}\` to turn it off.`;
+		const approval = (args: unknown) => {
+			const display = group.getDisplay?.(ArtifactIntegrationServerToolName.SetArtifactAutomation, args);
+			return { title: display?.confirmationTitle, message: display?.confirmationMessage };
+		};
 
 		assert.deepStrictEqual({
-			invalidChoice: await accepting.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'sometimes' } }),
-			blocked: await accepting.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { fixCI: true } }),
-			declined: await declining.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }),
-			unconfirmable: await withoutConfirmation.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }),
-			enabled: await accepting.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }),
-			alreadyOn: await accepting.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }),
-			confirmation: accepting.confirmations,
-			configured: { declined: declined.configured, accepted: accepted.configured, unconfirmable: unconfirmable.configured },
+			invalidChoice: await execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'sometimes' } }),
+			blocked: await execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { fixCI: true } }),
+			enabled: await execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }),
+			alreadyOn: await execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }),
+			configured: model.configured,
+			approval: approval({ artifact: 'pr', values: { merge: 'always', fixCI: true } }),
+			approvalWithoutArgs: approval(undefined),
 		}, {
 			invalidChoice: { error: '"merge" takes one of: never, always.' },
 			blocked: { error: 'Automatically Fix CI cannot be turned on: No verified checkout.' },
-			declined: { integrationId: 'github.pullRequest', changed: false, reason: 'The user did not confirm, so automation was not changed.' },
-			unconfirmable: { error: 'Turning on or changing automation needs the user to confirm in this chat, which is not possible in this turn. Ask them to turn it on from the artifact in the Agents window instead.' },
-			enabled: {
-				integrationId: 'github.pullRequest',
-				automation: [{ id: 'merge', label: 'Merge Automatically When Ready', description: 'Merges once ready.', on: true, value: 'always', choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }], offValue: 'never' }],
-				guidance: `Automation acts after this turn and posts a notice in the artifact's chat. Use \`${ArtifactIntegrationServerToolName.DisableArtifactAutomation}\` to turn it off.`,
+			enabled: { integrationId: 'github.pullRequest', automation, guidance },
+			alreadyOn: { integrationId: 'github.pullRequest', automation, guidance },
+			configured: [
+				{ integrationId: 'github.pullRequest', revision: 0, values: { merge: 'always' }, actor: agent },
+				{ integrationId: 'github.pullRequest', revision: 1, values: { merge: 'always' }, actor: agent },
+			],
+			approval: {
+				title: 'Set Artifact Automation?',
+				message: 'Set automation on pr: merge \u2192 always, fixCI \u2192 on. Automation can act on this artifact after this turn without asking again.',
 			},
-			alreadyOn: {
-				integrationId: 'github.pullRequest',
-				automation: [{ id: 'merge', label: 'Merge Automatically When Ready', description: 'Merges once ready.', on: true, value: 'always', choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }], offValue: 'never' }],
-				guidance: `Automation acts after this turn and posts a notice in the artifact's chat. Use \`${ArtifactIntegrationServerToolName.DisableArtifactAutomation}\` to turn it off.`,
-			},
-			confirmation: [{
-				title: 'Turn on automation for Fix login?',
-				message: [
-					'Merge Automatically When Ready (GitHub Pull Request): Merges once ready. Mode: Always. Allowed actions: Merge. At most 1 dispatched attempt per occurrence.',
-					'Runs on the agent host for this session. Automatic prompts go to the artifact\'s original chat.',
-					'The agent asked for this. Automation can act on this artifact after this turn without asking again. You can turn it off from the artifact at any time.',
-				].join('\n\n'),
-				confirmLabel: 'Turn On',
-				declineLabel: 'Cancel',
-			}],
-			configured: {
-				declined: [],
-				accepted: [
-					{ integrationId: 'github.pullRequest', revision: 0, values: { merge: 'always' }, actor: agent },
-					{ integrationId: 'github.pullRequest', revision: 1, values: { merge: 'always' }, actor: agent },
-				],
-				unconfirmable: [],
+			approvalWithoutArgs: {
+				title: 'Set Artifact Automation?',
+				message: 'Set automation: the requested options. Automation can act on this artifact after this turn without asking again.',
 			},
 		});
 	});
@@ -346,8 +323,8 @@ suite('Artifact Integration Server Tools', () => {
 		unrelated.concurrentChange = { fixCI: false };
 		const overlapping = new FakeArtifactModel([contribution()]);
 		overlapping.concurrentChange = { merge: 'always' };
-		const retried = createHarness({ pr: unrelated }, { confirm: () => true });
-		const refused = createHarness({ pr: overlapping }, { confirm: () => true });
+		const retried = createHarness({ pr: unrelated });
+		const refused = createHarness({ pr: overlapping });
 
 		assert.deepStrictEqual({
 			retried: (await retried.execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } })).automation[0].on,
@@ -367,7 +344,7 @@ suite('Artifact Integration Server Tools', () => {
 			{ text: 'Do this', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: session, sourceChat: buildChatUri(session, 'peer'), sourceTurnId: 'gone' }) },
 		].map(async (message: Message) => {
 			const model = new FakeArtifactModel([contribution({ configuration: { revision: 0, values: { merge: 'always', fixCI: false }, generations: { merge: 1, fixCI: 0 }, disablements: {} } })]);
-			const { stateManager, execute } = createHarness({ pr: model }, { message, confirm: () => true });
+			const { stateManager, execute } = createHarness({ pr: model }, { message });
 			return {
 				status: (await execute(ArtifactIntegrationServerToolName.GetArtifactStatus, { artifact: 'pr' })).integrations.length,
 				run: await execute(ArtifactIntegrationServerToolName.RunArtifactAction, { artifact: 'pr', actionId: 'merge' }),
@@ -395,7 +372,7 @@ suite('Artifact Integration Server Tools', () => {
 			configuration: { revision: 0, values: { merge: 'always', fixCI: false }, generations: { merge: 1, fixCI: 0 }, disablements: {} },
 		});
 		const model = new FakeArtifactModel([windowContribution]);
-		const { execute } = createHarness({ pr: model }, { clientStartedTurn: false, confirm: () => true });
+		const { execute } = createHarness({ pr: model }, { clientStartedTurn: false });
 		const reason = 'This integration runs in a VS Code window other than the one that started this turn. Ask the user to do this from that window.';
 
 		assert.deepStrictEqual({

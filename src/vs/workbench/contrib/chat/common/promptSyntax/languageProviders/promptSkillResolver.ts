@@ -33,7 +33,7 @@ export async function resolveAgentFileSkills(target: Target, harnessService: ICu
 	const inventories = await Promise.all(descriptors.map(async descriptor => {
 		const itemProvider = descriptor.itemProvider;
 		if (!itemProvider) {
-			return undefined;
+			return [];
 		}
 		try {
 			return await itemProvider.provideChatSessionCustomizations(harnessService.getSessionResourceForHarness(descriptor.id), token);

@@ -25,6 +25,180 @@ suite('Gridview', function () {
 		return gridview;
 	}
 
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		for (const participation of ['minimized', 'disabled', 'proportional']) {
+			for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
+				test(`nested constrained distribution preserves descendant geometry (${orientation}, ${participation}, ${sizing.type})`, () => {
+					class EditorView extends TestView {
+						readonly pathIndependentLayout = true;
+						get proportionalLayout(): boolean {
+							return participation !== 'minimized' || this.width === 0 || !(this.width === this.minimumWidth || this.height === this.minimumHeight);
+						}
+					}
+					const horizontal = orientation === Orientation.HORIZONTAL;
+					const grid = store.add(new GridView({ proportionalLayout: participation !== 'disabled' }));
+					grid.orientation = orientation;
+					grid.layout(horizontal ? 2400 : 1000, horizontal ? 1000 : 2400);
+					const views = Array.from({ length: 6 }, () => store.add(new EditorView(
+						horizontal ? 220 : 70, Number.POSITIVE_INFINITY,
+						horizontal ? 70 : 220, Number.POSITIVE_INFINITY
+					)));
+					const [a, b, d, e, f, n] = views;
+					grid.addView(a, 800, [0]);
+					grid.addView(b, 800, [1]);
+					grid.addView(d, 800, [2]);
+					grid.addView(f, 500, [2, 1]);
+					grid.addView(e, 400, [2, 0, 1]);
+					grid.resizeView([0], horizontal ? { width: 800 } : { height: 800 });
+					grid.resizeView([1], horizontal ? { width: 800 } : { height: 800 });
+					grid.resizeView([2, 0, 0], { width: horizontal ? 400 : 70, height: horizontal ? 70 : 400 });
+					const initial = [d, e].map(view => horizontal ? view.width : view.height);
+
+					grid.addView(n, sizing, [1]);
+
+					assert.deepStrictEqual({
+						initial,
+						root: [0, 1, 2, 3].map(index => {
+							const size = grid.getViewSize([index]);
+							return horizontal ? size.width : size.height;
+						}),
+						nested: [d, e].map(view => horizontal ? view.width : view.height),
+						cross: [d, e].map(view => horizontal ? view.height : view.width)
+					}, {
+						initial: [400, 400],
+						root: [600, 600, 600, 600],
+						nested: participation === 'proportional' ? [300, 300] : [360, 240],
+						cross: [70, 70]
+					});
+				});
+			}
+		}
+	}
+
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		test(`nested constrained removal preserves descendant geometry (${orientation})`, () => {
+			class EditorView extends TestView {
+				readonly pathIndependentLayout = true;
+				get proportionalLayout(): boolean {
+					return this.width === 0 || !(this.width === this.minimumWidth || this.height === this.minimumHeight);
+				}
+			}
+			const horizontal = orientation === Orientation.HORIZONTAL;
+			const grid = store.add(new GridView());
+			grid.orientation = orientation;
+			grid.layout(horizontal ? 2400 : 1000, horizontal ? 1000 : 2400);
+			const createView = (maximum = Number.POSITIVE_INFINITY) => store.add(new EditorView(
+				horizontal ? 220 : 70, horizontal ? maximum : Number.POSITIVE_INFINITY,
+				horizontal ? 70 : 220, horizontal ? Number.POSITIVE_INFINITY : maximum
+			));
+			const [a, b, d, f, n] = Array.from({ length: 5 }, () => createView());
+			const e = createView(350);
+			grid.addView(a, 600, [0]);
+			grid.addView(b, 600, [1]);
+			grid.addView(d, 600, [2]);
+			grid.addView(n, 600, [1]);
+			grid.addView(f, 500, [3, 1]);
+			grid.addView(e, 300, [3, 0, 1]);
+			for (let index = 0; index < 3; index++) {
+				grid.resizeView([index], horizontal ? { width: 600 } : { height: 600 });
+			}
+			grid.resizeView([3, 0, 0], { width: horizontal ? 300 : 70, height: horizontal ? 70 : 300 });
+			const initial = [d, e].map(view => horizontal ? view.width : view.height);
+
+			grid.removeView([1], Sizing.Distribute);
+
+			assert.deepStrictEqual({
+				initial,
+				nested: [d, e].map(view => horizontal ? view.width : view.height),
+				root: [0, 1, 2].map(index => {
+					const size = grid.getViewSize([index]);
+					return horizontal ? size.width : size.height;
+				})
+			}, { initial: [300, 300], nested: [580, 220], root: [800, 800, 800] });
+		});
+	}
+
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		for (const route of ['restored', 'reoriented']) {
+			for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
+				test(`nested distribution preserves ${route} descendant geometry (${orientation}, ${sizing.type})`, () => {
+					class EditorView extends TestView {
+						readonly pathIndependentLayout = true;
+						get proportionalLayout(): boolean {
+							return this.width === 0 || !(this.width === this.minimumWidth || this.height === this.minimumHeight);
+						}
+					}
+					const horizontal = orientation === Orientation.HORIZONTAL;
+					const size = (along: number, cross: number) => horizontal ? { width: along, height: cross } : { width: cross, height: along };
+					const cross = route === 'restored' ? 140 : 1200;
+					const grid = store.add(new GridView());
+					grid.orientation = orientation;
+					const gridSize = size(2400, route === 'restored' ? 1000 : 2400);
+					grid.layout(gridSize.width, gridSize.height);
+					const [a, b, d, e, f, n] = Array.from({ length: 6 }, () => store.add(new EditorView(
+						horizontal ? 220 : 70, Number.POSITIVE_INFINITY,
+						horizontal ? 70 : 220, Number.POSITIVE_INFINITY
+					)));
+					grid.addView(a, 800, [0]);
+					grid.addView(b, 800, [1]);
+					grid.addView(d, 800, [2]);
+					grid.addView(f, 500, [2, 1]);
+					grid.addView(e, 400, [2, 0, 1]);
+					grid.resizeView([0], horizontal ? { width: 800 } : { height: 800 });
+					grid.resizeView([1], horizontal ? { width: 800 } : { height: 800 });
+					if (route === 'restored') {
+						grid.resizeView([2, 0, 0], size(400, 70));
+						grid.resizeView([2, 0, 0], horizontal ? { height: cross } : { width: cross });
+					} else {
+						grid.resizeView([2, 0, 0], size(400, cross));
+						grid.orientation = horizontal ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+						grid.orientation = orientation;
+					}
+					const measure = (view: EditorView) => horizontal ? [view.width, view.height, view.proportionalLayout] : [view.height, view.width, view.proportionalLayout];
+					const initial = [d, e].map(measure);
+
+					grid.addView(n, sizing, [1]);
+
+					assert.deepStrictEqual({
+						initial,
+						root: [0, 1, 2, 3].map(index => {
+							const viewSize = grid.getViewSize([index]);
+							return horizontal ? viewSize.width : viewSize.height;
+						}),
+						nested: [d, e].map(measure)
+					}, {
+						initial: [[400, cross, true], [400, cross, true]],
+						root: [600, 600, 600, 600],
+						nested: [[360, cross, true], [240, cross, true]]
+					});
+				});
+			}
+		}
+	}
+
+	test('distributed insertion lays out path-independent leaves once', () => {
+		class LeafView extends TestView {
+			readonly pathIndependentLayout = true;
+		}
+		const grid = store.add(new GridView());
+		grid.orientation = Orientation.HORIZONTAL;
+		grid.layout(1200, 600);
+		const views = [0, 1, 2].map(() => store.add(new LeafView(100, Number.POSITIVE_INFINITY, 100, Number.POSITIVE_INFINITY)));
+		grid.addView(views[0], 1200, [0]);
+		const layouts: number[][] = [[], [], []];
+		views.forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.width))));
+		const takeLayouts = () => layouts.map(calls => calls.splice(0));
+
+		grid.addView(views[1], Sizing.Distribute, [1]);
+		const addedSecond = takeLayouts();
+		grid.addView(views[2], Sizing.Distribute, [2]);
+
+		assert.deepStrictEqual({ addedSecond, addedThird: takeLayouts() }, {
+			addedSecond: [[600], [600], []],
+			addedThird: [[400], [400], [400]],
+		});
+	});
+
 	test('empty gridview is empty', function () {
 		const gridview = createGridView();
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), []);

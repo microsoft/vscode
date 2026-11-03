@@ -132,7 +132,7 @@ VS Code does **not** use CSS media queries. Instead, it uses a **programmatic co
 
 - `IView.minimumSize` / `maximumSize` — views declare their size constraints.
 - `SplitView` and `Grid` distribute space according to constraints and `LayoutPriority`.
-- `ResizeObserver` is used for container-aware sizing (e.g., editor auto-layout).
+- `dom.DisposableResizeObserver` (not a raw `ResizeObserver`) is used for container-aware sizing (e.g., editor auto-layout).
 - The window is treated as a fixed viewport; space is distributed via sash-based resizing.
 
 When building a responsive component:
@@ -251,7 +251,7 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 VS Code ships a design-system **size** ramp, registered in `src/vs/platform/theme/common/sizes/baseSizes.ts` and emitted as `--vscode-*` CSS variables. When writing or editing CSS, prefer the token var over a raw px value wherever a token exists. The full tables + rationale live in the auto-injected `.github/instructions/design-tokens.instructions.md` (canonical source — keep this section in sync with it). This section captures the **decision logic** for deeper styling tasks.
 
-> Every `--vscode-*` size var you reference must already exist in `build/lib/stylelint/vscode-known-variables.json` (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
+> Every `var()` you reference, except product-icon `--vscode-icon-*-content` and `--vscode-icon-*-font-family` variables, must exist in `build/lib/stylelint/vscode-known-variables.json` or stylelint/hygiene fails. After registering a *new* token in `baseSizes.ts`, run `./scripts/test-documentation.sh` to regenerate the `"sizes"` array; CSS-only custom properties belong in `"others"`.
 
 ### Spacing — `padding`, `margin`, `gap`
 

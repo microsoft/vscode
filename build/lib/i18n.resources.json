@@ -769,6 +769,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/inboxOne",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},
@@ -830,6 +834,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/getStarted",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/worktreeSuggestion",
 			"project": "vscode-sessions"
 		}
 	]

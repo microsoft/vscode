@@ -11,7 +11,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import Severity from '../../../../../base/common/severity.js';
-import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -49,6 +49,32 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 		await removeWebSocketRemoteAgentHostEntry(configurationService, provider.remoteAddress);
 		await remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
 	}
+}
+
+export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): string {
+	return connection.sshConfigHost
+		? `ssh:${connection.sshConfigHost}`
+		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
+}
+
+/** Drop the persisted SSH entry before teardown so reconciliation cannot immediately reconnect it. */
+export async function disconnectSSHEntry(
+	connection: IRemoteAgentHostSSHConnection,
+	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
+	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
+): Promise<void> {
+	await sshService.disconnect(sshConnectionKey(connection));
+	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
+}
+
+export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
+	const { confirmed } = await dialogService.confirm({
+		type: 'warning',
+		message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", name),
+		detail: localize('tunnelDeleteDetail', "This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again."),
+		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+	});
+	return confirmed;
 }
 
 export async function renameRemoteHost(
@@ -101,19 +127,17 @@ export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStat
  * surfaced error). All user-facing errors are reported via the
  * notification service.
  */
-export async function runServerUpgrade(
-	accessor: ServicesAccessor,
+export async function upgradeRemoteHost(
 	provider: IAgentHostSessionsProvider,
 	upgradeMethod: string,
+	remoteAgentHostService: IRemoteAgentHostService,
+	notificationService: INotificationService,
+	progressService: IProgressService,
 ): Promise<void> {
 	const address = provider.remoteAddress;
 	if (!address) {
 		return;
 	}
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-	const notificationService = accessor.get(INotificationService);
-	const progressService = accessor.get(IProgressService);
-
 	await progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
@@ -194,6 +218,10 @@ export async function runServerUpgrade(
 	);
 }
 
+export async function runServerUpgrade(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider, upgradeMethod: string): Promise<void> {
+	await upgradeRemoteHost(provider, upgradeMethod, accessor.get(IRemoteAgentHostService), accessor.get(INotificationService), accessor.get(IProgressService));
+}
+
 /**
  * Surface a transient notification each time a provider transitions into
  * the `incompatible` state. Fires once per transition (not on every
@@ -261,7 +289,12 @@ export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string 
 	}
 }
 
-export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
+export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string, lastConnectionError?: string): string {
+	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && lastConnectionError) {
+		return address
+			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", lastConnectionError, address)
+			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", lastConnectionError);
+	}
 	switch (status.kind) {
 		case 'connected':
 			return address
@@ -276,6 +309,11 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
 		case 'disconnected':
+			if (lastConnectionError) {
+				return address
+					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", lastConnectionError, address)
+					: lastConnectionError;
+			}
 			return address
 				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");

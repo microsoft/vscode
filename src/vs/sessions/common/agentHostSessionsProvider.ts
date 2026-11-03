@@ -237,8 +237,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	/** Availability before applying a user's hidden preference. Defaults to available. */
+	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	/** Reveals this host after an explicit picker selection without changing its availability. */
+	showInEnvironmentPicker?(): void;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
@@ -345,6 +349,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getRootConfig(): RootConfigState | undefined;
 	getRootState(): RootState | undefined;
 	mapAgentHostResource(uri: URI): URI;
+	/** This window's client identity on the provider's connection. */
+	getClientId?(): string | undefined;
 	/**
 	 * Sets one root configuration property.
 	 *
@@ -379,6 +385,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * advertised.
 	 */
 	getCustomAgents(sessionId: string): readonly AgentCustomization[];
+
+	/** Resolves a draft source or advertised URI to its current published agent, when known. */
+	resolveCustomAgent?(sessionId: string, uri: string): AgentCustomization | undefined;
 
 	readonly onDidChangeCustomizations: Event<void>;
 
@@ -461,6 +470,16 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return isAgentHostProviderId(provider.id);
+}
+
+/** Whether this provider can appear as an individual remote environment, independent of visibility. */
+export function isRemoteSessionCreationEnvironment(provider: ISessionsProvider): provider is IAgentHostSessionsProvider & { readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> } {
+	return isAgentHostProvider(provider) && provider.supportsWorkspaceSelection !== false && !!provider.connectionStatus && !provider.hostGroup;
+}
+
+/** Legacy providers may express availability through their visibility signal alone. */
+export function isAgentHostEnvironmentAvailable(provider: IAgentHostSessionsProvider, reader?: IReader): boolean {
+	return (provider.isAvailableInEnvironmentPicker ?? provider.isVisibleInEnvironmentPicker)?.read(reader) !== false;
 }
 
 export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {

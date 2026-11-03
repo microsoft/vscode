@@ -494,7 +494,7 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 			return [];
 		}
 		const entries = currentSession.entries.read(reader);
-		return entries.map((entry) => {
+		const resources = entries.map((entry) => {
 			if (this._showPreviousChanges) {
 				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
 				const entryDiff = entryDiffObs?.read(reader);
@@ -522,6 +522,16 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 				},
 			);
 		});
+		for (const diff of currentSession.additionalReviewFiles?.read(reader) ?? []) {
+			if (!entries.some(entry => isEqual(entry.modifiedURI, diff.modifiedURI))) {
+				resources.push(new MultiDiffEditorItem(
+					diff.isCreated ? undefined : diff.originalURI,
+					diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
+					diff.modifiedURI,
+				));
+			}
+		}
+		return resources;
 	});
 	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
 

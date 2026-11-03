@@ -167,7 +167,6 @@ class ChatLifecycleHandler extends Disposable {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
@@ -205,10 +204,6 @@ class ChatLifecycleHandler extends Disposable {
 		const windowCount = reason === ShutdownReason.CLOSE ? await this.nativeHostService.getWindowCount() : 0;
 		const effectiveReason = getEffectiveSessionShutdownReason(reason, windowCount, isMacintosh);
 		if (!this.hasSessionThatWillStop(effectiveReason)) {
-			return false;
-		}
-
-		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
 			return false;
 		}
 
