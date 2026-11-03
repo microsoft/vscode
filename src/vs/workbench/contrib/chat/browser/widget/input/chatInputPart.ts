@@ -208,6 +208,11 @@ const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
 
+export function getChatInputEditorMetrics(options: IChatInputPartOptions['inputEditorOptions'], defaultFontSize: number): { fontSize: number; lineHeight: number } {
+	const fontSize = options?.fontSize ?? defaultFontSize;
+	return { fontSize, lineHeight: options?.lineHeight ?? Math.max(INPUT_EDITOR_MIN_LINE_HEIGHT, fontSize * 1.5) };
+}
+
 export function getToolbarPickerResponsiveItems(
 	toolbar: MenuWorkbenchToolBar,
 	compactStates: ReadonlyMap<string, ISettableObservable<boolean>>,
@@ -313,6 +318,7 @@ export interface IChatInputPartOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */
 	inputEditorPadding?: { readonly top: number; readonly bottom: number };
 	/** Quick-suggestion behavior for the input editor. Defaults to disabled. */
@@ -3046,10 +3052,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private bindInputEditorFontSize(): IDisposable {
 		return autorun(reader => {
 			const fontSize = this.chatLayoutService.fontSize.read(reader);
-			this._inputEditor.updateOptions({
-				fontSize,
-				lineHeight: Math.max(INPUT_EDITOR_MIN_LINE_HEIGHT, fontSize * 1.5),
-			});
+			this._inputEditor.updateOptions(getChatInputEditorMetrics(this.options.inputEditorOptions, fontSize));
 		});
 	}
 
@@ -4186,7 +4189,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 						const modelDelegate = this._createModelPickerDelegate();
 						const modeDelegate = this._createModePickerDelegate();
-						return this.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate);
+						return this.chatPhoneInputPresenter.createActionViewItem?.(action, modeDelegate, modelDelegate)
+							?? this.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate);
 					} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 						return new HiddenActionViewItem(action);
 					}

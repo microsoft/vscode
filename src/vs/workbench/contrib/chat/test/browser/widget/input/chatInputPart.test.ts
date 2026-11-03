@@ -33,7 +33,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { getSimpleEditorOptions } from '../../../../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
-import { ChatInputPart, IChatInputPartOptions } from '../../../../browser/widget/input/chatInputPart.js';
+import { ChatInputPart, getChatInputEditorMetrics, IChatInputPartOptions } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -57,6 +57,22 @@ import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('component metrics override the configured chat font size', () => {
+		assert.deepStrictEqual([
+			getChatInputEditorMetrics(undefined, 13),
+			getChatInputEditorMetrics(undefined, 24),
+			getChatInputEditorMetrics({ fontSize: 16, lineHeight: 24 }, 24),
+			getChatInputEditorMetrics({ fontSize: 16 }, 24),
+			getChatInputEditorMetrics({ lineHeight: 32 }, 24),
+		], [
+			{ fontSize: 13, lineHeight: 20 },
+			{ fontSize: 24, lineHeight: 36 },
+			{ fontSize: 16, lineHeight: 24 },
+			{ fontSize: 16, lineHeight: 24 },
+			{ fontSize: 24, lineHeight: 32 },
+		]);
+	});
 
 	test('refreshes session toolbars synchronously before scheduling layout', () => {
 		const updates: string[] = [];
@@ -948,9 +964,10 @@ suite('ChatInputPart', () => {
 		{ name: 'default', options: {}, padding: { top: 12, bottom: 12 }, minimumLines: 1 },
 		{ name: 'compact', options: { renderStyle: 'compact' }, padding: { top: 2, bottom: 2 }, minimumLines: 1 },
 		{ name: 'Sessions', options: { isSessionsWindow: true, inputEditorMinLines: 2, inputEditorPadding: { top: 4, bottom: 4 } }, padding: { top: 4, bottom: 4 }, minimumLines: 2 },
+		{ name: 'mobile overrides', options: { isSessionsWindow: true, inputEditorOptions: { fontSize: 16, lineHeight: 24 }, inputEditorMinLines: 2, inputEditorPadding: { top: 4, bottom: 4 } }, padding: { top: 4, bottom: 4 }, minimumLines: 2 },
 	] satisfies { name: string; options: Partial<IChatInputPartOptions>; padding: { top: number; bottom: number }; minimumLines: number }[]) {
 		for (const maxHeight of [undefined, 1]) {
-			test(`follows chat font size and preserves usable input height (${name}, max height ${maxHeight})`, async () => {
+			test(`respects chat or presentation metrics and preserves usable input height (${name}, max height ${maxHeight})`, async () => {
 				const configurationService = new TestConfigurationService({ 'chat.fontSize': 24 });
 				store.add(configurationService.onDidChangeConfigurationEmitter);
 				const chatLayoutService = store.add(new ChatLayoutService(configurationService));
@@ -1014,7 +1031,7 @@ suite('ChatInputPart', () => {
 					{ fontSize: 13, lineHeight: 20 },
 					{ fontSize: 13, lineHeight: 20 },
 					{ fontSize: 13, lineHeight: 20 },
-				].map(state => ({ ...state, height: state.lineHeight * minimumLines + padding.top + padding.bottom })));
+				].map(state => options.inputEditorOptions ?? state).map(state => ({ ...state, height: state.lineHeight * minimumLines + padding.top + padding.bottom })));
 			});
 		}
 	}
