@@ -102,6 +102,8 @@ export function downloadStableCode(options: IStableCodeDownloadOptions): Promise
 }
 
 async function runChild(): Promise<void> {
+	// Exit with the smoke runner, for example when its setup times out, instead of downloading into a folder it removes.
+	process.once('disconnect', () => process.exit(1));
 	const vscodetest = await import('@vscode/test-electron');
 	const send = (message: ChildMessage) => new Promise<void>(resolve => process.send!(message, () => resolve()));
 	process.once('message', async ({ version, cachePath }: { version: string; cachePath: string }) => {
