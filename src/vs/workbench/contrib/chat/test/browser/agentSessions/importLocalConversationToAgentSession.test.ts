@@ -137,6 +137,25 @@ suite('importedTurnsFromChatModel', () => {
 		]);
 	});
 
+	test('labels a migrated image by its bytes when the entry has no MIME type', () => {
+		const jpeg = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
+		const png = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+		const unknown = new Uint8Array([0, 1, 2]);
+		const turns = importedTurnsFromChatModel(model([request('q', response([markdown('A')]), {
+			variables: [
+				{ kind: 'image', id: 'j', name: 'photo.jpg', value: jpeg },
+				{ kind: 'image', id: 'p', name: 'mislabeled.png', value: png, mimeType: 'image/jpeg' },
+				{ kind: 'image', id: 'u', name: 'unknown', value: unknown },
+			],
+		})]));
+
+		assert.deepStrictEqual(turns[0].message.attachments?.map(a => a.type === MessageAttachmentKind.EmbeddedResource ? { label: a.label, contentType: a.contentType } : a.type), [
+			{ label: 'photo.jpg', contentType: 'image/jpeg' },
+			{ label: 'mislabeled.png', contentType: 'image/png' },
+			{ label: 'unknown', contentType: 'image/png' },
+		]);
+	});
+
 	test('preserves local reasoning timing when importing into an agent session', () => {
 		const turns = importedTurnsFromChatModel(model([request('q', response([
 			{ kind: 'thinking', value: 'Measured', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },

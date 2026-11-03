@@ -6233,6 +6233,8 @@ export class AgentService extends Disposable implements IAgentService {
 			const importedTurns = config.importConversation.turns.map(t => ({ ...t, id: generateUuid() }));
 			config = { ...config, importConversation: { ...config.importConversation, turns: importedTurns } };
 		}
+		const importedModel = config?.importConversation?.model;
+		const importedDraft: Message | undefined = importedModel ? { text: '', origin: { kind: MessageKind.User }, model: importedModel } : undefined;
 
 		// Resolve host-owned isolation before provider creation. Providers such as
 		// Codex may schedule eager prewarming from createSession; marking a
@@ -6408,6 +6410,12 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, importedTurns);
+			// The client defaults an empty chat's input to its last turn's model, which for
+			// imported history is the model of an earlier request; start the input on the
+			// model the session continues with instead.
+			if (importedDraft) {
+				this._stateManager.seedDefaultChatDraft(summary.resource, importedDraft);
+			}
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
 
 			// Keep the imported fallback title and record the imported turn count
@@ -6458,6 +6466,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 		if (!created.provisional) {
 			await this._registerNewChatCatalog(session, created.chat?.providerData);
+			if (importedDraft) {
+				// A seeded draft has no client dispatch to persist it, so write it with the
+				// chat's row; otherwise a cold restore falls back to the last turn's model.
+				try {
+					await this._sessionStateStore.chatRows.setDraft(session, defaultChat, importedDraft);
+				} catch (error) {
+					this._logService.warn(`[AgentService] Failed to persist the imported draft of ${session.toString()}`, error);
+				}
+			}
 			const retainedTitle = config?.importConversation?.title;
 			if (retainedTitle?.trim()) {
 				await this._peerChatStore.persistMetadata(session, defaultChat, {

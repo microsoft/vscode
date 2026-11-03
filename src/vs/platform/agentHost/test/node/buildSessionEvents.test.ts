@@ -131,9 +131,11 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
 			'assistant.message',
 			'assistant.message',
+			'assistant.turn_end',
 		]);
 
 		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
@@ -201,10 +203,11 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
 
-		// The abort trails the already-flushed assistant content.
+		// The abort trails the already-flushed assistant content and ends the turn without a `turn_end`.
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
 			'abort',
 		]);
@@ -235,10 +238,12 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
 			'tool.execution_start',
 			'tool.execution_complete',
 			'assistant.message',
+			'assistant.turn_end',
 		]);
 
 		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
@@ -308,13 +313,17 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
 
 		// `subagent.started` precedes the tool execution pair so a resume applies
-		// the sub-agent identity to the parent tool call.
+		// the sub-agent identity to the parent tool call. The turn ends on the
+		// tool call, so an empty assistant message completes it before `turn_end`.
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'subagent.started',
 			'tool.execution_start',
 			'tool.execution_complete',
+			'assistant.message',
+			'assistant.turn_end',
 		]);
 		const started = events.find(e => e.type === 'subagent.started');
 		assert.ok(started && started.type === 'subagent.started');
@@ -343,13 +352,17 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId, model: 'gpt-5' });
 
-		// Shape: session.start, (user.message, assistant.message) x2.
+		// Shape: session.start, (user.message, turn_start, assistant.message, turn_end) x2.
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
+			'assistant.turn_end',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
+			'assistant.turn_end',
 		]);
 
 		// First event roots the chain; every subsequent event links to its predecessor.
@@ -370,12 +383,14 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.strictEqual(start.type === 'session.start' && start.data.selectedModel, 'gpt-5');
 	});
 
-	test('omits the assistant.message for a turn with no response content', async () => {
+	test('completes a turn with no response content with an empty assistant message', async () => {
 		const turns: Turn[] = [userTurn('turn-empty', 'just a note', [])];
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
 
-		assert.deepStrictEqual(events.map(e => e.type), ['session.start', 'user.message']);
+		assert.deepStrictEqual(events.map(e => e.type === 'assistant.message' ? { type: e.type, content: e.data.content } : e.type), [
+			'session.start', 'user.message', 'assistant.turn_start', { type: 'assistant.message', content: '' }, 'assistant.turn_end',
+		]);
 	});
 
 	test('serializes to newline-terminated JSONL whose lines parse back to the same events', () => {
@@ -412,6 +427,29 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.deepStrictEqual(project(reconstructed), project(turns));
 	});
 
+	test('a cold restore keeps every finished imported turn complete', async () => {
+		const turns: Turn[] = [
+			userTurn(generateUuid(), 'text', [markdown('Answer')]),
+			userTurn(generateUuid(), 'ends on a tool call', [markdown('Looking'), toolCallPart('call-1', 'read', '{}', 'contents')]),
+			userTurn(generateUuid(), 'no response', []),
+			{ ...userTurn(generateUuid(), 'cancelled', [markdown('Partial')]), state: TurnState.Cancelled },
+			userTurn(generateUuid(), 'last', [markdown('Done')]),
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual(restored.map(turn => ({ text: turn.message.text, state: turn.state, parts: turn.responseParts.map(part => part.kind) })), [
+			{ text: 'text', state: TurnState.Complete, parts: [ResponsePartKind.Markdown] },
+			{ text: 'ends on a tool call', state: TurnState.Complete, parts: [ResponsePartKind.Markdown, ResponsePartKind.ToolCall] },
+			{ text: 'no response', state: TurnState.Complete, parts: [] },
+			{ text: 'cancelled', state: TurnState.Cancelled, parts: [ResponsePartKind.Markdown] },
+			{ text: 'last', state: TurnState.Complete, parts: [ResponsePartKind.Markdown] },
+		]);
+	});
+
 	test('round-trips message attachments and the model each turn used', async () => {
 		const selection = { start: { line: 1, character: 2 }, end: { line: 1, character: 6 } };
 		const attachments: MessageAttachment[] = [
@@ -437,9 +475,9 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 			messages: reconstructed.map(turn => ({ model: turn.message.model?.id, attachments: turn.message.attachments })),
 		}, {
 			eventTypes: [
-				'session.start', 'session.model_change', 'user.message', 'assistant.message',
-				'session.model_change', 'user.message', 'assistant.message',
-				'session.model_change', 'user.message', 'assistant.message',
+				'session.start', 'session.model_change', 'user.message', 'assistant.turn_start', 'assistant.message', 'assistant.turn_end',
+				'session.model_change', 'user.message', 'assistant.turn_start', 'assistant.message', 'assistant.turn_end',
+				'session.model_change', 'user.message', 'assistant.turn_start', 'assistant.message', 'assistant.turn_end',
 				'session.model_change',
 			],
 			messages: [
@@ -460,6 +498,21 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 				{ model: 'claude-sonnet-5', attachments: undefined },
 			],
 		});
+	});
+
+	test('records no per-turn models when the session has no model', async () => {
+		const turns: Turn[] = [
+			{ ...userTurn(generateUuid(), 'first', [markdown('A')]), message: { text: 'first', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } } },
+			userTurn(generateUuid(), 'unresolved model', [markdown('B')]),
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
+
+		assert.deepStrictEqual({
+			modelEvents: events.filter(e => e.type === 'session.model_change' || (e.type === 'assistant.message' && e.data.model)).length,
+			models: reconstructed.map(turn => turn.message.model),
+		}, { modelEvents: 0, models: [undefined, undefined] });
 	});
 
 	test('records saved selection text, and only the selected lines when no text was saved', () => {

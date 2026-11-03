@@ -60,13 +60,15 @@ export interface IBuildSessionEventsOptions {
  * reconstruction performed by `mapSessionEvents`.
  *
  * The result is a valid parent-linked event chain: a leading `session.start`
- * followed, per turn, by a `user.message` and the turn's response emitted in
- * order — assistant markdown/reasoning as `assistant.message` events and each
- * completed tool call as a `tool.execution_start` + `tool.execution_complete`
- * pair (preceded by a `subagent.started` when the tool call carries sub-agent
- * content, so the sub-agent name/description survive a resume). Assistant text
- * accumulated before a tool call is flushed as its own `assistant.message` so
- * the reconstructed part order matches the original.
+ * followed, per turn, by a `user.message`, an `assistant.turn_start`, and the
+ * turn's response emitted in order — assistant markdown/reasoning as
+ * `assistant.message` events and each completed tool call as a
+ * `tool.execution_start` + `tool.execution_complete` pair (preceded by a
+ * `subagent.started` when the tool call carries sub-agent content, so the
+ * sub-agent name/description survive a resume). Assistant text accumulated
+ * before a tool call is flushed as its own `assistant.message` so the
+ * reconstructed part order matches the original. A finished turn closes with
+ * an `assistant.turn_end`.
  *
  * Every event envelope id must be a UUID (the Copilot runtime rejects non-UUID
  * event ids). A turn whose {@link Turn.id} is already a UUID reuses it as the
@@ -86,7 +88,10 @@ export interface IBuildSessionEventsOptions {
  * `session.model_change` precedes any turn whose model differs from the one in
  * effect, so a turn never inherits the previous turn's model. The log ends on
  * {@link IBuildSessionEventsOptions.model} so it agrees with the session's
- * selected model.
+ * selected model. Without a session model the session runs on the provider's
+ * default, which no model change can return to, so no per-turn models are
+ * recorded rather than attributing a turn, or the session, to another turn's
+ * model.
  */
 export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBuildSessionEventsOptions): SessionEvent[] {
 	const events: SessionEvent[] = [];
@@ -197,7 +202,11 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 	};
 
 	for (const turn of turns) {
-		pushModelChange(turn.message.model?.id ?? options.model);
+		// Without a session model the session runs on the provider's default, which a
+		// model change cannot return to, so per-turn models are not recorded.
+		if (options.model) {
+			pushModelChange(turn.message.model?.id ?? options.model);
+		}
 		// Reuse the turn id as the user-message envelope id when it is already a
 		// UUID (the runtime rejects non-UUID event ids) so the reconstructed turn
 		// keeps the id the SDK's fork/truncate RPCs address and a caller can seed
@@ -215,14 +224,21 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				...(attachments ? { attachments } : {}),
 			},
 		});
+		const sdkTurnId = '0';
+		push({
+			id: generateUuid(),
+			parentId,
+			timestamp: nextTimestamp(),
+			type: 'assistant.turn_start',
+			data: { turnId: sdkTurnId, ...(currentModel ? { model: currentModel } : {}) },
+		});
 
 		let markdown = '';
 		let reasoning = '';
 		let parts: (MarkdownResponsePart | ReasoningResponsePart)[] = [];
-		const flushAssistantMessage = (): void => {
-			if (!markdown && !reasoning) {
-				return;
-			}
+		// Whether the last response event is an assistant message, which completes the reconstructed turn.
+		let endsWithAssistantMessage = false;
+		const pushAssistantMessage = (content: string, reasoningText?: string): string => {
 			const responseId = generateUuid();
 			push({
 				id: responseId,
@@ -230,12 +246,20 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				timestamp: nextTimestamp(),
 				type: 'assistant.message',
 				data: {
-					content: markdown,
+					content,
 					messageId: generateUuid(),
-					...(reasoning ? { reasoningText: reasoning } : {}),
+					...(reasoningText ? { reasoningText } : {}),
 					...(currentModel ? { model: currentModel } : {}),
 				},
 			});
+			endsWithAssistantMessage = true;
+			return responseId;
+		};
+		const flushAssistantMessage = (): void => {
+			if (!markdown && !reasoning) {
+				return;
+			}
+			const responseId = pushAssistantMessage(markdown, reasoning);
 			options.onAssistantMessage?.(turnId, responseId, parts);
 			markdown = '';
 			reasoning = '';
@@ -264,6 +288,7 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				// reconstructed part order matches the original interleaving.
 				flushAssistantMessage();
 				pushCompletedToolCall(part.toolCall);
+				endsWithAssistantMessage = false;
 			}
 			// Content refs and system notifications are not yet translated.
 		}
@@ -281,6 +306,21 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				timestamp: nextTimestamp(),
 				type: 'abort',
 				data: { reason: 'user_initiated' },
+			});
+		} else {
+			// A finished turn must end on an assistant message (an empty one when it
+			// ended on a tool call or had no response) and close with `turn_end`.
+			// Otherwise the reverse mapper treats the final turn as still running and
+			// a cold restore reports it as interrupted.
+			if (!endsWithAssistantMessage) {
+				pushAssistantMessage('');
+			}
+			push({
+				id: generateUuid(),
+				parentId,
+				timestamp: nextTimestamp(),
+				type: 'assistant.turn_end',
+				data: { turnId: sdkTurnId, ...(currentModel ? { model: currentModel } : {}) },
 			});
 		}
 	}

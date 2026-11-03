@@ -5,6 +5,7 @@
 
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { detectImageMimeType } from '../../../../../../base/common/image.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -322,7 +323,8 @@ function variableToAttachment(variable: IChatRequestVariableEntry, resourceUris:
 				label: variable.name,
 				displayKind: 'image',
 				data: encodeBase64(VSBuffer.wrap(bytes)),
-				contentType: variable.mimeType ?? 'image/png',
+				// The bytes are authoritative: older entries omit `mimeType`, and unresized images keep their original encoding.
+				contentType: detectImageMimeType(bytes) ?? variable.mimeType ?? 'image/png',
 			};
 		}
 		const reference = variable.references?.find(r => URI.isUri(r.reference))?.reference;
