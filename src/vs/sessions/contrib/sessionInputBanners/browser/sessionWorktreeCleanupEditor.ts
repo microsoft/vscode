@@ -29,7 +29,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
+import { RawWorkbenchListFocusContextKey, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -593,6 +593,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			// eslint-disable-next-line no-restricted-syntax -- Table does not expose a header renderer.
 			const selectionHeader = table.getHTMLElement().querySelector<HTMLElement>('.monaco-table-th[data-col-index="0"]')!;
 			selectionHeader.classList.add('session-worktree-cleanup-select-all');
+			const headerContext = this.editorDisposables.add(this.contextKeyService.createScoped(selectionHeader));
+			RawWorkbenchListFocusContextKey.bindTo(headerContext).set(false);
 			selectionHeader.appendChild(selectAll.domNode);
 		}
 		this.tableScrollables.set(table, scrollable);

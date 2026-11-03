@@ -20,7 +20,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService, ListService, WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -35,8 +38,11 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 suite('SessionWorktreeCleanupEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}) {
+	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}, contextKeyService?: IContextKeyService) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		if (contextKeyService) {
+			instantiationService.stub(IContextKeyService, contextKeyService);
+		}
 		instantiationService.stub(IListService, disposables.add(new ListService()));
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: 0,
@@ -1060,6 +1066,48 @@ suite('SessionWorktreeCleanupEditor', () => {
 			checked: 'true',
 			opened: ['test:/second', 'test:/second', 'test:/second'],
 		});
+	});
+
+	test('header checkboxes do not inherit navigation commands for the previously focused table', async () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const { editor, container, instantiationService } = createEditor({
+			getWorktrees: async () => [
+				createWorktree('available', '/repos/app', 'active'),
+				{ ...createWorktree('failed', '/repos/app', 'archived'), cleanupStatus: { state: 'failed' } },
+			],
+			canForceCleanup: worktree => worktree.cleanupStatus?.state === 'failed',
+		}, contextKeyService);
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const tables = [
+			container.querySelector('.session-worktree-cleanup-content > .session-worktree-cleanup-list')!,
+			container.querySelector('.session-worktree-cleanup-unavailable-list')!,
+		];
+		const navigationRules = KeybindingsRegistry.getDefaultKeybindings().filter(rule =>
+			rule.command !== null && ['list.focusDown', 'list.focusUp', 'list.focusPageDown', 'list.focusPageUp', 'list.focusFirst', 'list.focusLast'].includes(rule.command)
+		);
+		assert.ok(navigationRules.length > 0);
+		const navigationEnabled = (element: HTMLElement) => navigationRules.some(rule => rule.when!.evaluate(contextKeyService.getContext(element)));
+		const states = [];
+		for (const [index, table] of tables.entries()) {
+			const previousList = tables[1 - index].querySelector<HTMLElement>('.monaco-list')!;
+			focusElement(previousList);
+			const lastFocusedList = instantiationService.get(IListService).lastFocusedList;
+			const checkbox = table.querySelector<HTMLElement>('.monaco-table-th [role="checkbox"]')!;
+			focusElement(checkbox);
+			checkbox.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			states.push({
+				bodyNavigation: navigationEnabled(previousList),
+				headerNavigation: navigationEnabled(checkbox),
+				headerFocused: dom.getActiveElement() === checkbox,
+				previousListUnchanged: instantiationService.get(IListService).lastFocusedList === lastFocusedList,
+				selected: checkbox.getAttribute('aria-checked'),
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ bodyNavigation: true, headerNavigation: false, headerFocused: true, previousListUnchanged: true, selected: 'true' },
+			{ bodyNavigation: true, headerNavigation: false, headerFocused: true, previousListUnchanged: true, selected: 'true' },
+		]);
 	});
 
 	test('preserves logical table focus through reordering and moves to the unavailable table', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
