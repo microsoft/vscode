@@ -6,27 +6,30 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { filterConfigurationToSchema } from './chatModelConfigurationLogic.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationProgress, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -70,6 +73,23 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 };
 
 const emptyModelState: IChatInputNotificationModelState = { currentModel: undefined, models: [] };
+
+/** The text of a notification's message, which names it and its actions for assistive technology. */
+function getAriaTitle(notification: IChatInputNotification): string {
+	return notification.ariaMessage ?? (isMarkdownString(notification.message) ? notification.message.value : notification.message);
+}
+
+/** The notification on screen and the parts a progress update changes in place. */
+interface IRenderedNotification {
+	notification: IChatInputNotification;
+	actions: readonly IChatInputNotificationAction[];
+	readonly layout: string;
+	readonly title: HTMLElement;
+	readonly buttons: Button[];
+	progressBar: ProgressBar | undefined;
+	/** Whether the bar shows indeterminate progress; `undefined` until first set. */
+	indeterminate: boolean | undefined;
+}
 
 /** Input-local model state and picker operations. */
 export interface IChatInputNotificationModelSelection {
@@ -129,6 +149,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _visible = false;
 	private _hostVisible = true;
 	private _currentNotification: IChatInputNotification | undefined;
+	private _rendered: IRenderedNotification | undefined;
 	private _slot: HTMLElement | undefined;
 
 	constructor(
@@ -139,6 +160,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@ILogService private readonly _logService: ILogService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -170,14 +192,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _render(): void {
-		// Tearing the content down would strand keyboard focus on <body>, which also
-		// drops the context keys the chat keybindings depend on. Hand it back to the
-		// input instead, the same way an onboarding card does when it stands down.
-		const hadFocus = this.hasFocus();
-		this._contentDisposables.clear();
-		dom.clearNode(this.domNode);
-		this.domNode.classList.remove(...Object.values(severityToClass));
-
 		const bodies = new Map<string, IChatInputNotificationBody>();
 		const notification = this._notificationService.getActiveNotification(candidate => {
 			const body = this._resolveBody(candidate);
@@ -188,13 +202,25 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			return false;
 		});
 		const body = notification ? bodies.get(notification.id) : undefined;
+		if (notification && body && this._updateInPlace(notification, body)) {
+			this._currentNotification = notification;
+			this._announce(notification, body);
+			this._handleShown(notification);
+			return;
+		}
+
+		// Tearing the content down would strand keyboard focus on <body>, which also
+		// drops the context keys the chat keybindings depend on. Hand it back to the
+		// input instead, the same way an onboarding card does when it stands down.
+		const hadFocus = this.hasFocus();
+		this._contentDisposables.clear();
+		this._rendered = undefined;
+		dom.clearNode(this.domNode);
+		this.domNode.classList.remove(...Object.values(severityToClass));
+
 		this._currentNotification = body ? notification : undefined;
 		this._setVisible(!!notification && !!body);
-		const announcementSignature = notification && body ? getChatInputNotificationAnnouncementSignature(notification, body) : undefined;
-		if (announcementSignature !== this._lastAnnouncementSignature) {
-			this._lastAnnouncementSignature = announcementSignature;
-			this._notificationService.announceRendered(body ? notification : undefined, body);
-		}
+		this._announce(notification, body);
 		if (!notification || !body) {
 			setChatInputStackSlot(this._slot, ChatInputStackSlot.Empty);
 			this._lastShownTelemetryData = undefined;
@@ -211,6 +237,117 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			// The region is rebuilt on every render; keep focus inside it.
 			this.focus();
 		}
+	}
+
+	private _announce(notification: IChatInputNotification | undefined, body: IChatInputNotificationBody | undefined): void {
+		const announcementSignature = notification && body ? getChatInputNotificationAnnouncementSignature(notification, body) : undefined;
+		if (announcementSignature !== this._lastAnnouncementSignature) {
+			this._lastAnnouncementSignature = announcementSignature;
+			this._notificationService.announceRendered(body ? notification : undefined, body);
+		}
+	}
+
+	/** Keeps the notification on screen when it is still the one to show, updating it in place; rebuilding would move keyboard focus off an action such as Pause. */
+	private _updateInPlace(notification: IChatInputNotification, body: IChatInputNotificationBody): boolean {
+		const rendered = this._rendered;
+		if (!rendered || !this._visible || rendered.notification.id !== notification.id) {
+			return false;
+		}
+		const actions = body.actions.filter(action => this._supportsAction(action));
+		if (rendered.layout !== this._getLayoutKey(notification, body, actions)) {
+			return false;
+		}
+		if (rendered.notification === notification) {
+			// Handlers run the actions of the latest body, which may label them differently.
+			rendered.actions = actions;
+			this._updateButtons(rendered, getAriaTitle(notification));
+			return true;
+		}
+		if (!notification.progress || !rendered.notification.progress || typeof notification.message !== 'string') {
+			return false;
+		}
+		rendered.notification = notification;
+		rendered.actions = actions;
+		rendered.title.textContent = notification.message;
+		// Assistive technology keeps the accessible text, which may change less often than the message on screen.
+		const ariaTitle = getAriaTitle(notification);
+		this._notice.setAriaLabel(ariaTitle);
+		this._updateButtons(rendered, ariaTitle);
+		this._updateProgress(rendered, notification.progress, ariaTitle);
+		return true;
+	}
+
+	/** What a rendered notification looks like apart from what changes in place: its message, progress, and action labels and states. */
+	private _getLayoutKey(notification: IChatInputNotification, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[]): string {
+		return JSON.stringify([
+			notification.severity,
+			notification.icon?.id,
+			notification.busy === true,
+			notification.dismissible,
+			notification.mute ? [notification.mute.commandId, notification.mute.tooltip] : undefined,
+			typeof notification.message === 'string',
+			typeof body.description === 'string' ? body.description : body.description?.value,
+			actions.map(action => [action.kind, action.tooltip, action.primary, action.iconOnly, action.leading, action.filled, action.outlined]),
+		]);
+	}
+
+	private _updateButtons(rendered: IRenderedNotification, title: string): void {
+		rendered.buttons.forEach((button, index) => this._updateButton(button, rendered.actions[index], title));
+	}
+
+	/** Labels the button of `action`, named after the notification's `title`, and enables it unless the action is disabled. */
+	private _updateButton(button: Button, action: IChatInputNotificationAction, title: string): void {
+		button.label = action.label;
+		button.enabled = !action.disabled;
+		const actionAriaLabel = action.ariaLabel ?? action.label;
+		button.element.ariaLabel = `${title} ${actionAriaLabel}`;
+		if (action.tooltip && action.tooltip !== actionAriaLabel) {
+			button.element.setAttribute('aria-description', action.tooltip);
+		} else {
+			button.element.removeAttribute('aria-description');
+		}
+	}
+
+	/** Shows `progress` on the standard progress bar: indeterminate without a percentage, else its fill, switching in place. */
+	private _updateProgress(rendered: IRenderedNotification, progress: IChatInputNotificationProgress, label: string): void {
+		const bar = rendered.progressBar;
+		if (!bar) {
+			return;
+		}
+		const element = bar.getContainer();
+		element.setAttribute('aria-label', label);
+		if (progress.percent === undefined) {
+			if (rendered.indeterminate !== true) {
+				bar.infinite();
+				rendered.indeterminate = true;
+			}
+			element.removeAttribute('aria-valuemin');
+			element.removeAttribute('aria-valuemax');
+			element.removeAttribute('aria-valuenow');
+			return;
+		}
+		const percent = Math.max(0, Math.min(100, Math.round(progress.percent)));
+		rendered.indeterminate = false;
+		bar.total(100).setWorked(percent);
+		element.setAttribute('aria-valuemin', '0');
+		element.setAttribute('aria-valuenow', String(percent));
+	}
+
+	/** Shows the in-progress indicator of an active agent session, as the Agent Sessions view does; created once per rendered notification so updates keep it running. */
+	private _renderBusyIcon(iconElement: HTMLElement): void {
+		iconElement.classList.add('busy');
+		const spinner = this._contentDisposables.add(new MutableDisposable<IPixelSpinner>());
+		const render = () => {
+			spinner.clear();
+			dom.clearNode(iconElement);
+			if (this._accessibilityService.isMotionReduced()) {
+				iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.sessionInProgress)));
+			} else {
+				spinner.value = createPixelSpinner(iconElement, { variant: 'grid' });
+			}
+		};
+		render();
+		this._contentDisposables.add(this._accessibilityService.onDidChangeReducedMotion(render));
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -264,13 +401,18 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _renderNotification(notification: IChatInputNotification, body: IChatInputNotificationBody): void {
 		const container = this.domNode;
 		container.classList.add(severityToClass[notification.severity]);
+		const actions = body.actions.filter(action => this._supportsAction(action));
 
 		// Header row: icon + title + mute + dismiss
 		const headerRow = dom.append(container, $('.chat-input-notification-header'));
 
 		// Header icon; the title conveys its meaning to screen readers.
 		const iconElement = dom.append(headerRow, $('.chat-input-notification-icon', { 'aria-hidden': 'true' }));
-		iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(notification.icon ?? severityToIcon[notification.severity])));
+		if (notification.busy) {
+			this._renderBusyIcon(iconElement);
+		} else {
+			iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(notification.icon ?? severityToIcon[notification.severity])));
+		}
 
 		// Title
 		const titleElement = dom.append(headerRow, $('.chat-input-notification-title'));
@@ -281,23 +423,37 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		} else {
 			titleElement.textContent = notification.message;
 		}
-		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
+		const ariaTitle = getAriaTitle(notification);
 		// Names the focusable region: `aria-roledescription` alone would have focus
 		// land on something announced only as "notification".
 		this._notice.setAriaLabel(ariaTitle);
 
-		if (notification.mute) {
-			const mute = notification.mute;
+		// Handlers read the notification from here: a progress update replaces it in place.
+		const rendered: IRenderedNotification = {
+			notification,
+			actions,
+			layout: this._getLayoutKey(notification, body, actions),
+			title: titleElement,
+			buttons: [],
+			progressBar: undefined,
+			indeterminate: undefined,
+		};
+		this._rendered = rendered;
 
+		if (notification.mute) {
 			// Defer to a microtask for the same reason as the dismiss button:
 			// the command synchronously tears down the notification, and the
 			// resulting re-render must happen after the click has propagated.
 			const muteButton = this._notice.addAction({
-				ariaLabel: mute.tooltip,
+				ariaLabel: notification.mute.tooltip,
 				icon: Codicon.bellSlash,
 				parent: headerRow,
 				store: this._contentDisposables,
 				onActivate: () => queueMicrotask(() => {
+					const mute = rendered.notification.mute;
+					if (!mute) {
+						return;
+					}
 					this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 						id: mute.commandId,
 						from: 'chatInputNotification',
@@ -305,7 +461,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 					this._commandService.executeCommand(mute.commandId, ...(mute.commandArgs ?? []));
 				}),
 			});
-			this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), muteButton, mute.tooltip));
+			this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), muteButton, notification.mute.tooltip));
 		}
 
 		// Dismiss button (in header row, pushed to the right)
@@ -321,14 +477,21 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 				parent: headerRow,
 				store: this._contentDisposables,
 				onActivate: () => queueMicrotask(() => {
-					this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationDismissed', this._getTelemetryData(notification));
-					this._notificationService.dismissNotification(notification.id, notification);
+					const current = rendered.notification;
+					this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationDismissed', this._getTelemetryData(current));
+					this._notificationService.dismissNotification(current.id, current);
 				}),
 			});
 		}
 
+		// The standard progress bar under the title, labelled by it.
+		if (notification.progress) {
+			const progressContainer = dom.append(container, $('.chat-input-notification-progress'));
+			rendered.progressBar = this._contentDisposables.add(new ProgressBar(progressContainer, { ...defaultProgressBarStyles, ariaLabel: ariaTitle }));
+			this._updateProgress(rendered, notification.progress, ariaTitle);
+		}
+
 		// Body row: description + actions on the same line
-		const actions = body.actions.filter(action => this._supportsAction(action));
 		const hasBody = body.description || actions.length > 0;
 		if (hasBody) {
 			const bodyRow = dom.append(container, $('.chat-input-notification-body'));
@@ -372,19 +535,15 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 					button.element.classList.toggle('leading', action.leading === true);
 					button.element.classList.toggle('filled', action.filled === true);
 					button.element.classList.toggle('outlined', action.outlined === true);
-					button.label = action.label;
-					const actionAriaLabel = action.ariaLabel ?? action.label;
-					button.element.ariaLabel = `${ariaTitle} ${actionAriaLabel}`;
+					this._updateButton(button, action, ariaTitle);
 					if (action.tooltip) {
 						this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, action.tooltip));
-						if (action.tooltip !== actionAriaLabel) {
-							button.element.setAttribute('aria-description', action.tooltip);
-						}
 					}
 
 					this._contentDisposables.add(button.onDidClick(() => {
-						void this._executeAction(notification, action);
+						void this._executeAction(rendered.notification, rendered.actions[i] ?? action);
 					}));
+					rendered.buttons.push(button);
 				}
 			}
 		}

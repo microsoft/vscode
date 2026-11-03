@@ -12,7 +12,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IChatQuestion, IChatQuestionCarousel } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -91,6 +91,36 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 
 	widgetContainer.appendChild(part.domNode);
 	afterRender?.(part);
+}
+
+async function renderLayoutCarousel(
+	context: ComponentFixtureContext,
+	carousel: IChatQuestionCarousel,
+	expectedLayout: (header: HTMLElement, input: HTMLElement, availableHeight: number) => boolean,
+	afterRender?: (part: ChatQuestionCarouselPart) => void,
+): Promise<void> {
+	renderCarousel(context, carousel, false, {}, afterRender);
+	const card = context.container.querySelector<HTMLElement>('.chat-question-carousel-container')!;
+	const header = card.querySelector<HTMLElement>('.chat-question-header-row')!;
+	const input = card.querySelector<HTMLElement>('.chat-question-input-container')!;
+	const footer = card.querySelector<HTMLElement>('.chat-question-footer-row')!;
+	const validation = card.querySelector<HTMLElement>('.chat-question-validation-message')!;
+	let previousLayout = '';
+	await waitForFixtureCondition(() => {
+		const availableHeight = Math.min(420, dom.getWindow(card).innerHeight * 0.45) - footer.offsetHeight - validation.offsetHeight;
+		const layout = [card.clientHeight, header.clientHeight, header.scrollHeight, header.scrollTop, input.clientHeight, input.scrollHeight, input.scrollTop, footer.offsetHeight, validation.offsetHeight].join(',');
+		const stable = layout === previousLayout;
+		previousLayout = layout;
+		return stable && header.style.maxHeight !== '' && input.style.maxHeight !== '' &&
+			footer.getBoundingClientRect().bottom <= card.getBoundingClientRect().bottom &&
+			expectedLayout(header, input, availableHeight);
+	}, 'Question carousel did not reach the expected height allocation');
+}
+
+function hasEqualScrollableSections(header: HTMLElement, input: HTMLElement, availableHeight: number): boolean {
+	return Math.abs(header.clientHeight - availableHeight / 2) <= 1 &&
+		Math.abs(input.clientHeight - availableHeight / 2) <= 1 &&
+		header.scrollHeight > header.clientHeight && input.scrollHeight > input.clientHeight;
 }
 
 // ============================================================================
@@ -177,6 +207,42 @@ const harnessSwitchCarouselOptions: Partial<IChatQuestionCarouselOptions> = {
 	},
 };
 
+const deploymentDescription = [
+	'Review the requirements before choosing a deployment strategy. The application serves several regions and must remain available during the rollout.',
+	'This release updates the database, background workers, and public API. Old and new clients must continue working while the release is in progress.',
+	'Monitor error rates, latency, and resource usage before increasing traffic. A rollback must preserve customer data and active requests.',
+	'Choose the approach that gives the team the best balance of safety and delivery speed.',
+].join('\n\n');
+
+function createDeploymentCarousel(optionCount: number, description: string | undefined = deploymentDescription, describeFirstOption = false): ChatQuestionCarouselData {
+	const labels = [
+		describeFirstOption ? 'Canary rollout - Recommended' : 'Canary rollout',
+		'Blue-green deployment',
+		'Rolling update',
+		'Manual approval',
+		'Scheduled release',
+		'Feature-flag rollout',
+		'Regional rollout',
+		'Shadow deployment',
+		'Recreate deployment',
+		'Staged rollout',
+		'Gradual traffic shift',
+		'Maintenance window',
+	];
+	return new ChatQuestionCarouselData([{
+		id: 'strategy',
+		type: 'singleSelect',
+		title: 'How should we deploy this release?',
+		description,
+		options: labels.slice(0, optionCount).map((label, index) => ({ id: `strategy-${index}`, label, value: `strategy-${index}` })),
+		allowFreeformInput: false,
+	}, {
+		id: 'reviewer',
+		type: 'text',
+		title: 'Who should review the release?',
+	}], true);
+}
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -204,6 +270,138 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			singleSelectQuestion,
 			multiSelectQuestion,
 		])),
+	}),
+
+	EqualHeightOverflow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['Long question details and answers each occupy half the available content height, with the navigation footer below them.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(12), hasEqualScrollableSections),
+	}),
+
+	CarouselMessageOverflow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => {
+			const carousel = createDeploymentCarousel(12, '');
+			carousel.message = new MarkdownString(deploymentDescription);
+			return renderLayoutCarousel(context, carousel, hasEqualScrollableSections);
+		},
+	}),
+
+	AnswersFitWithin55Percent: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['All four answers are visible without scrolling. They use slightly more than half of the content height, leaving the long details independently scrollable.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(4, deploymentDescription, true), (header, input, availableHeight) =>
+			header.scrollHeight > header.clientHeight &&
+			input.clientHeight > availableHeight / 2 && input.clientHeight <= availableHeight * 0.55 + 1 &&
+			input.scrollHeight === input.clientHeight),
+	}),
+
+	AnswersExceed55Percent: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The added fifth answer would not fit within 55 percent, so both long sections share the content height equally and the answers scroll.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(5, deploymentDescription, true), (header, input, availableHeight) =>
+			input.scrollHeight > availableHeight * 0.55 && hasEqualScrollableSections(header, input, availableHeight)),
+	}),
+
+	AnswersBorrowUnusedHeight: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The short question header leaves most of the card available to the seven fully visible answers.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(7, ''), (header, input, availableHeight) =>
+			header.clientHeight < availableHeight / 2 && header.scrollHeight === header.clientHeight &&
+			input.clientHeight > availableHeight / 2 && input.scrollHeight === input.clientHeight),
+	}),
+
+	DetailsBorrowUnusedHeight: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The two short answers leave more than half of the content height available to the question details.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(2), (header, input, availableHeight) =>
+			header.clientHeight > availableHeight / 2 && input.clientHeight < availableHeight / 2 &&
+			input.scrollHeight === input.clientHeight),
+	}),
+
+	CompactQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(2, ''), (header, input, availableHeight) =>
+			header.scrollHeight === header.clientHeight && input.scrollHeight === input.clientHeight &&
+			header.clientHeight + input.clientHeight < availableHeight),
+	}),
+
+	CollapsedQuestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => {
+			const carousel = createDeploymentCarousel(12);
+			carousel.draftCollapsed = true;
+			return renderLayoutCarousel(context, carousel, (header, input) => header.clientHeight > 0 && input.clientHeight === 0);
+		},
+	}),
+
+	ValidationError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderLayoutCarousel(context, createCarousel([{
+			id: 'owner',
+			type: 'text',
+			title: 'Who owns this release?',
+			description: deploymentDescription,
+			detailedMessage: new MarkdownString('Provide a release owner before continuing.'),
+			required: true,
+		}], false), (header, input) =>
+			header.clientHeight > 0 && input.clientHeight > 0 &&
+			context.container.querySelector<HTMLElement>('.chat-question-validation-message')!.offsetHeight > 0,
+			part => {
+				const submit = part.domNode.querySelector<HTMLElement>('.chat-question-submit-button');
+				if (!submit) {
+					throw new Error('Expected a Submit button');
+				}
+				submit.click();
+			}),
+	}),
+
+	CompletedConversation: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => {
+			const carousel = createCarousel(Array.from({ length: 10 }, (_, index) => ({
+				id: `review-${index}`,
+				type: 'text',
+				title: `Release checklist item ${index + 1}`,
+			})));
+			carousel.answerPresentation = 'conversation';
+			carousel.isUsed = true;
+			carousel.data = Object.fromEntries(carousel.questions.map(question => [question.id, 'Reviewed and approved']));
+			renderCarousel(context, carousel);
+		},
+	}),
+
+	ExpandedCompletedConversation: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: async context => {
+			const carousel = createDeploymentCarousel(12, '');
+			carousel.questions.splice(1);
+			carousel.answerPresentation = 'conversation';
+			carousel.isUsed = true;
+			carousel.data = { strategy: { selectedValue: 'strategy-0' } };
+			renderCarousel(context, carousel, false, {}, part => {
+				const answer = part.domNode.querySelector<HTMLElement>('.chat-question-answer-collapsible .monaco-button');
+				if (!answer) {
+					throw new Error('Expected an expandable answer');
+				}
+				answer.click();
+			});
+			await waitForFixtureCondition(() => {
+				const card = context.container.querySelector<HTMLElement>('.chat-question-carousel-container')!;
+				const options = card.querySelectorAll('.chat-question-summary-option');
+				return options.length === 12 && card.clientHeight > Math.min(420, dom.getWindow(card).innerHeight * 0.45);
+			}, 'Completed answer options must expand beyond the interactive height limit');
+		},
 	}),
 
 	HarnessSwitchSurveyReason: defineComponentFixture({

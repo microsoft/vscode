@@ -226,33 +226,36 @@ suite('GitHub REST rate limits', () => {
 		for (const accountId of [undefined, account.accountId]) {
 			test(`queued bootstrap ${resource} cooldown survives ${accountId ? 'known-account' : 'unknown-account'} credential replacement`, () => runWithFakedTimers({}, async () => {
 				const started = new DeferredPromise<void>();
-				const response = new DeferredPromise<Response>();
+				const response = new DeferredPromise<void>();
 				const blockedUntil: number[] = [];
 				let calls = 0;
 				const service = store.add(new GitHubService({
 					fetch: async () => {
 						calls++;
 						await started.complete();
-						return response.p;
+						await response.p;
+						return Response.json({}, {
+							status: 403, headers: { 'x-ratelimit-resource': resource, 'x-ratelimit-remaining': '0', 'retry-after': '60' },
+						});
 					},
 				}, new NullLogService(), NullTelemetryService));
 				const options = { apiBaseUri: origin, accountId };
 				const first = store.add(service.acquireBootstrapClient({ ...options, token: 'first' }));
 				const peer = store.add(service.acquireBootstrapClient({ ...options, token: 'peer' }));
-				const firstRejected = assert.rejects(first.object.get('/repos/o/r/check-runs/1', signal()), { kind: 'rateLimit' });
+				const firstRejected = Promise.all(Array.from({ length: 8 }, (_, index) =>
+					assert.rejects(first.object.get(`/repos/o/r/check-runs/${index + 1}`, signal()), { kind: 'rateLimit' })));
 				await started.p;
+				await timeout(0);
 				const peerRejected = assert.rejects(peer.object.get('/repos/other/repo/check-suites/2', signal(), {
 					deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time),
 				}), { kind: 'rateLimit', statusCode: 429 });
-				await response.complete(Response.json({}, {
-					status: 403, headers: { 'x-ratelimit-resource': resource, 'x-ratelimit-remaining': '0', 'retry-after': '60' },
-				}));
+				await response.complete();
 				await Promise.all([firstRejected, peerRejected]);
 				first.dispose();
 				peer.dispose();
 				const replacement = store.add(service.acquireBootstrapClient({ apiBaseUri: origin, accountId: account.accountId, token: 'replacement' })).object;
 				await assert.rejects(replacement.get('/repos/o/r/check-runs/3', signal(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
-				assert.deepStrictEqual({ calls, notified: blockedUntil.some(time => time > Date.now()) }, { calls: 1, notified: true });
+				assert.deepStrictEqual({ calls, notified: blockedUntil.some(time => time > Date.now()) }, { calls: 8, notified: true });
 			}));
 		}
 	}

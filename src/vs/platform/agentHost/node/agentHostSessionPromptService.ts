@@ -28,7 +28,7 @@ export class AgentHostSessionPromptService implements IAgentHostSessionPromptSer
 	) { }
 
 	async startSessionPrompt(config: IAgentCreateSessionConfig, prompt: string): Promise<URI> {
-		const session = await this._agentService.createSession(config);
+		const session = await this._agentService.createSession({ ...config, legacyChatUris: undefined });
 		try {
 			const defaultChat = this._chatOwnership.getDefaultChat(session.toString());
 			if (defaultChat === undefined) {
@@ -37,7 +37,7 @@ export class AgentHostSessionPromptService implements IAgentHostSessionPromptSer
 			this._turnService.startTurnMessage(URI.parse(defaultChat), {
 				text: prompt,
 				origin: { kind: MessageKind.User },
-			});
+			}, config.credentials);
 			return session;
 		} catch (error) {
 			await this._agentService.disposeSession(session);

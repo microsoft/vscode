@@ -88,10 +88,9 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsChatFork: true,
-	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,
-	// so a provider fork silently starts with fresh context.
-	supportsChatForkE2E: false,
+	supportsChatForkE2E: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

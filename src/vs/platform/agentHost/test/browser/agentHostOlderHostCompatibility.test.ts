@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getOlderHostDefaultChat } from '../../browser/agentHostOlderHostCompatibility.js';
+import { getOlderHostDefaultChat, getOlderHostSubagentChatUri } from '../../browser/agentHostOlderHostCompatibility.js';
 import type { InitializeResult } from '../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI, type RootState } from '../../common/state/sessionState.js';
@@ -40,5 +40,24 @@ suite('getOlderHostDefaultChat', () => {
 			unmarkedHost: undefined,
 			unknownHost: undefined,
 		});
+	});
+});
+
+suite('getOlderHostSubagentChatUri', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function host(meta: Record<string, boolean>): InitializeResult {
+		return { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 0 }], _meta: meta };
+	}
+
+	test('derives a shaped URI only for a positively identified older VS Code host', () => {
+		const session = 'copilotcli:/session';
+		const derive = (initialize: InitializeResult | undefined) => getOlderHostSubagentChatUri(session, 'tc-1', initialize, undefined) !== undefined;
+		assert.deepStrictEqual({
+			olderVSCodeHost: derive(host({ 'vscode.agentHost': true })),
+			chatUriAwareHost: derive(host({ 'vscode.agentHost': true, 'vscode.ahpChatUris': true })),
+			unmarkedHost: derive(host({})),
+			unknownHost: derive(undefined),
+		}, { olderVSCodeHost: true, chatUriAwareHost: false, unmarkedHost: false, unknownHost: false });
 	});
 });

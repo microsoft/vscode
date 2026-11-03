@@ -60,34 +60,39 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		} finally {
 			ref.dispose();
 		}
-		if (delegations.size === 0) {
-			return turns;
-		}
-		return turns.map(turn => {
-			const raw = delegations.get(turn.id);
-			if (!raw) {
-				return turn;
-			}
-			let delegation;
-			try {
-				delegation = parseAgentMessageDelegationMeta(JSON.parse(raw));
-			} catch {
-				return turn;
-			}
-			if (!delegation) {
-				return turn;
-			}
-			return {
-				...turn,
-				message: {
-					...turn.message,
-					origin: { kind: MessageKind.Agent },
-					_meta: {
-						...turn.message._meta,
-						...toAgentMessageDelegationMeta(delegation),
-					},
-				},
-			};
-		});
+		return applyPersistedTurnDelegations(turns, delegations);
 	}
+}
+
+/** Projects persisted delegation metadata without registering a live chat. */
+export function applyPersistedTurnDelegations(turns: readonly Turn[], delegations: ReadonlyMap<string, string>): readonly Turn[] {
+	if (delegations.size === 0) {
+		return turns;
+	}
+	return turns.map(turn => {
+		const raw = delegations.get(turn.id);
+		if (!raw) {
+			return turn;
+		}
+		let delegation;
+		try {
+			delegation = parseAgentMessageDelegationMeta(JSON.parse(raw));
+		} catch {
+			return turn;
+		}
+		if (!delegation) {
+			return turn;
+		}
+		return {
+			...turn,
+			message: {
+				...turn.message,
+				origin: { kind: MessageKind.Agent },
+				_meta: {
+					...turn.message._meta,
+					...toAgentMessageDelegationMeta(delegation),
+				},
+			},
+		};
+	});
 }

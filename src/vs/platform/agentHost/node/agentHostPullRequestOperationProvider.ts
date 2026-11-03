@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { SessionArtifactType, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readFolderGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
 import { resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
@@ -19,7 +19,8 @@ import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } fr
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState } from '../common/agentMerge.js';
+import { readAgentMergeFolderState } from '../common/agentMerge.js';
+import { isAgentMergeEnabled } from './agentMergeConfiguration.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
@@ -39,7 +40,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostPullRequestStatusService private readonly _pullRequestStatusService: IAgentHostPullRequestStatusService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -60,7 +61,10 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const createAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		const createDraftAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
-		store.add(registry.registerChangesetOperationHandler(PREPARE_PULL_REQUEST_OPERATION_ID, { invoke: (params, token) => createPrHandler.prepare(params, token) }));
+		store.add(registry.registerChangesetOperationHandler(PREPARE_PULL_REQUEST_OPERATION_ID, {
+			captureCredentialSource: (params, source) => createPrHandler.captureCredentialSource(params, source),
+			invoke: (params, token, source) => createPrHandler.prepare(params, token, source),
+		}));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR, createDraftPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_MERGE, createAutoMergePrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_SQUASH, createAutoSquashPrHandler));
@@ -151,7 +155,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	}
 
 	private _isAgentMergeEnabled(): boolean {
-		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true;
+		return isAgentMergeEnabled(this._configurationService);
 	}
 
 	/**
@@ -265,7 +269,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		const chat = event.conversationChat ?? resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
 		const artifacts = new SessionArtifacts(this._stateManager, sessionKey, chat, async (session, entries) => {
-			await persistSessionMetadataValues(this._sessionDataService, session, {
+			await persistSessionMetadataValues(this._sessionStateStore, session, {
 				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),
 			});
 		});
@@ -282,6 +286,6 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);
-		void this._registry?.refreshSessionGitState(event.ownerUri);
+		void this._registry?.refreshSessionGitState(event.ownerUri, event.credentialSource);
 	}
 }

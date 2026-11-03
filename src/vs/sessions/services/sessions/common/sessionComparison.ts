@@ -112,6 +112,7 @@ export interface ISessionComparisonVerdict {
 export const SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH = 1000;
 export const SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS = 32;
 export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
+export const SESSION_COMPARISON_MIN_ATTEMPTS = 2;
 export const SESSION_COMPARISON_MAX_ATTEMPTS = 10;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
 
@@ -132,7 +133,7 @@ export interface ISessionComparison {
 	readonly groupId: string;
 	readonly title: string;
 	readonly createdAt: number;
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	/** Transient while the initial attempt sessions are still being created. */
 	readonly launching?: boolean;
@@ -151,7 +152,7 @@ export interface ISessionComparison {
 }
 
 export interface IStartSessionComparisonOptions {
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
@@ -182,35 +183,43 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {
 	if (!branch) {
-		return localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.");
-	}
-	if (hasGitRemote !== true) {
-		return localize('sessionComparison.gitRemoteRequired', "Comparisons require a Git remote.");
+		return localize('sessionComparison.gitBranchRequired', "Comparisons require a Git repository with branch information.");
 	}
 	return undefined;
 }
 
-export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
-	return getSessionComparisonHarnessDisplayLabel(participant.harness);
+export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant, includeHarness = true): string {
+	return getSessionComparisonHarnessDisplayLabel(participant.harness, includeHarness);
 }
 
 export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, attemptNumber: number): string {
 	return localize('sessionComparison.attemptLabel', "Attempt {0} ({1})", attemptNumber, getSessionComparisonHarnessLabel(participant));
 }
 
-export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness): string {
+export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness, includeHarness = true): string {
+	const configurationLabel = getSessionComparisonHarnessConfigurationLabel(harness);
+	if (!includeHarness) {
+		if (harness.modelLabel && configurationLabel) {
+			return localize('sessionComparison.modelAndConfiguration', "{0} · {1}", harness.modelLabel, configurationLabel);
+		}
+		return harness.modelLabel || configurationLabel || harness.label;
+	}
 	const harnessLabel = harness.modelLabel
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
 		: harness.label;
-	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
-	const configurationLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
-		? getReasoningEffortLabel(reasoningEffort)
-		: harness.modelConfigurationLabel;
 	return configurationLabel
 		? localize('sessionComparison.harnessModelAndConfiguration', "{0} · {1}", harnessLabel, configurationLabel)
 		: harnessLabel;
+}
+
+/** The reasoning effort or other model configuration of a harness, such as "High". */
+export function getSessionComparisonHarnessConfigurationLabel(harness: ISessionComparisonHarness): string | undefined {
+	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
+	return typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
+		? getReasoningEffortLabel(reasoningEffort)
+		: harness.modelConfigurationLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {

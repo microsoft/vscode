@@ -20,6 +20,7 @@ import { supportsAgentHostDevContainers } from '../../../../../platform/agentHos
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
@@ -29,6 +30,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -322,6 +324,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
@@ -401,7 +404,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					}
 				}));
 			}
-			const result = await mainService.connect({
+			let result = await mainService.connect({
 				connectionId,
 				...source,
 				name,
@@ -433,7 +436,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				connectionIds.add(reconnectConnectionId);
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
-					await mainService.connect({
+					result = await mainService.connect({
 						connectionId: reconnectConnectionId,
 						...source,
 						name,
@@ -481,6 +484,11 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
 				sandboxSupported: result.sandboxSupported,
+				clientCertificates: remoteService ? undefined : {
+					isEnabled: () => result.sharesClientNetwork === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
+					loadCertificates: () => this._requestService.loadCertificates(),
+				},
+				clientProxy: remoteService ? undefined : this._instantiationService.createInstance(AgentHostClientProxy, () => result.sharesClientNetwork === true),
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,
@@ -564,7 +572,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('chat.agentHost.devContainer.samples.enabled', "Show Dev Container samples in the Agents window workspace picker. The sample is cloned into a Docker volume and started when you send the first prompt. Requires Dev Container Agent Host sessions to be enabled."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[DevContainerIdleTimeoutSettingId]: {

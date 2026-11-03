@@ -13,13 +13,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { Response, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import type { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
@@ -479,7 +480,7 @@ suite('ChatResponseAccessibleView', () => {
 		});
 
 		test('describes a created session using its full title when available', () => {
-			const sessionData: IChatSessionCreatedData = {
+			const sessionData: IChatSessionTargetData = {
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://local/session',
 				label: 'Implement issue',
@@ -674,6 +675,30 @@ suite('ChatResponseAccessibleView', () => {
 	});
 
 	suite('getProvider', () => {
+		test('reads the focused artifact action snapshot and restores focus to its request', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const presentation = createTestArtifactRequestPresentation();
+			const request = upcastPartial<IChatRequestViewModel>({
+				message: { text: 'Model-facing instructions', parts: [] },
+				isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation,
+			});
+			let restored = false;
+			const widget = upcastPartial<IChatWidget>({
+				hasInputFocus: () => false, getFocus: () => request,
+				focus: item => { restored = item === request; },
+			});
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: widget }));
+			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+			const provider = instantiationService.invokeFunction(accessor => new ChatResponseAccessibleView().getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			provider.onClose();
+			assert.deepStrictEqual({ content: provider.provideContent(), restored }, {
+				content: 'Analyse Scorecard: Experiment 42\nSearch ranking\nScorecard\nResults are ready to analyse.\nState: Completed\nSuccessful searches: +2.3%',
+				restored: true,
+			});
+		});
+
 		test('omits thinking content when disabled in storage', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const storageService = store.add(new TestStorageService());

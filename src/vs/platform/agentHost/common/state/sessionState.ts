@@ -13,6 +13,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { isUUID } from '../../../../base/common/uuid.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
@@ -89,6 +90,7 @@ export {
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
+	type ChatConfigState,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
@@ -646,6 +648,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
 	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
 	if (summary._meta !== undefined) { state._meta = summary._meta; }
+	if (summary.origin !== undefined) { state.origin = summary.origin; }
 	return state;
 }
 
@@ -665,6 +668,8 @@ export function createChatState(summary: ChatSummary): ChatState {
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
 		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
+		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
+		...(summary.provider !== undefined ? { provider: summary.provider } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -766,6 +771,8 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	if (state.changes !== undefined) { summary.changes = state.changes; }
+	if (state.movable !== undefined) { summary.movable = state.movable; }
+	if (state.provider !== undefined) { summary.provider = state.provider; }
 	return summary;
 }
 
@@ -878,11 +885,6 @@ export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): stri
 
 const SUBAGENT_CHAT_ID = 'subagent';
 
-export function isSubagentChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	const parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
-	return parsed.scheme === AHP_CHAT_SCHEME && parsed.authority === SUBAGENT_CHAT_ID;
-}
-
 export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
 	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
@@ -926,15 +928,71 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { chatId: string }
 	}
 }
 
+const canonicalOpaqueChatPrefix = `${AHP_CHAT_SCHEME}:/`;
+
 /**
- * Resolves a client chat id (a chat resource fragment) to a chat of the
- * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
- * advertised default chat as the caller resolved it.
+ * The uuid of a canonical opaque chat URI (`ahp-chat:/<uuid>` with nothing
+ * else), or `undefined` for any other resource.
  */
+export function getCanonicalOpaqueChatUuid(resource: ResourceURI | string): string | undefined {
+	const value = resource.toString();
+	if (!value.startsWith(canonicalOpaqueChatPrefix)) {
+		return undefined;
+	}
+	const uuid = value.slice(canonicalOpaqueChatPrefix.length);
+	return isUUID(uuid) ? uuid : undefined;
+}
+
+/**
+ * The client chat id (a chat resource fragment) of a chat. Deterministic per
+ * URI so persisted fragments never change: the short uuid of a canonical
+ * opaque chat, the parsed id of a shaped chat other than `default`, and the
+ * full URI for everything else. The recorded default chat is addressed by an
+ * empty fragment or {@link DEFAULT_CHAT_ID}, never by this id.
+ */
+export function getAgentHostChatId(resource: ResourceURI | string): string {
+	const uuid = getCanonicalOpaqueChatUuid(resource);
+	if (uuid !== undefined) {
+		return uuid;
+	}
+	const chatId = parseChatUri(resource)?.chatId;
+	return chatId !== undefined && chatId !== DEFAULT_CHAT_ID ? chatId : resource.toString();
+}
+
+const sessionChatResourceIndexes = new WeakMap<readonly Pick<ChatSummary, 'resource'>[], {
+	readonly byResource: ReadonlyMap<string, ProtocolURI>;
+	readonly byId: ReadonlyMap<string, ProtocolURI>;
+}>();
+
+/** Resolves a client chat id against the immutable catalog, preferring exact resources over short ids. */
 export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
-	return chatId === DEFAULT_CHAT_ID
-		? defaultChat
-		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
+	if (chatId === DEFAULT_CHAT_ID) {
+		return defaultChat;
+	}
+	let index = sessionChatResourceIndexes.get(state.chats);
+	if (!index) {
+		const byResource = new Map<string, ProtocolURI>();
+		const byId = new Map<string, ProtocolURI>();
+		for (const chat of state.chats) {
+			const resource = chat.resource;
+			const key = resource.toString();
+			const id = getAgentHostChatId(resource);
+			if (!byResource.has(key)) {
+				byResource.set(key, resource);
+			}
+			if (!byId.has(id)) {
+				byId.set(id, resource);
+			}
+		}
+		index = { byResource, byId };
+		sessionChatResourceIndexes.set(state.chats, index);
+	}
+	return index.byResource.get(chatId) ?? index.byId.get(chatId);
+}
+
+/** Returns `true` when `chatId` addresses the session's advertised `defaultChat` (rule 7 matching, exact URI first). */
+export function isSessionDefaultChatId(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): boolean {
+	return defaultChat !== undefined && getSessionChatResource(state, chatId, defaultChat)?.toString() === defaultChat.toString();
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
@@ -970,7 +1028,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on this chat. */
+	/** Steering and queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
 	draft?: Message;
@@ -2008,8 +2066,7 @@ export function isSessionStatusRead(status: SessionStatus | undefined): boolean 
  */
 export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
 	return origin?.kind !== ChatOriginKind.Tool
-		&& interactivity !== ChatInteractivity.Hidden
-		&& !isSubagentChatUri(resource);
+		&& interactivity !== ChatInteractivity.Hidden;
 }
 
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
@@ -2041,6 +2098,32 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Summary `_meta` key listing the scratch folders (host-allocated per-chat folders of workspace-less
+ * sessions) a session uses, as an array of folder URI strings.
+ */
+export const SessionScratchFoldersMetaKey = 'vscode.scratchFolders';
+
+/** Reads the scratch folders of a session summary; `[]` when absent or not an array of non-empty strings. */
+export function readSessionScratchFolders(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const value = meta?.[SessionScratchFoldersMetaKey];
+	if (!Array.isArray(value) || !value.every(folder => typeof folder === 'string' && folder.length > 0)) {
+		return [];
+	}
+	return value;
+}
+
+/** Returns a new {@link SessionSummaryMeta} listing `folders`, or without the slot when `folders` is empty; `undefined` if the result would be empty. */
+export function withSessionScratchFolders(meta: SessionSummaryMeta | undefined, folders: readonly string[]): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (folders.length > 0) {
+		next[SessionScratchFoldersMetaKey] = [...folders];
+	} else {
+		delete next[SessionScratchFoldersMetaKey];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

@@ -14,6 +14,7 @@ import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../
 import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/channels-chat/state.js';
+import { SessionOriginKind } from '../common/state/protocol/channels-session/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
 export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 2;
@@ -335,6 +336,10 @@ const artifactValidator = plainObject(vObj({
 	uri: vOptionalProp(boundedString()),
 	commitHash: vOptionalProp(boundedString()),
 	isGitHub: vOptionalProp(vBoolean()),
+	origin: vOptionalProp(plainObject(vObj({
+		chat: uriString(),
+		turnId: vOptionalProp(boundedString()),
+	}))),
 }));
 
 const artifactsValidator = new RefinedValidator(
@@ -371,6 +376,12 @@ const codexSessionModelValidator = new RefinedValidator(plainObject(vObj({
 })), value => readCodexSessionModel({ _meta: { [CODEX_SESSION_MODEL_META_KEY]: value } })
 	? value
 	: { message: 'Expected a canonical Codex provider model selection.' });
+
+export const agentHostCatalogSessionOriginValidator = plainObject(vObj({
+	kind: vEnum(SessionOriginKind.Automation),
+	automation: uriString(),
+	run: uriString(),
+}));
 
 /**
  * The session's `_meta` bag, validated slot by slot under the same well-known
@@ -445,6 +456,7 @@ export const agentHostCatalogDataValidator = plainObject(vObj({
 	isChatBacking: vOptionalProp(vBoolean()),
 	workingDirectories: workingDirectoriesValidator,
 	changes: vOptionalProp(agentHostCatalogChangesValidator),
+	origin: vOptionalProp(agentHostCatalogSessionOriginValidator),
 	_meta: vOptionalProp(metadataValidator),
 	chats: chatsValidator,
 }));

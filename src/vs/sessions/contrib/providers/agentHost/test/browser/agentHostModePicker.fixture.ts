@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -25,6 +25,7 @@ import { IConfigurationService, ConfigurationTarget } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
+import { COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { AgentHostChatInputPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { getLocalAgentHostSessionProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
@@ -36,7 +37,7 @@ import { IChatPetService } from '../../../../../../workbench/contrib/chat/browse
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { trackChatInputPickerFocus } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -47,14 +48,15 @@ import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermis
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 import '../../../../../browser/media/style.css';
 
-async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number } = {}): Promise<void> {
-	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth } = options;
+async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed' } = {}): Promise<void> {
+	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld } = options;
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'interactive-session', 'modern-ui', 'monaco-enable-motion');
 	if (!editor) {
@@ -72,6 +74,10 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	}
 
 	const configuration = new class extends TestConfigurationService {
+		override inspect<T>(key: string) {
+			const value = super.inspect<T>(key);
+			return { ...value, policyValue: withheld === 'policy' && key === ChatConfiguration.GlobalAutoApprove ? value.value : undefined };
+		}
 		override async updateValue(key: string, value: unknown): Promise<void> {
 			await this.setUserConfiguration(key, value);
 			this.onDidChangeConfigurationEmitter.fire({
@@ -83,6 +89,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		}
 	}({
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
+		[ChatConfiguration.GlobalAutoApprove]: false,
 		[AgentSandboxSettingId.AgentSandboxEnabled]: sandboxed ? 'on' : 'off',
 	});
 	disposableStore.add(configuration.onDidChangeConfigurationEmitter);
@@ -108,6 +115,11 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		},
 		values: { mode, autoApprove: permissions },
 	};
+	// Browser fixtures use the client-enforced legacy policy for an authoritative policy reason.
+	if (withheld === 'unattributed') {
+		config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available permissions', readOnly: true };
+		config.values.availableApprovalModes = ['default'];
+	}
 	const configChanged = disposableStore.add(new Emitter<string>());
 	const provider = new class extends mock<IAgentHostSessionsProvider>() {
 		override readonly id = 'local-agent-host';
@@ -115,7 +127,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override getSessionConfig() { return config; }
 		override getCreateSessionConfig() { return newChat ? { ...config.values } : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
-		override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 			config.values[property] = value;
 			configChanged.fire(sessionId);
 		}
@@ -126,6 +138,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override readonly sessionId = 'fixture';
 		override readonly sessionType = 'copilotcli';
 		override readonly resource = URI.parse('agent-host-copilotcli:/fixture');
+		override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/fixture') }));
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
 	const connection = new class extends mock<IAgentConnection>() {
@@ -138,6 +151,10 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		resolveSessionResource: resource => ({ connection, connectionAuthority: 'local', backendSession: resource }),
 	});
 	instantiationService.set(IConfigurationService, configuration);
+	if (withheld === 'policy') {
+		const managedSettings: ManagedSettingsData = { [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true, [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' };
+		instantiationService.set(IManagedSettingsService, { _serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettings: () => managedSettings, getManagedSettingValue: key => managedSettings[key] });
+	}
 	if (phoneWidth !== undefined) {
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
 	}
@@ -224,6 +241,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => config, refreshResolvedConfig: async () => { } });
+		instantiationService.set(IChatSessionsService, new class extends mock<IChatSessionsService>() { }());
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = Event.None;
 			override readonly viewModel = new class extends mock<IChatViewModel>() {
@@ -307,5 +325,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }
 	NewChatSeparatePermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true, { newChat: true, combined: false }) }),
 	MobilePermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, { newChat: true, combined: false, phoneWidth: 390 }) }),
 	MobilePermissionsNarrow: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, { newChat: true, combined: false, phoneWidth: 320 }) }),
+	PolicyDisabledPermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { withheld: 'policy' }) }),
+	PolicyDisabledSeparatePermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { combined: false, withheld: 'policy' }) }),
+	PolicyDisabledEditorPermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { editor: true, withheld: 'policy' }) }),
+	PolicyDisabledEditorSeparatePermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { editor: true, combined: false, withheld: 'policy' }) }),
+	PolicyDisabledNewChatSeparatePermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { newChat: true, combined: false, withheld: 'policy' }) }),
+	UnavailablePermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { withheld: 'unattributed' }) }),
+	UnavailableEditorSeparatePermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { editor: true, combined: false, withheld: 'unattributed' }) }),
+	PolicyDisabledMobilePermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, true, { newChat: true, combined: false, phoneWidth: 390, withheld: 'policy' }) }),
 	NewChatCompact: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, false, { newChat: true, compact: true }) }),
 });

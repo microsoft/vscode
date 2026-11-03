@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Wipes an activity label out and the next one in, with a shimmer as it arrives. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+	.monaco-enable-motion .chat-activity-label-wipe-out,
+	.monaco-enable-motion .chat-activity-label-wipe-in {
+		-webkit-mask-repeat: no-repeat;
+		mask-repeat: no-repeat;
+		-webkit-mask-size: 300% 100%;
+		mask-size: 300% 100%;
+	}
+
+	.monaco-enable-motion .chat-activity-label-wipe-out {
+		-webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
+		mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
+		animation: chat-activity-label-wipe-out 220ms ease-in forwards;
+	}
+
+	.monaco-enable-motion .chat-activity-label-wipe-in {
+		-webkit-mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
+		mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-foreground) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
+		background-size: 250% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-activity-label-wipe-in 480ms ease-out forwards;
+	}
+
+	/* Inline code paints its own background over the shimmer, so its text keeps its color. */
+	.monaco-enable-motion .chat-activity-label-wipe-in code {
+		-webkit-text-fill-color: currentColor;
+	}
+}
+
+@keyframes chat-activity-label-wipe-out {
+	from {
+		-webkit-mask-position: 100% 0;
+		mask-position: 100% 0;
+		opacity: 1;
+	}
+
+	to {
+		-webkit-mask-position: 0% 0;
+		mask-position: 0% 0;
+		opacity: 0;
+	}
+}
+
+@keyframes chat-activity-label-wipe-in {
+	from {
+		-webkit-mask-position: 100% 0;
+		mask-position: 100% 0;
+		background-position: 120% 0;
+		opacity: 0;
+	}
+
+	to {
+		-webkit-mask-position: 0% 0;
+		mask-position: 0% 0;
+		background-position: -20% 0;
+		opacity: 1;
+	}
+}

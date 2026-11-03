@@ -14,7 +14,7 @@ import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = DOM.$;
 
@@ -159,6 +159,8 @@ export interface IMobilePickerSheetSearchSource {
 	readonly ariaLabel?: string;
 	/** Message rendered inside the result list when zero results are returned. */
 	readonly emptyMessage?: string;
+	/** Notifies the sheet that the current query's results have changed. */
+	readonly onDidChangeItems?: Event<void>;
 	/** Loads the result rows for the given query. */
 	loadItems(query: string, token: CancellationToken): Promise<readonly IMobilePickerSheetItem[]>;
 	/**
@@ -493,6 +495,11 @@ export function showMobilePickerSheet(
 			};
 			const inputListener = DOM.addDisposableListener(searchInput, 'input', onInput);
 			disposables.add(inputListener);
+			if (search.onDidChangeItems) {
+				disposables.add(search.onDidChangeItems(() => {
+					void renderResults(searchInput!.value);
+				}));
+			}
 
 			// Initial population (empty query).
 			renderResults('');
@@ -662,6 +669,7 @@ function buildMobileSheetShell(
 	let closed = false;
 	const headerFocusTargets: HTMLButtonElement[] = [];
 	let bodyFocusTargets: readonly HTMLElement[] = [];
+	const hoverDelegate = disposables.add(createInstantHoverDelegate());
 
 	// -- DOM: backdrop + sheet -------------------------------------
 	const overlay = DOM.append(workbenchContainer, $('div.mobile-picker-sheet-overlay'));
@@ -679,7 +687,7 @@ function buildMobileSheetShell(
 	const titleEl = DOM.append(titleRow, $('div.mobile-picker-sheet-title'));
 	titleEl.textContent = title;
 	if (options.iconClose) {
-		disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), titleEl, title));
+		disposables.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, titleEl, title));
 	}
 
 	// Optional header actions (icon buttons) rendered between the
@@ -690,11 +698,7 @@ function buildMobileSheetShell(
 			const btn = DOM.append(titleRow, $('button.mobile-picker-sheet-header-action', { type: 'button' })) as HTMLButtonElement;
 			btn.setAttribute('aria-label', action.label);
 			headerFocusTargets.push(btn);
-			if (options.iconClose) {
-				disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), btn, action.label));
-			} else {
-				btn.title = action.label;
-			}
+			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, btn, action.label));
 			const iconHost = DOM.append(btn, $('span.mobile-picker-sheet-header-action-icon'));
 			const iconEl = DOM.append(iconHost, $('span.mobile-picker-sheet-header-action-icon-glyph'));
 			iconEl.classList.add(...ThemeIcon.asClassNameArray(action.icon));
@@ -750,7 +754,7 @@ function buildMobileSheetShell(
 			doneBtn.classList.add('mobile-picker-sheet-header-action');
 			const icon = DOM.append(doneBtn, $('span.mobile-picker-sheet-header-action-icon-glyph', { 'aria-hidden': 'true' }));
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
-			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), doneBtn, closeLabel));
+			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, doneBtn, closeLabel));
 		} else {
 			doneBtn.textContent = options.doneLabel ?? localize('mobilePickerSheet.done', "Done");
 		}

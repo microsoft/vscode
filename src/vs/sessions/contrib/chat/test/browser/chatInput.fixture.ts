@@ -124,7 +124,7 @@ const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
 			properties: {
 				reasoningEffort: {
 					type: 'string',
-					title: 'Thinking Effort',
+					title: 'Effort Level',
 					group: 'navigation',
 					enum: ['low', 'medium', 'high', 'max'],
 					enumItemLabels: ['Low', 'Medium', 'High', 'Max'],

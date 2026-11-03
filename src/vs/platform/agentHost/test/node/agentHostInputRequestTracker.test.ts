@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type AgentSubagentKind, type IAgentTelemetryContext } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -14,27 +13,7 @@ import { ActionType, type ChatInputCompletedAction } from '../../common/state/se
 import { buildDefaultChatUri, buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, type ChatInputAnswer, type ChatInputRequest, type ChatState } from '../../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from '../../node/agentHostInputRequestTracker.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
-
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
-	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
-}
+import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
 
 suite('AgentHostInputRequestTracker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -241,7 +220,7 @@ suite('AgentHostInputRequestTracker', () => {
 
 	test('emits subagent identifiers and what the subagent chat represents', () => {
 		const phaseChat = buildSubagentChatUri(rootSession, 'fusion:fusion-1:phase-1');
-		const { telemetry, tracker } = createTracker(undefined, undefined, session => session === phaseChat ? 'fusionPhase' : undefined);
+		const { telemetry, tracker } = createTracker(undefined, undefined, session => session === phaseChat ? 'fusionPhase' : session === subagentChat ? 'task' : undefined);
 		const request: ChatInputRequest = withChatInputRequestPurpose({ id: 'request-1', questions: [] }, ChatInputRequestPurpose.AskUser);
 
 		for (const chat of [subagentChat, phaseChat]) {

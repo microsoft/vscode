@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
@@ -94,13 +93,11 @@ class FakeStateManager extends AgentHostStateManager {
 
 suite('AgentHostChatCompletionProvider', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('announces only "#" as a trigger character via IAgentHostCompletions', () => {
-		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
 		const stateManager = disposables.add(new FakeStateManager([]));
+		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), stateManager));
 		disposables.add(completions.registerProvider(new AgentHostChatCompletionProvider(stateManager)));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Hash]);
 	});
@@ -140,7 +137,7 @@ suite('AgentHostChatCompletionProvider', () => {
 			const provider = new AgentHostChatCompletionProvider(stateManager);
 			return provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel, text, offset },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 		}
 

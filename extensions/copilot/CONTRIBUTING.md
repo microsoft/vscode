@@ -74,8 +74,8 @@ Please include the following with each issue:
 
 ### First-time setup
 - On Windows you need to run `Set-ExecutionPolicy Unrestricted` as admin in Powershell.
-- `npm install`
-- `npm run get_token`
+- `pnpm install`
+- `pnpm run get_token`
 - Then you can run the build task with `Cmd+Shift+B` (or `Ctrl+Shift+B` if you are on Windows), or just start the "Launch Copilot Extension - Watch Mode" launch config to start the build then start debugging the extension.
 
 **Tip:** If "Launch Copilot Extension - Watch Mode" doesn't work for you, try using the "Launch Copilot Extension" debug configuration instead.
@@ -88,23 +88,25 @@ If you hit errors while running tests, ensure that you are using the correct Nod
 There are unit tests which run in Node.JS:
 
 ```
-npm run test:unit
+pnpm run test:unit
 ```
 
 There are also integration tests that run within VS Code itself:
 
 ```
-npm run test:extension
+pnpm run test:extension
 ```
 
 Finally, there are **simulation tests**. These tests reach out to Copilot API endpoints, invoke LLMs and require expensive computations to run. Each test runs 10 times, to accommodate for the stochastic nature of LLMs themselves. The results of all runs of all tests are snapshotted in the baseline file, [`test/simulation/baseline.json`](test/simulation/baseline.json), which encodes the quality of the test suite at any given point in time.
+
+The legacy chat-panel and code-editor inline chat-widget simulation suites have been retired, including the multi-file Edit-mode variants and all suites labelled `[panel]`. Panel chat now runs through the Agent Host Protocol; add panel end-to-end coverage to the [Agent Host E2E tests](../../src/vs/platform/agentHost/test/node/e2e/README.md). Non-panel code-mapper, notebook, standalone review, and prompt tests remain, as do inline-completion and next-edit-suggestion simulations. This test cleanup does not remove runtime features or change CI gates.
 
 Because LLM results are both random and costly, they are cached within the repo in `test/simulation/cache`. This means rerunning the simulation tests and benefiting from the cache will make the test run be both faster as well as deterministic.
 
 You can run the simulation tests with:
 
 ```
-npm run simulate
+pnpm run simulate
 ```
 
 Keep in mind that PRs will fail unless the cache is populated. Running the command above will populate the cache by creating new cache layers in `test/simulation/cache/layers`. This cache population must be done by VS Code team members. If a community member submits a PR with new cache layer(s), the PR will fail and a VS Code team member must delete the layer(s) and recreate them within their dev box.
@@ -112,18 +114,18 @@ Keep in mind that PRs will fail unless the cache is populated. Running the comma
 You can ensure the cache is populated with:
 
 ```
-npm run simulate-require-cache
+pnpm run simulate-require-cache
 ```
 
 Finally, the PR will also fail with any uncommitted baseline changes. If you do see change test results locally, and would like to accept the new baseline for the simulation tests, you should update the baseline and include that change in your commit:
 
 ```
-npm run simulate-update-baseline
+pnpm run simulate-update-baseline
 ```
 
 ### Use `base/common` utils
 
-We like and miss our utilities from the 'microsoft/vscode' repo, esp those from base/common, like async.ts, strings.ts, map.ts etc pp. Instead of copying them manually and maintaining them in here, we can use them from the vscode repo. To do so, there is a the `script/setup/copySources.ts` script. Towards the end you'll find a list of modules that are copied from the vscode repo. If you need a module from vscode, add it to the list and run `npx tsx script/setup/copySources.ts`. Have this repo as sibling to the vscode repo and it will copy the modules from the vscode repo into `src/util/vs`. Note that the `src/util/vs` folder is marked as readonly and that changes to the copied sources should be carried out in the vscode repo.
+We like and miss our utilities from the 'microsoft/vscode' repo, esp those from base/common, like async.ts, strings.ts, map.ts etc pp. Instead of copying them manually and maintaining them in here, we can use them from the vscode repo. To do so, there is a the `script/setup/copySources.ts` script. Towards the end you'll find a list of modules that are copied from the vscode repo. If you need a module from vscode, add it to the list and run `pnpm exec tsx script/setup/copySources.ts`. Have this repo as sibling to the vscode repo and it will copy the modules from the vscode repo into `src/util/vs`. Note that the `src/util/vs` folder is marked as readonly and that changes to the copied sources should be carried out in the vscode repo.
 
 ## Developing Prompts
 
@@ -245,7 +247,7 @@ Running the extension out of sources in their runtimes:
 * `node`: just use the launch configuration ("Launch Copilot Extension")
 * `web`
   * ensure an entry `"browser": "./dist/web"` in `package.json`
-  * run `npm run web`
+  * run `pnpm run web`
   * in your browser open `http://localhost:3000`
   * in VS Code configure the hidden setting `chat.experimental.serverlessWebEnabled` to `true` (reload if this is the first time you set it)
 
@@ -309,6 +311,8 @@ The view also has entries for tool calls on their own, and a prompt-tsx debug vi
 ## API updates
 
 When updating VS Code proposed extension API that is used by the extension, the `engines.vscode` field in `package.json` is used to make sure that the version of the extension that gets installed will be compatible with the version of VS Code.
+
+When adding a proposal to `enabledApiProposals` in `package.json`, also add it to `extensionEnabledApiProposals["GitHub.copilot-chat"]` in the applicable `microsoft/vscode-distro` product mixins. Product builds override the extension's proposal declarations with this allowlist; running from sources or in extension development mode does not expose missing entries. For example, BYOK Voice Mode requires the `speech` proposal.
 
 ### Updating to the latest API
 

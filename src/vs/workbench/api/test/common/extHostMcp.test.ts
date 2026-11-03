@@ -150,7 +150,6 @@ suite('ExtHostMcp', () => {
 					return { ...createMockResponse({ headers: { 'Content-Type': 'text/event-stream' } }), body: stream };
 				}
 			}(1, { type: McpServerTransportType.HTTP, uri: URI.parse(TEST_MCP_URL), headers: [] }, proxy, store.add(new NullLogService())));
-			store.add(toDisposable(() => reader.releaseLock()));
 			const sending = handle.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
 			await Promise.all([reading.p, backchannelStopped.p]);
 			return { handle, controller, cancel, sending, warnings };

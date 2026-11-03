@@ -17,7 +17,7 @@ import { ICAPIClientService } from '../../../../platform/endpoint/common/capiCli
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, getGitHubCopilotRequestTe, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { FetchOptions, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
@@ -107,13 +107,18 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		it.each([
 			{ requestOptions: {}, expected: { max_tokens: 4096 } },
 			{ requestOptions: { max_tokens: undefined }, expected: {} },
-		])('serializes the output limit for $requestOptions', async ({ requestOptions, expected }) => {
+			{ requestOptions: { max_tokens: undefined, max_completion_tokens: 8192, reasoning_effort: 'low' }, expected: { max_completion_tokens: 8192, reasoning_effort: 'low' } },
+			{ requestOptions: { max_tokens: undefined, max_completion_tokens: 8192, reasoning_effort: 'none', prediction: { type: 'content', content: 'Hello!' } }, expected: { max_completion_tokens: 8192, reasoning_effort: 'none', prediction: { type: 'content', content: 'Hello!' } } },
+			{ requestOptions: { max_tokens: undefined, prediction: { type: 'content', content: 'Hello!' } }, expected: { prediction: { type: 'content', content: 'Hello!' } } },
+		] satisfies { requestOptions: OptionalChatRequestParams; expected: object }[])('serializes the output limit for $requestOptions', async ({ requestOptions, expected }) => {
 			mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
 			const result = await fetcher.fetchMany({ ...createBaseOpts(), requestOptions }, cancellationTokenSource.token);
 			expect(result.type).toBe(ChatFetchResponseType.Success);
 			const body = JSON.parse(mockFetcherService.serializedBodies[0]);
 			expect({
 				...('max_tokens' in body ? { max_tokens: body.max_tokens } : {}),
+				...('max_completion_tokens' in body ? { max_completion_tokens: body.max_completion_tokens } : {}),
+				...('reasoning_effort' in body ? { reasoning_effort: body.reasoning_effort } : {}),
 				...('prediction' in body ? { prediction: body.prediction } : {}),
 			}).toEqual(expected);
 		});

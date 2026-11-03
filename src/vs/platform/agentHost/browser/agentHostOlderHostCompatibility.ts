@@ -11,7 +11,8 @@
  */
 
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { isNativeAgentHost } from '../common/meta/agentHostSessionUrisMeta.js';
+import { subagentChatUri } from '../common/agentHostChatMinting.js';
+import { isNativeAgentHost, supportsAgentHostChatUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { RootState, URI as ProtocolURI } from '../common/state/sessionState.js';
 
@@ -24,4 +25,15 @@ import type { RootState, URI as ProtocolURI } from '../common/state/sessionState
  */
 export function getOlderHostDefaultChat(session: ProtocolURI, host: InitializeResult | undefined, root: RootState | undefined): ProtocolURI | undefined {
 	return isNativeAgentHost(host, root) ? deriveLegacyDefaultChat(session) : undefined;
+}
+
+/**
+ * The subagent chat URI of a tool call on a positively identified older VS Code
+ * host, which minted shaped subagent chat URIs and neither stamped them on
+ * restored history nor registered them in time. `undefined` for every other
+ * host: a host that supports `vscode.ahpChatUris` or is not recognized as VS
+ * Code records the chat, and the client must read it instead of deriving it.
+ */
+export function getOlderHostSubagentChatUri(session: ProtocolURI, toolCallId: string, host: InitializeResult | undefined, root: RootState | undefined): ProtocolURI | undefined {
+	return isNativeAgentHost(host, root) && !supportsAgentHostChatUris(host) ? subagentChatUri('shaped', session, '', toolCallId) : undefined;
 }

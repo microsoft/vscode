@@ -61,7 +61,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	private _os: OperatingSystem = OS;
 
 	constructor(
-		_extHostContext: IExtHostContext,
+		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService,
 		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
@@ -109,7 +109,11 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			this._proxy.$acceptActiveTerminalChanged(activeInstance.instanceId);
 		}
 		if (this._environmentVariableService.collections.size > 0) {
-			const collectionAsArray = [...this._environmentVariableService.collections.entries()];
+			const hostOS = _extHostContext.remoteAuthority === null ? OS : _extHostContext.remoteOS;
+			if (hostOS === undefined) {
+				throw new Error('Remote extension host operating system is required to restore terminal environment collections.');
+			}
+			const collectionAsArray = [...this._environmentVariableService.getMergedCollection(_extHostContext.remoteAuthority, hostOS).collections.entries()];
 			const serializedCollections: [string, ISerializableEnvironmentVariableCollection][] = collectionAsArray.map(e => {
 				return [e[0], serializeEnvironmentVariableCollection(e[1].map)];
 			});
@@ -467,7 +471,8 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			const translatedCollection = {
 				persistent,
 				map: deserializeEnvironmentVariableCollection(collection),
-				descriptionMap: deserializeEnvironmentDescriptionMap(descriptionMap)
+				descriptionMap: deserializeEnvironmentDescriptionMap(descriptionMap),
+				remoteAuthority: this._extHostContext.remoteAuthority?.toLowerCase() ?? null
 			};
 			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
 		} else {

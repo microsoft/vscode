@@ -10,9 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
-import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -22,7 +21,7 @@ import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -33,6 +32,7 @@ import { AgentMergeCIRequest, createAgentMergeServerToolGroup, parseAgentMergeCI
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
 
 suite('Agent Merge server tools', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -201,12 +201,7 @@ suite('Agent Merge server tools', () => {
 			workingDirectory.toString(),
 			{ pullRequestBranchName: 'main', pullRequestUrls: ['https://github.com/octo/repo/pull/1'] },
 		));
-		stateManager.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'user-turn',
-			startedAt: new Date(0).toISOString(),
-			message: { text: 'Enable Agent Merge', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chat, chatTurnStarted('user-turn', 'Enable Agent Merge', new Date(0).toISOString()));
 
 		const result = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true });
 		const agentMerge = readAgentMergeSessionState(configurationService.getSessionConfigValues(sessionUri));
@@ -484,11 +479,11 @@ suite('Agent Merge server tools', () => {
 					: { outcome, value: { id: 'C2', state: published ? 'SUBMITTED' : 'PENDING' } },
 				resolved: published,
 			};
-			const calls: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
+			const calls: Parameters<PullRequestMutationApi['replyAndResolveThread']>[] = [];
 			const trackedReplies: Promise<PullRequestReplyAndResolveResult>[] = [];
 			const client = createTestGitHubClient({
-				mutations: new class extends mock<IPullRequestMutations>() {
-					override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>) {
+				mutations: new class extends mock<PullRequestMutationApi>() {
+					override async replyAndResolveThread(...args: Parameters<PullRequestMutationApi['replyAndResolveThread']>) {
 						calls.push(args);
 						return mutationResult;
 					}
@@ -498,8 +493,8 @@ suite('Agent Merge server tools', () => {
 			const missing = { status: 'missing' as const, complete: false };
 			const snapshot: PullRequestSnapshot = {
 				ref, generation: 1, headGeneration: 1,
-				core: missing, topLevelComments: missing, submittedReviews: missing, inlineComments: missing,
-				checks: missing, mergeability: missing, participants: missing,
+				core: missing, topLevelComments: missing, submittedReviews: missing,
+				checks: missing, mergeability: missing,
 				reviewThreads: {
 					status: 'ready', complete: true, headSha: 'head',
 					value: [{ id: 'T1', isResolved: false, comments: [{ id: 'C1', author: { login: 'reviewer', association: 'MEMBER' } }] }],
@@ -507,6 +502,7 @@ suite('Agent Merge server tools', () => {
 			};
 			const context: IAgentMergeTurnContext = {
 				client, session: sessionUri, chat: buildDefaultChatUri(sessionUri), folderKey: workingDirectory.toString(),
+				apiClient: createTestGitHubService().acquireRepositoryApiClient(new AbortController().signal),
 				turnId: 'turn', ref, headSha: 'head', actions: ['addressReviews'],
 				configuration: { ...defaultAgentMergeConfiguration, addressReviews: true, replyAttribution: true },
 				snapshot, signal: new AbortController().signal, commentWatermark: '',

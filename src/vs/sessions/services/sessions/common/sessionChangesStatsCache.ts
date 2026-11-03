@@ -45,9 +45,33 @@ export function readChatChangesStats(chat: IChat, reader: IReader | undefined, p
 	return readChangesStats(chat.changesets.read(reader), chat.changes.read(reader), reader, preferredChangesetId);
 }
 
-function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, fallbackChanges: readonly ISessionFileChange[], reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
+/**
+ * Like {@link readChatChangesStats}, but `undefined` while the chat's file list is
+ * not loaded yet, so consumers comparing stats over time do not mistake a
+ * transient empty list for the chat's changes. The file list is not loaded while
+ * the represented changeset is loading, or while it is empty although the chat's
+ * {@link IChat.changesSummary} reports changed files, as for a restored chat whose
+ * provider only knows the summary until it resolves the files.
+ */
+export function readLoadedChatChangesStats(chat: IChat, reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
+	const changeset = selectChangeset(chat.changesets.read(reader), reader, preferredChangesetId);
+	if (changeset?.isLoadingChanges.read(reader)) {
+		return undefined;
+	}
+	const stats = readChatChangesStats(chat, reader, preferredChangesetId);
+	if (stats?.files === 0 && (chat.changesSummary?.read(reader)?.files ?? 0) > 0) {
+		return undefined;
+	}
+	return stats;
+}
+
+function selectChangeset(changesets: readonly ISessionChangeset[] | undefined, reader: IReader | undefined, preferredChangesetId?: string): ISessionChangeset | undefined {
 	const preferredChangeset = preferredChangesetId ? changesets?.find(changeset => changeset.id === preferredChangesetId) : undefined;
-	const defaultChangeset = preferredChangeset ?? changesets?.find(changeset => changeset.isDefault.read(reader));
+	return preferredChangeset ?? changesets?.find(changeset => changeset.isDefault.read(reader));
+}
+
+function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, fallbackChanges: readonly ISessionFileChange[], reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
+	const defaultChangeset = selectChangeset(changesets, reader, preferredChangesetId);
 	const changes = defaultChangeset?.changes.read(reader) ?? fallbackChanges;
 	if (changesets === undefined && fallbackChanges.length === 0) {
 		return undefined;

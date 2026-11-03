@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 
@@ -20,6 +21,7 @@ suite('AgentHostClientConnectionService', () => {
 				hasSeenClient: () => true,
 				isClientConnected: () => true,
 				isLocalClient: clientId => local && clientId === 'local',
+				usesLegacyChatUris: () => false,
 				getConnectedClientTransportCounts: () => new Map(),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async () => false,
@@ -39,6 +41,7 @@ suite('AgentHostClientConnectionService', () => {
 		const service = store.add(new AgentHostClientConnectionService());
 		const request: IAgentHostMcpAuthenticationRequest = {
 			serverName: 'example',
+			target: { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/example', customizationId: 'example-mcp' },
 			auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', authorization_servers: [] } },
 		};
 		const calls: { source: number; request: IAgentHostMcpAuthenticationRequest }[] = [];
@@ -48,6 +51,7 @@ suite('AgentHostClientConnectionService', () => {
 				hasSeenClient: () => false,
 				isClientConnected: () => false,
 				isLocalClient: () => false,
+				usesLegacyChatUris: () => false,
 				getConnectedClientTransportCounts: () => new Map(),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async request => {

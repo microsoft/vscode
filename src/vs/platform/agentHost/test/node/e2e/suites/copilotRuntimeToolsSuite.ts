@@ -13,12 +13,13 @@ import type { ResourceReadResult, SubscribeResult } from '../../../../common/sta
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ToolCallResult, type ToolDefinition } from '../../../../common/state/sessionState.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { getErrorResponsePart, getInlineToolInput, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ToolCallResult, type ToolDefinition } from '../../../../common/state/sessionState.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, driveTurnWithModelToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { anthropicMessageToSse } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
 const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
@@ -128,7 +129,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		await withLiveTools('live-tools-added', async session => {
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('added_probe')]);
-			const input = await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'added_probe', 'added-probe',
+			const input = await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'added_probe', 'added-probe',
 				'Call added_probe exactly once and report its result.');
 			assert.deepStrictEqual(input, {});
 		});
@@ -138,10 +139,10 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		await withLiveTools('live-tools-schema', async session => {
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('schema_probe', 'oldField')]);
-			assert.deepStrictEqual(await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'schema_probe', 'schema-before',
+			assert.deepStrictEqual(await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'schema_probe', 'schema-before',
 				'Call schema_probe exactly once with oldField set to before and report its result.'), { oldField: 'before' });
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('schema_probe', 'newField')]);
-			assert.deepStrictEqual(await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'schema_probe', 'schema-after',
+			assert.deepStrictEqual(await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'schema_probe', 'schema-after',
 				'Call schema_probe exactly once with newField set to after. Use the current schema, not the previous one.'), { newField: 'after' });
 		});
 	});
@@ -150,11 +151,11 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		await withLiveTools('live-tools-description', async session => {
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('description_probe', undefined, 'DESCRIPTION_BEFORE')]);
-			await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'description_probe', 'description-before',
+			await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'description_probe', 'description-before',
 				'Call description_probe exactly once and report its result.');
 			const previous = context.observedModelRequestBodies.length;
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('description_probe', undefined, 'DESCRIPTION_AFTER')]);
-			await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'description_probe', 'description-after',
+			await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'description_probe', 'description-after',
 				'Call description_probe exactly once using its current definition.');
 			assert.ok(context.observedModelRequestBodies.slice(previous).some(body => body.includes('DESCRIPTION_AFTER')));
 		});
@@ -164,11 +165,11 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		await withLiveTools('live-tools-removal', async session => {
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('obsolete_probe')]);
-			await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'obsolete_probe', 'obsolete-before',
+			await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'obsolete_probe', 'obsolete-before',
 				'Call obsolete_probe exactly once and report its result.');
 			const previousRequests = context.observedModelRequestBodies.length;
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('replacement_probe')]);
-			await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'replacement_probe', 'replacement-after',
+			await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'replacement_probe', 'replacement-after',
 				'Call replacement_probe exactly once. The obsolete_probe tool has been removed; do not call it.');
 			const request: {
 				tools: { name: string }[];
@@ -213,14 +214,14 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 						? [{ type: ToolResultContentType.Text, text: 'LEFT_RESULT' }, { type: ToolResultContentType.Text, text: 'RIGHT_RESULT' }]
 						: [{ type: ToolResultContentType.Text, text: variant === 'empty' ? '' : 'EXPECTED_PROBE_FAILURE' }],
 				};
-				await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'result_probe', 'result-first',
+				await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'result_probe', 'result-first',
 					'Call result_probe exactly once. If it fails or is empty, stop and report that without retrying.', result);
 				if (variant === 'multiple text parts') {
 					assert.ok(context.observedModelRequestBodies.some(body => body.includes('LEFT_RESULT') && body.includes('RIGHT_RESULT')));
 				} else if (variant === 'failed') {
 					assert.ok(context.observedModelRequestBodies.some(body => body.includes('EXPECTED_PROBE_FAILURE')));
 				}
-				await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'result_probe', 'result-followup',
+				await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'result_probe', 'result-followup',
 					'Call result_probe exactly once again and report its new result.');
 			});
 		});
@@ -230,7 +231,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		await withLiveTools('live-tools-peer', async session => {
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('peer_probe', 'label')]);
-			const chat = buildChatUri(session.sessionUri, 'tools-peer');
+			const chat = newTestChatUri();
 			await context.client.call('createChat', { channel: session.sessionUri, chat });
 			await context.client.call('subscribe', { channel: chat });
 			assert.deepStrictEqual(await executeClientProbe(chat, session.clientId, 'peer_probe', 'peer-probe',
@@ -241,8 +242,8 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 	test('regression coverage: live client tool replacement reaches both materialized chats', async function () {
 		this.timeout(240_000);
 		await withLiveTools('live-tools-materialized-peer', async session => {
-			const defaultChat = buildDefaultChatUri(session.sessionUri);
-			const peer = buildChatUri(session.sessionUri, 'materialized-peer');
+			const defaultChat = defaultChatChannel(session.sessionUri);
+			const peer = newTestChatUri();
 			await context.client.call('createChat', { channel: session.sessionUri, chat: peer });
 			await context.client.call('subscribe', { channel: peer });
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('shared_probe', 'oldLabel')]);
@@ -260,16 +261,16 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(240_000);
 		await withLiveTools('live-tools-resume', async session => {
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('resume_probe')]);
-			await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'resume_probe', 'probe-before-restart',
+			await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'resume_probe', 'probe-before-restart',
 				'Call resume_probe exactly once and report its result.');
 			await context.restartServer();
 			session.clientId = 'live-tools-resumed-client';
 			await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: session.clientId });
 			await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
 			await context.client.call('subscribe', { channel: session.sessionUri });
-			await context.client.call('subscribe', { channel: buildDefaultChatUri(session.sessionUri) });
+			await context.client.call('subscribe', { channel: defaultChatChannel(session.sessionUri) });
 			await publishTools(session.sessionUri, session.clientId, [probeDefinition('resume_probe')]);
-			await executeClientProbe(buildDefaultChatUri(session.sessionUri), session.clientId, 'resume_probe', 'probe-after-restart',
+			await executeClientProbe(defaultChatChannel(session.sessionUri), session.clientId, 'resume_probe', 'probe-after-restart',
 				'Call resume_probe exactly once again and report its result.');
 		});
 	});
@@ -287,7 +288,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 
 		const compacted = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
 			.map(n => getActionEnvelope(n))
-			.filter(envelope => envelope.channel === buildDefaultChatUri(sessionUri))
+			.filter(envelope => envelope.channel === defaultChatChannel(sessionUri))
 			.flatMap(({ action }) => action.type === ActionType.ChatToolCallComplete && action.turnId === 'turn-shell-compaction'
 				? [textFromContent(action.result.content ?? [])] : [])
 			.find(text => text.includes('Shell output was automatically compacted'));
@@ -325,7 +326,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 	test('runtime tools: an accepted empty response reports a query error instead of completing silently', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession('runtime-empty-response');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-runtime-empty-response';
 		if (RECORD) {
 			context.setRecordingModelResponse({
@@ -359,7 +360,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		const clientId = 'runtime-claude-tool-search';
 		const { sessionUri } = await createSession(clientId);
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		context.client.dispatch({
 			channel: ROOT_STATE_URI,
@@ -465,7 +466,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 			removedClient = await initializeAdditionalClient(removedClientId);
 			survivingClient = await initializeAdditionalClient(survivingClientId);
 			const { sessionUri } = await createSession('runtime-tool-owner-cleanup');
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			const tool: ToolDefinition = {
 				name: 'route_probe',
 				description: 'Returns the client tool owner marker.',
@@ -559,7 +560,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		this.timeout(180_000);
 		const clientId = 'runtime-image-tool';
 		const { sessionUri } = await createSession(clientId);
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,

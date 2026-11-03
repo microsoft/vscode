@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../../../../base/common/arrays.js';
+import { coalesce, distinct } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -33,13 +33,30 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
-import { toolDataToDefinition } from './agentHostToolUtils.js';
+import { getAgentFileToolReferenceName, toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
+import { type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostClientCustomization } from '../../../common/agentHostSessionCustomizations.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
+
+/** Appends session tool lists to an active client, preserving earlier definitions on name collisions. */
+export function composeSessionActiveClient(activeClient: SessionActiveClient, ...toolLists: readonly (readonly ToolDefinition[])[]): SessionActiveClient {
+	const tools = [...activeClient.tools];
+	const toolNames = new Set(tools.map(tool => tool.name));
+	for (const toolList of toolLists) {
+		for (const tool of toolList) {
+			if (!toolNames.has(tool.name)) {
+				tools.push(tool);
+				toolNames.add(tool.name);
+			}
+		}
+	}
+	return { ...activeClient, tools };
+}
 
 /** Identity a published customization set is resolved against. Refcounted; disposed by each holder. */
 export interface IAgentCustomizationScope extends IDisposable {
@@ -47,8 +64,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly customAgents: IObservable<readonly AgentCustomization[]>;
 	/** Tools available to this scope's active client. */
 	readonly tools: IObservable<readonly ToolDefinition[]>;
-	/** Composed active-client view for this scope. */
-	activeClient(clientId: string): IObservable<SessionActiveClient>;
+	/** Composed publication view; the scope's original client-side customization URIs stay unchanged. */
+	activeClient(clientId: string, resourceUris: IAgentHostResourceUriMapper): IObservable<SessionActiveClient>;
 	/**
 	 * `false` until the initial customization resolution completes. Publishing an
 	 * unresolved scope would transiently wipe the host's customization state.
@@ -75,6 +92,10 @@ export interface IAgentHostActiveClientService {
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
 	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
+	setSessionTools(sessionResource: URI, toolIds: readonly string[]): void;
+	moveSessionTools(source: URI, target: URI): void;
+	clearSessionTools(sessionResource: URI): void;
+	acquireSessionTools(sessionResource: URI): IReference<IObservable<readonly ToolDefinition[]>>;
 }
 
 /** Owns the customization bundle and resolution lifecycle for one working-directory scope. */
@@ -125,8 +146,9 @@ class AgentCustomizationScope extends Disposable {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 	) {
 		super();
-		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey), undefined));
-		this._standaloneBundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createStandaloneScopeAuthority(_sessionType, scopeKey), { standalone: true }));
+		const preserveAgentFileCollisions = isCopilotCliSessionType(_sessionType);
+		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey), { preserveAgentFileCollisions }));
+		this._standaloneBundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createStandaloneScopeAuthority(_sessionType, scopeKey), { standalone: true, preserveAgentFileCollisions }));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
 		const updateCustomizations = async () => {
@@ -216,7 +238,7 @@ class AgentCustomizationScope extends Disposable {
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
 			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri) ?? this._standaloneBundler.getSyncedUri(sourceUri),
-			activeClient: clientId => this.activeClient(clientId),
+			activeClient: (clientId, resourceUris) => this.activeClient(clientId, resourceUris),
 			dispose: () => {
 				if (!released) {
 					released = true;
@@ -234,7 +256,7 @@ class AgentCustomizationScope extends Disposable {
 		return this._bundler.isBundledMcpServer(pluginUri, serverName) || this._standaloneBundler.isBundledMcpServer(pluginUri, serverName);
 	}
 
-	activeClient(clientId: string): IObservable<SessionActiveClient> {
+	activeClient(clientId: string, resourceUris: IAgentHostResourceUriMapper): IObservable<SessionActiveClient> {
 		let activeClient = this._activeClients.get(clientId);
 		if (!activeClient) {
 			activeClient = derived(reader => {
@@ -244,7 +266,7 @@ class AgentCustomizationScope extends Disposable {
 				return {
 					clientId,
 					tools: [...this.tools.read(reader)],
-					customizations: [...this._customizations.read(reader)],
+					customizations: this._customizations.read(reader).map(customization => toAgentHostClientCustomization(customization, resourceUris)),
 				};
 			});
 			this._activeClients.set(clientId, activeClient);
@@ -278,6 +300,9 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
+	private readonly _sessionTools = new ResourceMap<ISettableObservable<readonly ToolDefinition[]>>();
+	private readonly _sessionToolObservers = new ResourceMap<number>();
+	private readonly _sessionToolAliases = new ResourceMap<readonly URI[]>();
 	private readonly _scopes = new Map<string, AgentCustomizationScope>();
 	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
 	private readonly _syncProviders = new Map<string, AgentCustomizationSyncProvider>();
@@ -370,6 +395,82 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		return Iterable.some([...this._scopes.values()], scope => scope.isBundledMcpServer(pluginUri, serverName));
 	}
 
+	setSessionTools(sessionResource: URI, toolIds: readonly string[]): void {
+		const tools = coalesce(toolIds.map(toolId => {
+			const tool = this._toolsService.getTool(toolId);
+			if (!tool) {
+				throw new Error(`Cannot expose unregistered tool ${toolId} to session ${sessionResource.toString()}.`);
+			}
+			return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService));
+		}));
+		for (const resource of this._sessionToolAliases.get(sessionResource) ?? [sessionResource]) {
+			this._getSessionTools(resource).set(tools, undefined);
+		}
+	}
+
+	moveSessionTools(source: URI, target: URI): void {
+		if (this._uriIdentityService.extUri.isEqual(source, target)) {
+			return;
+		}
+		const sourceTools = this._sessionTools.get(source);
+		if (!sourceTools) {
+			return;
+		}
+		const resources = distinct(
+			[
+				...(this._sessionToolAliases.get(source) ?? [source]),
+				...(this._sessionToolAliases.get(target) ?? [target]),
+			],
+			resource => this._uriIdentityService.extUri.getComparisonKey(resource),
+		);
+		for (const resource of resources) {
+			this._sessionToolAliases.set(resource, resources);
+			this._getSessionTools(resource).set(sourceTools.get(), undefined);
+		}
+	}
+
+	clearSessionTools(sessionResource: URI): void {
+		for (const resource of this._sessionToolAliases.get(sessionResource) ?? [sessionResource]) {
+			this._sessionTools.get(resource)?.set([], undefined);
+			this._sessionTools.delete(resource);
+			this._sessionToolAliases.delete(resource);
+		}
+	}
+
+	acquireSessionTools(sessionResource: URI): IReference<IObservable<readonly ToolDefinition[]>> {
+		const tools = this._getSessionTools(sessionResource);
+		this._sessionToolObservers.set(sessionResource, (this._sessionToolObservers.get(sessionResource) ?? 0) + 1);
+		let disposed = false;
+		return {
+			object: tools,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const observers = (this._sessionToolObservers.get(sessionResource) ?? 1) - 1;
+				if (observers > 0) {
+					this._sessionToolObservers.set(sessionResource, observers);
+				} else {
+					this._sessionToolObservers.delete(sessionResource);
+					if (this._sessionTools.get(sessionResource) === tools && tools.get().length === 0) {
+						this._sessionTools.delete(sessionResource);
+						this._sessionToolAliases.delete(sessionResource);
+					}
+				}
+			},
+		};
+	}
+
+	private _getSessionTools(sessionResource: URI): ISettableObservable<readonly ToolDefinition[]> {
+		let tools = this._sessionTools.get(sessionResource);
+		if (!tools) {
+			tools = observableValue(this, []);
+			this._sessionTools.set(sessionResource, tools);
+		}
+		return tools;
+	}
+
 	private _getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
 		let obs = this._clientToolsByType.get(sessionType);
 		if (!obs) {
@@ -392,20 +493,20 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return coalesce(tools.filter(tool => tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
+				return coalesce(tools.filter(tool => tool.source.type !== 'mcp' && tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
 					if (!isCopilotSession) {
-						return toolDataToDefinition(tool);
+						return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService));
 					}
 					// Published under the SDK's built-in name so the session can override it.
 					if (tool === semanticSearchTool) {
-						return { ...toolDataToDefinition(tool), name: SEMANTIC_SEARCH_TOOL_NAME };
+						return { ...toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService)), name: SEMANTIC_SEARCH_TOOL_NAME };
 					}
 					// Nothing else may claim the published name: two client tools cannot
 					// share one SDK registration.
 					if (tool.toolReferenceName === CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME || tool.toolReferenceName === SEMANTIC_SEARCH_TOOL_NAME) {
 						return undefined;
 					}
-					return toolDataToDefinition(tool);
+					return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService));
 				}));
 			});
 			this._clientToolsByType.set(sessionType, obs);

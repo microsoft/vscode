@@ -4,13 +4,104 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
+import { LOCAL_MODEL_META_KEY, localTurnExecutions, type ILocalTurnExecution } from '../../localModel.js';
 import type { UsageInfo } from '../../state/protocol/common/state.js';
-import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal } from '../../state/sessionState.js';
+import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal, SessionMeta } from '../../state/sessionState.js';
 
 function isTokenCount(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+export type AiCreditsStatus = 'complete' | 'partial' | 'unavailable';
+
+export function isAiCreditsStatus(value: unknown): value is AiCreditsStatus {
+	return value === 'complete' || value === 'partial' || value === 'unavailable';
+}
+
+/** Authoritative billing for one SDK-backed chat, independent of its active turn. */
+export interface IAgentChatUsage {
+	readonly totalNanoAiu: number;
+	readonly aiCreditsStatus?: AiCreditsStatus;
+}
+
+const chatUsageMetaKey = 'vscode.chatUsage';
+
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Reads only the exact addressed chat's billing from its owning session's metadata. */
+export function readChatUsage(session: { readonly _meta?: SessionMeta } | undefined, chat: string): IAgentChatUsage | undefined {
+	const entries = session?._meta?.[chatUsageMetaKey];
+	const usage = isMetadataRecord(entries) ? entries[chat] : undefined;
+	if (!isMetadataRecord(usage)) {
+		return undefined;
+	}
+	if (typeof usage.totalNanoAiu !== 'number' || !Number.isFinite(usage.totalNanoAiu) || usage.totalNanoAiu < 0) {
+		return undefined;
+	}
+	return {
+		totalNanoAiu: usage.totalNanoAiu,
+		...(isAiCreditsStatus(usage.aiCreditsStatus) ? { aiCreditsStatus: usage.aiCreditsStatus } : {}),
+	};
+}
+
+/** Changes one chat's billing without replacing peer entries or unrelated session metadata. */
+export function withChatUsage(session: { readonly _meta?: SessionMeta }, chat: string, usage: IAgentChatUsage | undefined): SessionMeta {
+	const meta = { ...session._meta };
+	const previous = meta[chatUsageMetaKey];
+	const entries = { ...(isMetadataRecord(previous) ? previous : {}) };
+	if (usage) {
+		entries[chat] = usage;
+	} else {
+		delete entries[chat];
+	}
+	if (Object.keys(entries).length) {
+		meta[chatUsageMetaKey] = entries;
+	} else {
+		delete meta[chatUsageMetaKey];
+	}
+	return meta;
+}
+
+const MAX_LOCAL_TURN_ID_LENGTH = 256;
+
+function readLocalTurnId(value: unknown): string | undefined {
+	return typeof value === 'string' && value.length > 0 && value.length <= MAX_LOCAL_TURN_ID_LENGTH ? value : undefined;
+}
+
+/** Reads `_meta['vscode.localModel']` from a turn's usage; `undefined` when absent or `execution` is unknown. */
+export function readLocalModelTurnExecution(usage: UsageInfo | undefined): ILocalTurnExecution | undefined {
+	const value = usage?._meta?.[LOCAL_MODEL_META_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const execution = localTurnExecutions.find(candidate => candidate === raw.execution);
+	if (!execution) {
+		return undefined;
+	}
+	const result: Mutable<ILocalTurnExecution> = { execution };
+	const fallbackReason = readLocalTurnId(raw.fallbackReason);
+	if (fallbackReason) { result.fallbackReason = fallbackReason; }
+	const fallbackModel = readLocalTurnId(raw.fallbackModel);
+	if (fallbackModel) { result.fallbackModel = fallbackModel; }
+	const familyId = readLocalTurnId(raw.familyId);
+	if (familyId) { result.familyId = familyId; }
+	return result;
+}
+
+/** Builds the usage `_meta` entry that {@link readLocalModelTurnExecution} reads. */
+export function createLocalModelTurnExecutionMeta(execution: ILocalTurnExecution): Record<string, unknown> {
+	return {
+		[LOCAL_MODEL_META_KEY]: {
+			execution: execution.execution,
+			...(execution.fallbackReason !== undefined ? { fallbackReason: execution.fallbackReason } : {}),
+			...(execution.fallbackModel !== undefined ? { fallbackModel: execution.fallbackModel } : {}),
+			...(execution.familyId !== undefined ? { familyId: execution.familyId } : {}),
+		},
+	};
+}
 
 /**
  * Well-known keys that may appear on {@link UsageInfo._meta}.
@@ -32,6 +123,8 @@ export interface UsageInfoMeta {
 		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
 		 */
 		sessionTotalNanoAiu?: number;
+		/** Completeness of the authoritative session total, independent of its numeric value. */
+		sessionAiCreditsStatus?: AiCreditsStatus;
 		[key: string]: unknown;
 	};
 	/**
@@ -124,6 +217,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
 		if (typeof rawUsage.totalNanoAiu === 'number') { usage.totalNanoAiu = rawUsage.totalNanoAiu; }
 		if (typeof rawUsage.sessionTotalNanoAiu === 'number') { usage.sessionTotalNanoAiu = rawUsage.sessionTotalNanoAiu; }
+		if (isAiCreditsStatus(rawUsage.sessionAiCreditsStatus)) { usage.sessionAiCreditsStatus = rawUsage.sessionAiCreditsStatus; }
 		result.copilotUsage = usage;
 	}
 	const quotaSnapshots = meta.quotaSnapshots;
@@ -225,6 +319,17 @@ function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undef
 }
 
 
+/**
+ * Reduces a provider's Auto routing decision to the fields clients read, before
+ * it is written to {@link UsageInfoMeta.autoModeResolved}. The decision rides on
+ * every usage report of its turn, so routing diagnostics that only telemetry
+ * needs (available models, latencies, fallback details, ...) are dropped.
+ */
+export function compactAutoModeResolved(value: IAutoModeResolvedInfo): IAutoModeResolvedInfo {
+	return readAutoModeResolvedInfo(value) ?? { chosenModel: value.chosenModel };
+}
+
+
 function readContextAttribution(value: unknown): IContextAttributionData | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
@@ -260,6 +365,46 @@ function readContextAttribution(value: unknown): IContextAttributionData | undef
 		? { count: (compactionsRaw as Record<string, unknown>).count as number }
 		: { count: 0 };
 	return { totalTokens: raw.totalTokens as number, entries, compactions };
+}
+
+
+/**
+ * Reduces a provider's context-window attribution to the rows clients render,
+ * before it is written to {@link UsageInfoMeta.contextAttribution}.
+ *
+ * Each usage report replaces the turn's whole usage, so the provider's
+ * per-source breakdown (one entry per tool definition, tool, skill, MCP
+ * server, ...) would otherwise be resent with every report, kept on every
+ * completed turn, and persisted with it. Clients show `system` entries that
+ * parent no other entry individually and sum every other entry per `kind`, so
+ * this keeps the former and collapses the latter into one entry per kind,
+ * dropping fields no client reads. The result remains valid attribution that
+ * renders identically.
+ */
+export function compactContextAttribution(value: unknown): IContextAttributionData | undefined {
+	const attribution = readContextAttribution(value);
+	if (!attribution) {
+		return undefined;
+	}
+	const parentIds = new Set<string>();
+	for (const entry of attribution.entries) {
+		if (entry.parentId) {
+			parentIds.add(entry.parentId);
+		}
+	}
+	const entries: IContextAttributionEntry[] = [];
+	const kindTokens = new Map<string, number>();
+	for (const entry of attribution.entries) {
+		if (entry.kind !== 'system') {
+			kindTokens.set(entry.kind, (kindTokens.get(entry.kind) ?? 0) + entry.tokens);
+		} else if (!parentIds.has(entry.id)) {
+			entries.push({ kind: entry.kind, id: entry.id, label: entry.label, tokens: entry.tokens });
+		}
+	}
+	for (const [kind, tokens] of kindTokens) {
+		entries.push({ kind, id: kind, label: kind, tokens });
+	}
+	return { totalTokens: attribution.totalTokens, entries, compactions: attribution.compactions };
 }
 
 

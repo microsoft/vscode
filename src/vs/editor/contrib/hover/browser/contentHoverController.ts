@@ -320,6 +320,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._contentWidget?.hide();
 	}
 
+	/** Cancels pending and visible hover work when its editor is hidden. */
+	public cancel(): void {
+		this._cancelScheduler();
+		this._contentWidget?.hide();
+	}
+
 	private _getOrCreateContentWidget(): ContentHoverWidgetWrapper {
 		if (!this._contentWidget) {
 			this._contentWidget = this._instantiationService.createInstance(ContentHoverWidgetWrapper, this._editor);

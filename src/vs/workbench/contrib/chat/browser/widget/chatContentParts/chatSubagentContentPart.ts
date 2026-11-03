@@ -522,7 +522,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	private removeWorkingSpinner(): void {
 		if (this.workingSpinnerElement) {
-			this.workingSpinnerElement.remove();
+			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
 		}
 	}

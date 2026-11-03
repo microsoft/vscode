@@ -8,9 +8,12 @@ import { Limiter, RunOnceScheduler, timeout } from '../../../../base/common/asyn
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { readSessionExternal } from '../../common/state/sessionState.js';
 import { createAgentChatContext } from '../agentChatContext.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
@@ -35,6 +38,8 @@ interface SourceSession {
 	dropped: number;
 	title: string | undefined;
 	failed: boolean;
+	/** Set once its session no longer has its chat as default chat (Block 4); it never drains again. */
+	retired: boolean;
 	dirty: boolean;
 	journalCursor: string | undefined;
 	admittedCursor: string | undefined;
@@ -60,11 +65,14 @@ export class MissionControlSdkEventSource extends Disposable {
 		private readonly _environmentId: string,
 		private readonly _mirror: MissionControlSessionMirror,
 		private readonly _isEnabled: () => boolean,
+		private readonly _registerSession: (session: string) => Promise<void>,
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._register(this._mirror.setSdkAcknowledgementHandler((session, journalEventId) => {
@@ -92,6 +100,31 @@ export class MissionControlSdkEventSource extends Disposable {
 		for (const session of this._stateManager.getSessionUris()) {
 			this.observeSession(session);
 		}
+		// Only a session's default chat is replicated (Block 4): a chat that becomes a new session's default chat
+		// (promotion) starts a stream of its own, and one that stops being its session's default chat stops its stream.
+		this._register(this._stateManager.onDidChangeChatOwner(({ previous, current }) => {
+			this._refreshSession(previous);
+			this._refreshSession(current);
+		}));
+	}
+
+	/**
+	 * Retires the session's stream when its chat moved to another session (it is replicated no more: a moved
+	 * single-chat session's default chat becomes a peer) or the session has another default chat, then observes the
+	 * session again. A session whose summary is not loaded keeps its stream.
+	 */
+	private _refreshSession(session: string): void {
+		const source = this._sessions.get(session);
+		const owner = source && this._chatOwnership.getChatOwner(source.chat);
+		const summary = this._stateManager.getSessionSummary(session);
+		if (source && ((owner !== undefined && owner !== session) || (summary !== undefined && summary.defaultChat !== source.chat))) {
+			source.retired = true;
+			this._sessions.delete(session);
+			this._bytes -= source.bytes;
+			source.bytes = 0;
+			source.queue.length = 0;
+		}
+		this.observeSession(session);
 	}
 
 	observeSession(session: string): void {
@@ -101,15 +134,19 @@ export class MissionControlSdkEventSource extends Disposable {
 		const summary = this._stateManager.getSessionSummary(session);
 		const chat = summary?.defaultChat;
 		const provider = this._providers.getProviderForSession(session);
-		if (!summary || !chat || !provider?.onDidChatSessionEvent) {
+		if (!summary || readSessionExternal(summary._meta) || !chat || !provider?.onDidChatSessionEvent) {
+			return;
+		}
+		// A session ending by moving its default chat under another still advertises it until it is removed: it replicates nothing.
+		const owner = this._chatOwnership.getChatOwner(chat);
+		if (owner !== undefined && owner !== session) {
 			return;
 		}
 		let source = this._sessions.get(session);
 		if (!source) {
-			this._mirror.registerSession(session);
 			source = {
 				session, chat, provider, queue: [], seen: new Set(), bytes: 0, limit: undefined,
-				historyPending: true, draining: undefined, dropped: 0, title: undefined, failed: false, dirty: false,
+				historyPending: true, draining: undefined, dropped: 0, title: undefined, failed: false, retired: false, dirty: false,
 				journalCursor: undefined, admittedCursor: undefined, pendingCursor: undefined,
 			};
 			this._sessions.set(session, source);
@@ -155,7 +192,7 @@ export class MissionControlSdkEventSource extends Disposable {
 	}
 
 	private _drain(source: SourceSession): void {
-		if (source.draining || source.failed) {
+		if (source.draining || source.failed || source.retired) {
 			return;
 		}
 		const operation = this._work.queue(() => this._run(source)).catch(error => {
@@ -175,6 +212,11 @@ export class MissionControlSdkEventSource extends Disposable {
 		source.draining = operation;
 	}
 
+	/** The replication cursors are the default chat's own data: they live in its recorded storage. */
+	private _cursorDatabase(source: SourceSession): URI {
+		return URI.parse(this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
+	}
+
 	private async _reserve(source: SourceSession): Promise<void> {
 		if (source.limit !== undefined && (this._mirror.getSdkNextSequence(source.session) ?? source.limit) + 2 < source.limit) {
 			return;
@@ -182,7 +224,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!this._isEnabled() || this._store.isDisposed) {
 			return;
 		}
-		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		const database = this._sessionData.openDatabase(this._cursorDatabase(source));
 		try {
 			const key = `missionControl.sdkSequence.${this._environmentId}`;
 			const stored = await database.object.getMetadata(key);
@@ -237,7 +279,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!cursor) {
 			return;
 		}
-		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		const database = this._sessionData.openDatabase(this._cursorDatabase(source));
 		try {
 			await database.object.setMetadata(`missionControl.sdkJournalCursor.${this._environmentId}`, cursor);
 			source.journalCursor = cursor;
@@ -254,7 +296,15 @@ export class MissionControlSdkEventSource extends Disposable {
 			return;
 		}
 		const chat = URI.parse(source.chat);
-		const context = createAgentChatContext(this._stateManager, source.session, source.chat, this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
+		// The chat may have changed owner since it was observed: address it under its owner now.
+		let context: IAgentChatContext;
+		try {
+			const owner = this._chatOwnership.getChatOwner(source.chat) ?? source.session;
+			context = createAgentChatContext(this._stateManager, this._authenticationService, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
+		} catch (error) {
+			this._logService.warn('[MissionControlSdkEventSource] Cannot address the chat to reconcile its history; continuing live replication', { session: source.session }, error);
+			return;
+		}
 		const cursor = source.admittedCursor ?? source.journalCursor;
 		const overlap = new Set<string>();
 		const iterator = source.provider.readChatSessionEvents(chat, context, this._cancellation.token, cursor, id => {
@@ -321,11 +371,15 @@ export class MissionControlSdkEventSource extends Disposable {
 
 	private async _run(source: SourceSession): Promise<void> {
 		source.dirty = false;
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
+			return;
+		}
+		await this._registerSession(source.session);
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}
 		await this._reserve(source);
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}
 		await this._persistCursor(source);

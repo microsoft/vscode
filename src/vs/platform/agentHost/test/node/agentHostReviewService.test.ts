@@ -17,6 +17,8 @@ import { SessionStatus, buildChatUri, buildDefaultChatUri, withSessionGitState, 
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 function createNoopGitStateService(): IAgentHostGitStateService {
@@ -35,10 +37,14 @@ function createNoopGitStateService(): IAgentHostGitStateService {
 	};
 }
 
+function dataServiceFor() {
+	return createSessionDataService(new TestSessionDatabase());
+}
+
 suite('AgentHostReviewService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the source chat database and Git state for folder review changes', async () => {
+	test('uses the source chat Git state without opening a database for folder review changes', async () => {
 		const session = 'mock:/session';
 		const chat = buildChatUri(session, 'peer');
 		const folderOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///chat']));
@@ -107,6 +113,7 @@ suite('AgentHostReviewService', () => {
 			stateManager,
 			gitService,
 			dataService,
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataService),
 			gitStateService,
 			logService,
 			createTestChatOwnershipService(stateManager),
@@ -120,7 +127,7 @@ suite('AgentHostReviewService', () => {
 			baseBranches,
 			reviewedRefsAreShared: new Set(reviewedRefs).size === 1,
 		}, {
-			openedDatabases: [chat],
+			openedDatabases: [],
 			baseBranches: ['chat-main', 'chat-main'],
 			reviewedRefsAreShared: false,
 		});
@@ -164,7 +171,8 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
 			createTestChatOwnershipService(stateManager),
@@ -194,7 +202,8 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
 			createTestChatOwnershipService(stateManager),
@@ -235,7 +244,8 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
 			createTestChatOwnershipService(stateManager),
@@ -259,7 +269,8 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
 			createTestChatOwnershipService(stateManager),
@@ -286,7 +297,8 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
 			createTestChatOwnershipService(stateManager),
@@ -312,7 +324,8 @@ suite('AgentHostReviewService', () => {
 			const service = disposables.add(new AgentHostReviewService(
 				stateManager,
 				gitService,
-				createSessionDataService(new TestSessionDatabase()),
+				dataServiceFor(),
+				createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 				createNoopGitStateService(),
 				new NullLogService(),
 				createTestChatOwnershipService(stateManager),

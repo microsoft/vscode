@@ -27,6 +27,7 @@ import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -114,8 +115,9 @@ export class ChatGroupsView extends Themable {
 	private _restorePending = false;
 	private _lastSessionActiveChatId: string | undefined;
 
-	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
 	private _gridDidLayout = false;
+	private _gridTopologyChanged = false;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -144,6 +146,14 @@ export class ChatGroupsView extends Themable {
 		// Snapshot the outgoing session's layout (captures final grid sizes) before tearing it down.
 		this._persistLayout();
 
+		// A lone group's view (and the chat widget inside it) is expensive to build, so hand it to the
+		// next session instead of tearing it down. ChatGroupView.setContext rebinds all per-session state.
+		let reusableView: ChatGroupView | undefined;
+		if (session && this._session && this._groups.length === 1) {
+			reusableView = this._groups[0].view;
+			this._groupDisposables.get(this._groups[0].id)?.deleteAndLeak(reusableView);
+		}
+
 		this._session = session;
 
 		const store = new DisposableStore();
@@ -151,6 +161,7 @@ export class ChatGroupsView extends Themable {
 		this._groupDisposables.clearAndDisposeAll();
 		this._currentSessionStore = store;
 		this._grid = undefined;
+		this._mainChatResource = undefined;
 		this._gridDidLayout = false;
 		this._groups = [];
 		this._activeGroup = undefined;
@@ -166,12 +177,28 @@ export class ChatGroupsView extends Themable {
 			this.element.replaceChildren();
 			return;
 		}
+		// Ownership invariant: the view is owned by exactly one store. Here it is the session store (so it
+		// is disposed if setup throws or the layout is restored); takeReusableView hands it to the group store.
+		store.add(toDisposable(() => reusableView?.dispose()));
+		// Disposing the previous session store detached the old grid together with the reused view. Re-attach
+		// the view before it is rebound: a detached chat list measures every row as 0px and can spin forever.
+		if (reusableView) {
+			this.element.replaceChildren(reusableView.element);
+		}
 
 		this._mainChatResource = derived(reader => session.mainChat.read(reader).resource.toString());
 
+		const takeReusableView = () => {
+			const view = reusableView;
+			reusableView = undefined;
+			return view;
+		};
 		const grid = session.isCreated.get()
-			? this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store)
-			: this._createSingleGroupGrid(session, store);
+			? (!session.scopedChatResource && this._tryRestoreLayout(session, store)) || this._createSingleGroupGrid(session, store, takeReusableView())
+			: this._createSingleGroupGrid(session, store, takeReusableView());
+		// A restored layout never claims the reusable view; release it now instead of keeping it detached.
+		reusableView?.dispose();
+		reusableView = undefined;
 		this._grid = grid;
 		store.add(grid);
 		this.element.replaceChildren(grid.element);
@@ -181,7 +208,10 @@ export class ChatGroupsView extends Themable {
 		const isMainChatDrag = (event: DragEvent) => event.dataTransfer?.types.includes(SessionsDataTransfers.SESSION) === true
 			&& sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.some(dragged => dragged.sessionId === session.sessionId) === true;
 		const dropDelegate: IChatGroupDropTargetDelegate = {
-			isChatDrag: event => isSessionChatDrag(event, session.sessionId) || isMainChatDrag(event),
+			canMerge: () => !this.showChatAsSessionView.get(),
+			isChatDrag: event => !session.scopedChatResource
+				&& !(this.showChatAsSessionView.get() && event.dataTransfer?.types.includes(SessionsDataTransfers.DETACHED_CHAT))
+				&& (isSessionChatDrag(event, session.sessionId) || isMainChatDrag(event)),
 			getChatDragData: event => getSessionChatDragData(event) ?? (isMainChatDrag(event)
 				? { sessionId: session.sessionId, resource: session.mainChat.get().resource.toString() }
 				: undefined),
@@ -196,8 +226,8 @@ export class ChatGroupsView extends Themable {
 		this._applyLayout();
 	}
 
-	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {
-		const firstGroup = this._createGroupEntry(session);
+	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore, reusableView?: ChatGroupView): SerializableGrid<ChatGroupView> {
+		const firstGroup = this._createGroupEntry(session, reusableView);
 		this._groups = [firstGroup];
 		this._activeGroup = firstGroup;
 		firstGroup.view.setGroupActive(true);
@@ -279,12 +309,21 @@ export class ChatGroupsView extends Themable {
 		return grid;
 	}
 
-	private _createGroupEntry(session: IActiveSession): IGroupEntry {
+	private _createGroupEntry(session: IActiveSession, reusableView?: ChatGroupView): IGroupEntry {
 		const id = this._nextGroupId++;
 		const store = new DisposableStore();
 		this._groupDisposables.set(id, store);
-		const resourceIds = observableValue<string[]>(`chatGroup.${id}.resourceIds`, []);
-		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, '');
+		// Register the view first so a throw below leaves it owned by this group store (never orphaned).
+		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView));
+		// A reused view must not see an empty group before the first reconcile, or it would swap its
+		// chat view for a composer. Seed what reconcile would assign to a lone group anyway.
+		const activeChat = reusableView ? session.activeChat.get() : undefined;
+		const visibleIds = reusableView ? session.visibleChatTabs.get().map(chat => chat.resource.toString()) : [];
+		const activeId = activeChat?.resource.toString();
+		const seededActive = activeId !== undefined && visibleIds.includes(activeId) ? activeId : undefined;
+		const seededIds = seededActive === undefined ? [] : this.showChatAsSessionView.get() ? [seededActive] : visibleIds;
+		const resourceIds = observableValue<string[]>(`chatGroup.${id}.resourceIds`, seededIds);
+		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, seededActive ?? '');
 		const pinnedResourceId = observableValue<string | undefined>(`chatGroup.${id}.pinnedResourceId`, undefined);
 
 		const chats = derived<readonly IChat[]>(reader => {
@@ -311,10 +350,9 @@ export class ChatGroupsView extends Themable {
 			}
 			return session.shouldShowChatTabs.read(reader);
 		});
-		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
+		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && tabsVisible.read(reader));
 		const activeChatIsPinned = derived(reader => pinnedResourceId.read(reader) === activeResourceId.read(reader));
 
-		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, pinnedResourceId, chats, tabsVisible };
 
 		// Focusing a group promotes it to active and, when the layout is in the
@@ -331,6 +369,7 @@ export class ChatGroupsView extends Themable {
 			chatHeaderVisible: this._showGroupChatHeaders,
 			activeChatIsPinned,
 			showSessionActions,
+			showParentContext: this._groupCount.map(count => count > 1),
 			activate: () => this._setActiveGroup(entry),
 			openChat: resource => this._openChat(entry, resource),
 			onTabDragStart: () => { },
@@ -486,6 +525,9 @@ export class ChatGroupsView extends Themable {
 				if (owner) {
 					owner.activeResourceId.set(activeId, tx);
 					this._setActiveGroup(owner);
+					if (!this._restorePending) {
+						this._expandGroupIfCollapsed(owner);
+					}
 				}
 			}
 			this._lastSessionActiveChatId = activeId;
@@ -525,10 +567,10 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	private _findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement } | undefined {
+	private _findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement; readonly tabsElement: HTMLElement } | undefined {
 		for (const group of this._groups) {
 			if (group.view.element.contains(child)) {
-				return { id: group.id, element: group.view.element };
+				return { id: group.id, element: group.view.element, tabsElement: group.view.tabsElement };
 			}
 		}
 		return undefined;
@@ -542,9 +584,15 @@ export class ChatGroupsView extends Themable {
 		if (data.sessionId !== this._session.sessionId) {
 			return; // not a chat from this session
 		}
+		if (this.showChatAsSessionView.get() && (data.isDetached || zone === 'center')) {
+			return;
+		}
 
 		const id = data.resource;
 		const resource = URI.parse(id);
+		if (!this._session.scopedChatResource) {
+			this._sessionsService.attachChat(this._session, resource);
+		}
 		let target = this._groups.find(g => g.id === targetGroupId);
 		let source = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (!source) {
@@ -949,6 +997,10 @@ export class ChatGroupsView extends Themable {
 			this._sessionsService.openChat(session, URI.parse(activeResourceId)).catch(onUnexpectedError);
 		}
 
+		this._expandGroupIfCollapsed(entry);
+	}
+
+	private _expandGroupIfCollapsed(entry: IGroupEntry): void {
 		if (!this._grid || this._groups.length < 2 || !this._isGroupCollapsed(entry.view)) {
 			return;
 		}
@@ -979,9 +1031,14 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _setGroupCount(count: number): void {
+		const changed = this._groupCount.get() !== count;
 		this._groupCount.set(count, undefined);
 		this.element.classList.toggle('single-group', count <= 1);
 		this._groups.forEach((group, index) => group.view.setGroupPosition(index, count));
+		if (changed) {
+			this._gridTopologyChanged = true;
+			this._applyLayout();
+		}
 	}
 
 	private _openChat(entry: IGroupEntry, resource: URI): void {
@@ -1088,8 +1145,13 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.focus();
 	}
 
-	layout(width: number, height: number, top: number, left: number): void {
-		this._lastLayout = { width, height, top, left };
+	reopenChat(resource: URI): Promise<void> {
+		const group = this._groups.find(group => group.activeResourceId.get() === resource.toString());
+		return group?.view.reopenChat(resource) ?? Promise.resolve();
+	}
+
+	layout(width: number, height: number, top: number, left: number, gap = 0): void {
+		this._lastLayout = { width, height, top, left, gap: Math.max(0, gap) };
 		this._applyLayout();
 	}
 
@@ -1097,11 +1159,36 @@ export class ChatGroupsView extends Themable {
 		if (!this._lastLayout) {
 			return;
 		}
-		const { width, height, top, left } = this._lastLayout;
+		const { width, height, top, left, gap } = this._lastLayout;
 		size(this.element, width, height);
 		if (this._grid) {
+			const hasGaps = gap > 0 && this._groups.length > 1;
+			this.element.classList.toggle('chat-groups-view-has-gaps', hasGaps);
+			updateGridGapSashes(this._grid, hasGaps);
+			const corners = getGridBottomCornerViews(this._grid);
+			for (const group of this._groups) {
+				group.view.element.classList.toggle('chat-grid-bottom-left', group.view === corners.bottomLeft);
+				group.view.element.classList.toggle('chat-grid-bottom-right', group.view === corners.bottomRight);
+			}
+			if (hasGaps && (this._gridTopologyChanged || !this._gridDidLayout)) {
+				this._grid.layout(width, height, top, left);
+				this._gridDidLayout = true;
+			}
+			const changedGroups: ChatGroupView[] = [];
+			for (const group of this._groups) {
+				if (group.view.setInsets(hasGaps ? getGridEdgeInsets(this._grid, group.view, gap) : NO_GRID_EDGE_INSETS)) {
+					changedGroups.push(group.view);
+				}
+			}
+			for (const group of changedGroups) {
+				group.notifyConstraintsChanged();
+			}
+			this._applyGridStyles(hasGaps);
 			this._grid.layout(width, height, top, left);
 			this._gridDidLayout = true;
+			this._gridTopologyChanged = false;
+		} else {
+			this.element.classList.remove('chat-groups-view-has-gaps');
 		}
 	}
 
@@ -1111,11 +1198,19 @@ export class ChatGroupsView extends Themable {
 
 	override updateStyles(): void {
 		super.updateStyles();
-		this._grid?.style({ separatorBorder: this._separatorBorder });
+		const hasGaps = (this._lastLayout?.gap ?? 0) > 0 && this._groups.length > 1;
+		this._applyGridStyles(hasGaps);
+	}
+
+	private _applyGridStyles(hasGaps: boolean): void {
+		this._grid?.style({ separatorBorder: hasGaps ? Color.transparent : this._separatorBorder });
 	}
 
 	/** Persists the current grid layout for the active session (or clears it when a single group). */
 	private _persistLayout(): void {
+		if (this._session?.scopedChatResource) {
+			return;
+		}
 		if (!this._session || !this._grid || this._restorePending) {
 			return;
 		}
@@ -1173,6 +1268,7 @@ export class ChatGroupsView extends Themable {
 
 	override dispose(): void {
 		this._persistLayout();
+		this._mainChatResource = undefined;
 		super.dispose();
 	}
 }

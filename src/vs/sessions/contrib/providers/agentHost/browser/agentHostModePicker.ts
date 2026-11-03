@@ -5,11 +5,13 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
@@ -75,7 +77,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			this._session.read(reader);
+			// The value shown is the active chat's.
+			this._session.read(reader)?.activeChat.read(reader);
 			this._updateTrigger();
 		}));
 
@@ -86,7 +89,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			this._watchProviders(e.added);
 			this._updateTrigger();
 		}));
-		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 		this._register(toDisposable(() => this._hidePicker()));
 	}
 
@@ -105,7 +108,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		trigger.ariaHasPopup = 'listbox';
 		trigger.ariaExpanded = 'false';
 		this._triggerElement = trigger;
-		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getTriggerTooltip(this._getActiveContext()?.tooltip ?? '') })));
+		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getTriggerTooltip(this._getActiveContext()?.tooltip ?? ''), style: HoverStyle.Pointer })));
 
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
@@ -135,7 +138,12 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			if (!configProvider || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(() => this._updateTrigger()));
+			// Updating the trigger replaces its label, so ignore other sessions to keep clicks from being lost.
+			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === this._session.get()?.sessionId) {
+					this._updateTrigger();
+				}
+			}));
 		}
 	}
 
@@ -149,7 +157,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] { return []; }
 	protected _watchActionItems(_items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable { return Disposable.None; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
-	protected _onDidSelectValue(_previousValue: string, _selectedValue: string): void { }
+	protected _onDidSelectValue(_previousValue: string, _selectedValue: string, _chat: URI): void { }
 
 	protected _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
 		return items.map(item => ({
@@ -188,14 +196,14 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!configProvider) {
 			return false;
 		}
-		return configProvider.isSessionConfigResolving(session.sessionId).get();
+		return configProvider.isSessionConfigResolving(session.sessionId, session.activeChat.get().resource).get();
 	}
 
 	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
 		return this._showPicker(anchor, onHide);
 	}
 
-	protected _getActiveContext(): { provider: ISessionConfigProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
+	protected _getActiveContext(): { provider: ISessionConfigProvider; sessionId: string; chat: URI; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
 		if (!session) {
 			return undefined;
@@ -205,7 +213,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!rawProvider) {
 			return undefined;
 		}
-		const config = rawProvider.getSessionConfig(session.sessionId);
+		const chat = session.activeChat.get().resource;
+		const config = rawProvider.getSessionConfig(session.sessionId, chat);
 		const schema = config?.schema.properties[this._property];
 		if (!schema || !this._isWellKnownSchema(schema) || !isSessionConfigWritable(schema, rawProvider.getCreateSessionConfig(session.sessionId) !== undefined)) {
 			return undefined;
@@ -220,7 +229,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}));
 		const rawCurrent = config?.values[this._property] ?? schema.default;
 		const currentValue = typeof rawCurrent === 'string' && enumValues.includes(rawCurrent) ? rawCurrent : enumValues[0] ?? '';
-		return { provider: rawProvider, sessionId: session.sessionId, currentValue, items, tooltip: schema.description ?? schema.title ?? '' };
+		return { provider: rawProvider, sessionId: session.sessionId, chat, currentValue, items, tooltip: schema.description ?? schema.title ?? '' };
 	}
 
 	protected _updateTrigger(): void {
@@ -248,7 +257,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		const icon = this._getTriggerIcon(ctx.currentValue);
 
 		// Reflect the resolving state without changing the chip's visual weight.
-		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId).get();
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId, ctx.chat).get();
 		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 		this._renderTriggerLabel(this._triggerElement, label, icon);
@@ -314,8 +323,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 					optionLabelAfter: item.label,
 					isPII: false,
 				});
-				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
-					.then(() => this._onDidSelectValue(ctx.currentValue, item.value))
+				ctx.provider.setSessionConfigValue(ctx.sessionId, ctx.chat, this._property, item.value)
+					.then(() => this._onDidSelectValue(ctx.currentValue, item.value, ctx.chat))
 					.catch(onUnexpectedError);
 			},
 			onHide: () => {
@@ -375,7 +384,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		this._permissionDelegate = this._register(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
 		this._permissionPicker = this._register(instantiationService.createInstance(PermissionPicker, this._permissionDelegate));
 		this._register(autorun(reader => {
-			session.read(reader);
+			session.read(reader)?.activeChat.read(reader);
 			this._permissionDelegate.isModePickerCombined.read(reader);
 			this._permissionDelegate.currentPermissionLevel.read(reader);
 			this._permissionDelegate.isResolving.read(reader);
@@ -451,7 +460,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _watchActionItems(items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable {
-		return this._permissionPicker.watchSandboxToggle(items);
+		return this._permissionDelegate.isModePickerCombined.get() ? this._permissionPicker.watchActionItems(items) : this._permissionPicker.watchSandboxToggle(items);
 	}
 
 	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {

@@ -194,13 +194,13 @@ suite('openSessionLink', () => {
 		assert.deepStrictEqual({
 			nonShapedDefault: buildOpenSessionLinkForChat(owner, nonShapedDefault, nonShapedDefault, undefined),
 			recreatedDefault: buildOpenSessionLinkForChat(owner, recreatedDefault, recreatedDefault, undefined),
-			// The link format reads the `default` chat id as the default chat, so this peer has no link.
+			// A default-shaped peer is addressed by its full URI, which never collides with the `default` id.
 			defaultIdPeer: buildOpenSessionLinkForChat(owner, defaultIdPeer, recreatedDefault, undefined),
 			peer: buildOpenSessionLinkForChat(owner, buildChatUri(owner, 'peer1'), nonShapedDefault, undefined),
 		}, {
 			nonShapedDefault: 'agent-host-session://copilotcli/abc-123',
 			recreatedDefault: 'agent-host-session://copilotcli/abc-123',
-			defaultIdPeer: undefined,
+			defaultIdPeer: `agent-host-session://copilotcli/abc-123?chat=${encodeURIComponent(defaultIdPeer)}`,
 			peer: 'agent-host-session://copilotcli/abc-123?chat=peer1',
 		});
 	});

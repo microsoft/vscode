@@ -49,6 +49,8 @@ export interface ISessionsPartService {
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void;
 
 	getGridLayout(): ISerializedGrid | undefined;
+	/** Returns a pane in visual grid order (`-1` for last), `null` for the composer, or `undefined` if absent. */
+	getSessionAtPosition(index: number): IActiveSession | null | undefined;
 	/** `null` identifies the empty composer; `undefined` means there is no neighbor. */
 	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined;
 	getSessionPlacement(sessionId: string): { readonly sessionId: string | undefined; readonly direction: Direction } | undefined;
@@ -61,7 +63,7 @@ export interface ISessionsPartService {
 	setContentVisible(visible: boolean): void;
 
 	/**
-	 * Fires with the session id of a focused grid slot, or undefined for the empty new-session slot.
+	 * Fires with the session id, a standalone chat's grid slot id, or undefined for the empty new-session slot.
 	 * The view service promotes that slot to active.
 	 */
 	readonly onDidFocusSession: Event<string | undefined>;

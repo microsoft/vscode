@@ -18,11 +18,10 @@ import { NullRemoteAgentHostService } from '../../../../../platform/agentHost/co
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { createChatState, createSessionState, CustomizationType, SessionStatus, StateComponents, type ChatState, type ComponentToState, type Customization, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import type { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import type { IPathService } from '../../../../services/path/common/pathService.js';
+import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { IChatDebugModelTurnEvent, IChatDebugEventFileListContent, IChatDebugEventCustomizationSummaryContent, type IChatDebugLogProvider, type IChatDebugService } from '../../common/chatDebugService.js';
 import { AgentHostAgentDebugLogEnabledSettingId } from '../../common/promptSyntax/promptTypes.js';
 import type { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -414,8 +413,7 @@ suite('AgentHostChatDebugContribution - live refresh', () => {
 	}
 
 	function setup(sessionSub: IAgentSubscription<SessionState>, chatSubs: ReadonlyMap<string, IAgentSubscription<ChatState>>) {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		let provider: IChatDebugLogProvider | undefined;
 		const refreshes: string[] = [];
 		const chatDebugService = new class extends mock<IChatDebugService>() {
@@ -441,13 +439,7 @@ suite('AgentHostChatDebugContribution - live refresh', () => {
 				return subscription as IAgentSubscription<ComponentToState[T]> | undefined;
 			}
 		}();
-		const pathService = new class extends mock<IPathService>() {
-			override userHome(): URI;
-			override userHome(): Promise<URI>;
-			override userHome(): URI | Promise<URI> {
-				return URI.file('/home/user');
-			}
-		}();
+		const copilotHomeService = new TestCopilotHomeService(URI.file('/home/user'));
 		const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
 			override readonly userRoamingDataHome = URI.file('/user');
 		}();
@@ -457,7 +449,7 @@ suite('AgentHostChatDebugContribution - live refresh', () => {
 		disposables.add(new AgentHostChatDebugContribution(
 			chatDebugService,
 			fileService,
-			pathService,
+			copilotHomeService,
 			new NullRemoteAgentHostService(),
 			agentHostService,
 			new TestConfigurationService({ [AgentHostAgentDebugLogEnabledSettingId]: true }),

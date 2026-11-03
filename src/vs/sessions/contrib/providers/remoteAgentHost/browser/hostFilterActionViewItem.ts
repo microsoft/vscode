@@ -321,7 +321,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 
 		// Leading icon follows the selection, so a grouped entry can carry its
-		// own identity (GitHub Sandboxes shows a package, not a remote plug).
+		// own identity (the Cloud group shows a cloud, not a remote plug).
 		this._renderLeadingIcon(selected?.icon ?? Codicon.remote);
 
 		this.element.classList.toggle('single-host', !interactive);

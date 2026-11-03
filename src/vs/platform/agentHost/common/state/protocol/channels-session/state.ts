@@ -529,6 +529,11 @@ export interface SessionChatSummary {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
+	 * Agent provider ID backing this chat. See {@link ChatState.provider}.
+	 * @stability 1.0
+	 */
+	provider?: string;
+	/**
 	 * Current chat status, matching {@link ChatSummary.status}.
 	 *
 	 * Includes the activity bits and the orthogonal {@link SessionStatus.IsRead}
@@ -606,6 +611,11 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	enumDynamic?: boolean;
 	/** When `true`, the user may change this property after session creation */
 	sessionMutable?: boolean;
+	/**
+	 * When `true`, the property may be changed per chat with
+	 * `chat/configChanged`, affecting only that chat.
+	 */
+	chatMutable?: boolean;
 }
 
 /**

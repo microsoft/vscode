@@ -64,7 +64,7 @@ export function activateShared(
 		opener,
 		contributions,
 		logger,
-		href => linkPresentationService.openLink(href),
+		(href, fromResource) => linkPresentationService.openLink(href, fromResource),
 	);
 	context.subscriptions.push(markdownEditorProvider);
 	context.subscriptions.push(registerMarkdownEditorCommands(context, markdownEditorProvider));
