@@ -503,6 +503,7 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => creationProviderKey.reset()));
 
 		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
+			inputEditorOptions: this.options.inputEditorOptions,
 			session: this._session,
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
@@ -1624,6 +1625,7 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
+		store.add(this._renderPlaceRow(container, row));
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
@@ -1811,6 +1813,10 @@ export class NewChatWidget extends Disposable {
 			&& supportsWorktreeIsolation;
 	}
 
+	private _renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable {
+		return this.options.renderNewSessionHeader?.(container, chipRow) ?? Disposable.None;
+	}
+
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
@@ -1880,7 +1886,7 @@ export class NewChatWidget extends Disposable {
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
 		this._newChatInput.pickerVisibility.setVisible('workspace', false);
-		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
+		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState, this.options.showEmptyStateIcon);
 		this._activeEmptyState.set(emptyState, undefined);
 		emptyState.render(container);
 		return toDisposable(() => {

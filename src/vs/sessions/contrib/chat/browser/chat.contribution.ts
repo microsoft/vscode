@@ -31,6 +31,7 @@ import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './modelPicker.js';
+import '../../../../workbench/contrib/chat/browser/chatDefaultPresentation.contribution.js';
 import './newSessionOnboardingTargets.js';
 import './newSessionPickerTryout.js';
 import './agentHostDelegation.js';
