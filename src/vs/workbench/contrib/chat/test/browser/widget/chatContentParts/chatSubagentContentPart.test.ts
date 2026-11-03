@@ -537,7 +537,7 @@ suite('ChatSubagentContentPart', () => {
 				opened: 0, tracked: 0, dragged: 0, dragPrevented: true,
 				enabled: false, draggable: false, role: 'group', ariaDisabled: null,
 				tabIndex: -1, focusable: false, focused: false,
-				phaseTooltip: 'HydraFusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
+				phaseTooltip: 'Copilot Fusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
 				cancelled: true, cancelledIcon: true,
 			});
 		});
@@ -604,8 +604,8 @@ suite('ChatSubagentContentPart', () => {
 			changed.fire('newly-registered-model');
 			const expected = (model: string) => ({
 				model,
-				tooltip: `HydraFusion phase: Main pass\nPhase is running\nModel: ${model}`,
-				ariaLabel: `HydraFusion phase: Main pass. Phase is running. Model: ${model}. Working on it...`,
+				tooltip: `Copilot Fusion phase: Main pass\nPhase is running\nModel: ${model}`,
+				ariaLabel: `Copilot Fusion phase: Main pass. Phase is running. Model: ${model}. Working on it...`,
 			});
 			assert.deepStrictEqual({ known, byok, renamedVendor, unknown, registered: snapshot() }, {
 				known: expected('Main Model'), byok: expected('OpenRouter/Review Model'),
@@ -808,7 +808,7 @@ suite('ChatSubagentContentPart', () => {
 				const restoredContainer = mainWindow.document.createElement('div');
 				restoredItem.render(restoredContainer);
 				const statusLabel = phaseStatus === 'succeeded' ? 'completed' : phaseStatus;
-				const expected = { hidden: true, text: '', ariaLabel: `HydraFusion phase: Main pass. Phase ${statusLabel}` };
+				const expected = { hidden: true, text: '', ariaLabel: `Copilot Fusion phase: Main pass. Phase ${statusLabel}` };
 				assert.deepStrictEqual({ before, restored: snapshot(restoredContainer) }, { before: expected, restored: expected });
 			}));
 		}

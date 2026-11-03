@@ -125,7 +125,7 @@ const CHAT_EDITOR_SEL = `${CHAT_VIEW} .interactive-input-part .monaco-editor[rol
 /**
  * Measure heap (MB) and DOM node count after forced GC.
  * @param {any} cdp
- * @param {import('playwright').Page} page
+ * @param {import('@playwright/test').Page} page
  */
 async function measure(cdp, page) {
 	await cdp.send('HeapProfiler.collectGarbage');
@@ -140,7 +140,7 @@ async function measure(cdp, page) {
 
 /**
  * Open a new chat session via the command palette.
- * @param {import('playwright').Page} page
+ * @param {import('@playwright/test').Page} page
  */
 async function openNewChat(page) {
 	// Use keyboard shortcut to open a new chat (clears previous session)
@@ -162,7 +162,7 @@ async function openNewChat(page) {
  * For multi-turn scenarios where the model makes multiple tool-call rounds
  * before producing content, `modelTurns` controls how many completions to
  * wait for.
- * @param {import('playwright').Page} page
+ * @param {import('@playwright/test').Page} page
  * @param {{ completionCount: () => number, waitForCompletion: (n: number, ms: number) => Promise<void> }} mockServer
  * @param {string} text
  * @param {number} [modelTurns=1] - number of model completions to wait for
@@ -219,7 +219,7 @@ async function sendMessage(page, mockServer, text, modelTurns = 1) {
  * - Multi-turn with user turns: send initial message, wait for response,
  *   then for each user turn send the follow-up message and wait again.
  *
- * @param {import('playwright').Page} page
+ * @param {import('@playwright/test').Page} page
  * @param {{ completionCount: () => number, waitForCompletion: (n: number, ms: number) => Promise<void> }} mockServer
  * @param {string} scenarioId
  * @param {string} label - prefix for the message (e.g. "Warmup" or "Iteration 2")

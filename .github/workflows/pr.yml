@@ -267,49 +267,6 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Transition-time check: the pnpm lockfiles resolve the same versions as the npm lockfiles they
-      # were generated from. The pull request that moves to pnpm ends with the generated commit, which
-      # deletes the npm lockfiles, so they are read from its parent: the base's npm lockfiles lack the
-      # dependencies that the pull request adds. The parent also holds for the merge commit that is
-      # checked out: while the pull request merges cleanly, the base can't have changed an npm
-      # lockfile that it deletes. An npm lockfile that the base added is not converted, so the step
-      # fails on one. Once the base has no package-lock.json (after the pnpm cutover) the step has
-      # nothing to compare with and passes; remove it then. No --strict: differences for the owner to
-      # review are reported without failing.
-      - name: Verify pnpm lockfiles
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -e
-          if ! git cat-file -e "$PR_BASE_SHA^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
-          fi
-          if ! git cat-file -e "$PR_BASE_SHA:package-lock.json" 2>/dev/null; then
-            echo "The pull request base has no package-lock.json; there are no npm lockfiles to compare with."
-            exit 0
-          fi
-          git fetch --no-tags --depth=2 origin "$PR_HEAD_SHA"
-          if git cat-file -e "$PR_HEAD_SHA:package-lock.json" 2>/dev/null || ! git cat-file -e "$PR_HEAD_SHA^:package-lock.json" 2>/dev/null; then
-            echo "::error::The last commit of the pull request must be the generated commit that deletes package-lock.json (node build/npm/pnpm/convert.ts); the npm lockfiles are read from its parent."
-            exit 1
-          fi
-          added=$(git diff --name-only --no-renames --diff-filter=A "$PR_HEAD_SHA" HEAD -- package-lock.json ':(glob)**/package-lock.json')
-          if [ -n "$added" ]; then
-            echo "$added"
-            echo "::error::The pull request base added the npm lockfiles above. Rebase the pull request and convert them."
-            exit 1
-          fi
-          mkdir -p .build
-          node build/npm/pnpm/verify-locks.ts --npm-ref "$PR_HEAD_SHA^" --report .build/verify-locks-report.json
-
-      - name: Upload pnpm lockfile report
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: verify-locks-report-${{ github.run_attempt }}
-          path: .build/verify-locks-report.json
-          if-no-files-found: ignore
-
       - name: Prepare Electron types
         run: node build/npm/electronTypes.ts
 

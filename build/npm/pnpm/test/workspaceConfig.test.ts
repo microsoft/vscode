@@ -9,7 +9,7 @@ import path from 'path';
 import { suite, test } from 'node:test';
 import { convertPackageJsonText } from '../installRoots.ts';
 import { parseNpmLockfile, type NpmLockfile } from '../npmLockfile.ts';
-import { computeWorkspaceSettings, convertNpmOverrides, getGeneratedOverrides, getMinimumReleaseAgeExclude, getPatchedDependencies, mergeAllowBuilds, parseOverrideKey, renderWorkspaceYaml, type ConfigNote, type NpmFolder } from '../workspaceConfig.ts';
+import { computeWorkspaceSettings, convertNpmOverrides, getGeneratedOverrides, getPatchedDependencies, getPatternsOfInstalledPackages, mergeAllowBuilds, parseOverrideKey, renderWorkspaceYaml, type ConfigNote, type NpmFolder } from '../workspaceConfig.ts';
 
 const fixture = path.join(import.meta.dirname, 'fixtures', 'workspace');
 const rootFolder: NpmFolder = {
@@ -172,13 +172,28 @@ suite('pnpm conversion: workspace configuration', () => {
 		const member: NpmFolder = { folder: 'remote/web', packageJson: {}, lockfile: lockfileWith({ 'node_modules/x/node_modules/@vscode/iconv-lite-umd': { version: '0.7.1' }, 'node_modules/vscode-css-languageservice': { version: '6.3.2' } }) };
 		const remote: NpmFolder = { folder: 'remote', packageJson: {}, lockfile: lockfileWith({ 'node_modules/typescript-eslint': { version: '8.66.0' } }) };
 		assert.deepStrictEqual([
-			getMinimumReleaseAgeExclude([remote, member], exclusions),
-			getMinimumReleaseAgeExclude([remote], exclusions),
+			getPatternsOfInstalledPackages([remote, member], exclusions),
+			getPatternsOfInstalledPackages([remote], exclusions),
 			computeWorkspaceSettings([remote], [], exactOrCaret).minimumReleaseAgeExclude,
 		], [
 			['@vscode/*', 'vscode-*-languageservice'],
 			[],
 			undefined,
+		]);
+	});
+
+	test('a root ignores the @parcel/watcher prebuilds only when its projects install them', () => {
+		const member: NpmFolder = { folder: 'remote/web', packageJson: {}, lockfile: lockfileWith({ 'node_modules/@parcel/watcher': { version: '2.5.6' }, 'node_modules/@parcel/watcher-darwin-arm64': { version: '2.5.6' } }) };
+		const remote: NpmFolder = { folder: 'remote', packageJson: {}, lockfile: lockfileWith({ 'node_modules/@parcel/core': { version: '2.0.0' } }) };
+		const settings = computeWorkspaceSettings([remote, member], [], exactOrCaret);
+		assert.deepStrictEqual([
+			computeWorkspaceSettings([remote], [], exactOrCaret).ignoredOptionalDependencies,
+			settings.ignoredOptionalDependencies,
+			renderWorkspaceYaml({ allowBuilds: { 'husky': false }, ignoredOptionalDependencies: settings.ignoredOptionalDependencies, optimisticRepeatInstall: false }).split('\n').slice(2),
+		], [
+			undefined,
+			['@parcel/watcher-*'],
+			['optimisticRepeatInstall: false', 'ignoredOptionalDependencies:', '  - \'@parcel/watcher-*\'', 'allowBuilds:', '  husky: false', ''],
 		]);
 	});
 

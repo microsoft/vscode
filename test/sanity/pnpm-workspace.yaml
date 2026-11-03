@@ -18,3 +18,5 @@ skills:
   dirs: []
 allowBuilds:
   fsevents@2.3.2: true
+overrides:
+  serialize-javascript: ^7.0.3

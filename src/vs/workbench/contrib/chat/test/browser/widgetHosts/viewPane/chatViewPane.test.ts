@@ -8,9 +8,10 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
-import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentHostClaudeAgentEnabledSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -25,6 +26,195 @@ import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
+
+suite('ChatViewPane session transitions', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const previousResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/previous' });
+	const nextResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
+
+	function createPane(resolving: Promise<void> = Promise.resolve(), preparing: Promise<void> = Promise.resolve()) {
+		const previousModel = upcastPartial<IChatModel>({ sessionResource: previousResource });
+		const nextModel = upcastPartial<IChatModel>({ sessionResource: nextResource });
+		let shown: IChatModel | undefined = previousModel;
+		let input = 'previous draft';
+		const bindings: (URI | undefined)[] = [];
+		const disposed: URI[] = [];
+		const locks: string[] = [];
+		const paneStore = store.add(new DisposableStore());
+		const modelRef = paneStore.add(new MutableDisposable<IChatModelReference>());
+		const createReference = (model: IChatModel): IChatModelReference => Object.assign(toDisposable(() => {
+			disposed.push(model.sessionResource);
+			if (shown === model) {
+				widget.setModel(undefined);
+			}
+		}), { object: model });
+		const widget = {
+			get viewModel() { return shown && { model: shown, sessionResource: shown.sessionResource }; },
+			getViewState: () => ({}),
+			getInput: () => input,
+			setInput: (value: string) => { input = value; },
+			setModel: (model: IChatModel | undefined) => {
+				shown = model;
+				input = '';
+				bindings.push(model?.sessionResource);
+			},
+			lockToCodingAgent: (_name: string, _displayName: string, sessionType: string) => { locks.push(sessionType); },
+			unlockFromCodingAgent: () => { locks.push('local'); },
+			visible: true,
+		};
+		modelRef.value = createReference(previousModel);
+		const nextRef = createReference(nextModel);
+		const pane: {
+			showModel(token: CancellationToken, ref: IChatModelReference): Promise<IChatModel | undefined>;
+			loadSession(resource: URI): Promise<IChatModel | undefined>;
+			applyModel(): void;
+			restoringSession: Promise<void> | undefined;
+		} = Object.assign(Object.create(ChatViewPane.prototype), {
+			_store: paneStore,
+			modelRef,
+			widgetViewStates: new Map(),
+			viewState: {},
+			_widget: widget,
+			_openDiagnostics: store.add(new MutableDisposable()),
+			loadSessionCts: store.add(new MutableDisposable()),
+			_applyModelCts: store.add(new MutableDisposable()),
+			logService: new NullLogService(),
+			layoutService: { isRestored: () => false },
+			notificationService: { error: () => { } },
+			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
+			chatService: { acquireOrLoadSession: async () => nextRef },
+			provisionalSessionService: { prepareSessionConfig: () => preparing },
+			chatSessionsService: {
+				canResolveChatSession: async () => { await resolving; return true; },
+				getChatSessionContribution: () => ({ name: 'copilot', displayName: 'Copilot', agentHostProviderId: 'copilotcli' }),
+			},
+			agentSessionsService: { model: { getSession: () => undefined } },
+			updateActions: () => { },
+		});
+		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
+	}
+
+	test('keeps the previous session bound until its replacement is ready', async () => {
+		const resolving = new DeferredPromise<void>();
+		const rig = createPane(resolving.p);
+		const showing = rig.pane.showModel(CancellationToken.None, rig.nextRef);
+		await timeout(0);
+		const whileResolving = { shown: rig.widget.viewModel?.sessionResource, disposed: [...rig.disposed] };
+		await resolving.complete();
+		await showing;
+		assert.deepStrictEqual({ whileResolving, bindings: rig.bindings, disposed: rig.disposed, shown: rig.widget.viewModel?.sessionResource }, {
+			whileResolving: { shown: previousResource, disposed: [] },
+			bindings: [nextResource],
+			disposed: [previousResource],
+			shown: nextResource,
+		});
+	});
+
+	for (const stalledPhase of ['acquisition', 'configuration'] as const) {
+		test(`explicit navigation supersedes initial ${stalledPhase} and releases the abandoned model`, async () => {
+			const blocked = new DeferredPromise<void>();
+			const rig = createPane(Promise.resolve(), blocked.p);
+			const savedResource = nextResource.with({ path: '/saved' });
+			const savedModel = upcastPartial<IChatModel>({ sessionResource: savedResource });
+			const savedReference = Object.assign(toDisposable(() => { }), { object: savedModel });
+			Object.assign(rig.pane, {
+				acquireTransferredOrPersistedSession: async () => {
+					if (stalledPhase === 'acquisition') {
+						await blocked.p;
+					}
+					return { modelRef: rig.nextRef };
+				},
+				chatService: { acquireOrLoadSession: async () => savedReference },
+			});
+			rig.pane.applyModel();
+			const restoration = rig.pane.restoringSession;
+			await timeout(0);
+			await rig.pane.loadSession(savedResource);
+			const navigatedBeforeUnblocking = rig.widget.viewModel?.sessionResource;
+			await blocked.complete();
+			await restoration;
+			assert.deepStrictEqual({ navigatedBeforeUnblocking, bindings: rig.bindings, disposed: [...rig.disposed].sort((a, b) => a.path.localeCompare(b.path)) }, {
+				navigatedBeforeUnblocking: savedResource, bindings: [savedResource], disposed: [previousResource, nextResource],
+			});
+		});
+	}
+
+	test('cancelling a replacement releases its pending reference before provider activation completes', async () => {
+		const resolving = new DeferredPromise<void>();
+		const rig = createPane(resolving.p);
+		const cts = store.add(new CancellationTokenSource());
+		const showing = rig.pane.showModel(cts.token, rig.nextRef);
+		await timeout(0);
+		cts.cancel();
+		const whileProviderPending = [...rig.disposed];
+		const result = await showing;
+		await resolving.complete();
+		assert.deepStrictEqual({ whileProviderPending, result, bindings: rig.bindings, disposed: rig.disposed, shown: rig.widget.viewModel?.sessionResource, locks: rig.locks }, {
+			whileProviderPending: [nextResource], result: undefined, bindings: [], disposed: [nextResource], shown: previousResource, locks: [],
+		});
+	});
+
+	test('disposing the pane releases the incoming reference before provider activation completes', async () => {
+		const resolving = new DeferredPromise<void>();
+		const rig = createPane(resolving.p);
+		const showing = rig.pane.showModel(CancellationToken.None, rig.nextRef);
+		await timeout(0);
+		rig.paneStore.dispose();
+		const whileProviderPending = [...rig.disposed];
+		const result = await showing;
+		await resolving.complete();
+		assert.deepStrictEqual({ whileProviderPending, result, bindings: rig.bindings, disposed: rig.disposed, locks: rig.locks }, {
+			whileProviderPending: [previousResource, nextResource],
+			result: undefined, bindings: [undefined], disposed: [previousResource, nextResource], locks: [],
+		});
+	});
+
+	test('cancelling initial configuration preparation preserves the displayed session', async () => {
+		const preparing = new DeferredPromise<void>();
+		const rig = createPane(Promise.resolve(), preparing.p);
+		const cts = store.add(new CancellationTokenSource());
+		const showing = rig.pane.showModel(cts.token, rig.nextRef);
+		await timeout(0);
+		const whilePreparing = rig.widget.viewModel?.sessionResource;
+		cts.cancel();
+		const result = await showing;
+		await preparing.complete();
+		assert.deepStrictEqual({ whilePreparing, result, bindings: rig.bindings, disposed: rig.disposed, locks: rig.locks }, {
+			whilePreparing: previousResource, result: undefined, bindings: [], disposed: [nextResource], locks: [],
+		});
+	});
+
+	test('preserves input typed while the new chat configuration is being prepared', async () => {
+		const preparing = new DeferredPromise<void>();
+		const rig = createPane(Promise.resolve(), preparing.p);
+		const showing = rig.pane.showModel(CancellationToken.None, rig.nextRef);
+		await timeout(0);
+		rig.widget.setInput('New draft typed while loading');
+		await preparing.complete();
+		await showing;
+		assert.deepStrictEqual({ input: rig.widget.getInput(), bindings: rig.bindings }, {
+			input: 'New draft typed while loading', bindings: [nextResource],
+		});
+	});
+
+	for (const untitled of [true, false]) {
+		test(`${untitled ? 'new chats stay bound' : 'saved chats still clear'} while a slow load is pending`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const rig = createPane();
+			const acquiring = new DeferredPromise<IChatModelReference>();
+			Object.assign(rig.pane, { chatService: { acquireOrLoadSession: () => acquiring.p } });
+			const loading = rig.pane.loadSession(untitled ? nextResource : nextResource.with({ path: '/saved' }));
+			await timeout(150);
+			const whileLoading = rig.widget.viewModel?.sessionResource;
+			await acquiring.complete(rig.nextRef);
+			await loading;
+			assert.deepStrictEqual({ whileLoading, bindings: rig.bindings, disposed: rig.disposed }, {
+				whileLoading: untitled ? previousResource : undefined,
+				bindings: untitled ? [nextResource] : [undefined, nextResource],
+				disposed: [previousResource],
+			});
+		}));
+	}
+});
 
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,6 +296,7 @@ suite('ChatViewPane chat open diagnostics', () => {
 			notificationService: { error: () => { } },
 			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
 			loadSessionCts: { value: undefined, },
+			_applyModelCts: { value: undefined },
 			element: { ownerDocument: { hidden: false } },
 			_widget: { viewModel: options.shown ? { sessionResource: options.shown } : undefined, visible: true, getInput: () => '' },
 			chatService: {
