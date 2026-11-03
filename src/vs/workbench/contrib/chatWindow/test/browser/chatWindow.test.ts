@@ -105,6 +105,7 @@ suite('Chat window', () => {
 			},
 			terminalsVisible: constObservable(false),
 			didMoveChatOut: () => events.push('moved out'),
+			resetLayout: () => events.push('reset layout'),
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
@@ -166,6 +167,24 @@ suite('Chat window', () => {
 			rememberedSideBySideNoEditor: `${ChatWindowLayoutMode.SideBySide}, default kept`,
 			rememberedEditorOnlyNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
 			rememberedEditorOnlyWithEditor: `${ChatWindowLayoutMode.EditorOnly}, default kept`,
+		});
+	});
+
+	test('resetting its layout forgets what the host remembered for its chat and shows it as chat windows show it, only its chat while its main part has no editor', () => {
+		const { window, state, main, events } = createWindow();
+		state.setLayoutMode(ChatWindowLayoutMode.Stacked);
+		window.resetLayout();
+		const withoutEditors = window.layoutMode.get();
+		main.group.open(editor());
+		state.setLayoutMode(ChatWindowLayoutMode.EditorOnly);
+		window.resetLayout();
+
+		assert.deepStrictEqual({ withoutEditors, withEditors: window.layoutMode.get(), splitLayout: window.splitLayout.get(), inputOnly: window.inputOnly.get(), events }, {
+			withoutEditors: ChatWindowLayoutMode.ChatOnly,
+			withEditors: ChatWindowLayoutMode.SideBySide,
+			splitLayout: ChatWindowLayoutMode.SideBySide,
+			inputOnly: true,
+			events: ['reset layout', 'reset layout'],
 		});
 	});
 

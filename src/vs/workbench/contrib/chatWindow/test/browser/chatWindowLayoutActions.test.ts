@@ -16,7 +16,7 @@ import { IsSessionsWindowContext, LayoutModeContext } from '../../../../common/c
 import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../browser/chatWindow.js';
-import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../browser/chatWindowLayoutActions.js';
+import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
@@ -38,6 +38,7 @@ suite('Chat window layout actions', () => {
 					state.showBoth();
 				}
 			}
+			override resetLayout() { state.reset(); }
 			override toggleConversation() {
 				if (state.layoutMode.get() === ChatWindowLayoutMode.Stacked) {
 					state.setInputOnly(!state.inputOnly.get());
@@ -168,5 +169,16 @@ suite('Chat window layout actions', () => {
 			matches(true, false, ChatWindowLayoutMode.Stacked),
 			matches(false, true, ChatWindowLayoutMode.Stacked),
 		], [true, false, false, false]);
+	});
+
+	test('Reset Chat Window Layout lays out the chat window it runs in as it first opens, and no other', () => {
+		const { a, b, active, run } = createEnvironment();
+		a.state.setLayoutMode(ChatWindowLayoutMode.Stacked);
+		b.state.setLayoutMode(ChatWindowLayoutMode.EditorOnly);
+
+		active.window = b.window;
+		run(RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID);
+
+		assert.deepStrictEqual({ a: a.state.layoutMode.get(), b: b.state.layoutMode.get() }, { a: ChatWindowLayoutMode.Stacked, b: ChatWindowLayoutMode.SideBySide });
 	});
 });

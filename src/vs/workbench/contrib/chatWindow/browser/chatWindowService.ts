@@ -54,6 +54,8 @@ export interface IChatWindowHost {
 	readonly terminalsVisible: IObservable<boolean>;
 	/** The chat's editor moved out of the window, such as into the main window or into an editor window. */
 	didMoveChatOut(): void;
+	/** Forgets the layout and sizes remembered for the window's chat, and arranges its parts again as in a new window. */
+	resetLayout(): void;
 }
 
 /** The class of a chat window's element while something is dragged in one of `windows`. */
@@ -179,6 +181,12 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		if (this.state.layoutMode.get() === ChatWindowLayoutMode.Stacked) {
 			this.state.setInputOnly(!this.state.inputOnly.get());
 		}
+	}
+
+	resetLayout(): void {
+		this._host.resetLayout();
+		this.state.reset();
+		showChatInsteadOfEmptyMainPart(this.mainPart, this, true);
 	}
 
 	showEditor(): void {
@@ -388,6 +396,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			},
 			isUnloading: () => unloading,
 			didMoveChatOut: () => void this._didMoveChatOut(window),
+			resetLayout: () => {
+				this._chatLayouts.delete(content.chat.get());
+				this._chatSizes.delete(content.chat.get());
+				gridRef.get()?.reset();
+			},
 			createTerminalsPart: () => {
 				// Its groups stay locked to its terminals, as terminal groups lock, so that other editors open elsewhere: like the
 				// main window's panel, it offers no action to unlock them.

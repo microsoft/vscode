@@ -106,6 +106,22 @@ suite('ChatWindowState', () => {
 		});
 	});
 
+	test('forgetting the layout and sizes of a chat leaves those of the other chats', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const layouts = new ChatWindowChatLayouts(storage);
+		const sizes = new ChatWindowChatSizes(storage);
+		const other = URI.parse('test:/other');
+		const layout: IRememberedChatLayout = { mode: ChatWindowLayoutMode.Stacked, splitLayout: ChatWindowLayoutMode.Stacked, inputOnly: false };
+		for (const candidate of [chat, other]) {
+			layouts.set(candidate, layout);
+			sizes.set(candidate, { stacked: { chat: { width: 10, height: 20 } } });
+		}
+		layouts.delete(chat);
+		sizes.delete(chat);
+
+		assert.deepStrictEqual({ chat: [layouts.get(chat), sizes.get(chat)], other: [layouts.get(other)?.mode, !!sizes.get(other)] }, { chat: [undefined, undefined], other: [ChatWindowLayoutMode.Stacked, true] });
+	});
+
 	test('sizes stored by earlier builds, which kept the sizes the window forced the parts to, are not read: the parts take their defaults', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const [oldKey] = ChatWindowChatSizes.OLD_STORAGE_KEYS;

@@ -328,6 +328,21 @@ export class ChatWindowGrid extends Disposable {
 		this._updateTerminalsVisible();
 	}
 
+	/**
+	 * Forgets the sizes the user gave the cells and arranges them again as the mode arranges them, as in a new window:
+	 * parts moved elsewhere go back to their places, and the cells take their default shares.
+	 */
+	reset(): void {
+		this._sizes = {};
+		this._topologyKey = undefined;
+		this._baseTopologyKey = undefined;
+		this._sizesKey = undefined;
+		this._baseSizesKey = undefined;
+		this._arranged = undefined;
+		this._pendingTerminalsHeight = undefined;
+		this._update();
+	}
+
 	/** The sizes the user gave the cells, per arrangement. */
 	exportSizes(): ChatWindowPartSizes {
 		return { ...this._sizes };

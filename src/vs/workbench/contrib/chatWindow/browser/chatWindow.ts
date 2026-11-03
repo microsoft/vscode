@@ -175,6 +175,11 @@ export interface IChatWindow {
 	/** In {@link ChatWindowLayoutMode.Stacked}: collapses the chat to its input, or expands it to show its conversation too. */
 	toggleConversation(): void;
 	/**
+	 * Forgets how the window was laid out for its chat, its sizes and the parts moved in it, and lays it out as it first
+	 * opens: only the chat while its main part has no editors.
+	 */
+	resetLayout(): void;
+	/**
 	 * The part that holds its terminals, created at its {@link terminalPosition} the first time. Like every part of the
 	 * window, it hides while it has no editors.
 	 */

@@ -9,6 +9,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -259,5 +260,24 @@ registerAction2(class ToggleChatWindowEditorByKeyAction extends Action2 {
 		} else {
 			showChatWindowLayout(window, ChatWindowLayoutMode.ChatOnly);
 		}
+	}
+});
+
+export const RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID = 'workbench.action.chatWindow.resetLayout';
+
+// Lays out the chat window it runs in as it first opens: neither other chat windows nor the main window change.
+registerAction2(class ResetChatWindowLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID,
+			title: localize2('chatWindowResetLayout', "Reset Chat Window Layout"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatWindowLayoutCommandsContext,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		resolveChatWindow(accessor, args)?.resetLayout();
 	}
 });

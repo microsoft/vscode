@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, ISettableObservable, derived, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition, isChatWindowLayoutMode, isChatWindowSplitLayout } from './chatWindowLayout.js';
 
 /** The layout mode of a chat window until the user chooses one. */
 const DEFAULT_LAYOUT_MODE = ChatWindowLayoutMode.SideBySide;
+
+/** Whether the chat below the main part shows only its input until the user chooses. */
+const DEFAULT_INPUT_ONLY = true;
 
 /**
  * The prefix of the keys of {@link ChatWindowDefaults}. The keys and values are those chat windows of the Agents window
@@ -33,7 +36,7 @@ export class ChatWindowDefaults {
 
 	/** Whether the chat below the main part was left dragged down to its input. */
 	getInputOnly(): boolean {
-		return this._storageService.getBoolean(`${DEFAULTS_KEY_PREFIX}.inputOnly`, StorageScope.PROFILE, true);
+		return this._storageService.getBoolean(`${DEFAULTS_KEY_PREFIX}.inputOnly`, StorageScope.PROFILE, DEFAULT_INPUT_ONLY);
 	}
 
 	setInputOnly(inputOnly: boolean): void {
@@ -89,6 +92,11 @@ class PerChatMemory<T> {
 		entries.push([key, value]);
 		this._storageService.store(this._key, JSON.stringify(entries.slice(-MAX_REMEMBERED_CHATS)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
+
+	delete(chat: URI): void {
+		const key = chat.toString();
+		this._storageService.store(this._key, JSON.stringify(this._read().filter(([candidate]) => candidate !== key)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
 }
 
 function isRememberedChatLayout(value: unknown): value is IRememberedChatLayout {
@@ -114,6 +122,10 @@ export class ChatWindowChatLayouts {
 
 	set(chat: URI, layout: IRememberedChatLayout): void {
 		this._memory.set(chat, { mode: layout.mode, splitLayout: layout.splitLayout, inputOnly: layout.inputOnly });
+	}
+
+	delete(chat: URI): void {
+		this._memory.delete(chat);
 	}
 }
 
@@ -150,6 +162,10 @@ export class ChatWindowChatSizes {
 
 	set(chat: URI, sizes: ChatWindowPartSizes): void {
 		this._memory.set(chat, sizes);
+	}
+
+	delete(chat: URI): void {
+		this._memory.delete(chat);
 	}
 }
 
@@ -258,6 +274,18 @@ export class ChatWindowState {
 		}
 		this._terminalPosition.set(position, undefined);
 		this._defaults.setTerminalPosition(position);
+	}
+
+	/**
+	 * Shows the chat as chat windows show it until the user chooses otherwise, without remembering it for the chat or as
+	 * the defaults of chat windows: what the user chooses next is. Where its terminals show stays.
+	 */
+	reset(): void {
+		transaction(tx => {
+			this._lastSplitLayout.set(DEFAULT_LAYOUT_MODE, tx);
+			this._inputOnly.set(DEFAULT_INPUT_ONLY, tx);
+			this._layoutMode.set(DEFAULT_LAYOUT_MODE, tx);
+		});
 	}
 
 	private _remember(): void {

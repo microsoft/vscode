@@ -179,6 +179,25 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, exported: grid.exportSizes()['column(titleRow,row(chat,main))']?.[ChatWindowGridCell.Chat]?.width }, { topology: 'column(titleRow, row(chat, main))', chat: 300, exported: 300 });
 	});
 
+	test('reset forgets the sizes the user gave the cells and the parts moved, and arranges them as in a new window', () => {
+		const { mode, grid, userResize } = setup();
+		const fresh = { topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width };
+		userResize(ChatWindowGridCell.Chat, 'right', 300);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		// Moved by the user, such as with Move Part Down.
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		const before = { topology: grid.partGrid!.describe(), sizes: Object.keys(grid.exportSizes()).length > 0 };
+
+		grid.reset();
+
+		assert.deepStrictEqual({ before, after: { topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width }, sizes: grid.exportSizes() }, {
+			before: { topology: 'column(titleRow, main, chat)', sizes: true },
+			after: fresh,
+			sizes: {},
+		});
+	});
+
 	/** A part whose editors come and go: it is empty until an editor opens in it. */
 	function createPartWithEditors(name: string) {
 		const onDidModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
