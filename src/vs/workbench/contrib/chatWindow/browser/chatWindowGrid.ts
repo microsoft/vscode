@@ -13,6 +13,7 @@ import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/par
 import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../common/chatWindowState.js';
+import { moveEditorsToChatWindow } from './chatWindowParts.js';
 
 /** The cells of a chat window's grid. */
 export const enum ChatWindowGridCell {
@@ -302,6 +303,17 @@ export class ChatWindowGrid extends Disposable {
 		return this._grid.value;
 	}
 
+	/**
+	 * Closes the parts the grid created, their editors moving into the main part first. An editor that cannot move
+	 * there goes where closing its part takes it.
+	 */
+	private _closeCreatedParts(): void {
+		for (const part of [...this._created.values()]) {
+			moveEditorsToChatWindow(part.groups, this._cells.main.activeGroup);
+			part.close();
+		}
+	}
+
 	/** The arrangement shown, such as `column(titleRow,row(chat,main))`. */
 	get topology(): string | undefined {
 		return this._topologyKey;
@@ -379,9 +391,11 @@ export class ChatWindowGrid extends Disposable {
 
 	/**
 	 * Forgets the sizes the user gave the cells and arranges them again as the mode arranges them, as in a new window:
-	 * parts moved elsewhere go back to their places, and the cells take their default shares.
+	 * parts moved elsewhere go back to their places, the parts it created close, their editors moving into the main part,
+	 * and the cells take their default shares.
 	 */
 	reset(): void {
+		this._closeCreatedParts();
 		this._sizes = {};
 		this._topologyKey = undefined;
 		this._baseTopologyKey = undefined;

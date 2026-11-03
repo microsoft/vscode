@@ -842,4 +842,77 @@ suite('Chat window grid', () => {
 			chatWidthAfterClose: 400
 		});
 	});
+
+	test('resetting the layout closes the parts the grid created, their editors moving into the main part first, and the arrangement is the mode\'s again', () => {
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+			override canMove() { return true as const; }
+		}();
+		const moved: string[] = [];
+		const mainGroup = new class extends mock<IEditorGroup>() {
+			override readonly id = 10;
+			override readonly isEmpty = false;
+			override readonly onDidModelChange = Event.None;
+			override getEditors() { return []; }
+			override contains() { return moved.length > 0; }
+			override async openEditor() { return undefined; }
+		}();
+		const main = new class extends mock<IContentPart>() {
+			override readonly element = $('.main');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [mainGroup];
+			override get activeGroup() { return mainGroup; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		const onWillClose = disposables.add(new Emitter<void>());
+		const created = new class extends mock<IContentPart>() {
+			override readonly element = $('.created');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [new class extends mock<IEditorGroup>() {
+				override readonly id = 20;
+				override readonly isEmpty = false;
+				override readonly activeEditor = editor;
+				override readonly onDidModelChange = Event.None;
+				override focus(): void { }
+				override getEditors() { return [editor]; }
+				override moveEditors(editors: { editor: EditorInput }[], target: IEditorGroup) { moved.push(`${editors.map(e => e.editor.getName()).join()} → ${target.id}`); return true; }
+			}()];
+			override get activeGroup() { return this.groups[0]; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = onWillClose.event;
+			override layout() { }
+			override close() { moved.push('closed'); onWillClose.fire(); return true; }
+		}();
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main, chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34) }, observableValue('mode', ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, { createPart: () => ({ id: 'created', part: created }) }, editorGroupsService));
+		grid.layout(1000, 800);
+
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Right });
+		grid.partGrid!.moveCellInDirection('created', Direction.Left);
+		const added = grid.partGrid!.describe();
+		grid.reset();
+
+		assert.deepStrictEqual({ added, moved, after: grid.partGrid!.describe() }, {
+			added: 'column(titleRow, row(chat, created, main))',
+			moved: ['file → 10', 'closed'],
+			after: 'column(titleRow, row(chat, main))'
+		});
+	});
 });
