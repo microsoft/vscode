@@ -331,7 +331,8 @@ function stripComments(content: string): string {
 
 function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: eventStream.ThroughStream) {
 	const languageDirectory = path.join(REPO_ROOT_PATH, '..', 'vscode-loc', 'i18n');
-	if (!fs.existsSync(languageDirectory)) {
+	const hasLanguageDirectory = fs.existsSync(languageDirectory);
+	if (!hasLanguageDirectory) {
 		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
 		log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
 	}
@@ -347,6 +348,8 @@ function processCoreBundleFormat(base: string, fileHeader: string, languages: La
 		if (fs.existsSync(i18nFile)) {
 			const content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
 			allMessages = JSON.parse(content);
+		} else if (hasLanguageDirectory) {
+			log(`No translations found for ${language.id}. Looking at ${i18nFile}`);
 		}
 
 		let nlsIndex = 0;
