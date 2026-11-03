@@ -19,7 +19,7 @@ import { activeContrastBorder } from '../../../../platform/theme/common/colorReg
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, isContentDropTarget, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, getInputDropTargetClipPath, isContentDropTarget, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
 import { IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
@@ -43,12 +43,11 @@ function isDragIntoEditorEvent(e: DragEvent): boolean {
 }
 
 /**
- * Whether the drag is over a registered input drop target (or an element inside one)
- * inside `scope`, the group under the drag. Such inputs handle the drop themselves, so
- * the editor drop overlay must not claim it.
+ * Whether a drag, other than of a group, is over a registered input drop target (or an element inside one) inside
+ * `scope`, the group under the drag. Such inputs handle the drop themselves: the editor drop overlay has holes over them.
  */
-function isInputDropTargetEvent(e: DragEvent, scope: HTMLElement): boolean {
-	return isHTMLElement(e.target) && isInputDropTarget(e.target, e, scope);
+function isInputDropTargetEvent(e: DragEvent, scope: HTMLElement, isDraggingGroup: boolean): boolean {
+	return !isDraggingGroup && isHTMLElement(e.target) && isInputDropTarget(e.target, e, scope);
 }
 
 /**
@@ -251,9 +250,11 @@ class DropOverlay extends Themable {
 		// Container
 		const container = this.container = $('div', { id: DropOverlay.OVERLAY_ID });
 		container.style.top = `${overlayOffsetHeight}px`;
+		container.style.height = `calc(100% - ${overlayOffsetHeight}px)`;
 
 		// Parent
 		this.groupView.element.appendChild(container);
+		this.updateInputClipPath(container);
 		this.groupView.element.classList.add('dragged-over');
 		this._register(toDisposable(() => {
 			container.remove();
@@ -314,13 +315,12 @@ class DropOverlay extends Themable {
 		const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 		const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
 
-		// An input drop target takes the drop. So does content that
-		// handles drops, except for editors and groups, which split the
-		// group: they cannot go into it, such as behind a chat
+		// Content that handles drops takes the drop, except for editors and
+		// groups, which split the group: they cannot go into it, such as
+		// behind a chat. Inputs take drops through the overlay's holes.
 		const overContent = isContentDropTargetEvent(e, this.groupView.element);
 		if (
 			(this.enableDropIntoEditor && isDragIntoEditorEvent(e)) ||
-			isInputDropTargetEvent(e, this.groupView.element) ||
 			(overContent && (!(isDraggingEditor || isDraggingGroup) || !this.isSplittingEnabled(e)))
 		) {
 			this.dispose();
@@ -359,6 +359,9 @@ class DropOverlay extends Themable {
 		// keymodifiers used.
 		const { x, y } = getDropAreaPosition(e, this.groupView);
 		this.positionOverlay(x, y, isDraggingGroup, this.isSplittingEnabled(e), overContent);
+		if (this.container) {
+			this.updateInputClipPath(this.container);
+		}
 
 		// Make sure to stop any running cleanup scheduler to remove the overlay
 		if (this.cleanupOverlayScheduler.isScheduled()) {
@@ -373,10 +376,10 @@ class DropOverlay extends Themable {
 			onDragEnd: e => this.dispose(),
 
 			onDrop: e => {
-				if (isInputDropTargetEvent(e, this.groupView.element) || (isContentDropTargetEvent(e, this.groupView.element) && !(
+				if (isContentDropTargetEvent(e, this.groupView.element) && !(
 					(this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) || this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) &&
 					this.isSplittingEnabled(e)
-				))) {
+				)) {
 					this.dispose();
 					return;
 				}
@@ -411,6 +414,10 @@ class DropOverlay extends Themable {
 				this.cleanupOverlayScheduler.schedule();
 			}
 		}));
+	}
+
+	private updateInputClipPath(container: HTMLElement): void {
+		container.style.clipPath = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) ? '' : getInputDropTargetClipPath(this.groupView.element, container);
 	}
 
 	private isDropIntoActiveEditorEnabled(): boolean {
@@ -736,12 +743,17 @@ export class EditorDropTarget extends Themable {
 
 		this.counter++;
 
-		// Inputs registered as drop targets handle the drop themselves, and
-		// so does content that handles drops, except for editors and groups,
-		// which split the group
+		// Inputs registered as drop targets handle the drop themselves, except
+		// for groups, and so does content that handles drops, except for
+		// editors and groups, which split the group
 		const targetElement = isHTMLElement(event.target) ? event.target : undefined;
 		const scope = (targetElement && this.findTargetGroupView(targetElement)?.element) ?? this.container;
-		if (isInputDropTargetEvent(event, scope) || (isContentDropTargetEvent(event, scope) && !this.splitsOverContent(event))) {
+		if (isInputDropTargetEvent(event, scope, this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype))) {
+			this.disposeOverlay();
+			this.updateContainer(false);
+			return;
+		}
+		if (isContentDropTargetEvent(event, scope) && !this.splitsOverContent(event)) {
 			this.disposeOverlay();
 			return;
 		}
@@ -804,7 +816,7 @@ export class EditorDropTarget extends Themable {
 			!this.groupsView.partOptions.allowDropIntoGroup ||
 			!isHTMLElement(event.target) ||
 			!scope ||
-			isInputDropTargetEvent(event, scope) ||
+			isInputDropTargetEvent(event, scope, this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) ||
 			!isContentDropTargetEvent(event, scope) ||
 			!this.splitsOverContent(event)
 		) {

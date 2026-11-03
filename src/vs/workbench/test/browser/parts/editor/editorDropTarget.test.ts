@@ -194,9 +194,8 @@ suite('EditorDropTarget', () => {
 		const indicator = overlay?.querySelector<HTMLElement>('.editor-group-overlay-indicator');
 		const onCenter = { overlay: !!overlay, width: indicator?.style.width, left: indicator?.style.left };
 
-		// Over the input, the input takes it
-		dispatch(overlay!, 'dragover', 150, 225);
-		const overlayOverInput = !!getOverlay(groupElement);
+		// Over the input, the input takes it: the overlay has a hole there
+		const inputClipped = !!overlay && overlay.style.clipPath.includes('100px 200px');
 
 		// Back over the center, right of its middle: a drop there splits to the right
 		dispatch(content, 'dragenter', 160, 150);
@@ -204,9 +203,9 @@ suite('EditorDropTarget', () => {
 		dispatch(getOverlay(groupElement)!, 'drop', 160, 150);
 		dispatch(groupElement, 'dragend', 160, 150);
 
-		assert.deepStrictEqual({ onCenter, overlayOverInput, operations }, {
+		assert.deepStrictEqual({ onCenter, inputClipped, operations }, {
 			onCenter: { overlay: true, width: '50%', left: '0px' },
-			overlayOverInput: false,
+			inputClipped: true,
 			operations: [`split ${GroupDirection.RIGHT}`, 'move 1 editor(s) to new group']
 		});
 	});
