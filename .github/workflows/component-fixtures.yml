@@ -56,9 +56,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # build/rspack is a member of the build workspace. pnpm also installs the build project's own
+      # dependencies, so skip their install scripts (native modules): rspack doesn't need them.
       - name: Install rspack dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         working-directory: build/rspack
 
       - name: Copy codicons
@@ -130,15 +132,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Also installs build/rspack, a member of the build workspace.
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
         working-directory: build
-
-      - name: Install rspack dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
-        working-directory: build/rspack
 
       - name: Save node_modules cache
         # Only seed the cache on branch pushes — PR-scoped caches are not shared with other refs.
