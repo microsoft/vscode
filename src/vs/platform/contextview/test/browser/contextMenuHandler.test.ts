@@ -20,6 +20,19 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 suite('ContextMenuHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	/**
+	 * Appends a fixed-position element at the top of the page. Elements appended to the end of the body can be below the
+	 * fold, and focusing them, or the menu shown in them, would scroll the page for the test files that run after this one.
+	 */
+	function appendFixed<T extends HTMLElement>(element: T): T {
+		element.style.position = 'fixed';
+		element.style.top = '0';
+		element.style.left = '0';
+		mainWindow.document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		return element;
+	}
+
 	for (const [selection, expected] of [
 		[undefined, undefined],
 		[false, undefined],
@@ -34,8 +47,7 @@ suite('ContextMenuHandler', () => {
 		[3, undefined],
 	] as const) {
 		test(`normalizes HTML menu selection ${selection} to ${expected}`, () => {
-			const container = mainWindow.document.body.appendChild($('div'));
-			store.add(toDisposable(() => container.remove()));
+			const container = appendFixed($('div'));
 			const contextViewService = upcastPartial<IContextViewService>({
 				showContextView: delegate => {
 					store.add(delegate.render(container));
@@ -57,9 +69,8 @@ suite('ContextMenuHandler', () => {
 
 	suite('popover hosting', () => {
 		function showMenu(domPosition: ContextViewDOMPosition | undefined, hostAsPopover: boolean | undefined) {
-			const container = mainWindow.document.body.appendChild($('div'));
-			const previous = mainWindow.document.body.appendChild($('input')) as HTMLInputElement;
-			store.add(toDisposable(() => { container.remove(); previous.remove(); }));
+			const container = appendFixed($('div'));
+			const previous = appendFixed($('input')) as HTMLInputElement;
 			previous.focus();
 			const delegates: IContextViewDelegate[] = [];
 			let close: () => void = () => { };

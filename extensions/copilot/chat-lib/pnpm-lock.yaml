@@ -14,6 +14,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.41
         version: 0.34.41
+      '@unicode/unicode-15.0.0':
+        specifier: 2.1.0
+        version: 2.1.0
       '@vscode/copilot-api':
         specifier: ^0.5.2
         version: 0.5.2
@@ -513,6 +516,10 @@ packages:
 
   '@types/node@22.16.3':
     resolution: {integrity: sha512-sr4Xz74KOUeYadexo1r8imhRtlVXcs+j3XK3TcoiYk7B1t3YRVJgtaD3cwX73NYb71pmVuMLNRhJ9XKdoDB74g==}
+
+  '@unicode/unicode-15.0.0@2.1.0':
+    resolution: {integrity: sha512-+41aWxdo9REQqi/ttFP+9kGVFCuUnADLl5RLti0Xkh7kI/r6BeDlTQNwF0WZpXv6C7BmxMmdXfXd9cCy9lnpAA==}
+    engines: {node: '>=12'}
 
   '@vitest/expect@4.1.11':
     resolution: {integrity: sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==}
@@ -2045,6 +2052,8 @@ snapshots:
   '@types/node@22.16.3':
     dependencies:
       undici-types: 6.21.0
+
+  '@unicode/unicode-15.0.0@2.1.0': {}
 
   '@vitest/expect@4.1.11':
     dependencies:

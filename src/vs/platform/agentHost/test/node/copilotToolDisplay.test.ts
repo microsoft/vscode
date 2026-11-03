@@ -9,7 +9,7 @@ import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getAssistedApprovalNotice, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -262,6 +262,69 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 			missing: undefined,
 			noParameters: undefined,
 			nonString: undefined,
+		});
+	});
+
+	test('getTaskCompleteMarkdown reports the runtime review instead of plain success', () => {
+		const parameters = { summary: 'Updated the parser.' };
+		const blockedActions: TaskCompletionReview['blockedActions'] = [
+			{ episodeId: 'episode-1', permissionKind: 'shell', recoveryReason: 'attempts_exhausted', toolCallId: 'tc-push' },
+			{ episodeId: 'episode-2', permissionKind: 'shell', recoveryReason: 'permission_required' },
+			{ episodeId: 'episode-3', permissionKind: 'write', recoveryReason: 'repeated_attempt' },
+			{ episodeId: 'episode-4', permissionKind: 'extension-env-access', recoveryReason: 'permission_required' },
+		];
+		assert.deepStrictEqual({
+			completed: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed' }),
+			completedWithBlockedActions: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed', blockedActions }),
+			blocked: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: false, outcome: 'blocked', blockedActions }),
+			blockedWithReason: getTaskCompleteMarkdown(undefined, undefined, { success: false, outcome: 'blocked', reason: 'The task was cancelled.' }),
+			blockedWithoutDetails: getTaskCompleteMarkdown(undefined, undefined, { success: false, outcome: 'blocked' }),
+			continued: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: false, outcome: 'continue' }),
+			reviewSummaryOnly: getTaskCompleteMarkdown(undefined, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed' }),
+			reviewSummaryListingBlockedActions: getTaskCompleteMarkdown(undefined, undefined, { summary: 'Updated the parser.\n\nBlocked actions:\n- shell (tool call tc-push)', success: false, outcome: 'blocked', blockedActions: blockedActions.slice(0, 1) }),
+		}, {
+			completed: '\n\n**Task completed:**\n\nUpdated the parser.',
+			completedWithBlockedActions: '\n\n**Task completed with blocked actions:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command\n- Edit a file\n- Use a tool',
+			blocked: '\n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command\n- Edit a file\n- Use a tool',
+			blockedWithReason: '\n\n**Task blocked:**\n\nThe task was cancelled.',
+			blockedWithoutDetails: '\n\n**Task blocked.**',
+			continued: undefined,
+			reviewSummaryOnly: '\n\n**Task completed:**\n\nUpdated the parser.',
+			reviewSummaryListingBlockedActions: '\n\n**Task blocked:**\n\nBlocked actions:\n- Run a terminal command',
+		});
+	});
+
+	test('getPhaseTaskCompleteMarkdown shows a phase summary without claiming completion', () => {
+		assert.deepStrictEqual({
+			summary: getPhaseTaskCompleteMarkdown({ summary: 'Updated the parser.' }, 'Done'),
+			toolOutput: getPhaseTaskCompleteMarkdown({}, 'Updated the parser.'),
+			empty: getPhaseTaskCompleteMarkdown(undefined, undefined),
+		}, {
+			summary: '\n\n**Summary:**\n\nUpdated the parser.',
+			toolOutput: '\n\n**Summary:**\n\nUpdated the parser.',
+			empty: undefined,
+		});
+	});
+
+	test('getAssistedApprovalNotice explains only assessments that leave no verdict to show', () => {
+		assert.deepStrictEqual({
+			excluded: getAssistedApprovalNotice({ status: 'excluded', reason: 'sandbox-bypass' }),
+			unknownExclusion: getAssistedApprovalNotice({ status: 'excluded', reason: 'future-reason' }),
+			failed: getAssistedApprovalNotice({ status: 'failed', reason: 'timeout' }),
+			unknownFailure: getAssistedApprovalNotice({ status: 'failed', reason: 'future-reason' }),
+			completed: getAssistedApprovalNotice({ status: 'completed', recommendation: 'requireApproval', rationale: 'Pushes to a protected branch.' }),
+			notRun: getAssistedApprovalNotice({ status: 'not-run', reason: 'inactive' }),
+			unavailable: getAssistedApprovalNotice({ status: 'unavailable' }),
+			missing: getAssistedApprovalNotice(undefined),
+		}, {
+			excluded: 'Assisted permissions doesn\'t review requests to run outside the sandbox.',
+			unknownExclusion: 'Assisted permissions didn\'t review this request.',
+			failed: 'Assisted permissions couldn\'t review this request in time.',
+			unknownFailure: 'Assisted permissions couldn\'t review this request.',
+			completed: undefined,
+			notRun: undefined,
+			unavailable: undefined,
+			missing: undefined,
 		});
 	});
 });

@@ -33,6 +33,7 @@ export const workspaceMembers = [
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
 	'extensions/markdown-language-features',
+	'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
 	'extensions/markdown-math',
 	'extensions/merge-conflict',
 	'extensions/mermaid-markdown-features',
@@ -51,6 +52,7 @@ export const workspaceMembers = [
 	'extensions/vscode-colorize-perf-tests',
 	'extensions/vscode-test-resolver',
 	'test/automation',
+	'test/componentFixtures/playwright',
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
@@ -59,25 +61,31 @@ export const workspaceMembers = [
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-extras',
 	'.vscode/extensions/vscode-pr-pinger',
+	'src/vs/sessions/test/e2e',
 ];
 
 /**
  * Separate pnpm install roots (each with its own `pnpm-workspace.yaml` and `pnpm-lock.yaml`) that
  * the root postinstall installs after the workspace, in this order. `build` and `remote` build
  * native modules for a different runtime than the workspace (see their `.npmrc` and
- * `.pnpmfile.mjs`). `build/rspack` and `build/vite` are inside `build`: pnpm uses the nearest
- * `pnpm-workspace.yaml` above a folder, so they can't be members of the main workspace.
- * `extensions/copilot` keeps its own `node_modules` because its build scripts and runtime code use
- * paths inside it; it builds native modules for Electron like the workspace.
+ * `.pnpmfile.mjs`). `extensions/copilot` keeps its own `node_modules` because its build scripts
+ * and runtime code use paths inside it; it builds native modules for Electron like the workspace.
  */
 export const separateRoots = [
 	'build',
-	'build/rspack',
-	'build/vite',
 	'remote',
 	'remote/web',
 	'extensions/copilot',
 ];
+
+/**
+ * Members of the workspaces of separate roots, by root: they share the root's `pnpm-lock.yaml` and
+ * are installed by its `pnpm install`. `build/rspack` and `build/vite` are inside `build`: pnpm uses
+ * the nearest `pnpm-workspace.yaml` above a folder, so they can't be members of the main workspace.
+ */
+export const separateRootMembers: Readonly<Record<string, readonly string[]>> = {
+	'build': ['build/rspack', 'build/vite'],
+};
 
 /**
  * Separate pnpm install roots that are installed on demand, not by the root postinstall:
@@ -86,9 +94,6 @@ export const separateRoots = [
 export const standaloneRoots = [
 	'build/npm/gyp',
 	'extensions/copilot/chat-lib',
-	'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
-	'src/vs/sessions/test/e2e',
-	'test/componentFixtures/playwright',
 	'test/sanity',
 ];
 
@@ -113,10 +118,11 @@ export const distroRoots = existsSync(`${import.meta.dirname}/../../.build/distr
 
 /**
  * Complete list of directories whose dependencies are installed by `pnpm install` at the root:
- * the workspace members, then the separate roots, then the distro roots.
+ * the workspace members, then the separate roots, each followed by its members, then the distro
+ * roots.
  */
 export const dirs = [
 	...workspaceMembers,
-	...separateRoots,
+	...separateRoots.flatMap(folder => [folder, ...separateRootMembers[folder] ?? []]),
 	...distroRoots,
 ];

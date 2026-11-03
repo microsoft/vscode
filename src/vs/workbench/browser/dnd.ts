@@ -66,6 +66,22 @@ export function getInputDropTargets(container: HTMLElement): readonly HTMLElemen
 	return [...inputDropTargets].filter(target => container.contains(target));
 }
 
+/** Leaves registered inputs outside a placement overlay's pointer hit region. */
+export function getInputDropTargetClipPath(container: HTMLElement, overlay: HTMLElement = container): string {
+	const bounds = overlay.getBoundingClientRect();
+	const holes = getInputDropTargets(container).flatMap(input => {
+		const rect = input.getBoundingClientRect();
+		const left = Math.max(0, rect.left - bounds.left);
+		const top = Math.max(0, rect.top - bounds.top);
+		const right = Math.min(bounds.width, rect.right - bounds.left);
+		const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
+		return right > left && bottom > top
+			? [`${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px, ${left}px ${top}px, 0 0`]
+			: [];
+	});
+	return holes.length ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${holes.join(', ')})` : '';
+}
+
 //#region Editor / Resources DND
 
 export class DraggedEditorIdentifier {
