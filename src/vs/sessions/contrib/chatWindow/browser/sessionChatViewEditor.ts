@@ -196,6 +196,11 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	) {
 		super();
 
+		// First, so that it is set before anything of the view disposes: what the view shows changing as it disposes, such
+		// as its window as it closes, must not create anything with the services it disposed.
+		let disposing = false;
+		this._register(toDisposable(() => disposing = true));
+
 		// Styled as the session views of the Agents window are, which show in its sessions part or in a window of their own.
 		this.element = $('.session-chat-view-editor.sessions-window-host');
 		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
@@ -252,7 +257,7 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 		}));
 		// Its own title row, at the top of its card, while it shows; the title row of its window otherwise.
 		const title = derived(this, reader => {
-			if (!host.window.read(reader)) {
+			if (!host.window.read(reader) || disposing) {
 				return undefined;
 			}
 			const created = host.createTitle(this.element, scopedInstantiationService);

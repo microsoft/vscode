@@ -10,7 +10,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
@@ -189,5 +189,33 @@ suite('Session chat view editor', () => {
 			shownAgain: { shown: true, extraMinimumHeight: 33, chat: { height: 767, top: 33 } },
 		};
 		assert.deepStrictEqual({ chatOnly: run(ChatWindowLayoutMode.ChatOnly), sideBySide: run(ChatWindowLayoutMode.SideBySide) }, { chatOnly: expected, sideBySide: expected });
+	});
+
+	test('a view that disposes, as its window closes, creates no title row on the way, which the services it disposed could not create', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const window = () => upcastPartial<IChatWindow>({
+			layoutMode: constObservable(ChatWindowLayoutMode.SideBySide),
+			inputOnly: constObservable(false),
+			mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
+		});
+		const hostWindow = observableValue<IChatWindow | undefined>('window', window());
+		let created = 0;
+		const host: ISessionChatViewHost = {
+			session: constObservable(undefined),
+			window: hostWindow,
+			header: constObservable(undefined),
+			showsTitle: constObservable(true),
+			createTitle: () => {
+				created++;
+				return { element: $('.own-title'), size: constObservable(33), layout: () => { }, dispose: () => { } };
+			},
+			// What changes the window of the view as it disposes, such as its window closing.
+			attach: () => toDisposable(() => hostWindow.set(window(), undefined)),
+		};
+		const view = instantiationService.createInstance(SessionChatViewEditorView, host);
+		const beforeDispose = created;
+		view.dispose();
+
+		assert.deepStrictEqual({ beforeDispose, afterDispose: created }, { beforeDispose: 1, afterDispose: 1 });
 	});
 });
