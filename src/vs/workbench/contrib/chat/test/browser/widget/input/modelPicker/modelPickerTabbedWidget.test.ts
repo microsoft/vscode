@@ -640,6 +640,36 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('comparison guidance attaches only outside setup and is disposed on close', () => {
+		let renderedButton: HTMLElement | undefined;
+		let rendered = 0;
+		let disposed = 0;
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			renderToggle: button => {
+				renderedButton = button;
+				rendered++;
+				return toDisposable(() => disposed++);
+			},
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => { }, select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { picker, popup } = createPicker({ comparison, realContextView: true });
+		const attached = renderedButton === element(popup, '[data-id="comparison"]');
+		element(popup, '[data-id="comparison"]').click();
+		const duringSetup = { rendered, disposed };
+		picker.hide();
+		assert.deepStrictEqual({ attached, duringSetup, afterClose: { rendered, disposed } }, {
+			attached: true, duringSetup: { rendered: 1, disposed: 1 }, afterClose: { rendered: 1, disposed: 1 },
+		});
+	});
+
 	test('comparison shortcut contexts follow picker focus without the discovery hint', () => {
 		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		const comparison: IModelPickerComparison = {

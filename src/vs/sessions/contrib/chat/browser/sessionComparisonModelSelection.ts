@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IModelPickerComparison, IModelPickerComparisonState, IModelPickerComparisonVariant } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CompareAgentsSpotlight } from './compareAgentsSpotlight.js';
 
 type ComparisonStep = 'attempts' | 'judge' | 'synthesizer';
 
@@ -189,6 +191,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		private readonly _reviewAvailable: IObservable<boolean> = constObservable(true),
 		showPickerHint: IObservable<boolean> = constObservable(false),
 		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		const discovered = observableFromEvent(this,
@@ -200,6 +203,10 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 				this.reset();
 			}
 		}));
+	}
+
+	renderToggle(button: HTMLElement): IDisposable {
+		return this._instantiationService.createInstance(CompareAgentsSpotlight, button, this._reviewAvailable.get());
 	}
 
 	start(): void {

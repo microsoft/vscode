@@ -62,6 +62,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
@@ -4208,7 +4209,7 @@ suite('NewChatWidget', () => {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat}, Inbox: ${backgroundSend}, interruption: ${interruption})`, async () => {
 			const resolving = observableValue('resolving', false);
 			const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
-			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving, undefined, undefined, undefined, disposables.add(new InMemoryStorageService())));
+			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 			selection.start();
 			selection.select('claude-model');
 			for (let i = 1; i < runs; i++) {
@@ -4696,7 +4697,7 @@ suite('NewChatWidget', () => {
 			environment.read(reader);
 			return shouldShowComparisonAction.call(harness);
 		});
-		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService())));
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 		selection.start();
 		selection.select('model-a');
 		selection.select('model-b');
