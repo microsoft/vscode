@@ -128,6 +128,7 @@ import { AgentHostSnapshotController } from '../../../browser/agentSessions/agen
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { getChatBinaryReference } from '../../../common/model/chatSessionResources.js';
 import { createTestChatSessionResources } from '../../common/model/chatSessionResourceLocks.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -4238,7 +4239,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 		}
 
-		test('persists hydrated pasted images through the Agent Host draft boundary', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('persists hydrated pasted images through the Agent Host draft boundary', async () => {
 			const files = disposables.add(new FileService(new NullLogService()));
 			disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 			const resources = disposables.add(createTestChatSessionResources(files));
@@ -4257,13 +4258,13 @@ suite('AgentHostChatContribution', () => {
 			chatService.setSession(sessionResource, upcastPartial<IChatModel>({ sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [] }));
 			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => session.dispose()));
-			await timeout(501);
+			await retry(async () => assert.ok(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatDraftChanged)), 10, 200);
 			const drafts = agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []);
 			assert.strictEqual(drafts.at(-1)?.attachments?.length, 1);
 			assert.ok(JSON.stringify(drafts.at(-1)).includes('AID/'));
-		}));
+		});
 
-		test('a synchronized hydrated image draft accepts a later remote clear', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('a synchronized hydrated image draft accepts a later remote clear', async () => {
 			const files = disposables.add(new FileService(new NullLogService()));
 			disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 			const resources = disposables.add(createTestChatSessionResources(files));
@@ -4281,13 +4282,12 @@ suite('AgentHostChatContribution', () => {
 			});
 			chatService.setSession(sessionResource, upcastPartial<IChatModel>({ sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [] }));
 			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
-			await timeout(501);
-			assert.ok(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatDraftChanged));
+			await retry(async () => assert.ok(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatDraftChanged)), 10, 200);
 			fireRemoteDraft(agentHostService, backendSession, { text: 'remote edit', origin: { kind: MessageKind.User } });
 			assert.deepStrictEqual({ text: inputState.get()?.inputText, attachments: inputState.get()?.attachments }, { text: 'remote edit', attachments: [] });
 			fireRemoteDraft(agentHostService, backendSession, undefined);
 			assert.strictEqual(inputState.get()?.inputText, '');
-		}));
+		});
 
 		test('flushes pending chat input draft when the session is disposed', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
@@ -19279,6 +19279,7 @@ suite('AgentHostChatContribution', () => {
 			const directory = URI.file('/pending.resources');
 			const prepared = await resources.prepare({ value: new Uint8Array([0, 128, 255]) }, directory);
 			const image = resources.restore(prepared.value, directory).value;
+			const binaryReads = sinon.spy(getChatBinaryReference(image)!, 'read');
 			const services = createContribution(disposables);
 			const { sessionHandler, agentHostService, chatService, instantiationService } = services;
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/delayed-image-${kind}` });
@@ -19322,7 +19323,13 @@ suite('AgentHostChatContribution', () => {
 			};
 			const stream = () => fire({ type: ActionType.ChatResponsePart, turnId: 'active', part: { kind: ResponsePartKind.Markdown, id: `chunk-${serverSeq}`, content: 'streaming' } });
 			const sentImages = () => agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatPendingMessageSet && entry.action.id === 'image');
-			return { ...services, pending, model, provider, image, errors, fire, enqueue, stream, sentImages, readStarted, releaseRead };
+			const finishReads = async () => {
+				await releaseRead.complete();
+				const results = await Promise.allSettled(binaryReads.returnValues);
+				assert.deepStrictEqual(results.filter(result => result.status === 'rejected' && !isCancellationError(result.reason)), []);
+				await timeout(0);
+			};
+			return { ...services, pending, model, provider, image, errors, fire, enqueue, stream, sentImages, readStarted, releaseRead, finishReads };
 		}
 
 		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
@@ -19345,14 +19352,13 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			test(`explicit cancellation discards an unpublished ${kind} image without sending it`, async () => {
-				const { pending, model, enqueue, stream, sentImages, readStarted, releaseRead } = await openPendingImage(kind);
+				const { pending, model, enqueue, stream, sentImages, readStarted, finishReads } = await openPendingImage(kind);
 				enqueue();
 				await readStarted.p;
 				pending.length = 0;
 				model.firePendingRequestsChanged();
 				stream();
-				await releaseRead.complete();
-				await timeout(0);
+				await finishReads();
 				assert.deepStrictEqual({ pending, sent: sentImages() }, { pending: [], sent: [] });
 			});
 
@@ -19376,7 +19382,7 @@ suite('AgentHostChatContribution', () => {
 
 			for (const change of ['edit', 'remove'] as const) {
 				test(`a remote ${change} wins over an in-flight ${kind} image edit`, async () => {
-					const { pending, model, image, fire, stream, sentImages, readStarted, releaseRead } = await openPendingImage(kind);
+					const { pending, model, image, fire, stream, sentImages, readStarted, finishReads } = await openPendingImage(kind);
 					const hostKind = kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued;
 					fire({ type: ActionType.ChatPendingMessageSet, kind: hostKind, id: 'image', message: { text: 'old message', origin: { kind: MessageKind.User } } });
 					pending.splice(0, pending.length, {
@@ -19393,8 +19399,7 @@ suite('AgentHostChatContribution', () => {
 						}
 					}
 					stream();
-					await releaseRead.complete();
-					await timeout(0);
+					await finishReads();
 					assert.deepStrictEqual({
 						pending: pending.map(entry => ({ text: entry.request.message.text, image: entry.request.variableData?.variables.some(variable => variable.kind === 'image') ?? false })),
 						sent: sentImages().length,
