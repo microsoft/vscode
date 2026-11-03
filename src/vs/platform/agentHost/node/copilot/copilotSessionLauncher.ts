@@ -1707,7 +1707,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			additionalDirectories,
 			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),
 			largeOutput: {
-				maxSizeBytes: 8 * 1024,
+				// The SDK also uses this as `view`'s full-read limit, whose schema promises 20KB; lower values make `view` refuse ordinary files (#342977).
+				maxSizeBytes: 20 * 1024,
 			},
 			managedSettings: {
 				permissions: managedSettingsPermissions,
