@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow } from '../../../../base/browser/dom.js';
+import { $, append, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -748,7 +748,18 @@ export class PartGrid extends Disposable {
 			this.grid.moveView(cell, Sizing.Distribute, neighbor, direction);
 			this.updateAllVisibility();
 		} else {
+			// At that edge already, the cells keep their places, sizes and focus
+			const state = this.grid.serialize();
+			const focused = getActiveElement();
 			this.moveCell(id, { edge: direction });
+			if (this.describe() === before) {
+				this.setGrid(this.deserialize(state));
+				this.updateAllVisibility();
+				if (isHTMLElement(focused) && focused.isConnected && !isActiveElement(focused)) {
+					focused.focus();
+				}
+				return false;
+			}
 		}
 
 		return this.describe() !== before;

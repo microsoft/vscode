@@ -575,6 +575,21 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ movePart, newPart }, { movePart: 'The parts of this window do not move', newPart: 'Editors do not go into new parts in this window' });
 	});
 
+	test('Move Part to the edge a part is at already leaves the parts as they are, sizes included', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [top, bottom] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(top, '/top.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('top', top);
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.resizeCell('bottom', { width: grid.getCellSize('bottom').width, height: 200 });
+		const before = { shape: grid.describe(), bottomHeight: grid.getCellSize('bottom').height };
+
+		const moved = grid.moveCellInDirection('bottom', Direction.Down);
+
+		assert.deepStrictEqual({ moved, shape: grid.describe(), bottomHeight: grid.getCellSize('bottom').height }, { moved: false, ...before });
+	});
+
 	test('Move Part moves past parts only, not past a view beside it such as a title row', async () => {
 		const parts = await createParts();
 		const grid = createGrid();
