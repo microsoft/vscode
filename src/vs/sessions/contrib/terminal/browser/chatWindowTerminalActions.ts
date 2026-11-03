@@ -13,7 +13,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ActiveEditorContext, LayoutModeContext, TerminalsPositionContext, TerminalsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatWindowCategory, ChatWindowLayoutCommandsContext, resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
+import { terminalEditorId } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IChatWindowTerminalsService } from './chatWindowTerminals.js';
 
@@ -21,7 +21,7 @@ export const TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID = 'workbench.action.chatWind
 export const ADD_CHAT_WINDOW_TERMINAL_COMMAND_ID = 'workbench.action.chatWindow.addTerminal';
 
 /** The title of the terminals of a chat window, recognized by the editor that shows: a terminal. */
-const TerminalEditorTitleContext = ContextKeyExpr.and(ChatWindowLayoutCommandsContext, ActiveEditorContext.isEqualTo(TerminalEditorInput.ID));
+const TerminalEditorTitleContext = ContextKeyExpr.and(ChatWindowLayoutCommandsContext, ActiveEditorContext.isEqualTo(terminalEditorId));
 
 // The terminals show in the chat window, as the panel shows them in the main window, with the keys of the panel and of
 // the terminal, above the rules of the workbench for them, wherever the focus is in the chat window.

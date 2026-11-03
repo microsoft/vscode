@@ -29,7 +29,7 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowContextKeys.js';
 import { TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { TerminalEditorInput } from '../../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
+import { terminalEditorId } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ADD_CHAT_WINDOW_TERMINAL_COMMAND_ID, ChatWindowTerminalPositionMenu, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID } from '../../browser/chatWindowTerminalActions.js';
@@ -178,7 +178,7 @@ suite('Chat window terminal actions', () => {
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
-			ActiveEditorContext.bindTo(contextKeyService).set(TerminalEditorInput.ID);
+			ActiveEditorContext.bindTo(contextKeyService).set(terminalEditorId);
 			const window = windows[1];
 			disposables.add(bindWindowLayoutContext(contextKeyService, { layoutMode: observableValue('mode', ChatWindowLayoutMode.SideBySide), splitLayout: observableValue<ChatWindowSplitLayout>('split', ChatWindowLayoutMode.SideBySide) }));
 			disposables.add(bindWindowTerminalsContext(contextKeyService, { terminalsVisible: observableValue('visible', true), terminalPosition: window.terminalPosition }));
@@ -228,9 +228,9 @@ suite('Chat window terminal actions', () => {
 		};
 
 		assert.deepStrictEqual({
-			terminalInChatWindow: shows(TerminalEditorInput.ID, ChatWindowLayoutMode.SideBySide),
+			terminalInChatWindow: shows(terminalEditorId, ChatWindowLayoutMode.SideBySide),
 			fileInChatWindow: shows('workbench.editors.files.fileEditorInput', ChatWindowLayoutMode.SideBySide),
-			terminalInMainWindow: shows(TerminalEditorInput.ID, undefined),
+			terminalInMainWindow: shows(terminalEditorId, undefined),
 		}, { terminalInChatWindow: true, fileInChatWindow: false, terminalInMainWindow: false });
 	});
 });
