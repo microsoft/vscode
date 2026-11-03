@@ -41,6 +41,19 @@ export function getConfiguredSessionMode(config: SessionConfigState | undefined)
 	}
 }
 
+/**
+ * The model a turn's message selects for its chat, or `undefined` when the chat keeps its current one: a chat whose
+ * agent is not its session's ignores a model that agent does not offer. Older clients, unaware of a chat's own agent,
+ * offer the session agent's models. A same-agent chat, or an agent whose model list is not known, takes the model as is.
+ */
+export function getApplicableTurnModel<T extends { readonly id: string }>(agent: IAgent, sessionProvider: string | undefined, model: T | undefined): T | undefined {
+	if (model === undefined || sessionProvider === undefined || agent.id === sessionProvider) {
+		return model;
+	}
+	const models = agent.models.get();
+	return models.length === 0 || models.some(candidate => candidate.id === model.id) ? model : undefined;
+}
+
 /** `config` is the chat's effective config, which may set its own approvals and mode. */
 export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, context: IAgentChatContext, config: SessionConfigState | undefined, selection: ModelSelection | undefined): IAgentHostTurnTelemetryContext {
 	const permissionValue = config?.values[SessionConfigKey.AutoApprove];

@@ -39,6 +39,11 @@ interface ISessionNetwork extends IDisposable {
 	readonly network: IBrowserViewNetwork | undefined;
 	/** Settles once the proxy is held and Playwright uses the network. */
 	readonly ready: Promise<void>;
+	/**
+	 * Whether the pages use {@link network}, rather than the local network
+	 * because its host could not proxy browsers. `undefined` until settled.
+	 */
+	readonly usesNetwork: boolean | undefined;
 }
 
 class BrowserChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -176,12 +181,17 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	private _updateSessionNetwork(sessionId: string): Promise<void> {
 		const network = this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
 		const current = this._sessionNetworks.get(sessionId);
-		if (current ? current.network?.authority === network?.authority : !network) {
+		// The host may have gained or lost the ability to proxy browsers since, for example by reconnecting with another version.
+		const proxySupported = network && this.browserViewService.getNetworkStatus(network).proxySupported;
+		const supportChanged = (current?.usesNetwork === false && proxySupported === true) || (current?.usesNetwork === true && proxySupported === false);
+		if (current ? current.network?.authority === network?.authority && !supportChanged : !network) {
 			return current?.ready ?? Promise.resolve();
 		}
 		// Recorded before waiting for the proxy, so a session that ends meanwhile releases it.
 		const store = new DisposableStore();
+		let usesNetwork: boolean | undefined;
 		const ready = (async () => {
+			let usedNetwork: IBrowserViewNetwork | undefined;
 			if (network) {
 				const hold = await this.browserViewService.acquireNetwork(network);
 				if (store.isDisposed) {
@@ -189,10 +199,13 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 					throw new CancellationError();
 				}
 				store.add(hold);
+				// A host that cannot proxy browsers leaves the pages on the local network.
+				usedNetwork = hold.object;
+				usesNetwork = !!usedNetwork;
 			}
-			await this.playwrightService.setSessionNetwork(sessionId, network);
+			await this.playwrightService.setSessionNetwork(sessionId, usedNetwork);
 		})();
-		const sessionNetwork: ISessionNetwork = { network, ready, dispose: () => store.dispose() };
+		const sessionNetwork: ISessionNetwork = { network, ready, get usesNetwork() { return usesNetwork; }, dispose: () => store.dispose() };
 		this._sessionNetworks.set(sessionId, sessionNetwork);
 		// Let a later call retry a failed update.
 		ready.catch(() => {

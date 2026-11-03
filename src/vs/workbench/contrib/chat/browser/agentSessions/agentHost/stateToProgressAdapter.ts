@@ -43,12 +43,12 @@ import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTo
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ReasoningResponsePart, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -700,6 +700,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergePullRequestMerged:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergeBlocked:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.warning, renderInlineTiming: true };
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
@@ -1231,7 +1233,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
-		const variableData = messageToVariableData(turn.message, connectionAuthority);
+		const variableData = messageToVariableData(turn.message, connectionAuthority, resourceUris);
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
@@ -1301,7 +1303,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
-						parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
+						parts.push(reasoningPartToThinking(rp));
 					}
 					break;
 				case ResponsePartKind.SystemNotification:
@@ -1390,16 +1392,16 @@ export function messageToRequestOrigin(backendSession: URI, message: Message, pa
  * history replay (and pending/server-initiated turn synthesis). Returns
  * `undefined` when the message has no convertible attachments.
  */
-export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text);
+export function messageToVariableData(message: Message, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text, resourceUris);
 }
 
-export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string): IChatRequestVariableData | undefined {
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatRequestVariableData | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
 	const variables: IChatRequestVariableEntry[] = [];
-	const aggregatedFeedback = aggregateAgentFeedbackAttachments(attachments, connectionAuthority);
+	const aggregatedFeedback = aggregateAgentFeedbackAttachments(attachments, resourceUris);
 	if (aggregatedFeedback) {
 		variables.push(aggregatedFeedback);
 	}
@@ -1414,7 +1416,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 			const imageAttachment = correlationId
 				? attachments.find(candidate => candidate.displayKind === 'image' && getElementAttachmentCorrelationId(candidate) === correlationId)
 				: undefined;
-			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, connectionAuthority) : undefined;
+			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, resourceUris) : undefined;
 			if (imageAttachment && image?.kind === 'image') {
 				consumedAttachments.add(imageAttachment);
 			}
@@ -1423,7 +1425,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 				: element);
 			continue;
 		}
-		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText);
+		const v = messageAttachmentToVariableEntry(a, resourceUris, messageText);
 		if (v) {
 			variables.push(v);
 		}
@@ -1435,7 +1437,7 @@ function isAgentFeedbackMessageAttachment(attachment: MessageAttachment): boolea
 	return isAgentFeedbackAnnotationsAttachment(attachment) || isAgentFeedbackAttachment(attachment);
 }
 
-function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachment[], connectionAuthority: string): IChatRequestVariableEntry | undefined {
+function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachment[], resourceUris: IAgentHostResourceUriMapper): IChatRequestVariableEntry | undefined {
 	const feedbackAttachments = attachments.filter(isAgentFeedbackMessageAttachment);
 	if (feedbackAttachments.length === 0 || (feedbackAttachments.length === 1 && isAgentFeedbackAttachment(feedbackAttachments[0]))) {
 		return undefined;
@@ -1456,7 +1458,7 @@ function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachme
 			feedbackItems.set(item.id, {
 				id: item.id,
 				text: item.text,
-				resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+				resourceUri: resourceUris.fromAgentHost(URI.parse(item.resourceUri)),
 				range: textRangeToIRange(item.range),
 				...(item.replies?.length ? { replies: item.replies } : {}),
 			});
@@ -1490,7 +1492,7 @@ function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachme
 	};
 }
 
-function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string): IChatRequestVariableEntry | undefined {
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourceUris: IAgentHostResourceUriMapper, messageText?: string): IChatRequestVariableEntry | undefined {
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1503,7 +1505,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 				feedbackItems: metadata.feedbackItems.map(item => ({
 					id: item.id,
 					text: item.text,
-					resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+					resourceUri: resourceUris.fromAgentHost(URI.parse(item.resourceUri)),
 					range: textRangeToIRange(item.range),
 				})),
 				_meta: attachment._meta,
@@ -1515,7 +1517,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		if (isSessionReferenceTrajectoryAttachment(attachment)) {
 			return undefined;
 		}
-		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
+		const uri = resourceUris.fromAgentHost(URI.parse(attachment.uri));
 		const name = attachment.label;
 		const id = uri.toString() + (attachment.selection
 			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`
@@ -1691,6 +1693,18 @@ function textRangeToIRange(range: TextRange): IRange {
 	};
 }
 
+export function reasoningPartToThinking(part: ReasoningResponsePart, value = part.content): IChatThinkingPart {
+	const startedAt = part.startedAt === undefined ? undefined : Date.parse(part.startedAt);
+	return {
+		kind: 'thinking',
+		id: part.id,
+		value,
+		reasoningTimingSource: 'provider',
+		...(startedAt !== undefined && Number.isFinite(startedAt) ? { reasoningStartedAt: startedAt } : {}),
+		...(typeof part.duration === 'number' && Number.isFinite(part.duration) && part.duration >= 0 ? { reasoningDurationMs: part.duration } : {}),
+	};
+}
+
 /**
  * Converts an active (in-progress) turn's accumulated state into progress
  * items suitable for replaying into the chat UI when reconnecting to a
@@ -1716,7 +1730,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				break;
 			case ResponsePartKind.Reasoning:
 				if (rp.content) {
-					parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
+					parts.push(reasoningPartToThinking(rp));
 				}
 				break;
 			case ResponsePartKind.ToolCall: {
@@ -1971,7 +1985,6 @@ function buildTerminalToolSpecificData(
 		editable: false,
 		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
-		autoApproveRuleResolvable: readToolCallMeta(tc).autoApproveRuleResolvable ?? existing?.autoApproveRuleResolvable,
 		terminalToolSessionId: terminalContentUri
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,
@@ -2039,10 +2052,11 @@ function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuth
 		}
 	}
 	const structuredContent = tc.status === ToolCallStatus.Completed ? tc.structuredContent : undefined;
-	if (content.length === 0 && structuredContent === undefined && !isError) {
+	const resultMeta = tc.status === ToolCallStatus.Completed ? tc.resultMetadata : undefined;
+	if (content.length === 0 && structuredContent === undefined && resultMeta === undefined && !isError) {
 		return undefined;
 	}
-	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), isError: isError || undefined };
+	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), ...(resultMeta !== undefined ? { _meta: resultMeta } : {}), isError: isError || undefined };
 }
 
 function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string): MCP.ContentBlock | undefined {
@@ -2372,8 +2386,10 @@ function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAu
 		: undefined;
 	return {
 		kind: 'externalEdit',
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): external edit identities need the owning connection mapper threaded into this helper
 		uri: toAgentHostUri(normalized.resource, connectionAuthority),
 		editKind: normalized.kind as ChatExternalEditKind,
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): renamed file identities need the owning connection mapper threaded into this helper
 		originalUri: normalized.kind === FileEditKind.Rename && normalized.beforeUri ? toAgentHostUri(normalized.beforeUri, connectionAuthority) : undefined,
 		beforeContentUri: normalized.beforeContentUri ? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri) : undefined,
 		afterContentUri: normalized.afterContentUri ? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority, normalized.afterUri) : undefined,
@@ -2459,6 +2475,7 @@ function rewriteLinkTokenRaw(token: Tokens.Link | Tokens.Image, connectionAuthor
 	if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
 		return undefined;
 	}
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): markdown file links use authority-only wrapping instead of the owning connection mapper
 	let agentHostUri = toAgentHostUri(parsed, connectionAuthority);
 	const isSkill = isSkillFileUri(parsed);
 	// VS-Code-specific: links pointing at a `SKILL.md` file are rendered as a
@@ -2611,6 +2628,7 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 	try {
 		agentHostUri = resourceUris.fromAgentHost(parsed);
 		if (parsed.scheme !== Schemas.file && isEqual(agentHostUri, parsed)) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps non-file host filesystem/content links left unchanged by the connection mapper
 			agentHostUri = toAgentHostUri(parsed, connectionAuthority);
 		}
 	} catch {

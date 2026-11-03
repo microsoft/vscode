@@ -16,7 +16,7 @@ import { ILocalExtension } from '../../../../../platform/extensionManagement/com
 import { IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../../workbench/contrib/extensions/common/extensions.js';
+import { ExtensionRuntimeActionType, ExtensionRuntimeState, ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../../workbench/contrib/extensions/common/extensions.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../../workbench/services/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifestPropertiesService, SessionsWindowMissingFeature } from '../../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
@@ -34,6 +34,7 @@ interface ITestExtensionOptions {
 	readonly installed?: boolean;
 	readonly enablementState?: EnablementState;
 	readonly contributes?: Record<string, unknown>;
+	readonly runtimeState?: ExtensionRuntimeState;
 }
 
 function anExtension(id: string, options: ITestExtensionOptions): IExtension {
@@ -46,6 +47,7 @@ function anExtension(id: string, options: ITestExtensionOptions): IExtension {
 		override readonly isBuiltin = options.isBuiltin ?? false;
 		override readonly state = options.state ?? ExtensionState.Installed;
 		override readonly enablementState = options.enablementState ?? EnablementState.DisabledWorkspace;
+		override readonly runtimeState = options.runtimeState;
 		override readonly local = options.installed === false ? undefined : new class extends mock<ILocalExtension>() {
 			override readonly manifest = manifest;
 		}();
@@ -252,6 +254,66 @@ suite('AgentsWindowExtensionsWidget', () => {
 				changed('pub.tools', true, 'chatSkills,languageModelTools'),
 				changed('pub.theme', false, ''),
 			],
+		});
+	});
+
+	test('shows a button on rows that need a restart, which restarts extensions or reloads the window', async () => {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		container.style.width = '800px';
+		container.style.height = '600px';
+		container.style.setProperty('--vscode-spacing-size400', '40px');
+		disposables.add(toDisposable(() => container.remove()));
+		const local = [
+			anExtension('pub.restart', { displayName: 'Restart', runtimeState: { action: ExtensionRuntimeActionType.RestartExtensions, reason: 'Please restart extensions to disable this extension.' } }),
+			anExtension('pub.reload', { displayName: 'Reload', runtimeState: { action: ExtensionRuntimeActionType.ReloadWindow, reason: 'Please reload window to enable this extension.' } }),
+			anExtension('pub.running', { displayName: 'Running' }),
+		];
+		const runs: string[] = [];
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override readonly local = local;
+			override readonly onChange = Event.None;
+			override async updateRunningExtensions() { runs.push('restartExtensions'); }
+		});
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
+			override isEnabledEnablementState() { return false; }
+			override canChangeWorkspaceEnablement() { return true; }
+		});
+		instantiationService.stub(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() {
+			override canExecuteOnSessionsWindow() { return false; }
+		});
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override readonly onDidChangeExtensions = Event.None;
+		});
+		instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+			override async reload() { runs.push('reloadWindow'); }
+		});
+		instantiationService.stub(IAgentsWindowExtensionSuggestionsService, new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+			override readonly suggestedExtensions = constObservable<readonly IExtension[]>([]);
+			override dismissBadge() { }
+		});
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		widget.setVisible(true);
+
+		// Browser tests load component CSS asynchronously, and the tree only renders its rows once the CSS gives it a height.
+		const rows = await retry(async () => {
+			const elements = [...container.querySelectorAll<HTMLElement>('.agents-window-extension-row')];
+			assert.strictEqual(elements.length, local.length);
+			return elements;
+		}, 10, 100);
+		const buttons = rows.map(row => row.querySelector<HTMLElement>('.agents-window-extension-runtime-action'));
+		const visibleButtons = buttons.map(button => button && button.style.display !== 'none' ? { label: button.textContent, tabIndex: button.tabIndex } : undefined);
+		for (const button of buttons) {
+			if (button?.style.display !== 'none') {
+				button?.click();
+			}
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({ visibleButtons, runs }, {
+			// Rows are sorted by display name.
+			visibleButtons: [{ label: 'Reload Window', tabIndex: -1 }, { label: 'Restart Extensions', tabIndex: -1 }, undefined],
+			runs: ['reloadWindow', 'restartExtensions'],
 		});
 	});
 });

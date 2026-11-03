@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
@@ -38,11 +38,10 @@ class MockQuickInputService implements Partial<IQuickInputService> {
 }
 
 suite('ExternalUriOpenerService', () => {
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -50,12 +49,6 @@ suite('ExternalUriOpenerService', () => {
 			registerExternalOpener: () => { return Disposable.None; }
 		});
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Should not open if there are no openers', async () => {
 		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
@@ -67,7 +60,7 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, sourceHref: uri.toString() }, CancellationToken.None);
 		assert.strictEqual(didOpen, false);
 	});
 
@@ -100,7 +93,7 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, viewColumn: ViewColumn.Beside }, CancellationToken.None);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, sourceHref: uri.toString(), viewColumn: ViewColumn.Beside }, CancellationToken.None);
 		assert.deepStrictEqual({ didOpen, openedWithEnabled, viewColumn }, { didOpen: true, openedWithEnabled: true, viewColumn: ViewColumn.Beside });
 	});
 
@@ -131,35 +124,45 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, sourceHref: uri.toString() }, CancellationToken.None);
 		assert.strictEqual(didOpen, true);
 		assert.strictEqual(openedWithPreferred, true);
 	});
 
-	test('Should prefer requested and configured openers', async () => {
+	test('Should prefer requested and configured openers, and pass the link as written', async () => {
 		const configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IQuickInputService, new MockQuickInputService(0));
 		const href = 'http://contoso.com/search?q=a%26b';
+		const sourceHref = 'http://localhost:3000/search?q=a%26b';
 
 		const open = async (priorities: Record<string, ExternalUriOpenerPriority>, preferredOpenerId?: string) => {
 			const opened: string[] = [];
+			const sourceHrefs: string[] = [];
 			const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
 			disposables.add(externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
 				async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
 					for (const [id, priority] of Object.entries(priorities)) {
-						yield { id, label: id, canOpen: async () => priority, openExternalUri: async () => { opened.push(id); return true; } };
+						yield {
+							id, label: id, canOpen: async () => priority,
+							openExternalUri: async (openedHref, context) => {
+								opened.push(`${id}:${openedHref}`);
+								sourceHrefs.push(context.sourceHref);
+								return true;
+							}
+						};
 					}
 				}
 			}));
-			const didOpen = await externalUriOpenerService.openExternal(href, { sourceUri: URI.parse(href), preferredOpenerId }, CancellationToken.None);
+			const didOpen = await externalUriOpenerService.openExternal(href, { sourceUri: URI.parse(sourceHref), sourceHref, preferredOpenerId }, CancellationToken.None);
+			assert.deepStrictEqual(sourceHrefs, opened.map(() => sourceHref));
 			return { didOpen, opened };
 		};
 
 		const results = {
 			onlyOptional: await open({ a: ExternalUriOpenerPriority.Option, b: ExternalUriOpenerPriority.Option }),
 			singleDefault: await open({ a: ExternalUriOpenerPriority.None, b: ExternalUriOpenerPriority.Default }),
-			defaultAndOptionalPromptsBestFirst: await open({ a: ExternalUriOpenerPriority.Option, b: ExternalUriOpenerPriority.Default }),
+			defaultWinsOverOptional: await open({ a: ExternalUriOpenerPriority.Option, b: ExternalUriOpenerPriority.Default }),
 			severalDefaultsPrompt: await open({ a: ExternalUriOpenerPriority.Default, b: ExternalUriOpenerPriority.Default }),
 			firstOfSeveralPreferred: await open({ a: ExternalUriOpenerPriority.Preferred, b: ExternalUriOpenerPriority.Preferred }),
 			requestedDisabled: await open({ a: ExternalUriOpenerPriority.Preferred, b: ExternalUriOpenerPriority.None }, 'b'),
@@ -171,14 +174,14 @@ suite('ExternalUriOpenerService', () => {
 
 		assert.deepStrictEqual({ ...results, configured }, {
 			onlyOptional: { didOpen: false, opened: [] },
-			singleDefault: { didOpen: true, opened: ['b'] },
-			defaultAndOptionalPromptsBestFirst: { didOpen: true, opened: ['b'] },
-			severalDefaultsPrompt: { didOpen: true, opened: ['a'] },
-			firstOfSeveralPreferred: { didOpen: true, opened: ['a'] },
-			requestedDisabled: { didOpen: true, opened: ['b'] },
+			singleDefault: { didOpen: true, opened: [`b:${href}`] },
+			defaultWinsOverOptional: { didOpen: true, opened: [`b:${href}`] },
+			severalDefaultsPrompt: { didOpen: true, opened: [`a:${href}`] },
+			firstOfSeveralPreferred: { didOpen: true, opened: [`a:${href}`] },
+			requestedDisabled: { didOpen: true, opened: [`b:${href}`] },
 			requestedDefault: { didOpen: false, opened: [] },
-			requestedUnknown: { didOpen: true, opened: ['a'] },
-			configured: { didOpen: true, opened: ['b'] },
+			requestedUnknown: { didOpen: true, opened: [`a:${href}`] },
+			configured: { didOpen: true, opened: [`b:${href}`] },
 		});
 	});
 

@@ -116,6 +116,8 @@ export interface ICustomizationMarketplaceInstallService {
 	readonly onDidChange: Event<void>;
 	/** Applicable marketplace installations indexed by catalog identity and exact installed target. */
 	readonly installations: IObservable<ICustomizationMarketplaceInstallationSnapshot>;
+	/** Returns the unambiguous recorded installation associated with a catalog resource. */
+	findInstallation(resource: ICustomizationMarketplaceResource): IRecordedCustomizationMarketplaceResource | undefined;
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource, origin?: CustomizationMarketplaceInstallOrigin): Promise<void>;

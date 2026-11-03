@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Barrier } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { extname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
@@ -1112,6 +1113,47 @@ suite('EditorResolverService', () => {
 			naturalDefaultEditorId: 'test.componentEditor',
 			source: EditorMatchRuleSource.UserAssociation,
 			associationPattern: '*.html'
+		});
+	});
+
+	test('getEditorMatches matches untitled resources by the extension of their language', async () => {
+		const configurationService = createMutableConfigurationService({});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service, accessor] = await createEditorResolverService(instantiationService);
+		disposables.add(accessor.languageService.registerLanguage({ id: 'testMarkdown', extensions: ['.tmd'] }));
+		disposables.add(accessor.languageService.registerLanguage({ id: 'testSearch', extensions: ['.tsearch'] }));
+		disposables.add(service.registerEditor('*.tmd', { id: 'test.markdownEditor', label: 'Test Markdown Editor', priority: RegisteredEditorPriority.option }, {}, {}));
+		disposables.add(service.registerEditor('README', { id: 'test.readmeEditor', label: 'Test Readme Editor', priority: RegisteredEditorPriority.option }, {}, {}));
+		// Like the Search Editor: the filename pattern matches, but the editor checks the real resource
+		disposables.add(service.registerEditor('*.tsearch', { id: 'test.searchEditor', label: 'Test Search Editor', priority: RegisteredEditorPriority.default }, { canSupportResource: resource => extname(resource) === '.tsearch' }, {}));
+
+		const createUntitled = async (options: { languageId: string; associatedResource?: URI }) => {
+			const model = disposables.add(accessor.untitledTextEditorService.create(options));
+			await model.resolve();
+			return model.resource;
+		};
+		const markdown = await createUntitled({ languageId: 'testMarkdown' });
+		const search = await createUntitled({ languageId: 'testSearch' });
+		const associatedReadme = await createUntitled({ languageId: 'testMarkdown', associatedResource: URI.file('/repo/README') });
+		const withoutModel = URI.from({ scheme: Schemas.untitled, path: 'Untitled-42' });
+		const summarize = (resource: URI) => {
+			const matches = service.getEditorMatches(resource);
+			return { editorIds: matches.matches.map(match => match.editor.id), associationPattern: matches.defaultRule.associationPattern };
+		};
+
+		const result = {
+			markdown: summarize(markdown),
+			search: summarize(search),
+			associatedReadme: summarize(associatedReadme),
+			withoutModel: summarize(withoutModel),
+			associationsAfterSetDefault: (service.setDefaultEditor(markdown, 'test.markdownEditor'), service.getAllUserAssociations())
+		};
+		assert.deepStrictEqual(result, {
+			markdown: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor'], associationPattern: '*.tmd' },
+			search: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id], associationPattern: '*.tsearch' },
+			associatedReadme: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.readmeEditor'], associationPattern: '*' },
+			withoutModel: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id], associationPattern: '*' },
+			associationsAfterSetDefault: [{ filenamePattern: '*.tmd', viewType: 'test.markdownEditor' }]
 		});
 	});
 

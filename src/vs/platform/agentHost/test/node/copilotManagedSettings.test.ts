@@ -9,6 +9,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationTokenSource, type CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentPolicyError } from '../../common/agent.js';
@@ -197,18 +198,15 @@ suite('Copilot managed settings resolution', () => {
 		const cancellation: CancellationToken = { isCancellationRequested: false, onCancellationRequested: emitter.event };
 		const listeners: boolean[] = [];
 		const clock = useFakeTimers();
-		try {
-			for (let attempt = 0; attempt < 3; attempt++) {
-				const rejected = assert.rejects(resolveCopilotManagedSettings(rpc, 'token', 30_000, undefined, cancellation), AgentPolicyError);
-				listeners.push(emitter.hasListeners());
-				await clock.tickAsync(30_000);
-				await rejected;
-				listeners.push(emitter.hasListeners());
-			}
-			assert.deepStrictEqual(listeners, [true, false, true, false, true, false]);
-		} finally {
-			clock.restore();
+		disposables.add(toDisposable(() => clock.restore()));
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const rejected = assert.rejects(resolveCopilotManagedSettings(rpc, 'token', 30_000, undefined, cancellation), AgentPolicyError);
+			listeners.push(emitter.hasListeners());
+			await clock.tickAsync(30_000);
+			await rejected;
+			listeners.push(emitter.hasListeners());
 		}
+		assert.deepStrictEqual(listeners, [true, false, true, false, true, false]);
 	});
 
 	test('runtime cache fallback is preserved and strict refresh rejection is not bypassed', async () => {

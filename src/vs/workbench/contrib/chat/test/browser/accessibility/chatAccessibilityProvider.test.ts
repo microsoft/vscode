@@ -13,6 +13,8 @@ import { IAccessibleViewService } from '../../../../../../platform/accessibility
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { Response } from '../../../common/model/chatModel.js';
+import { IChatResponseIdentity } from '../../../browser/chat.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -28,12 +30,22 @@ suite('ChatAccessibilityProvider', () => {
 	const inline = '`value` and **emphasis** with [a link](https://example.com)';
 	let accessibleViewHint: string;
 	let provider: ChatAccessibilityProvider;
+	let responseIdentity: IChatResponseIdentity | undefined;
 
 	setup(() => {
 		accessibleViewHint = '';
+		responseIdentity = undefined;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => accessibleViewHint });
-		provider = instantiationService.createInstance(ChatAccessibilityProvider);
+		provider = instantiationService.createInstance(ChatAccessibilityProvider, () => responseIdentity);
+	});
+
+	test('names the harness answering a chat answered by another agent than its session type serves', () => {
+		const element = createViewModel(store.add(new Response(new MarkdownString('Hello'))));
+		const ownAgent = provider.getAriaLabel(element);
+		responseIdentity = { label: 'Claude', icon: Codicon.claude };
+
+		assert.deepStrictEqual([ownAgent, provider.getAriaLabel(element)], [' Hello', 'Claude:  Hello']);
 	});
 
 	teardown(() => {

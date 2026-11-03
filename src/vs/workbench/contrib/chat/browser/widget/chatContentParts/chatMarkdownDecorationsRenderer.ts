@@ -79,7 +79,16 @@ interface ISlashCommandWidgetArgs {
 
 export interface IDecorationWidgetArgs {
 	title?: string;
+	/** The index of the request part whose attachment is shown as a pill in place of the decoration. */
+	inlineAttachment?: number;
 }
+
+/**
+ * Renders the attachment of a request part as a pill inline with the request's
+ * text, see {@link ChatMarkdownDecorationsRenderer.convertParsedRequestToMarkdown}.
+ * Returns `undefined` when the part has no pill, so it shows as a decoration.
+ */
+export type ChatInlineAttachmentRenderer = (partIndex: number, store: DisposableStore) => HTMLElement | undefined;
 
 export class ChatMarkdownDecorationsRenderer extends Disposable {
 	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
@@ -104,22 +113,26 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
 	}
 
-	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
+	/**
+	 * @param inlineAttachmentParts The indices of the parts whose attachments are
+	 * shown as pills inline with the text, by a {@link ChatInlineAttachmentRenderer}.
+	 */
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): string {
 		let result = '';
-		for (const part of parsedRequest.parts) {
+		parsedRequest.parts.forEach((part, index) => {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
 				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
-				result += this.genericDecorationToMarkdown(part);
+				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined);
 			}
-		}
+		});
 
 		return result;
 	}
 
-	private genericDecorationToMarkdown(part: IParsedChatRequestPart): string {
+	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined): string {
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
@@ -130,12 +143,17 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
-		const args: IDecorationWidgetArgs = { title };
-		const text = part.text;
+		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
+		// The text of an attachment shown as a pill, such as a terminal command, can contain brackets that would end the link.
+		const text = inlineAttachment === undefined ? part.text : part.text.replace(/[\\[\]]/g, '\\$&');
 		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 	}
 
-	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
+	/**
+	 * @param renderInlineAttachment Renders the pills of decorations that stand
+	 * for an attachment shown inline with a request's text.
+	 */
+	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
 		const store = new DisposableStore();
 		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
@@ -174,7 +192,8 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
+					const pill = typeof args?.inlineAttachment === 'number' ? renderInlineAttachment?.(args.inlineAttachment, store) : undefined;
+					a.replaceWith(pill ?? this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {

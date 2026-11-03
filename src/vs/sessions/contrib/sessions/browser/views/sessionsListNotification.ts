@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
@@ -28,25 +28,15 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 
 export const SessionsListNotificationFocused = new RawContextKey<boolean>('sessionsListNotificationFocused', false);
 
-/** An operation in progress that the sessions list notice shows until its result replaces it. */
-export interface ISessionsListProgressNotice {
-	/** A short description of the operation, such as "Moving 'Fix tests'...". */
-	readonly message: string;
-	/** Tells accessibility help readers what the operation is. */
-	readonly help: string;
-}
-
 /** A change or result that the sessions list notice reports, which the user can undo when it offers {@link undo}. */
 export interface ISessionsListNotice {
 	/** A short summary of the change, such as "3 marked done". */
 	readonly message: string;
 	/** Tells accessibility help readers what led to the notice and, with {@link undo}, what Undo restores. */
 	readonly help: string;
-	/** Shows the notice as a warning, e.g. why an operation was refused, and announces it assertively. */
-	readonly warning?: boolean;
 	/**
 	 * Reverts the change; without it, the notice only reports. A failure is reported and leaves Undo available to try
-	 * again. It may replace the notice, e.g. with its own progress and result.
+	 * again. It may replace the notice, e.g. with its own result.
 	 */
 	undo?(): Promise<void>;
 }
@@ -76,30 +66,10 @@ export class SessionsListNotification extends Disposable {
 		super();
 	}
 
-	/**
-	 * Shows an operation in progress until {@link show} replaces it with its result, or it is dismissed. It has an
-	 * indeterminate progress bar instead of a countdown and is not announced: its result is.
-	 */
-	showProgress(notice: ISessionsListProgressNotice): void {
-		const { store, element, closeBar, dismiss } = this.createNotice(notice.message, false, true);
-		element.classList.add('in-progress');
-		this.setHelpHint(dismiss.focusElement);
-		this.accessibilityHelp = () => {
-			const activeElement = DOM.getActiveElement();
-			return new AccessibleContentProvider(
-				AccessibleViewProviderId.SessionsListNotification,
-				{ type: AccessibleViewType.Help },
-				() => localize('sessionsListProgressNoticeHelp', "{0}\n{1}\nThe result replaces this notice when the operation finishes. Use Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.", notice.message, notice.help),
-				() => this.restoreFocusAfterHelp(store, element, activeElement, () => closeBar.focus()),
-				AccessibilityVerbositySettingId.SessionsListNotification,
-			);
-		};
-	}
-
 	/** Shows a change or result for ten seconds, offering Undo when the notice can revert it. */
 	show(notice: ISessionsListNotice): void {
 		const { message } = notice;
-		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.warning, !!notice.undo);
+		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.undo);
 		let undoButton: Button | undefined;
 		if (notice.undo) {
 			undoButton = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -190,15 +160,13 @@ export class SessionsListNotification extends Disposable {
 		};
 		if (notice.undo) {
 			status(localize('undoAvailable', "{0}. Undo is available in the sessions list for 10 seconds.", message));
-		} else if (notice.warning) {
-			alert(message);
 		} else {
 			status(message);
 		}
 	}
 
 	/** Replaces the current notice by a new one showing `message`, with Dismiss and, when `showBar` is set, a progress bar. */
-	private createNotice(message: string, warning: boolean, showBar: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progress: HTMLElement | undefined } {
+	private createNotice(message: string, showBar: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progress: HTMLElement | undefined } {
 		this.notification.clear();
 		const store = this.notification.value = new DisposableStore();
 		const element = DOM.append(this.container, DOM.$('.sessions-list-notification'));
@@ -213,10 +181,6 @@ export class SessionsListNotification extends Disposable {
 		const contextKeyService = store.add(this.contextKeyService.createScoped(element));
 		SessionsListNotificationFocused.bindTo(contextKeyService).set(true);
 
-		if (warning) {
-			element.classList.add('warning');
-			DOM.append(element, DOM.$(`.sessions-list-notification-icon${ThemeIcon.asCSSSelector(Codicon.warning)}`, { 'aria-hidden': 'true' }));
-		}
 		const label = DOM.append(element, DOM.$('.sessions-list-notification-label'));
 		label.textContent = message;
 		store.add(this.hoverService.setupDelayedHover(label, { content: message }));

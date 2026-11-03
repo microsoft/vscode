@@ -25,7 +25,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       actions: read
       contents: read

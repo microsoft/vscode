@@ -71,6 +71,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
 	}
 
+	manageHostSandboxCertificate(...args: Parameters<IAgentHostManagementService['manageHostSandboxCertificate']>): Promise<void> {
+		if (!this._agentService.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable');
+		}
+		return this._runMutation(() => this._agentService.manageHostSandboxCertificate!(...args));
+	}
+
 	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!this._agentService.installSandboxCertificate) {
 			throw new Error('Sandbox certificate installation is unavailable');
@@ -90,6 +97,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Sandbox certificate removal is unavailable');
 		}
 		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
+	}
+
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.refreshSandboxCertificate) {
+			throw new Error('Sandbox certificate refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshSandboxCertificate!(chat, scopeId));
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
@@ -284,6 +298,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
+	}
+
+	async setSystemNetworkOnline(online: boolean): Promise<void> {
+		this._logService.info(`[AgentHost] Network is ${online ? 'online' : 'offline'}`);
+		this._systemWake.setNetworkOnline(online);
 	}
 
 	async reportMacAccessibilityTrustChange(): Promise<void> {

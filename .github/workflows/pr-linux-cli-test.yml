@@ -27,7 +27,7 @@ jobs:
   cli:
     name: CLI
     if: ${{ inputs.cli_affected }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     env:
       CRATE_DIRECTORY: cli
     steps: &steps
@@ -88,7 +88,7 @@ jobs:
   copilot-shim:
     name: Copilot Shim
     if: ${{ inputs.copilot_shim_affected }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     env:
       CRATE_DIRECTORY: copilot_shim
       CHECK_FORMATTING: 'true'

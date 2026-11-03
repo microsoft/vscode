@@ -254,7 +254,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			?? (owner !== undefined && sessionDirectories && sessionDirectories.length > 1 && this._chatOwnership.isDefaultChat(owner, chat.toString()) && this._isChatWorkspaceless(owner, chat)
 				? sessionDirectories.slice(0, 1)
 				: sessionDirectories);
-		const provider = owner !== undefined ? this._providerService.getProviderForSession(URI.parse(owner)) : undefined;
+		const provider = owner !== undefined ? this._providerService.getProviderForChat(URI.parse(owner), chat) : undefined;
 		const supportsMultipleWorkingDirectories = !!provider?.getDescriptor().capabilities?.multipleWorkingDirectories;
 		const inheritsSessionWorkspace = summary?.workingDirectories === undefined
 			&& owner !== undefined
@@ -494,7 +494,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const { chat, workspaceFolder, initiatingClientId } = pending;
 		const session = URI.parse(pending.owner);
 		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(pending.owner, chat.toString()));
-		const provider = this._providerService.getProviderForSession(session)!;
+		const provider = this._providerService.getProviderForChat(session, chat)!;
 		let workspaceFinalized = false;
 		const assertWorkspace = (expected = pending.previousWorkingDirectories ?? [pending.previousWorkingDirectory ?? workspaceFolder]) => {
 			const state = this._stateManager.getSessionState(session.toString());
@@ -507,7 +507,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				|| (summary.interactivity !== undefined && summary.interactivity !== ChatInteractivity.Full)
 				|| (pending.isolation && readSessionWorkspaceless(state._meta)) || readSessionExternal(state._meta)
 				|| (pending.isolation && !this._worktreeIsolation.supported) || !provider?.agentHostCapabilities.workspaceConversion || !provider.setChatWorkingDirectory
-				|| this._providerService.getProviderForSession(session) !== provider
+				|| this._providerService.getProviderForChat(session, chat) !== provider
 				|| this._pending.get(chat.toString()) !== pending || this._quarantinedChats.has(chat.toString())
 				|| (!workspaceFinalized && pending.isolation && state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 					&& isEqual(workspaceFolder, pending.previousWorkingDirectory)
@@ -689,7 +689,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	private async _convert(pending: IPendingSessionWorkspaceConversion, continuation: IDeferredAgentHostTurn): Promise<URI> {
 		const { chat, workspaceFolder, isolation, initiatingClientId, prompt, transition } = pending;
 		const { session, state, previousWorkingDirectory } = this._validateConversion(chat, workspaceFolder);
-		const provider = this._providerService.getProviderForSession(session);
+		const provider = this._providerService.getProviderForChat(session, chat);
 		if (!provider?.agentHostCapabilities.workspaceConversion) {
 			throw new Error(`Provider does not support changing the working directory: ${AgentSession.provider(session) ?? '(unknown)'}`);
 		}

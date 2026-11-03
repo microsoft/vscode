@@ -296,6 +296,7 @@ export class MenuId {
 	static readonly ChatNewMenu = new MenuId('ChatNewMenu');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
+	static readonly ChatViewMode = new MenuId('ChatViewMode');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly ChatTipContext = new MenuId('ChatTipContext');
 	static readonly ChatTipToolbar = new MenuId('ChatTipToolbar');

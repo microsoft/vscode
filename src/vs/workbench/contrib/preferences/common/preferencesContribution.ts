@@ -13,10 +13,10 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorInputWithOptions } from '../../../common/editor.js';
-import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from '../../../services/preferences/common/preferences.js';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING } from '../../../services/preferences/common/preferences.js';
+import { SplitSettingsEditorInput } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { SettingsFileSystemProvider } from './settingsFilesystemProvider.js';
@@ -60,13 +60,19 @@ export class PreferencesContribution extends Disposable implements IWorkbenchCon
 			this.editorOpeningListener = this.editorResolverService.registerEditor(
 				'**/settings.json',
 				{
-					id: SideBySideEditorInput.ID,
+					id: SplitSettingsEditorInput.EDITOR_ID,
 					label: nls.localize('splitSettingsEditorLabel', "Split Settings Editor"),
 					priority: RegisteredEditorPriority.builtin,
 				},
 				{},
 				{
 					createEditorInput: ({ resource, options }): EditorInputWithOptions => {
+						// Explicit target, e.g. when opened from the preferences service
+						const target = (options as ISettingsEditorOptions | undefined)?.target;
+						if (target !== undefined) {
+							return { editor: this.preferencesService.createSplitJsonEditorInput(target, resource), options };
+						}
+
 						// Global User Settings File
 						if (isEqual(resource, this.userDataProfileService.currentProfile.settingsResource)) {
 							return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };

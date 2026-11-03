@@ -5,7 +5,7 @@
 
 import { assertNever } from '../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Color } from '../../../base/common/color.js';
+import { Color, RGBA } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IJSONSchema, IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../jsonschemas/common/jsonContributionRegistry.js';
@@ -53,12 +53,14 @@ export const enum ColorTransformType {
 	LessProminent,
 	IfDefinedThenElse,
 	Mix,
+	Opacity,
 }
 
 export type ColorTransform =
 	| { op: ColorTransformType.Darken; value: ColorValue; factor: number }
 	| { op: ColorTransformType.Lighten; value: ColorValue; factor: number }
 	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
+	| { op: ColorTransformType.Opacity; value: ColorValue; opacity: number }
 	| { op: ColorTransformType.Opaque; value: ColorValue; background: ColorValue }
 	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
@@ -270,6 +272,11 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme):
 		case ColorTransformType.Transparent:
 			return resolveColorValue(transform.value, theme)?.transparent(transform.factor);
 
+		case ColorTransformType.Opacity: {
+			const rgba = resolveColorValue(transform.value, theme)?.rgba;
+			return rgba ? new Color(new RGBA(rgba.r, rgba.g, rgba.b, transform.opacity)) : undefined;
+		}
+
 		case ColorTransformType.Mix: {
 			const primaryColor = resolveColorValue(transform.color, theme) || Color.transparent;
 			const otherColor = resolveColorValue(transform.with, theme) || Color.transparent;
@@ -326,6 +333,11 @@ export function lighten(colorValue: ColorValue, factor: number): ColorTransform 
 
 export function transparent(colorValue: ColorValue, factor: number): ColorTransform {
 	return { op: ColorTransformType.Transparent, value: colorValue, factor };
+}
+
+/** Sets a color's opacity without scaling its existing alpha. */
+export function withOpacity(colorValue: ColorValue, opacity: number): ColorTransform {
+	return { op: ColorTransformType.Opacity, value: colorValue, opacity };
 }
 
 export function opaque(colorValue: ColorValue, background: ColorValue): ColorTransform {

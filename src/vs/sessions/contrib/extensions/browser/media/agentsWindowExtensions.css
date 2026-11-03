@@ -40,7 +40,8 @@
 	color: var(--vscode-foreground);
 }
 
-.agents-window-extensions-title-row > .monaco-button {
+.agents-window-extensions-title-row > .monaco-button,
+.agents-window-extension-row > .agents-window-extension-runtime-action {
 	width: auto;
 	height: var(--vscode-spacing-size240);
 	flex-shrink: 0;

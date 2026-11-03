@@ -8,6 +8,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { raceCancellation } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -77,6 +78,11 @@ export function getNestedChatFolderOptions(support: INestedChatWorkspaceSupport,
 	const choices: NestedChatFolderChoice[] = [...(sessionFolder && !sessionFolderMissing ? [sessionFolder] : []), ...recent].map(folder => ({ kind: 'folder', folder }));
 	choices.push({ kind: 'scratch' });
 	return { choices, browseActions: support.browseActions, openFolder: sources.canOpenLocalFolder };
+}
+
+/** Whether `choice` is one the support offers: any folder or "No workspace" with multiple folders, otherwise only the default. */
+export function isNestedChatFolderOffered(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice): boolean {
+	return support.multipleFolders || isSameNestedChatFolder(choice, getDefaultNestedChatFolder(support));
 }
 
 export function isSameNestedChatFolder(a: NestedChatFolderChoice, b: NestedChatFolderChoice): boolean {
@@ -178,6 +184,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 	private readonly _sessionFolderMissing = observableValue<boolean>(this, false);
 	/** Checks whether the preselected session folder still exists; settles once it is known or can't be told. */
 	private _folderCheck: Promise<void> | undefined;
+	/** Settles once a {@link refresh} has re-read its folder (or was superseded), which restores the kept worktree choice. */
+	private _refreshResolution: Promise<void> | undefined;
 	private readonly _branches = observableValue<readonly string[] | 'loading' | 'error'>(this, []);
 	private readonly _resolve = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _folderRenderStore = this._register(new DisposableStore());
@@ -220,7 +228,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 
 	/** {@link getWorkspace} once a pending check of the session folder is done, so a chat never starts in a missing folder. */
 	async resolveWorkspace(): Promise<INestedChatWorkspace | undefined> {
-		await this._folderCheck;
+		// Until a refresh re-reads its folder, the kept worktree choice reads as "no worktree".
+		await Promise.all([this._folderCheck, this._refreshResolution]);
 		return this.getWorkspace();
 	}
 
@@ -231,7 +240,22 @@ export class NestedChatWorkspaceControls extends Disposable {
 		this._select(support ? getDefaultNestedChatFolder(support) : undefined);
 	}
 
-	private _select(choice: NestedChatFolderChoice | undefined): void {
+	/**
+	 * Re-reads the facts of the chosen folder, e.g. after the new chat's agent changed. A choice the current
+	 * support no longer offers goes back to the session's default (its folder, without a worktree); otherwise
+	 * the worktree choice and branch are kept where the folder still supports them.
+	 */
+	refresh(): void {
+		const support = this._host.support.get();
+		const folder = this._folder.get();
+		if (!support || !folder || !isNestedChatFolderOffered(support, folder)) {
+			this.reset();
+			return;
+		}
+		this._select(folder, { worktree: this._worktree.get(), branch: this._branch.get() });
+	}
+
+	private _select(choice: NestedChatFolderChoice | undefined, keep?: { readonly worktree: boolean; readonly branch: string | undefined }): void {
 		const store = new DisposableStore();
 		this._resolve.value = store;
 		transaction(tx => {
@@ -264,19 +288,30 @@ export class NestedChatWorkspaceControls extends Disposable {
 				}
 			}));
 		}
-		this._host.resolveFolder(choice.folder, cts.token).then(info => {
+		const resolution = this._host.resolveFolder(choice.folder, cts.token).then(info => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
 			transaction(tx => {
 				this._folderInfo.set(info, tx);
-				this._branch.set(info.defaultBranch, tx);
+				this._worktree.set(!!keep?.worktree && info.supportsWorktree, tx);
+				this._branch.set(keep?.worktree && info.supportsWorktree ? keep.branch ?? info.defaultBranch : info.defaultBranch, tx);
 			});
 		}, error => {
 			if (!cts.token.isCancellationRequested) {
 				onUnexpectedError(error);
 			}
 		});
+		if (keep) {
+			// Settle when superseded too, as a cancelled resolution may never answer.
+			const refreshResolution = raceCancellation(resolution, cts.token).then(() => undefined);
+			this._refreshResolution = refreshResolution;
+			store.add(toDisposable(() => {
+				if (this._refreshResolution === refreshResolution) {
+					this._refreshResolution = undefined;
+				}
+			}));
+		}
 	}
 
 	private _loadBranches(): void {

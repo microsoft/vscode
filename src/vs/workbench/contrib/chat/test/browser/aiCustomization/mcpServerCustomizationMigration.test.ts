@@ -10,12 +10,14 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { parse } from '../../../../../../base/common/jsonc.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { sep } from '../../../../../../base/common/path.js';
 import { IProcessEnvironment } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
@@ -24,11 +26,13 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { parseWorkspaceRootMcpConfiguration } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
+import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
-import { mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, mcpOAuthClientSecretStorageKey, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
@@ -236,13 +240,10 @@ suite('McpServerCustomizationMigration', () => {
 		};
 	}
 
-	/**
-	 * A server that uses `${input:}`, as the client reports it: not delivered from `.vscode/mcp.json`, or
-	 * forwarded from the user configuration, with its variables unresolved in either case.
-	 */
+	/** An unresolved input configuration that is not delivered to the runtime. */
 	function inputSupport(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration, sourceUri?: URI): IAgentHostMcpServerSupport {
 		const server = support(root, name, {
-			delivery: sourceUri ? AgentHostMcpServerDelivery.ClientForwarded : AgentHostMcpServerDelivery.NotDelivered,
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
 			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.RequiresUserInteraction] },
 			projectedConfiguration,
 		});
@@ -320,6 +321,100 @@ suite('McpServerCustomizationMigration', () => {
 					mcpServers: {
 						demo: { type: 'stdio', command: 'node', args: [], tools: ['*'] },
 						http: { type: 'http', url: 'https://example.com', headers: { 'X-Test': 'value' }, tools: ['*'] },
+					},
+				},
+			});
+		});
+
+		test(`migrates variable references from assessed ${remote ? 'remote' : 'local'} user servers without forwarding`, async () => {
+			const fileService = createFileService();
+			if (remote) {
+				store.add(fileService.registerProvider(Schemas.vscodeRemote, store.add(new InMemoryFileSystemProvider())));
+			}
+			const base = userCandidate();
+			const remoteAuthority = remote ? 'ssh-remote+test' : null;
+			const sourceUri = remoteAuthority ? base.sourceUri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority }) : base.sourceUri;
+			const targetUri = remoteAuthority ? base.targetUri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority }) : base.targetUri;
+			const collectionId = remote ? 'mcp.config.usrremote' : 'mcp.config.usrlocal';
+			const servers = {
+				environment: { command: 'node', env: { VALUE: '${env:EXTERNAL_TOKEN}' } },
+				setting: { command: 'node', env: { VALUE: '${config:mcp.port}' } },
+				input: { command: 'node', env: { VALUE: '${input:token}' } },
+				password: { command: 'node', env: { VALUE: '${input:secret}' } },
+				command: { command: 'node', env: { VALUE: '${command:extension.pick}' } },
+			};
+			const passwordInput = { id: 'secret', type: 'promptString', description: 'Secret', password: true };
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+				inputs: [{ id: 'token', type: 'promptString', description: 'Token' }, passwordInput],
+				servers,
+			})));
+			const definitions: McpServerDefinition[] = Object.entries(servers).map(([name, server]) => ({
+				id: `${collectionId}.${name}`,
+				label: name,
+				cacheNonce: name,
+				launch: { type: McpServerTransportType.Stdio, ...server, args: [], envFile: undefined, cwd: undefined, sandbox: undefined },
+			}));
+			const collection: McpCollectionDefinition = {
+				id: collectionId,
+				label: 'User',
+				order: 0,
+				remoteAuthority,
+				provenance: remote ? McpCollectionProvenance.RemoteUser : McpCollectionProvenance.UserProfile,
+				configTarget: remote ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER_LOCAL,
+				scope: StorageScope.PROFILE,
+				trustBehavior: McpServerTrust.Kind.Trusted,
+				serverDefinitions: constObservable(definitions),
+				presentation: { origin: sourceUri },
+			};
+			const mcpServers = definitions.map(definition => store.add(new class extends mock<IMcpServer>() {
+				override readonly collection = collection;
+				override readonly definition = definition;
+				override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+				override readDefinitions() { return constObservable({ collection, server: definition }); }
+				override dispose() { }
+			}()));
+			const configurationService = new TestConfigurationService({ 'mcp.port': 8080 });
+			const assessment = await assessMcpServersForCopilotAgentHost(
+				mcpServers,
+				new TestConfigurationResolverService([], undefined, configurationService),
+				'agent-host-copilotcli',
+				[],
+				LazyCollectionState.AllKnown,
+				remoteAuthority,
+			);
+			assert.ok(assessment);
+			const migrator = createMigrator(fileService, [], undefined, configurationService);
+			const plan = await migrator.createPlan({
+				...assessment,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			}, [], CancellationToken.None, targetUri);
+
+			assert.deepStrictEqual({
+				delivery: assessment.servers.map(server => [server.name, server.delivery]),
+				candidates: plan.candidates.map(candidate => candidate.name),
+				exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			}, {
+				delivery: Object.keys(servers).map(name => [name, AgentHostMcpServerDelivery.NotDelivered]),
+				candidates: ['environment', 'setting', 'input'],
+				exclusions: [
+					['password', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+					['command', McpServerCustomizationMigrationFailureReason.UnsupportedVariable],
+				],
+			});
+
+			const result = await migrator.migrate(plan.candidates, { userTarget: targetUri });
+			assert.deepStrictEqual({
+				result,
+				source: parse((await fileService.readFile(sourceUri)).value.toString()),
+				target: parse((await fileService.readFile(targetUri)).value.toString()),
+			}, {
+				result: { migratedCount: 3, failures: [] },
+				source: { inputs: [passwordInput], servers: { password: servers.password, command: servers.command } },
+				target: {
+					mcpServers: {
+						environment: { type: 'stdio', command: 'node', args: [], env: { VALUE: '${EXTERNAL_TOKEN}' }, tools: ['*'] },
+						setting: { type: 'stdio', command: 'node', args: [], env: { VALUE: '8080' }, tools: ['*'] },
+						input: { type: 'stdio', command: 'node', args: [], env: { VALUE: '${TOKEN}', TOKEN: '' }, tools: ['*'] },
 					},
 				},
 			});
@@ -1020,7 +1115,7 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
-	test('migrates ${env:} references in user servers forwarded unresolved', async () => {
+	test('migrates ${env:} references in undelivered user servers', async () => {
 		const fileService = createFileService();
 		const { sourceUri, targetUri } = userCandidate();
 		const servers = {
@@ -1042,7 +1137,11 @@ suite('McpServerCustomizationMigration', () => {
 		};
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: Object.entries(projections).map(([name, [projectedConfiguration, compatibility]]) => {
-				const server = support(URI.file('/unused'), name, { projectedConfiguration, compatibility });
+				const server = support(URI.file('/unused'), name, {
+					projectedConfiguration,
+					compatibility,
+					delivery: compatibility.kind === 'unsupported' ? AgentHostMcpServerDelivery.NotDelivered : AgentHostMcpServerDelivery.ClientForwarded,
+				});
 				return { ...server, source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri } };
 			}),
 			discoveryComplete: true,
@@ -1475,7 +1574,7 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
-	test('migrates ${input:} references in user servers forwarded unresolved', async () => {
+	test('migrates ${input:} references in undelivered user servers', async () => {
 		const fileService = createFileService();
 		const { sourceUri, targetUri } = userCandidate();
 		const server = { command: 'node', env: { TOKEN: '${input:token}', SEPARATED: 'a${pathSeparator}b' } };
@@ -1663,7 +1762,7 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
-	test('migrates ${config:} references in user servers forwarded unresolved, with user settings', async () => {
+	test('migrates ${config:} references in undelivered user servers, with user settings', async () => {
 		const fileService = createFileService();
 		const { sourceUri, targetUri } = userCandidate();
 		const servers = {
@@ -1677,6 +1776,7 @@ suite('McpServerCustomizationMigration', () => {
 		await configurationService.setUserConfiguration('mcp.port', 9090, URI.file('/workspace'));
 		const userSupport = (name: string, projectedConfiguration: IMcpServerConfiguration): IAgentHostMcpServerSupport => {
 			const server = support(URI.file('/unused'), name, {
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
 				compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
 				projectedConfiguration,
 			});
@@ -1881,6 +1981,7 @@ suite('McpServerCustomizationMigration', () => {
 		const configurationService = new WorkspaceSettingsTestConfigurationService({ 'mcp.port': 8080 });
 		const workspaceServer = support(root, 'workspace', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['--port=8080'] } });
 		const userServer = support(URI.file('/unused'), 'user', {
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
 			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
 			projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp?port=${config:mcp.port}' },
 		});
@@ -1890,7 +1991,7 @@ suite('McpServerCustomizationMigration', () => {
 			discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		}, [root], CancellationToken.None, userTargetUri);
-		// The user server is still forwarded the same way, so only the recorded value reveals the change.
+		// The unresolved user projection does not change, so only the recorded value reveals the change.
 		await configurationService.setUserConfiguration('mcp.port', 9090);
 
 		const result = await migrator.migrate(plan.candidates, { userTarget: userTargetUri });

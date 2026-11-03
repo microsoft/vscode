@@ -274,9 +274,7 @@ async function waitForWrites(pty: TestPty, count: number): Promise<void> {
 
 suite('AgentHostTerminalManager – command detection integration', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('formats command input with terminal enter semantics', () => {
 		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true }), 'echo first\recho second\r');
@@ -916,9 +914,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 
 suite('AgentHostTerminalManager – output-only terminals', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createManager() {
 		const logService = new NullLogService();

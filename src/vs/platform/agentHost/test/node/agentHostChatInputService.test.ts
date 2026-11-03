@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -24,9 +23,7 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 
 suite('AgentHostChatInputService', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function summary(resource: string) {
 		return {

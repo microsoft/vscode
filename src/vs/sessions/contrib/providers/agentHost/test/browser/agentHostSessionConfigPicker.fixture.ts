@@ -26,6 +26,8 @@ import { IActiveSession } from '../../../../../services/sessions/common/sessions
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionChangesService } from '../../../../changes/browser/sessionChangesService.js';
 import { AgentHostSessionConfigPicker } from '../../browser/agentHostSessionConfigPicker.js';
+import { IWorktreeSuggestionService } from '../../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService } from '../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
 
@@ -80,6 +82,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
 	instantiationService.stub(ISessionChangesService, {});
 	instantiationService.stub(IViewsService, {});
+	instantiationService.stub(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
 	instantiationService.set(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 	instantiationService.set(ILayoutService, new class extends mock<ILayoutService>() {
 		override readonly mainContainer = container;

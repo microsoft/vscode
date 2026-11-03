@@ -12,8 +12,8 @@ import { autorun, derived, IObservable, observableValue } from '../../../base/co
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { localize } from '../../../nls.js';
-import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactDetails, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel } from './artifactIntegration.js';
-import { isArtifactActor, isArtifactAuthenticationRequest, isArtifactRun, isArtifactSnapshot } from './artifactIntegrationValidation.js';
+import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactDetails, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel } from './artifactIntegration.js';
+import { isArtifactActor, isArtifactAuthenticationRequest, isArtifactJsonValue, isArtifactRun, isArtifactSnapshot } from './artifactIntegrationValidation.js';
 import { isArtifactDetails } from './artifactPresentationValidation.js';
 import { hasArtifactAutomationEnabledRules, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges } from './artifactIntegrationNotices.js';
 import { ArtifactAutomationNotice } from './artifactRuntime.js';
@@ -24,7 +24,7 @@ export type ArtifactIntegrationRequest =
 	| { readonly kind: 'authenticate'; readonly subscription: string; readonly integrationId: string }
 	| { readonly kind: 'configure'; readonly subscription: string; readonly integrationId: string; readonly revision: number; readonly values: Readonly<Record<string, boolean | string>>; readonly actor?: ArtifactActor }
 	| { readonly kind: 'notice'; readonly subscription: string; readonly notice: Pick<ArtifactAutomationNotice, 'kind' | 'content' | 'iconId' | 'changes' | 'enabledRules'> }
-	| { readonly kind: 'invoke'; readonly subscription: string; readonly integrationId: string; readonly actionId: string; readonly chat: string; readonly requestId: string; readonly actor?: ArtifactActor }
+	| { readonly kind: 'invoke'; readonly subscription: string; readonly integrationId: string; readonly actionId: string; readonly chat: string; readonly requestId: string; readonly actor?: ArtifactActor; readonly input?: ArtifactJsonValue }
 	| { readonly kind: 'cancel' | 'reconcile'; readonly subscription: string; readonly runId: string }
 	| { readonly kind: 'history'; readonly subscription: string; readonly before?: string; readonly limit?: number }
 	| { readonly kind: 'details'; readonly subscription: string; readonly parent: string; readonly integrationId: string; readonly detailsId: string }
@@ -68,7 +68,8 @@ export function isArtifactIntegrationRequest(value: unknown): value is ArtifactI
 		case 'runItemAction': return strings(value, 'itemId', 'actionId');
 		case 'authenticate': return strings(value, 'integrationId');
 		case 'details': return strings(value, 'parent', 'integrationId', 'detailsId');
-		case 'invoke': return strings(value, 'integrationId', 'actionId', 'chat', 'requestId') && (value.actor === undefined || isArtifactActor(value.actor));
+		case 'invoke': return strings(value, 'integrationId', 'actionId', 'chat', 'requestId') && (value.actor === undefined || isArtifactActor(value.actor))
+			&& (value.input === undefined || isArtifactJsonValue(value.input));
 		case 'cancel': case 'reconcile': return strings(value, 'runId');
 		case 'history': return (value.before === undefined || strings(value, 'before'))
 			&& (value.limit === undefined || (typeof value.limit === 'number' && Number.isSafeInteger(value.limit) && value.limit > 0 && value.limit <= 200));
@@ -191,7 +192,7 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 				return challenge ? { kind: 'authentication', request: challenge } : { kind: 'ok' };
 			}
 			case 'invoke':
-				return { kind: 'run', run: await this.requireArtifact(request.subscription).invoke(request.integrationId, request.actionId, request.chat, request.requestId, request.actor) };
+				return { kind: 'run', run: await this.requireArtifact(request.subscription).invoke(request.integrationId, request.actionId, request.chat, request.requestId, request.actor, request.input) };
 			case 'cancel':
 				await this.requireArtifact(request.subscription).cancel(request.runId);
 				break;
@@ -368,8 +369,8 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 					return request;
 				},
 				configure: (integrationId, revision, values, actor) => this.requestAcknowledgement({ kind: 'configure', subscription, integrationId, revision, values, ...(actor ? { actor } : {}) }),
-				invoke: async (integrationId, actionId, chat, requestId, actor) => {
-					const result = await this.request({ kind: 'invoke', subscription, integrationId, actionId, chat, requestId, ...(actor ? { actor } : {}) });
+				invoke: async (integrationId, actionId, chat, requestId, actor, input) => {
+					const result = await this.request({ kind: 'invoke', subscription, integrationId, actionId, chat, requestId, ...(actor ? { actor } : {}), ...(input === undefined ? {} : { input }) });
 					if (result.kind !== 'run') {
 						throw new Error('Invalid artifact action response');
 					}

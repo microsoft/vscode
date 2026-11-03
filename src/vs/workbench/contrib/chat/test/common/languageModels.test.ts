@@ -2252,13 +2252,7 @@ suite('LanguageModels - Provider Group Management', function () {
 
 suite('LanguageModels - Provider Group Detail Fallback', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('model.detail falls back to the group name so multiple instances of the same vendor are distinguishable', async function () {
 		const languageModelsService = disposables.add(new LanguageModelsService(
@@ -2475,13 +2469,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 
 suite('LanguageModels - Provider Deprecation Notice', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class RecordingNotificationService extends TestNotificationService {
 		readonly prompts: { message: string; choices: IPromptChoice[]; options?: IPromptOptions }[] = [];
@@ -2674,13 +2662,7 @@ suite('createModelConfigurationActions', function () {
 
 suite('LanguageModels - provider usage telemetry', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class CapturingTelemetryService implements Partial<ITelemetryService> {
 		readonly events: { eventName: string; data: any }[] = [];
@@ -2791,13 +2773,7 @@ suite('LanguageModels - provider usage telemetry', function () {
 
 suite('LanguageModels - pin telemetry', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reports only real pin changes, naming built-in models wherever they are relayed from', async function () {
 		const events: { eventName: string; data: unknown }[] = [];

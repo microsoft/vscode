@@ -107,7 +107,10 @@ function renderWidget(ctx: ComponentFixtureContext, options: { readonly extensio
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	AgentsWindowExtensions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The GitLens and Python rows show a small warning icon right after the publisher name. No other row shows a warning icon, and the warning icon is not dimmed on the disabled GitLens row.'],
+		expectedVisualDescriptions: [
+			'The GitLens and Python rows show a small warning icon right after the publisher name. No other row shows a warning icon, and the warning icon is not dimmed on the disabled GitLens row.',
+			'The Python row shows a small secondary Restart Extensions button just before its switch, matching the Restart Extensions button next to the Extensions title. No other row shows a Restart Extensions button.',
+		],
 		render: ctx => renderWidget(ctx, { extensions: fixtureExtensions }),
 	}),
 	AgentsWindowExtensionsSuggested: defineComponentFixture({

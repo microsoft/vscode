@@ -18,7 +18,6 @@ import { TestRun } from '../stores/testRun';
 import { TestSource, TestSourceValue } from '../stores/testSource';
 import { DisplayOptions } from './app';
 import { useContextMenu } from './contextMenu';
-import { OpenInVSCodeButton } from './openInVSCode';
 import { TestRunView } from './testRun';
 
 type Props = {
@@ -129,13 +128,6 @@ export const TestView = mobxlite.observer(({ test, runner, runnerOptions, nesExt
 							</TreeItem>
 						)
 						: <>
-							{test.activeEditorLangId &&
-								<TreeItem itemType='leaf'>
-									<TreeItemLayout>
-										Language: {test.activeEditorLangId}
-									</TreeItemLayout>
-								</TreeItem>
-							}
 							{test.runnerStatus.runs.map(
 								(run, idx) => {
 									const key = `${test.name}-${idx}`;
@@ -157,10 +149,8 @@ export const TestView = mobxlite.observer(({ test, runner, runnerOptions, nesExt
 												</TreeItemLayout>
 												<Tree>
 													<TreeItem itemType='leaf'>
-														<OpenInVSCodeButton test={test} />
 														<TestRunView
 															key={key}
-															test={test}
 															run={run}
 															baseline={baseline}
 															displayOptions={displayOptions}

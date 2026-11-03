@@ -64,8 +64,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
 			override hasLoadedFeedback(_sessionResource: URI): boolean { return loaded; }
 			override getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return feedbackItems; }
-			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IAgentFeedback['sourcePullRequest']): IAgentFeedback {
-				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, sourcePullRequest, state };
+			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IAgentFeedback['sourcePullRequest'], sourcePRReviewCommentAuthor?: string): IAgentFeedback {
+				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, sourcePRReviewCommentAuthor, sourcePullRequest, state };
 				feedbackItems.push(feedback);
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 				return feedback;
@@ -84,10 +84,10 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
 				}
 			}
-			override updateFeedbackSourcePullRequest(_sessionResource: URI, feedbackId: string, sourcePullRequest: IAgentFeedback['sourcePullRequest']): void {
+			override updateFeedbackSourcePullRequest(_sessionResource: URI, feedbackId: string, sourcePullRequest: IAgentFeedback['sourcePullRequest'], sourcePRReviewCommentAuthor?: string): void {
 				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
 				if (idx >= 0) {
-					feedbackItems[idx] = { ...feedbackItems[idx], sourcePullRequest };
+					feedbackItems[idx] = { ...feedbackItems[idx], sourcePullRequest, sourcePRReviewCommentAuthor };
 					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
 				}
 			}
@@ -116,6 +116,19 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		setComments([prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this')]);
 
 		assert.deepStrictEqual(mirrors().map(m => m.sourceId), ['thread-1', 'thread-2']);
+	});
+
+	test('preserves the PR author when seeding and backfilling existing feedback', () => {
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+		const seededAuthor = feedbackItems[0].sourcePRReviewCommentAuthor;
+		feedbackItems[0] = { ...feedbackItems[0], sourcePRReviewCommentAuthor: undefined, state: AgentFeedbackState.Accepted };
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+
+		assert.deepStrictEqual({
+			seededAuthor,
+			backfilledAuthor: feedbackItems[0].sourcePRReviewCommentAuthor,
+			count: feedbackItems.length,
+		}, { seededAuthor: 'reviewer', backfilledAuthor: 'reviewer', count: 1 });
 	});
 
 	test('refreshes a created mirror when the upstream comment body changes', () => {

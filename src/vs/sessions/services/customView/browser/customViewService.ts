@@ -17,6 +17,8 @@ const ACTIVE_CUSTOM_VIEW_STORAGE_KEY = 'sessions.activeCustomView';
 export interface ICustomViewOpenRequest {
 	readonly descriptor: ICustomViewDescriptor;
 	readonly source: 'explicit' | 'history' | 'restore';
+	/** Identifies what this opening shows, such as one of several items, so navigation history can return to it. */
+	readonly state?: string;
 }
 
 /**
@@ -37,8 +39,11 @@ export interface ICustomViewService {
 
 	registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }): IDisposable;
 
-	/** Shows the registered view with the given id, replacing any shown view. */
-	showCustomView(id: string, options?: { readonly source: 'history' }): void;
+	/**
+	 * Shows the registered view with the given id, replacing any shown view. `state` identifies
+	 * what this opening shows; history records it and passes it back when it reopens the view.
+	 */
+	showCustomView(id: string, options?: { readonly source?: 'history'; readonly state?: string }): void;
 
 	hideCustomView(tx?: ITransaction): void;
 }
@@ -85,16 +90,22 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 		});
 	}
 
-	showCustomView(id: string, options?: { readonly source: 'history' }): void {
+	showCustomView(id: string, options?: { readonly source?: 'history'; readonly state?: string }): void {
 		const descriptor = this._descriptors.get(id);
 		if (!descriptor) {
 			this._logService.warn(`[CustomViewService] showCustomView: no custom view registered with id '${id}'`);
 			return;
 		}
 
+		const state = options?.state;
+		if (state !== undefined && descriptor.acceptsState?.(state) === false) {
+			this._logService.trace(`[CustomViewService] showCustomView: custom view '${id}' declined its state`);
+			return;
+		}
+
 		this._desiredCustomViewId = id;
 		this._storageService.store(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		this._activeCustomViewOpen.set({ descriptor, source: options?.source ?? 'explicit' }, undefined);
+		this._activeCustomViewOpen.set({ descriptor, source: options?.source ?? 'explicit', ...(state !== undefined ? { state } : {}) }, undefined);
 	}
 
 	hideCustomView(tx?: ITransaction): void {

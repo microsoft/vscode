@@ -29,7 +29,6 @@ import { IAgentHostFilterService } from '../../../../services/agentHostFilter/co
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
 import { getRemoteAgentHostPickerKey } from './remoteAgentHostPickerVisibility.js';
@@ -58,16 +57,11 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	) {
 		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
 		const updateProjects = () => sharingService.setProjectFolders(recentWorkspacesService
-			.getRecentWorkspaces(true, configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING))
+			.getRecentWorkspaces(true, true)
 			.flatMap(recent => recent.workspace.folders.map(folder => folder.root))
 			.filter(folder => folder.scheme === Schemas.file));
 		this._register(recentWorkspacesService.onDidChangeRecentWorkspaces(updateProjects));
 		this._register(sessionsProvidersService.onDidChangeProviders(updateProjects));
-		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
-				updateProjects();
-			}
-		}));
 		updateProjects();
 		this._register(remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));

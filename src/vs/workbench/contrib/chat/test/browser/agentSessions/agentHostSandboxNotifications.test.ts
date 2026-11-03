@@ -71,6 +71,40 @@ suite('AgentHostSandboxNotifications', () => {
 		});
 	});
 
+	test('reports host conflicts to each connected client once, including before enablement is known', () => {
+		for (const clientId of ['first-client', 'second-client']) {
+			const actions = store.add(new Emitter<ActionEnvelope>());
+			const messages: string[] = [];
+			const connection = new class extends mock<IAgentConnection>() {
+				override readonly clientId = clientId;
+				override readonly onDidAction = actions.event;
+			}();
+			store.add(new AgentHostSandboxNotifications(
+				new class extends mock<IAgentHostConnectionsService>() {
+					override readonly onDidChangeConnections = Event.None;
+					override readonly connections = [{ authority: 'remote', address: 'remote', name: 'Remote', isAmbient: false, connection }];
+				}(),
+				new NullLogService(),
+				new class extends mock<INotificationService>() {
+					override error(message: string | Error): void { messages.push(String(message)); }
+				}(),
+			));
+			const fire = (meta: Record<string, unknown>) => actions.fire({
+				channel: 'custom-host://sessions/one', serverSeq: 1, origin: undefined,
+				action: { type: ActionType.SessionMetaChanged, _meta: meta },
+			});
+			const error = { id: 'conflict-1', message: 'Managed sandbox conflict' };
+			const failure = withSessionSandboxState(withChatSandboxState(undefined, 'custom-chat://one', { error }), { error });
+			fire(failure);
+			fire(failure);
+			fire(withSessionSandboxState(undefined, { enabled: true }));
+			fire(withSessionSandboxState(undefined, { enabled: true, error: { ...error, id: 'conflict-2' } }));
+			fire(withSessionSandboxState(undefined, { enabled: true, error: { clientId: 'another-client', clientSeq: 1, message: 'Private rejection' } }));
+
+			assert.deepStrictEqual(messages, Array(2).fill('Could not change sandbox access. Managed sandbox conflict'));
+		}
+	});
+
 	test('reports a chat\'s failure once, also when the session-level state repeats it', () => {
 		const actions = store.add(new Emitter<ActionEnvelope>());
 		const messages: string[] = [];

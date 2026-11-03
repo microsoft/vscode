@@ -255,7 +255,7 @@ export class ChatSessionWorkingSet extends Disposable {
 		// Its Keep and Undo follow the context keys above, so the rows update once the menu reports the change.
 		const fileMenu = this._register(menuService.createMenu(MenuId.ChatEditingWidgetModifiedFilesToolbar, scopedContextKeyService, { eventDebounceDelay: 0 }));
 		const fileMenuChanged = observableSignalFromEvent(this, fileMenu.onDidChange);
-		this._fileList = this._register(renderChangesSummaryFileList(listContainer, this._diffs, scopedInstantiationService, this._editorService, configurationService, {
+		this._fileList = this._register(renderChangesSummaryFileList(listContainer, this._diffs, scopedInstantiationService, {
 			openEditor: (diff, _inDiffEditor, options, sideBySide) => {
 				void this._openFile(diff, options, sideBySide).catch(onUnexpectedError);
 			},

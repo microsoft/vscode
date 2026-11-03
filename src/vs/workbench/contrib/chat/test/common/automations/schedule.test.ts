@@ -6,7 +6,35 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
-import { automationScheduleToLocal, automationScheduleToUTC } from '../../../common/automations/schedule.js';
+import { automationScheduleToLocal, automationScheduleToUTC, getAutomationCronValidationError } from '../../../common/automations/schedule.js';
+
+suite('Automation cron input validation', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps empty input neutral and reports the host validation message', () => {
+		assert.deepStrictEqual(['', '   ', '*/2 * * * *', '0 24 * * *', '20/15 * * * *', '20-59/15 * * * *'].map(expression => getAutomationCronValidationError(expression, 'UTC')), [
+			undefined, undefined, undefined, 'Hour value is outside 0-23.', 'Minute steps require \'*\' or a range such as 0-59.', undefined,
+		]);
+	});
+
+	test('explains allowed values without echoing invalid input as an apparent example', () => {
+		const cases = [
+			['10/25 * * * *', 'Minute steps require \'*\' or a range such as 0-59.'],
+			['0 10/25 * * *', 'Hour steps require \'*\' or a range such as 0-23.'],
+			['0 0 5/10 * *', 'Day of month steps require \'*\' or a range such as 1-31.'],
+			['0 0 * MAR/3 *', 'Month steps require \'*\' or a range such as 1-12.'],
+			['0 0 * * MON/2', 'Day of week steps require \'*\' or a range such as 0-7.'],
+			['0,,10 * * * *', 'Minute contains an empty list item.'],
+			['10/2/3 * * * *', 'Minute contains an invalid step.'],
+			['10-5 * * * *', 'Minute ranges must be ascending.'],
+			['1-2-3 * * * *', 'Minute contains an invalid range.'],
+			['0 24 * * *', 'Hour value is outside 0-23.'],
+			['*/0 * * * *', 'Minute step must be a positive integer.'],
+			['0 0 31 FEB *', 'Automation schedule cannot match a real calendar date.'],
+		];
+		assert.deepStrictEqual(cases.map(([expression]) => getAutomationCronValidationError(expression, 'UTC')), cases.map(([, message]) => message));
+	});
+});
 
 suite('Automation schedule time zones', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

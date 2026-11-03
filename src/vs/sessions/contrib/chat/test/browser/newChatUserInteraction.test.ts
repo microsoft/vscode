@@ -76,7 +76,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		};
 	}
 
-	function createInput(h: ReturnType<typeof createHarness>, sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>, tryHandle: () => Promise<boolean> = async () => false) {
+	function createInput(h: ReturnType<typeof createHarness>, sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>, tryHandle: () => Promise<boolean> = async () => false, confirmSend?: (query: string) => Promise<boolean>) {
 		let query = 'test request';
 		const sourceOwner = disposables.add(new MutableDisposable());
 		const input: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
@@ -88,15 +88,18 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				attachmentModel: { attachments: [], addContext: () => { } },
 				input: {
 					setInputEnabled: () => { },
+					hasFocus: () => false,
+					focus: () => { },
 					getAttachedContext: () => ({ asArray: () => [] }),
 					acceptInput: async () => { query = ''; },
 				},
 			},
 			_sending: observableValue('sending', false),
+			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: sourceOwner,
 			_canSendRequest: constObservable(true),
 			_modelRef: { value: undefined },
-			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest },
+			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest, confirmSend },
 			instantiationService: h.instantiationService,
 			chatSubmitRequestHandlerService: { tryHandle },
 			storageService: { store: () => { } },
@@ -197,6 +200,39 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			h.assertFinished('error');
 		});
 	}
+
+	test('a host answers its send confirmation before the request is measured', async () => {
+		const h = createHarness(true);
+		const answers = [new DeferredPromise<boolean>(), new DeferredPromise<boolean>()];
+		const confirmed: string[] = [];
+		const sent: string[] = [];
+		const { input } = createInput(h, async request => {
+			sent.push(request.query);
+			return false;
+		}, undefined, query => {
+			confirmed.push(query);
+			return answers[confirmed.length - 1].p;
+		});
+
+		const declined = input.submit();
+		const startsWhileDeclining = h.starts.length;
+		await answers[0].complete(false);
+		const declinedResult = await declined;
+		const continued = input.submit();
+		const startsWhileContinuing = h.starts.length;
+		await answers[1].complete(true);
+		await continued;
+
+		assert.deepStrictEqual({ startsWhileDeclining, declinedResult, startsWhileContinuing, starts: h.starts.length, confirmed, sent }, {
+			startsWhileDeclining: 0,
+			declinedResult: false,
+			startsWhileContinuing: 0,
+			starts: 1,
+			confirmed: ['test request', 'test request'],
+			sent: ['test request'],
+		});
+		h.assertFinished('notDispatched');
+	});
 
 	for (const replacement of ['replaced', 'replacedDraft'] as const) {
 		test(`${replacement} updates the remote routing identity before a response`, () => {
