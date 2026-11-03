@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
@@ -339,6 +341,39 @@ suite('Chat window grid', () => {
 		const restarted = create(grid.exportSizes());
 
 		assert.deepStrictEqual({ walk, restarted: restarted.read() }, { walk: ['476/716, terminals 105', '476/716, terminals 105'], restarted: '476/716, terminals 105' });
+	});
+
+	test('a density round trip, default to compact and back, gives the chat and the main part back their exact widths', () => {
+		const gap = observableValue('gap', 4);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: constObservable(false) }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), gap, undefined));
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		grid.layout(1200, 800);
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 476, height: 796 });
+		const split = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}`;
+		const before = split();
+		// Compact: flush, no outer insets; then default again.
+		gap.set(0, undefined);
+		grid.setOuterInsets({ top: 0, left: 0, right: 0, bottom: 0 });
+		const compact = split();
+		gap.set(4, undefined);
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+
+		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/716', compact: '476/724', after: '476/716' });
+	});
+
+	test('a change of density lays the grid out again once its styles apply, so that the cards read the frames of the new density', async () => {
+		const gap = observableValue('gap', 4);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat') }, constObservable(ChatWindowLayoutMode.SideBySide), gap, undefined));
+		grid.layout(1200, 800);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const layout = sinon.spy(grid.partGrid!, 'layout');
+		gap.set(0, undefined);
+		const atOnce = layout.callCount;
+		for (let frame = 0; frame < 2; frame++) {
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		}
+
+		assert.deepStrictEqual({ atOnce, onceStylesApply: layout.args.slice(atOnce) }, { atOnce: 0, onceStylesApply: [[1200, 800]] });
 	});
 
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {

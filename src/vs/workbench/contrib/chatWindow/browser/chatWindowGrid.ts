@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -188,6 +189,7 @@ export class ChatWindowGrid extends Disposable {
 
 	private readonly _grid = this._register(new MutableDisposable<PartGrid>());
 	private readonly _gridListener = this._register(new MutableDisposable());
+	private readonly _styleLayout = this._register(new MutableDisposable());
 	private _topologyKey: string | undefined;
 	/** The key the sizes of what shows are remembered under; see {@link getSizesKey}. */
 	private _sizesKey: string | undefined;
@@ -234,7 +236,12 @@ export class ChatWindowGrid extends Disposable {
 			this._terminalPosition.read(reader);
 			this._update();
 		}));
-		this._register(autorun(reader => this._grid.value?.setGap(this._gap.read(reader))));
+		this._register(autorun(reader => {
+			// Read first: the grid is created later, and the gap must be followed from the start.
+			const gap = this._gap.read(reader);
+			this._grid.value?.setGap(gap);
+			this._layoutOnceStylesApply();
+		}));
 	}
 
 	/** The part grid of the window, for what acts on its cells, such as moving a part. */
@@ -402,6 +409,19 @@ export class ChatWindowGrid extends Disposable {
 		// For what reaches to the edge of the window, such as a title row in a card at its edge.
 		this._container.style.setProperty('--chat-window-outer-inset-left', `${insets.left}px`);
 		this._grid.value?.setOuterInsets(insets);
+		this._layoutOnceStylesApply();
+	}
+
+	/**
+	 * Lays the grid out again on the next frame: the gap and the insets change with the density, whose styles, such as
+	 * the frames of the cards that their insets leave room for, may apply only after them.
+	 */
+	private _layoutOnceStylesApply(): void {
+		this._styleLayout.value = scheduleAtNextAnimationFrame(getWindow(this._container), () => {
+			if (this._dimension) {
+				this.layout(this._dimension.width, this._dimension.height);
+			}
+		});
 	}
 
 	/**
