@@ -1513,7 +1513,8 @@ export class WorkspacePicker extends Disposable {
 	/** Rechecks the selected folder before a draft becomes a persistent session. */
 	async validateSelectedWorkspace(): Promise<boolean> {
 		const folderUri = this._selectedFolderUri;
-		return !folderUri || this._validateLocalWorkspace(folderUri);
+		// Keep the draft alive so the composer can restore its input after a rejected send.
+		return !folderUri || this._validateLocalWorkspace(folderUri, false);
 	}
 
 	protected async _removeMissingLocalWorkspaces(): Promise<void> {
@@ -1528,7 +1529,7 @@ export class WorkspacePicker extends Disposable {
 		}));
 	}
 
-	private async _validateLocalWorkspace(folderUri: URI): Promise<boolean> {
+	private async _validateLocalWorkspace(folderUri: URI, removeMissingWorkspace = true): Promise<boolean> {
 		if (folderUri.scheme === Schemas.file && this.fileService.hasProvider(folderUri)) {
 			const generation = this._selectionGeneration;
 			const exists = await this.fileService.exists(folderUri);
@@ -1536,7 +1537,9 @@ export class WorkspacePicker extends Disposable {
 				return false;
 			}
 			if (!exists) {
-				this._removeRecentWorkspace(folderUri);
+				if (removeMissingWorkspace) {
+					this._removeRecentWorkspace(folderUri);
+				}
 				await this.dialogService.info(
 					localize('pathNotExistTitle', "Path does not exist"),
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", folderUri.fsPath),

@@ -3953,7 +3953,7 @@ suite('WorkspacePicker - Path validation', () => {
 		});
 	});
 
-	test('rechecks a selected worktree before submission and clears it when deleted', async () => {
+	test('rechecks a selected worktree before submission without replacing its draft when deleted', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('local-1');
 		providersService.setProviders([provider]);
@@ -3977,14 +3977,17 @@ suite('WorkspacePicker - Path validation', () => {
 			upcastPartial<IDialogService>({ info: async message => { dialogs.push(message); } }),
 		);
 		picker.setSelectedWorkspace(folder);
+		let selectionChanges = 0;
+		disposables.add(picker.onDidSelectWorkspace(() => selectionChanges++));
 		const beforeDeletion = await picker.validateSelectedWorkspace();
 		exists = false;
 		const afterDeletion = await picker.validateSelectedWorkspace();
 
-		assert.deepStrictEqual({ beforeDeletion, afterDeletion, selected: picker.selectedFolderUri, dialogs }, {
+		assert.deepStrictEqual({ beforeDeletion, afterDeletion, selected: picker.selectedFolderUri, selectionChanges, dialogs }, {
 			beforeDeletion: true,
 			afterDeletion: false,
-			selected: undefined,
+			selected: folder,
+			selectionChanges: 0,
 			dialogs: ['Path does not exist'],
 		});
 	});
