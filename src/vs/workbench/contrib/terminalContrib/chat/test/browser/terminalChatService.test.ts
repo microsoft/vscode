@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -14,7 +13,6 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
@@ -30,7 +28,7 @@ function listenerCount(emitter: Emitter<any>): number {
 }
 
 suite('TerminalChatService', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: TerminalChatService;
 	let instantiationService: TestInstantiationService;
 	let onDidDisposeSessionEmitter: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
@@ -54,12 +52,6 @@ suite('TerminalChatService', () => {
 
 		service = store.add(instantiationService.createInstance(TerminalChatService));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registerTerminalInstanceWithToolSession does not accumulate onDidDisposeSession listeners when re-registering the same instance (#309906)', () => {
 		const onInstanceDisposed = store.add(new Emitter<ITerminalInstance>());
@@ -126,6 +118,7 @@ suite('TerminalChatService', () => {
 		const source: IChatTerminalOutputSource = {
 			onDidChange: Event.None,
 			output: 'output',
+			outputPosition: { generation: 0, start: 0 },
 			hasExited: false,
 			exitCode: undefined,
 		};
@@ -212,21 +205,4 @@ suite('TerminalChatService', () => {
 		assert.strictEqual(await lookup, undefined);
 	});
 
-	suite('getAutoApproveActions', () => {
-
-		test('returns undefined for empty command lines without touching the analysis collaborators', async () => {
-			// No ITreeSitterLibraryService stub is installed, so reaching the
-			// parser would throw — passing proves the early return.
-			assert.strictEqual(await service.getAutoApproveActions('   ', 'shellscript'), undefined);
-		});
-
-		test('returns undefined when sub-command parsing fails', async () => {
-			instantiationService.stub(ITreeSitterLibraryService, new class extends mock<ITreeSitterLibraryService>() {
-				override getParserClass(): Promise<typeof import('@vscode/tree-sitter-wasm').Parser> {
-					return Promise.reject(new Error('tree-sitter unavailable in tests'));
-				}
-			});
-			assert.strictEqual(await service.getAutoApproveActions('foo && bar', 'shellscript'), undefined);
-		});
-	});
 });

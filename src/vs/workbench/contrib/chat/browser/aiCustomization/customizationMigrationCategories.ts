@@ -19,7 +19,26 @@ export const enum CustomizationMigrationCategoryId {
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 	PluginMarketplaces = 'pluginMarketplaces',
+	ChatParticipants = 'chatParticipants',
+	ToolSets = 'toolSets',
 }
+
+export const customizationMigrationGuidance = [
+	{
+		id: CustomizationMigrationCategoryId.ChatParticipants,
+		migrationType: CustomizationMigrationType.ChatParticipants,
+		label: localize('migrationChatParticipants', "Chat Participants"),
+		description: localize('migrationChatParticipantsDescription', "Extension chat participants cannot be migrated automatically. Learn how to replace them with supported customizations."),
+		learnMoreUrl: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',
+	},
+	{
+		id: CustomizationMigrationCategoryId.ToolSets,
+		migrationType: CustomizationMigrationType.ToolSets,
+		label: localize('migrationToolSets', "Tool Sets"),
+		description: localize('migrationToolSetsDescription', "User-defined and extension-contributed tool sets cannot be migrated automatically. Learn how to replace them with supported customizations."),
+		learnMoreUrl: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets',
+	},
+] as const;
 
 export const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.PromptFiles,
@@ -43,7 +62,7 @@ export interface ICustomizationMigrationConfirmation {
  */
 export interface ICustomizationMigrationCategory {
 	readonly id: CustomizationMigrationCategoryId;
-	readonly migrationType: CustomizationMigrationType;
+	readonly migrationType: Exclude<CustomizationMigrationType, CustomizationMigrationType.ChatParticipants | CustomizationMigrationType.ToolSets>;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes?: readonly PromptsType[];
 	/** Experimental setting gating this migration. */
@@ -64,6 +83,7 @@ export interface ICustomizationMigrationCategory {
 	getCardDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
 	getModifiedSettingIds?(configurationService: IConfigurationService): readonly string[];
 	getConfirmation(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
+	getProgressTitle(count: number): string;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
@@ -145,6 +165,12 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 			primaryButton: localize('promptMigrationConfirmButton', "Convert to Skills"),
 			deleteOriginalsLabel: localize('promptMigrationDeletePromptFilesCheckbox', "Delete original prompt files after migration"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('promptMigrationProgressSingle', "Converting 1 prompt file to a skill...")
+			: localize('promptMigrationProgress', "Converting {0} prompt files to skills...", count);
 	},
 
 	getMigratedMessage(migratedCount) {
@@ -255,6 +281,12 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 		};
 	},
 
+	getProgressTitle(count) {
+		return count === 1
+			? localize('userDataMigrationProgressSingle', "Migrating 1 user data customization...")
+			: localize('userDataMigrationProgress', "Migrating {0} user data customizations...", count);
+	},
+
 	getMigratedMessage(migratedCount) {
 		return migratedCount === 1
 			? localize('userDataMigrationCompletedSingle', "Migrated 1 user data customization.")
@@ -319,6 +351,12 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 			primaryButton: localize('configuredLocationsMigrationConfirmButton', "Migrate"),
 			deleteOriginalsLabel: localize('configuredLocationsMigrationDeleteOriginalFilesCheckbox', "Delete the original files after migration"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('configuredLocationsMigrationProgressSingle', "Migrating 1 customization from a configured location...")
+			: localize('configuredLocationsMigrationProgress', "Migrating {0} customizations from configured locations...", count);
 	},
 
 	getMigratedMessage(migratedCount) {
@@ -402,6 +440,12 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 			detail: localize('mcpMigrationConfirmDetail', "Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place."),
 			primaryButton: localize('mcpMigrationConfirmButton', "Migrate"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('mcpMigrationProgressSingle', "Migrating 1 MCP server...")
+			: localize('mcpMigrationProgress', "Migrating {0} MCP servers...", count);
 	},
 
 	getMigratedMessage(migratedCount) {
@@ -497,6 +541,12 @@ const pluginMarketplacesMigrationCategory: ICustomizationMigrationCategory = {
 			detail: localize('pluginMarketplacesMigrationConfirmDetail', "This adds the marketplace to Copilot. The Local agent will keep using the existing VS Code setting."),
 			primaryButton: localize('pluginMarketplacesMigrationConfirmButton', "Migrate"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('pluginMarketplacesMigrationProgressSingle', "Migrating 1 plugin marketplace...")
+			: localize('pluginMarketplacesMigrationProgress', "Migrating {0} plugin marketplaces...", count);
 	},
 
 	getMigratedMessage(migratedCount) {

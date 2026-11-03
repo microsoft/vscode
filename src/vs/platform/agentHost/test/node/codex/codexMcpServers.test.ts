@@ -242,6 +242,21 @@ suite('codexMcpServers', () => {
 			});
 		});
 
+		test('per-server credentials override shared URL tokens and empty overrides revoke only that server', () => {
+			const url = 'https://mcp.slack.com/';
+			assert.deepStrictEqual(injectCodexMcpAuthTokens({
+				first: { url }, second: { url, http_headers: { authorization: 'Bearer configured', 'X-Test': 'keep' } },
+				legacy: { url }, moved: { url: 'https://different.example.com/' }, stdio: { command: 'run' },
+			}, new Map([[url, 'ambient']]), new Map([
+				['first', { url, token: 'targeted' }], ['second', { url, token: '' }],
+				['moved', { url, token: 'old-endpoint' }], ['stdio', { url, token: 'ignored' }],
+			])), {
+				first: { url, http_headers: { Authorization: 'Bearer targeted' } },
+				second: { url, http_headers: { 'X-Test': 'keep' } },
+				legacy: { url, http_headers: { Authorization: 'Bearer ambient' } }, moved: { url: 'https://different.example.com/' }, stdio: { command: 'run' },
+			});
+		});
+
 		test('injectCodexMcpAuthTokens returns the input unchanged when there are no tokens', () => {
 			const servers = { s: { url: 'https://mcp.eng.ms' } };
 			assert.strictEqual(injectCodexMcpAuthTokens(servers, new Map()), servers);

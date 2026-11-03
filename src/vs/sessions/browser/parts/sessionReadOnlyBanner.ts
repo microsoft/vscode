@@ -9,10 +9,15 @@ import { renderIcon } from '../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IReader } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../platform/opener/browser/link.js';
+import { UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
 
 /**
  * Content shown by a {@link SessionReadOnlyBanner}: an optional icon, message,
@@ -30,6 +35,28 @@ export interface ISessionReadOnlyBannerContent {
 	readonly ariaLabel?: string;
 	readonly action?: { readonly label: string; readonly run: () => void | Promise<void> };
 	readonly secondaryAction?: ISessionReadOnlyBannerContent['action'];
+}
+
+/**
+ * The banner for a chat that is read-only because it is archived: either its
+ * whole session is archived, which restores as a whole, or the chat itself is
+ * an archived nested chat, which restores on its own. Returns `undefined` when
+ * neither is archived.
+ */
+export function getArchivedChatBannerContent(session: ISession, chat: IChat, wording: ChatSessionArchiveActionWording, commandService: ICommandService, reader: IReader | undefined): ISessionReadOnlyBannerContent | undefined {
+	const sessionArchived = session.isArchived.read(reader);
+	if (!sessionArchived && !chat.isArchived.read(reader)) {
+		return undefined;
+	}
+	return {
+		message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+		action: {
+			label: getChatSessionArchiveActionPresentation(wording).unarchive.title.value,
+			run: () => sessionArchived
+				? commandService.executeCommand<void>(UNARCHIVE_SESSION_COMMAND_ID, session)
+				: commandService.executeCommand<void>(UNARCHIVE_CHAT_COMMAND_ID, { session, chat }),
+		},
+	};
 }
 
 interface IBannerAction {

@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, mergeClientAgentMergeFolders, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, defaultAgentMergeConfiguration, evaluateAgentMerge, getAgentMergeRepairBlockers, getNonMergeSessionConfigValues, hasAgentMergeRepairProgress, isAgentMergePullRequestReadyForReview, mergeClientAgentMergeFolders, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestCheck, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
 suite('Agent Merge gate', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -188,6 +188,34 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
+	test('repairs a failed job an unreported required check waits for, then follows that check once it reported', () => {
+		const watermark = '2026-08-02T00:00:00.000Z';
+		const job: PullRequestCheck = { id: 'job', type: 'checkRun', name: 'Copilot - Test (Linux)', required: false, status: 'COMPLETED', conclusion: 'FAILURE', requiredBy: ['PR Gate'] };
+		const optional: PullRequestCheck = { id: 'optional', type: 'checkRun', name: 'Optional', required: false, status: 'COMPLETED', conclusion: 'FAILURE' };
+		const gate = (conclusion: string): PullRequestCheck => ({ id: 'gate', type: 'checkRun', name: 'PR Gate', required: true, status: 'COMPLETED', conclusion });
+		// GitHub only creates the gate's check once all its jobs finished, and the snapshot only links jobs to an unfinished gate.
+		const reported = { ...job, requiredBy: undefined };
+		const evaluate = (checks: PullRequestCheck[], requiredContexts?: readonly string[]) => {
+			const result = evaluateAgentMerge(readySnapshot({ checks, requiredContexts }), configuration, watermark);
+			return result.kind === 'prompt' ? result.context.failedChecks : result.kind;
+		};
+		assert.deepStrictEqual({
+			gateNotReported: evaluate([job, optional], ['PR Gate']),
+			gateFailed: evaluate([reported, optional, gate('FAILURE')], ['PR Gate']),
+			gatePassed: evaluate([reported, optional, gate('SUCCESS')], ['PR Gate']),
+			nothingRequired: evaluate([optional], []),
+			readyWhileGateNotReported: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true, checks: [{ ...job, conclusion: 'SUCCESS' }], requiredContexts: ['PR Gate'] }), watermark),
+			readyIgnoringGate: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true, checks: [job], requiredContexts: ['PR Gate'] }), watermark, ['PR *']),
+		}, {
+			gateNotReported: ['Copilot - Test (Linux)'],
+			gateFailed: ['PR Gate'],
+			gatePassed: 'merge',
+			nothingRequired: ['Optional'],
+			readyWhileGateNotReported: false,
+			readyIgnoringGate: true,
+		});
+	});
+
 	test('deferred failures still block merging but do not block new repair work', () => {
 		const failedCheck = { id: 'deferred', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' } as const;
 		const deferredCheckIds = new Set(['deferred']);
@@ -204,6 +232,36 @@ suite('Agent Merge gate', () => {
 		}, {
 			waiting: { kind: 'noWork', waitingOnChecks: true },
 			repair: { actions: ['addressReviews', 'fixCI'], failedChecks: ['Test'] },
+		});
+	});
+
+	test('repairs a failed check suite that reported no check run, as Fix CI does', () => {
+		const result = evaluateAgentMerge(readySnapshot({
+			checks: [{ id: 'build', type: 'checkRun', name: 'Build', required: false, status: 'COMPLETED', conclusion: 'SUCCESS' }],
+			expectedSuites: [{ id: 'suite', name: 'Analysis', status: 'COMPLETED', conclusion: 'FAILURE', checkRunsReported: false }],
+		}), configuration, '2026-08-02T00:00:00.000Z');
+
+		assert.deepStrictEqual(result.kind === 'prompt' ? { kind: result.kind, failedChecks: result.context.failedChecks } : result.kind, { kind: 'prompt', failedChecks: ['Analysis'] });
+	});
+
+	test('waits for the check suites GitHub refused to list while every check counts, but repairs the known failures', () => {
+		const watermark = '2026-08-02T00:00:00.000Z';
+		const build: PullRequestCheck = { id: 'build', type: 'checkRun', name: 'Build', required: false, status: 'COMPLETED', conclusion: 'SUCCESS' };
+		const evaluate = (checks: PullRequestCheck[]) => {
+			const result = evaluateAgentMerge(readySnapshot({ checks, expectedSuitesComplete: false }), configuration, watermark);
+			return result.kind === 'prompt' ? result.context.failedChecks : result.kind === 'noWork' ? { waitingOnChecks: result.waitingOnChecks } : result.kind;
+		};
+		assert.deepStrictEqual({
+			passed: evaluate([build]),
+			failed: evaluate([build, { ...build, id: 'test', name: 'Test', conclusion: 'FAILURE' }]),
+			required: evaluate([{ ...build, required: true }]),
+			readyForReview: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true, checks: [build], expectedSuitesComplete: false }), watermark),
+		}, {
+			passed: { waitingOnChecks: true },
+			failed: ['Test'],
+			// Once the base branch requires a check, the unread suites do not count.
+			required: 'merge',
+			readyForReview: false,
 		});
 	});
 
@@ -356,13 +414,13 @@ suite('Agent Merge gate', () => {
 	test('lifecycle updates keep the user settings as they are', () => {
 		const folderKey = 'file:///other';
 		const values = {
-			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer' } },
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer', readyIgnoredChecks: ['VS Code PR Check'] } },
 			[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { totalPromptCount: 1 } },
 			[SessionConfigKey.AgentMergeInjectedConfiguration]: { previous: {}, applied: {} },
 		};
 
 		assert.deepStrictEqual(withAgentMergeFolderControllerState(values, folderKey, 'file:///repo', { totalPromptCount: 2 }), {
-			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer' } },
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer', readyIgnoredChecks: ['VS Code PR Check'] } },
 			[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { totalPromptCount: 2 } },
 		});
 	});
@@ -376,7 +434,8 @@ suite('Agent Merge gate', () => {
 		};
 		const merged = mergeClientAgentMergeFolders(values, {
 			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
-			'file:///third': { enabled: true, chat: 'copilot:/another-session#chat' },
+			'file:///third': { enabled: true, chat: 'copilot:/another-session#chat', readyIgnoredChecks: ['Optional *', 42] },
+			'file:///fourth': { enabled: true, readyIgnoredChecks: ['Optional *'] },
 			'file:///invalid': { enabled: 'yes' },
 			'file:///unrelated': { enabled: true },
 		}, folderKey => folderKey !== 'file:///unrelated', chat => chat === 'copilot:/session#peer');
@@ -385,6 +444,7 @@ suite('Agent Merge gate', () => {
 			'file:///repo': { enabled: false, overrides: { fixCI: false } },
 			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
 			'file:///third': { enabled: true },
+			'file:///fourth': { enabled: true, readyIgnoredChecks: ['Optional *'] },
 		});
 	});
 
@@ -620,6 +680,35 @@ suite('Agent Merge gate', () => {
 		};
 		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), values);
 	});
+
+	test('detects repair progress from a new head or resolved blockers, not from checks that have not passed yet', () => {
+		const failing: PullRequestCheck = { id: '1', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' };
+		const watermark = new Date(0).toISOString();
+		const gate = evaluateAgentMerge(readySnapshot({ checks: [failing] }), defaultAgentMergeConfiguration, watermark);
+		const progress = (checks: PullRequestCheck[], blockers: readonly string[] | undefined, headSha = 'head') =>
+			hasAgentMergeRepairProgress(readySnapshot({ checks }), watermark, { headSha, blockers });
+
+		assert.deepStrictEqual({
+			blockers: gate.kind === 'prompt' ? getAgentMergeRepairBlockers(gate.actions, gate.context) : undefined,
+			newHead: progress([failing], ['check:Build'], 'previous-head'),
+			stillFailing: progress([failing], ['check:Build']),
+			rerunRunning: progress([{ ...failing, id: '2', status: 'IN_PROGRESS', conclusion: undefined }], ['check:Build']),
+			notReported: progress([], ['check:Build']),
+			rerunPassed: progress([{ ...failing, id: '2', conclusion: 'SUCCESS' }], ['check:Build']),
+			threadResolved: progress([failing], ['check:Build', 'thread:resolved']),
+			noBlockers: progress([failing], undefined),
+		}, {
+			blockers: ['check:Build'],
+			newHead: true,
+			stillFailing: false,
+			rerunRunning: false,
+			notReported: false,
+			rerunPassed: true,
+			threadResolved: true,
+			noBlockers: false,
+		});
+	});
+
 });
 
 function readySnapshot(overrides?: {
@@ -628,6 +717,9 @@ function readySnapshot(overrides?: {
 	readonly submittedReviews?: NonNullable<PullRequestSnapshot['submittedReviews']['value']>;
 	readonly reviewThreads?: NonNullable<PullRequestSnapshot['reviewThreads']['value']>;
 	readonly checks?: NonNullable<PullRequestSnapshot['checks']['value']>['checks'];
+	readonly requiredContexts?: readonly string[];
+	readonly expectedSuites?: NonNullable<PullRequestSnapshot['checks']['value']>['expectedSuites'];
+	readonly expectedSuitesComplete?: boolean;
 }): PullRequestSnapshot {
 	return {
 		ref: { host: 'github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 },
@@ -656,7 +748,7 @@ function readySnapshot(overrides?: {
 			status: 'ready',
 			complete: true,
 			headSha: 'head',
-			value: { headSha: 'head', requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true, checks: overrides?.checks ?? [] },
+			value: { headSha: 'head', requirednessComplete: true, ...(overrides?.requiredContexts ? { requiredContexts: overrides.requiredContexts } : {}), expectedSuites: overrides?.expectedSuites ?? [], expectedSuitesComplete: overrides?.expectedSuitesComplete ?? true, checks: overrides?.checks ?? [] },
 		},
 		mergeability: {
 			status: 'ready',

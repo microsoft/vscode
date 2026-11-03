@@ -22,7 +22,7 @@ import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessions
 MenuRegistry.appendMenuItem(Menus.SessionItemContextMenu, {
 	submenu: Menus.SessionItemSettings,
 	title: localize2('sessionItemSettings', "Settings"),
-	group: '2_settings',
+	group: '4_manage',
 	order: 1,
 	when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 });

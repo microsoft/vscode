@@ -7,8 +7,8 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { API, type Project, type Snapshot } from '@typescript/native/unstable/async';
-import type { SourceFile } from '@typescript/native/unstable/ast';
+import { API, type Project, type Snapshot } from '@typescript/native/async';
+import type { SourceFile } from '@typescript/native/ast';
 import type * as vscode from 'vscode';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 import { z } from 'zod';
@@ -142,8 +142,8 @@ async function openProject(api: API, projectName: string): Promise<ProjectState>
 	const configFile = path.join(projectDirectory, 'tsconfig.json');
 	const fileName = path.join(projectDirectory, 'source/test.ts');
 	assert.ok(fs.existsSync(fileName));
-	const snapshot = await api.updateSnapshot({ openProjects: [configFile] });
-	const project = snapshot.getProject(configFile) ?? await snapshot.getDefaultProjectForFile(fileName);
+	const snapshot = await api.createSnapshot({ openProjects: [configFile] });
+	const project = snapshot.getConfiguredProject(configFile) ?? await snapshot.getDefaultProjectForFile(fileName);
 	assert.ok(project !== undefined, `No project for ${fileName}`);
 	const sourceFile = await project.program.getSourceFile(fileName);
 	assert.ok(sourceFile !== undefined, `No source file for ${fileName}`);

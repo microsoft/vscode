@@ -1163,10 +1163,10 @@ async function main() {
 
 	// Also fail the job if any of the stages did not succeed, or if any of the
 	// artifacts was not published because its gating job did not succeed
-	let shouldFail = false;
+	const failed = new Set<string>();
 
 	for (const name of artifactsBlocked) {
-		shouldFail = true;
+		failed.add(`job ${gatingJobs.get(name)!.name}`);
 		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
 	}
 
@@ -1174,12 +1174,14 @@ async function main() {
 		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
-			shouldFail = true;
+			failed.add(`stage ${stage}`);
 			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
 	}
 
-	if (shouldFail) {
+	if (failed.size > 0) {
+		// Retrying only the failed stage doesn't rerun this job, since it doesn't depend on any stage
+		console.log(`##vso[task.logissue type=error]Publishing is incomplete because ${[...failed].join(', ')} did not succeed. To publish the remaining artifacts, use "Rerun failed jobs" on the run, which also reruns Publish. If you retry only the failed stage, retry the Publish stage as well once it succeeds.`);
 		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 

@@ -36,7 +36,7 @@ import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
 
@@ -348,15 +348,15 @@ registerAction2(class extends Action2 {
 			title: localize2('mobileChatInputConfigPicker', "Mode and Model"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
-			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+			}, {
+				id: Menus.NewSessionChatInputToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -396,7 +396,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
-		for (const menu of [Menus.NewSessionConfig, Menus.AutomationsDialogInputToolbar]) {
+		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {
 			this._register(actionViewItemService.register(
 				menu,
 				MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,

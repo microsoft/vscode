@@ -50,7 +50,7 @@ export async function suggestNativePreview(
 
 	const selection = await vscode.window.showInformationMessage(
 		vscode.l10n.t("Try TypeScript 7 for significantly faster type checking and language features."),
-		{},
+		{ notificationId: 'typescript.nativePreview' },
 		install,
 		learnMore,
 		dismiss,

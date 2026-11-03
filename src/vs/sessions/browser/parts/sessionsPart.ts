@@ -207,11 +207,8 @@ export class SessionsPart extends Part {
 		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
-	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly gridSlotId: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined {
+	private _findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly gridSlotId: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined {
 		for (const slot of this._slots) {
-			if (slot.boundSessionId === undefined) {
-				continue;
-			}
 			if (isAncestor(child, slot.view.element)) {
 				return { sessionId: slot.boundSessionId, gridSlotId: slot.id, chatResource: slot.session?.scopedChatResource, element: slot.view.element };
 			}

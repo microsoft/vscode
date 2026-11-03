@@ -35,6 +35,19 @@ suite('PathExecutableCache', () => {
 	});
 
 	if (process.platform !== 'win32') {
+		test('results are the same on successive calls when PATH lists a folder twice', async () => {
+			const path = require('path');
+			const fixtureDir = path.resolve(__dirname.replace(/out[\/].*$/, 'src/test/env'), '../fixtures/symlink-test');
+			const env = { PATH: `${fixtureDir}:${fixtureDir}` };
+			const cache = new PathExecutableCache();
+			const result = await cache.getExecutablesInPath(env);
+			const result2 = await cache.getExecutablesInPath(env);
+			deepStrictEqual([[...result!.labels!].sort(), [...result2!.labels!].sort()], [
+				['real-executable.sh', 'symlink-executable.sh'],
+				['real-executable.sh', 'symlink-executable.sh'],
+			]);
+		});
+
 		test('cache should include executables found via symbolic links', async () => {
 			const path = require('path');
 			// Always use the source fixture directory to ensure symlinks are present

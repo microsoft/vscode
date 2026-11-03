@@ -37,6 +37,7 @@ export class MissionControlSessionPublisher extends Disposable {
 	constructor(
 		private readonly _mirror: MissionControlSessionMirror,
 		private readonly _isEnabled: () => boolean,
+		private readonly _isRepositoryMetadataEnabled: () => boolean,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _git: IAgentHostGitService,
 		@ILogService private readonly _log: ILogService,
@@ -167,6 +168,9 @@ export class MissionControlSessionPublisher extends Disposable {
 	}
 
 	private async _resolveProject(session: string): Promise<IMissionControlMirrorProject | undefined> {
+		if (!this._isRepositoryMetadataEnabled()) {
+			return undefined;
+		}
 		const summary = this._stateManager.getSessionSummary(session);
 		const project = summary?.project;
 		const projectUri = project && URI.parse(project.uri);

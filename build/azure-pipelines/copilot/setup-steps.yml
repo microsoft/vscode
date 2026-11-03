@@ -31,6 +31,7 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore node_modules cache
+    retryCountOnTaskFailure: 2
 
   - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
@@ -63,25 +64,36 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: npm ci
+  - template: ../common/install-pnpm.yml@self
+
+  # The installs are frozen, so retrying one after a transient registry error such as ECONNRESET
+  # ends in the same state as a first successful attempt.
+  - script: pnpm install --frozen-lockfile
     workingDirectory: build
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
-  - script: npm ci --ignore-scripts --no-workspaces
+  # Only the dependencies of the root project, without the root install scripts that install every
+  # other install root. extensions/copilot is a separate install root.
+  - script: pnpm install --frozen-lockfile --ignore-scripts --filter .
     workingDirectory: $(Build.SourcesDirectory)
     displayName: Install vscode dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
-  - script: npm ci
+  - script: pnpm install --frozen-lockfile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Install copilot dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
+  # microsoft/vscode-capi is a separate repository that installs with npm.
   - script: npm ci
     workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
     displayName: Install vscode-capi dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     workingDirectory: $(Build.SourcesDirectory)

@@ -160,6 +160,13 @@ export class AgentHostAttachmentMigration extends Disposable {
 			return;
 		}
 		const copied = new Set(recorded?.origin === origin && recorded.storage === storage ? recorded.copied : []);
+		const owner = this._chatOwnership.getChatOwner(chat);
+		if (owner !== undefined && this._stateManager.isDataOnlySession(owner) && !this._stateManager.getChatState(chat)) {
+			// Its session was loaded for the move only, and opening the chat would start its agent (C15): it is copied
+			// when its session is restored.
+			this._awaiting.add(chat);
+			return;
+		}
 		const state = await this._stateManager.resolveChatState(chat);
 		if (!state) {
 			this._awaiting.add(chat);

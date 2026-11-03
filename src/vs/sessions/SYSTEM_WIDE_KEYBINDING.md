@@ -16,6 +16,14 @@ The Agents Window runs the shared global first-binding-wins selection before ret
 Agents Window candidates. It does not own `runCommands` wrappers or system-wide bindings for other
 commands.
 
+On macOS, the Agents Window chat tip provider promotes `ctrl+cmd+a` when no effective selected user
+system-wide Open Agents Window binding exists and the tip has not been dismissed on that machine.
+Its **Enable** action appends the binding to the user's `keybindings.json`, including the system-wide
+flag and the keyboard-shortcut open source. If another effective system-wide binding already owns
+that accelerator, the action reports the conflict and leaves the tip visible. The action is
+serialized while in flight, reports editing failures in the Agents Window, and hides chat tips for
+the current session after a successful write.
+
 The command handler is registered during the Sessions desktop entry point. The keybinding owner is
 started after workbench restoration, synchronizes immediately when instantiated, and debounces
 later keybinding changes.

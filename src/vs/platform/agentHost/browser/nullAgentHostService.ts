@@ -8,8 +8,9 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
+import type { IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
+import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -68,6 +69,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async stopBackgroundWork(_chat: URI, _id: string): Promise<boolean> { return notSupported(); }
 	async importSession(_session: URI): Promise<void> { return notSupported(); }
 	async moveSession(_session: URI, _destination: URI, _after: URI | undefined): Promise<URI> { throw new AgentHostSessionMoveUnsupportedError(); }
+	async moveChat(_chat: URI, _destination: AgentChatMoveDestination): Promise<URI> { return notSupported(); }
 	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { return notSupported(); }
 	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { return notSupported(); }
@@ -78,12 +80,15 @@ export class NullAgentHostService implements IAgentHostService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return notSupported(); }
 	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { return notSupported(); }
+	async deleteAutomation(_resource: string, _deleteHistory: boolean, _legacySessions?: readonly URI[], _requestId?: string): Promise<readonly string[]> { return notSupported(); }
+	async acknowledgeAutomationDeletion(_requestId: string): Promise<void> { return notSupported(); }
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return notSupported(); }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }
 	async getInspectInfo(_tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> { return undefined; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { notSupported(); }
+	async setChatWorkspace(_chat: URI, _workspace: IAgentCreateChatWorkspace): Promise<void> { notSupported(); }
 	async disposeChat(_chat: URI): Promise<void> { }
 	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }

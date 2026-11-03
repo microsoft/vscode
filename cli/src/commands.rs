@@ -6,6 +6,7 @@
 mod context;
 
 pub mod agent;
+pub mod agent_certificate;
 pub mod agent_discovery;
 pub mod agent_endpoints;
 pub mod agent_host;

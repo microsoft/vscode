@@ -19,7 +19,8 @@ import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } fr
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState } from '../common/agentMerge.js';
+import { readAgentMergeFolderState } from '../common/agentMerge.js';
+import { isAgentMergeEnabled } from './agentMergeConfiguration.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
@@ -154,7 +155,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	}
 
 	private _isAgentMergeEnabled(): boolean {
-		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true;
+		return isAgentMergeEnabled(this._configurationService);
 	}
 
 	/**

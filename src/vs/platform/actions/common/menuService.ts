@@ -89,6 +89,10 @@ class PersistedMenuHideState implements IDisposable {
 		this._disposables.dispose();
 	}
 
+	isModifiedFromDefault(menu: MenuId, commandId: string): boolean {
+		return this.isHidden(menu, commandId) !== this._isHiddenByDefault(menu, commandId);
+	}
+
 	private _isHiddenByDefault(menu: MenuId, commandId: string) {
 		return this._hiddenByDefaultCache.get(`${menu.id}/${commandId}`) ?? false;
 	}
@@ -499,6 +503,7 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 		hide,
 		toggle,
 		get isHidden() { return !toggle.checked; },
+		get isModifiedFromDefault() { return states.isModifiedFromDefault(menu, id); },
 	};
 }
 

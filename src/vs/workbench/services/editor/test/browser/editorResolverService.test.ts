@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Barrier } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { extname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
 	test('Agents window editor defaults use the Integrated Browser for HTML when available and follow the Markdown editor setting', () => {
@@ -1112,6 +1116,47 @@ suite('EditorResolverService', () => {
 		});
 	});
 
+	test('getEditorMatches matches untitled resources by the extension of their language', async () => {
+		const configurationService = createMutableConfigurationService({});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service, accessor] = await createEditorResolverService(instantiationService);
+		disposables.add(accessor.languageService.registerLanguage({ id: 'testMarkdown', extensions: ['.tmd'] }));
+		disposables.add(accessor.languageService.registerLanguage({ id: 'testSearch', extensions: ['.tsearch'] }));
+		disposables.add(service.registerEditor('*.tmd', { id: 'test.markdownEditor', label: 'Test Markdown Editor', priority: RegisteredEditorPriority.option }, {}, {}));
+		disposables.add(service.registerEditor('README', { id: 'test.readmeEditor', label: 'Test Readme Editor', priority: RegisteredEditorPriority.option }, {}, {}));
+		// Like the Search Editor: the filename pattern matches, but the editor checks the real resource
+		disposables.add(service.registerEditor('*.tsearch', { id: 'test.searchEditor', label: 'Test Search Editor', priority: RegisteredEditorPriority.default }, { canSupportResource: resource => extname(resource) === '.tsearch' }, {}));
+
+		const createUntitled = async (options: { languageId: string; associatedResource?: URI }) => {
+			const model = disposables.add(accessor.untitledTextEditorService.create(options));
+			await model.resolve();
+			return model.resource;
+		};
+		const markdown = await createUntitled({ languageId: 'testMarkdown' });
+		const search = await createUntitled({ languageId: 'testSearch' });
+		const associatedReadme = await createUntitled({ languageId: 'testMarkdown', associatedResource: URI.file('/repo/README') });
+		const withoutModel = URI.from({ scheme: Schemas.untitled, path: 'Untitled-42' });
+		const summarize = (resource: URI) => {
+			const matches = service.getEditorMatches(resource);
+			return { editorIds: matches.matches.map(match => match.editor.id), associationPattern: matches.defaultRule.associationPattern };
+		};
+
+		const result = {
+			markdown: summarize(markdown),
+			search: summarize(search),
+			associatedReadme: summarize(associatedReadme),
+			withoutModel: summarize(withoutModel),
+			associationsAfterSetDefault: (service.setDefaultEditor(markdown, 'test.markdownEditor'), service.getAllUserAssociations())
+		};
+		assert.deepStrictEqual(result, {
+			markdown: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor'], associationPattern: '*.tmd' },
+			search: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id], associationPattern: '*.tsearch' },
+			associatedReadme: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.readmeEditor'], associationPattern: '*' },
+			withoutModel: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id], associationPattern: '*' },
+			associationsAfterSetDefault: [{ filenamePattern: '*.tmd', viewType: 'test.markdownEditor' }]
+		});
+	});
+
 	test('setDefaultEditor removes the association when restoring the natural registered default', async () => {
 		const configurationService = createMutableConfigurationService({
 			[editorsAssociationsSettingId]: {
@@ -1472,6 +1517,43 @@ suite('EditorResolverService', () => {
 
 		defaultEditor.dispose();
 		customEditor.dispose();
+	});
+
+	test('Editor registered while waiting for extensions on startup is resolved #325506', async () => {
+		const extensionsRegistered = new Barrier();
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[editorsAssociationsSettingId]: {
+					'*.md': 'CUSTOM_MD_EDITOR'
+				}
+			})
+		}, disposables);
+		instantiationService.stub(IExtensionService, new class extends TestExtensionService {
+			override whenInstalledExtensionsRegistered() {
+				return extensionsRegistered.wait();
+			}
+		});
+		const [part, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+
+		const resolution = service.resolveEditor({ resource: URI.file('test.md') }, part.activeGroup);
+
+		// Simulates an extension contributed editor that is registered when extension points are handled
+		disposables.add(service.registerEditor('*.md', {
+			id: 'CUSTOM_MD_EDITOR',
+			label: 'Custom Markdown Editor',
+			priority: RegisteredEditorPriority.option
+		}, {}, {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, 'testCustomMarkdownEditorInput') })
+		}));
+		extensionsRegistered.open();
+
+		const result = await resolution;
+		if (typeof result === 'number') {
+			assert.fail(`Expected editor to resolve, got ${result}`);
+		}
+		disposables.add(result.editor);
+		assert.deepStrictEqual({ typeId: result.editor.typeId, override: result.options?.override }, { typeId: 'testCustomMarkdownEditorInput', override: 'CUSTOM_MD_EDITOR' });
 	});
 
 	test('Diff editor Resolve - priority.diff overrides priority.editor for diffs', async () => {

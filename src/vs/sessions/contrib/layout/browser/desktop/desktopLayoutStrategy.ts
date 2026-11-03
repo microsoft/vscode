@@ -50,8 +50,8 @@ export interface IDesktopLayoutContext {
  * Shared mechanics (the managed-tabs reconcile pipeline + editor-area collapse and the Existing
  * Editor-visibility-profile storage) live in non-strategy coordinator classes in this
  * folder — see `desktopDockedTabsCoordinator.ts`, `desktopDetailPanelCoordinator.ts`, and
- * `desktopVisibilityProfileStore.ts`. The shared detail coordinator owns only content selection
- * and context publication; each lifecycle strategy owns Auxiliary Bar visibility. The shared mechanics are owned by
+ * `desktopVisibilityProfileStore.ts`. The shared detail coordinator retains content selection,
+ * context publication, and transient hide state; each lifecycle strategy decides Auxiliary Bar visibility. The shared mechanics are owned by
  * {@link import('./desktopExistingSessionStrategy.js').DesktopExistingSessionStrategy}
  * (the docked-tabs coordinator, since its reconcile pipeline is shared across the New→Existing
  * submit transition) or by the controller (the visibility-profile store, since it backs one

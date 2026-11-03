@@ -11,7 +11,7 @@ export class GitHubChangesFetcher {
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
 		return this._client.withClient(async (client, signal) => {
-			const comparison = await client.repositories.compare({ owner, name: repo }, base, head, signal);
+			const comparison = await client.repositories.compare({ owner, repo }, base, head, signal);
 			return comparison.files?.map(file => ({
 				filename: file.filename,
 				previous_filename: file.previous_filename,

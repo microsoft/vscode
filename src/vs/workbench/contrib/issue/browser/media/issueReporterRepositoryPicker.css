@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.issue-reporter-target {
+	display: flex;
+	align-items: baseline;
+	min-width: 0;
+	max-width: 100%;
+	gap: var(--vscode-spacing-size20);
+}
+
+.issue-reporter-target > span {
+	flex-shrink: 0;
+}
+
+.issue-reporter-target .monaco-button.issue-reporter-repository-picker {
+	display: inline-flex;
+	width: auto;
+	max-width: 100%;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size20);
+	font-size: inherit;
+	line-height: inherit;
+	vertical-align: bottom;
+	gap: var(--vscode-spacing-size20);
+}
+
+.issue-reporter-target .issue-reporter-repository-picker > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.issue-reporter-target .issue-reporter-repository-picker > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.issue-reporter-target .issue-reporter-repository-picker:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

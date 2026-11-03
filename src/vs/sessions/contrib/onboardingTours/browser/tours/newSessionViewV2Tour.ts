@@ -10,11 +10,11 @@ import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onb
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
-import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep } from './newSessionViewTourShared.js';
+import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep, getNewSessionViewMentalModelWorkspaceCopy } from './newSessionViewTourShared.js';
 
 export const NEW_SESSION_VIEW_V2_TOUR_ID = 'sessions.onboarding.newSessionViewV2';
 export const NEW_SESSION_VIEW_V2_VARIATION_TREATMENT = 'onb.newSessionViewV2.variation';
-export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel'] as const;
+export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel', 'mentalModelAndModels'] as const;
 export type NewSessionViewV2Variation = typeof NEW_SESSION_VIEW_V2_VARIATIONS[number];
 
 onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V2_TOUR_ID, developerModeVariations: NEW_SESSION_VIEW_V2_VARIATIONS });
@@ -55,19 +55,42 @@ const newSessionViewV2Payload: ISpotlightPayload = {
 	],
 };
 
+const workspaceAndModelWorkspaceStep: ISpotlightStep = {
+	...createNewSessionViewWorkspaceStep({ requireSelection: false }),
+	when: SessionWorkspacePickerVisibleContext,
+	openTarget: 'ifUnselected',
+	advanceOnTargetSelection: true,
+};
+
 const workspaceAndModelPayload: ISpotlightPayload = {
 	steps: [
-		{
-			...createNewSessionViewWorkspaceStep({ requireSelection: false }),
-			when: SessionWorkspacePickerVisibleContext,
-			openTarget: 'ifUnselected',
-			advanceOnTargetSelection: true,
-		},
+		workspaceAndModelWorkspaceStep,
 		{
 			...modelPickerStep,
 			openTarget: false,
 		},
 	],
+};
+
+const mentalModelAndModelsPayload: ISpotlightPayload = {
+	steps: [
+		{
+			...workspaceAndModelWorkspaceStep,
+			...getNewSessionViewMentalModelWorkspaceCopy(),
+		},
+		{
+			...modelPickerStep,
+			openTarget: false,
+			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.title', "All your favorite models, one place"),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more. The best models from across the industry are ready to go. Pick your favorite or switch anytime."),
+		},
+	],
+};
+
+const newSessionViewV2VariationPayloads: Record<NewSessionViewV2Variation, ISpotlightPayload> = {
+	default: newSessionViewV2Payload,
+	workspaceAndModel: workspaceAndModelPayload,
+	mentalModelAndModels: mentalModelAndModelsPayload,
 };
 
 /** Builds the interactive new-session view tour. */
@@ -88,7 +111,7 @@ export function createNewSessionViewV2Tour(
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			payload: {
 				...newSessionViewV2Payload,
-				resolveSteps: resolveVariation ? async () => (await resolveVariation() === 'workspaceAndModel' ? workspaceAndModelPayload : newSessionViewV2Payload).steps : undefined,
+				resolveSteps: resolveVariation ? async () => newSessionViewV2VariationPayloads[await resolveVariation()].steps : undefined,
 			},
 		},
 	};

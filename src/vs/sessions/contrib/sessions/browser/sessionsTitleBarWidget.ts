@@ -39,6 +39,7 @@ import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
@@ -387,7 +388,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			workspaceEl.textContent = contextTitle;
 			workspaceGroup.appendChild(workspaceEl);
 			centerGroup.appendChild(workspaceGroup);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: contextTitle }));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), workspaceEl, contextTitle));
 		}
 
 		if (workspaceInfo?.branch) {
@@ -403,7 +404,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			branchEl.textContent = workspaceInfo.branch;
 			branchGroup.appendChild(branchEl);
 			centerGroup.appendChild(branchGroup);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(branchEl, { content: workspaceInfo.branch }));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), branchEl, workspaceInfo.branch));
 		}
 
 		sessionPill.appendChild(centerGroup);

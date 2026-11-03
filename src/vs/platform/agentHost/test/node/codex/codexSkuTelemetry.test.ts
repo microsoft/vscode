@@ -8,7 +8,7 @@ import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '.
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { type DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { type DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,6 +19,7 @@ import product from '../../../../product/common/product.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel, type ITelemetryData } from '../../../../telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../../telemetry/common/telemetryService.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../../common/agent.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -56,7 +57,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const endpoints = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
-	const apiService = disposables.add(new CopilotApiService(fetch, logService, productService, endpoints));
+	const apiService = disposables.add(new CopilotApiService(fetch, logService, productService, endpoints, NullTelemetryService));
 	const events: { eventName: string; data: ITelemetryData }[] = [];
 	const telemetry = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 		telemetryLevel: TelemetryLevel.USAGE,
@@ -445,14 +446,11 @@ suite('Codex Copilot SKU telemetry', () => {
 		}));
 		await harness.authenticate('test-token-a');
 		const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
-		try {
-			clock.setSystemTime(Date.now() + 26 * 60 * 1000);
-			harness.completeTurn('refresh-window');
+		disposables.add(toDisposable(() => clock.restore()));
+		clock.setSystemTime(Date.now() + 26 * 60 * 1000);
+		harness.completeTurn('refresh-window');
 
-			assert.deepStrictEqual(harness.turnSkus(), ['sku-a']);
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual(harness.turnSkus(), ['sku-a']);
 	});
 
 	test('omits expired metadata and follows a refreshed entitlement for the same token', async () => {
@@ -464,17 +462,14 @@ suite('Codex Copilot SKU telemetry', () => {
 		await harness.agent.refreshModels();
 		harness.completeTurn('initial');
 		const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
-		try {
-			clock.setSystemTime(Date.now() + 30 * 60 * 1000);
-			harness.completeTurn('expired');
-			sku = 'sku-b';
-			await harness.apiService.models('test-token-a');
-			harness.completeTurn('refreshed');
+		disposables.add(toDisposable(() => clock.restore()));
+		clock.setSystemTime(Date.now() + 30 * 60 * 1000);
+		harness.completeTurn('expired');
+		sku = 'sku-b';
+		await harness.apiService.models('test-token-a');
+		harness.completeTurn('refreshed');
 
-			assert.deepStrictEqual(harness.turnSkus(), ['sku-a', undefined, 'sku-b']);
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual(harness.turnSkus(), ['sku-a', undefined, 'sku-b']);
 	});
 
 	test('releases account metadata when the API service is disposed', async () => {
@@ -503,19 +498,16 @@ suite('Codex Copilot SKU telemetry', () => {
 		await harness.authenticate('test-token-a');
 		await harness.agent.refreshModels();
 		const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
-		try {
-			clock.setSystemTime(Date.now() + 30 * 60 * 1000);
-			const refreshing = harness.apiService.resolveCopilotSku('test-token-a');
-			harness.configurationService.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+		disposables.add(toDisposable(() => clock.restore()));
+		clock.setSystemTime(Date.now() + 30 * 60 * 1000);
+		const refreshing = harness.apiService.resolveCopilotSku('test-token-a');
+		harness.configurationService.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
 
-			assert.deepStrictEqual({
-				resolvedSku: await refreshing,
-				currentSku: harness.apiService.getCachedCopilotSku('test-token-a'),
-				retiredCredentialReachedEnterprise,
-			}, { resolvedSku: 'dotcom-sku', currentSku: undefined, retiredCredentialReachedEnterprise: false });
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual({
+			resolvedSku: await refreshing,
+			currentSku: harness.apiService.getCachedCopilotSku('test-token-a'),
+			retiredCredentialReachedEnterprise,
+		}, { resolvedSku: 'dotcom-sku', currentSku: undefined, retiredCredentialReachedEnterprise: false });
 	});
 
 	test('retains the account of an in-flight turn when an unchanged credential is refreshed', async () => {

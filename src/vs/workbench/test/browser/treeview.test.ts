@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { timeout } from '../../../base/common/async.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 import { TreeView } from '../../browser/parts/views/treeView.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -59,4 +63,60 @@ suite('TreeView', function () {
 	});
 
 
+});
+
+suite('TreeView checkboxes', function () {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the whole checkbox of a collapsible item is clickable and does not toggle collapse', async () => {
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
+		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
+		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		const treeView = disposables.add(instantiationService.createInstance(TreeView, 'testCheckboxTree', 'Test Title'));
+		const folder: ITreeItem = { handle: 'folder', label: { label: 'folder' }, collapsibleState: TreeItemCollapsibleState.Expanded, checkbox: { isChecked: false } };
+		const file: ITreeItem = { handle: 'file', parentHandle: 'folder', label: { label: 'file' }, collapsibleState: TreeItemCollapsibleState.None, checkbox: { isChecked: false } };
+		treeView.dataProvider = {
+			getChildren: async (element?: ITreeItem) => !element ? [folder] : element.handle === folder.handle ? [file] : []
+		};
+
+		const container = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+		container.style.position = 'fixed';
+		container.style.top = '0';
+		container.style.left = '0';
+		container.style.width = '300px';
+		container.style.height = '200px';
+		treeView.setVisibility(true);
+		treeView.show(container);
+		treeView.layout(200, 300);
+		await treeView.refresh();
+		await timeout(0);
+
+		const row = container.querySelector<HTMLElement>('.monaco-list-row[data-index="0"]')!;
+		const checkbox = row.querySelector<HTMLElement>('.custom-view-tree-node-item-checkbox')!;
+		const bounds = checkbox.getBoundingClientRect();
+		const centerX = bounds.left + bounds.width / 2;
+		const centerY = bounds.top + bounds.height / 2;
+		const points = {
+			left: { x: bounds.left + 1, y: centerY },
+			right: { x: bounds.right - 1, y: centerY },
+			top: { x: centerX, y: bounds.top + 1 },
+			bottom: { x: centerX, y: bounds.bottom - 1 },
+		};
+		const hitsCheckbox = Object.fromEntries(Object.entries(points).map(([edge, { x, y }]) => [edge, checkbox.contains(mainWindow.document.elementFromPoint(x, y))]));
+
+		const leftEdge = mainWindow.document.elementFromPoint(points.left.x, points.left.y)!;
+		leftEdge.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1, clientX: points.left.x, clientY: points.left.y }));
+
+		assert.deepStrictEqual({
+			hitsCheckbox,
+			checked: folder.checkbox?.isChecked,
+			collapsed: treeView.isCollapsed(folder),
+		}, {
+			hitsCheckbox: { left: true, right: true, top: true, bottom: true },
+			checked: true,
+			collapsed: false,
+		});
+	});
 });

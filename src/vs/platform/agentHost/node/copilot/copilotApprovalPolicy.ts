@@ -5,6 +5,9 @@
 
 import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
+import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { localize } from '../../../../nls.js';
 
@@ -33,6 +36,43 @@ export function getCopilotApprovalPolicy(
 	];
 	const requestedDefault = modes?.defaultMode === 'assisted' ? 'assisted' : modes?.defaultMode === 'allow-all' ? 'autoApprove' : 'default';
 	return { available, defaultMode: available.includes(requestedDefault) ? requestedDefault : 'default', permissions };
+}
+
+/**
+ * Client tools that return workspace content without an SDK permission
+ * request: the `semantic_search` override skips permission checks, and the
+ * runtime cannot match a search query against managed `Read(...)` rules.
+ */
+export const MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS: ReadonlySet<string> = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
+
+function hasManagedPermissionRules(permissions: unknown): boolean {
+	return !!permissions && typeof permissions === 'object' && !Array.isArray(permissions)
+		&& ['deny', 'ask', 'allow'].some(key => {
+			const rules = (permissions as Record<string, unknown>)[key];
+			return Array.isArray(rules) && rules.length > 0;
+		});
+}
+
+/**
+ * Whether a session must withhold the {@link MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS}
+ * under the enterprise managed policy it launches with. Once an enterprise
+ * permission rule is active, the runtime requires approval for reads that no
+ * rule matches, which these tools cannot obtain. So any deny, ask, or allow
+ * rule, or a policy that fails closed, withholds them.
+ */
+export function isManagedWorkspaceRetrievalWithheld(resolved: SessionEventPayload<'session.managed_settings_resolved'>['data']): boolean {
+	const settings = resolved.settings;
+	const permissions = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.permissions : undefined;
+	return resolved.failClosed
+		|| resolved.permissionsContext?.failClosed === true
+		|| resolved.permissionsAllowIntersected === true
+		|| hasManagedPermissionRules(permissions)
+		|| hasManagedPermissionRules(resolved.permissionsContext?.permissions);
+}
+
+/** Whether a client tool is withheld. MCP App tools keep normal SDK permission checks, so they never are. */
+export function isWithheldClientTool(tool: ToolDefinition, withheldToolNames: ReadonlySet<string> | undefined): boolean {
+	return !!withheldToolNames?.has(tool.name) && readAgentToolOrigin(tool) !== 'mcpApp';
 }
 
 interface ICopilotApprovalInputs {

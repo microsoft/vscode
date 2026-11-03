@@ -6,7 +6,7 @@
 import '../../../../platform/update/common/update.config.contribution.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -14,11 +14,12 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
+import { OutdatedBuildReminderContribution } from './outdatedBuildReminder.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
@@ -37,6 +38,10 @@ workbench.registerWorkbenchContribution(SwitchProductQualityContribution, Lifecy
 workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
+
+if (!isWeb) {
+	registerWorkbenchContribution2(OutdatedBuildReminderContribution.ID, OutdatedBuildReminderContribution, WorkbenchPhase.Eventually);
+}
 
 // Release notes
 

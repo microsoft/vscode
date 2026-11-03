@@ -63,6 +63,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size280', '28px');
 		root.style.setProperty('--vscode-codiconFontSize', '16px');
 		const part = append(root, $('.part.editor'));
 		const element = append(append(part, $('.content')), $('.editor-group-container.empty.active'));
@@ -164,9 +166,9 @@ suite('Sessions - Desktop editor part empty group', () => {
 		return { root, part, element, logo, control, contextViewService, keybindingService, requestedMenus, ran, notifiedErrors, telemetry, state, setEmpty, fireMenuChanged, addTab, list, entries, entry };
 	}
 
-	const isShown = (target: Element | null | undefined) => !!target && mainWindow.getComputedStyle(target).display !== 'none';
+	const isShown = (target: Element | null | undefined) => !!target?.getClientRects().length;
 
-	test('renders the Add Tab menu as a top `+` and a centered watermark list only while the group is empty', () => {
+	test('renders the Add Tab menu as a top `+` and a first-row-aligned watermark only while the group is empty', () => {
 		const { element, logo, control, contextViewService, requestedMenus, ran, state, setEmpty, fireMenuChanged, addTab, list, entries } = createEmptyGroup(store);
 		const snapshot = () => {
 			const groupBounds = element.getBoundingClientRect();
@@ -176,8 +178,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 			return {
 				plus: isShown(plus) && isShown(plus!.querySelector('.tabs-bar-add-tab')) ? { top: plus!.getBoundingClientRect().top - groupBounds.top, left: plus!.getBoundingClientRect().left - groupBounds.left } : undefined,
 				list: isShown(listElement) && listBounds ? {
-					centered: Math.abs((listBounds.top + listBounds.height / 2) - (groupBounds.top + groupBounds.height / 2)) < 1
-						&& Math.abs((listBounds.left + listBounds.width / 2) - (groupBounds.left + groupBounds.width / 2)) < 1,
+					firstRowAligned: Math.abs(listBounds.top - (groupBounds.top + groupBounds.height / 2 - 42)) < 1,
+					centeredHorizontally: Math.abs((listBounds.left + listBounds.width / 2) - (groupBounds.left + groupBounds.width / 2)) < 1,
 					// What ends each row: rows without a keybinding end with the label or, for submenus, the chevron.
 					trailing: entries().map(row => row.lastElementChild?.className),
 					entries: entries().map(row => ({
@@ -255,7 +257,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 			emptyWithActions: {
 				plus: { top: 0, left: 0 },
 				list: {
-					centered: true,
+					firstRowAligned: true,
+					centeredHorizontally: true,
 					trailing: ['sessions-add-tab-watermark-label', 'sessions-add-tab-watermark-label', 'sessions-add-tab-watermark-submenu-indicator codicon codicon-chevron-right'],
 					entries: [
 						{ label: 'Browser', icon: true, popup: null, submenuIndicator: false },
@@ -266,7 +269,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 				logoShown: false,
 			},
 			emptyWithoutSubmenu: {
-				centered: true,
+				firstRowAligned: true,
+				centeredHorizontally: true,
 				trailing: ['sessions-add-tab-watermark-label', 'sessions-add-tab-watermark-label'],
 				entries: [
 					{ label: 'Browser', icon: true, popup: null, submenuIndicator: false },
@@ -274,7 +278,7 @@ suite('Sessions - Desktop editor part empty group', () => {
 				],
 			},
 			emptyWithoutActions: { plus: undefined, list: undefined, logoShown: true },
-			notEmpty: { plus: undefined, list: undefined, logoShown: true, rendered: false },
+			notEmpty: { plus: undefined, list: undefined, logoShown: false, rendered: false },
 			emptyAgain: { rendered: true, entries: 3 },
 			removedOnDispose: true,
 		});

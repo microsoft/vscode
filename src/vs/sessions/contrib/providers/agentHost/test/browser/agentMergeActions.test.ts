@@ -4,35 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Context, ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentHostPullRequestOperationId } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { AgentMergeSettingId } from '../../../../../../platform/agentHost/common/agentMerge.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
-import '../../browser/agentMergeActions.js';
+import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
+import { IChangesViewService } from '../../../../changes/common/changesViewService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { AgentMergeContextContribution } from '../../browser/agentMergeActions.js';
 
 suite('Agent Merge Actions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A session where Agent Merge applies: agent host provider, live, with an open pull request. */
-	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
+	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
 		const context = new Context(1, null);
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(SessionProviderIdContext.key, 'local-agent-host');
 		context.setValue(SessionIsArchivedContext.key, options.archived ?? false);
 		context.setValue(`config.${AgentMergeSettingId.Enabled}`, options.featureEnabled ?? true);
+		context.setValue(`config.${ArtifactIntegrationsSettingId}`, options.artifactIntegrationsEnabled ?? false);
 		context.setValue(SessionHasOpenPullRequestContext.key, options.hasOpenPullRequest ?? true);
 		context.setValue(SessionPrimaryPullRequestOperationContext.key, options.primaryOperation);
 		context.setValue(SessionAgentMergeEnabledContext.key, options.agentMergeEnabled);
 		return context;
 	}
 
-	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): boolean {
+	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): boolean {
 		const item = MenuRegistry.getMenuItems(Menus.ChangesOperationsDropdown)
 			.find(entry => !isIMenuItem(entry) && entry.submenu === Menus.ChangesAgentMerge);
 		assert.ok(item, 'Agent Merge is contributed to the changes operations dropdown');
@@ -87,10 +98,12 @@ suite('Agent Merge Actions', () => {
 		// bar regardless, so these states simply offer no button.
 		assert.deepStrictEqual({
 			featureOff: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: false, featureEnabled: false }),
+			artifactIntegrations: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: true, artifactIntegrationsEnabled: true }),
 			archived: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: true, archived: true }),
 			mergeCompleted: ownsPrimaryButton({ primaryOperation: '', agentMergeEnabled: true, hasOpenPullRequest: false }),
 		}, {
 			featureOff: false,
+			artifactIntegrations: false,
 			archived: false,
 			mergeCompleted: false,
 		});
@@ -159,5 +172,36 @@ suite('Agent Merge Actions', () => {
 			],
 			submenus: Array(3).fill(Menus.ChangesAgentMergeMergePullRequest.id),
 		});
+	});
+
+	test('the context contribution does not re-read the editor transition key for unrelated context changes', () => {
+		const configurationService = new TestConfigurationService();
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		let reads = 0;
+		const getContextKeyValue = contextKeyService.getContextKeyValue.bind(contextKeyService);
+		contextKeyService.getContextKeyValue = <T>(key: string) => {
+			if (key === DesktopChangesEditorTransitionContext.key) {
+				reads++;
+			}
+			return getContextKeyValue<T>(key);
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ISessionsService, { activeSession: constObservable(undefined) });
+		instantiationService.stub(ISessionsProvidersService, {});
+		instantiationService.stub(IChangesViewService, {
+			activeSessionChangesetsLoadingObs: constObservable(false),
+			activeSessionLoadingObs: constObservable(false),
+		});
+		disposables.add(instantiationService.createInstance(AgentMergeContextContribution));
+
+		const unrelated = contextKeyService.createKey<number>('unrelatedKey', 0);
+		const afterCreate = reads;
+		unrelated.set(1);
+		unrelated.set(2);
+
+		assert.strictEqual(reads - afterCreate, 0);
 	});
 });

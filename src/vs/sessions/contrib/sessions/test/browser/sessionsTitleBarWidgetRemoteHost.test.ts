@@ -63,6 +63,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		providersService.getProvider.callsFake((id: string) => providers.get(id));
 		const hoverService = mockObject<IHoverService>()({ _serviceBrand: undefined });
 		hoverService.setupDelayedHover.returns(Disposable.None);
+		hoverService.setupManagedHover.returns({ ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } });
 		const feedback = store.add(new SessionActionFeedback());
 		const action = new SubmenuItemAction({
 			submenu: Menus.TitleBarSessionTitle,
@@ -103,8 +104,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			presentation: () => ({
 				text: container.textContent,
 				ariaLabel: container.getAttribute('aria-label'),
-				hover: container.contains(hoverService.setupDelayedHover.lastCall?.args[0])
-					? hoverService.setupDelayedHover.lastCall?.args[1].content
+				hover: container.contains(hoverService.setupManagedHover.lastCall?.args[1])
+					? hoverService.setupManagedHover.lastCall?.args[2]
 					: undefined,
 			}),
 		};
