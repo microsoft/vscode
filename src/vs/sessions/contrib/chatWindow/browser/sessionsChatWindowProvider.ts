@@ -51,6 +51,7 @@ import { IChangesViewService } from '../../changes/common/changesViewService.js'
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IGoneChatWindow, IReplaceableChatWindow, isChatWindowChatGone } from './chatWindowOpening.js';
+import { AGENTS_CHAT_WINDOW_CLASS } from './chatWindowTitleDoubleClick.js';
 import { ISessionChatViewHeaderHost, ISessionChatViewHost, ISessionChatViewTitle, registerSessionChatViewHost, SESSION_CHAT_VIEW_TYPE } from './sessionChatViewEditor.js';
 import { EditorTabsControl } from '../../../../workbench/browser/parts/editor/editorTabsControl.js';
 
@@ -377,7 +378,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
 				return { top: 0, right: gap, bottom: gap, left: gap };
 			}),
-			className: 'agents-chat-window',
+			className: AGENTS_CHAT_WINDOW_CLASS,
 			paintChatBackground: element => this._instantiationService.createInstance(SessionsChatSurface, element),
 			mainPartOptions: derived(reader => getChatWindowMainPartOptions(showTabs.read(reader))),
 			mainPartGroupViewOptions: CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS,
