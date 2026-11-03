@@ -3820,11 +3820,71 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	for (const { width, padding } of [{ width: 420, padding: 24 }, { width: 1200, padding: 32 }]) {
+		test(`keeps pinned progress within the chat surface over backgrounds (${width}px)`, () => {
+			const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			workbench.style.cssText = `width: ${width}px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px; --vscode-spacing-size160: 16px; --vscode-spacing-size240: 24px;`;
+			if (padding !== 24) {
+				workbench.style.setProperty('--session-view-content-horizontal-padding', `${padding}px`);
+			}
+			const part = dom.append(workbench, dom.$('.part.sessionspart'));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			session.style.height = '400px';
+			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
+			response.style.width = '100%';
+			const value = dom.append(response, dom.$('.value'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const sticky = dom.append(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const progress = dom.append(sticky, dom.$('.chat-working-progress', undefined, 'Working'));
+			const pills = dom.append(persistentContent, dom.$('.chat-pills'));
+			pills.style.height = '28px';
+
+			const readAlignment = () => {
+				const inputBounds = input.getBoundingClientRect();
+				const stickyBounds = sticky.getBoundingClientRect();
+				const fade = dom.getWindow(sticky).getComputedStyle(sticky, '::before');
+				return {
+					left: stickyBounds.left - inputBounds.left,
+					right: inputBounds.right - stickyBounds.right,
+					textLeft: progress.getBoundingClientRect().left - value.getBoundingClientRect().left,
+					fadeLeft: fade.left,
+					fadeRight: fade.right,
+				};
+			};
+			const plain = readAlignment();
+			part.classList.add('has-chat-background');
+			const background = readAlignment();
+			pills.style.display = 'none';
+			persistentContent.classList.remove('chat-persistent-content-visible');
+			session.classList.remove('chat-floating-persistent-content');
+			const withoutPills = readAlignment();
+			part.classList.remove('has-chat-background');
+
+			assert.deepStrictEqual({
+				plain,
+				background,
+				withoutPills,
+				restored: readAlignment(),
+			}, {
+				plain: { left: -padding, right: -padding, textLeft: 0, fadeLeft: '0px', fadeRight: '0px' },
+				background: { left: 0, right: 0, textLeft: 0, fadeLeft: '0px', fadeRight: '0px' },
+				withoutPills: { left: 0, right: 0, textLeft: 0, fadeLeft: '0px', fadeRight: '0px' },
+				restored: plain,
+			});
+		});
+	}
+
 	for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
 		test(`fades only the top edge of pinned progress without blurring text (${theme})`, () => {
 			const highContrast = theme === 'hc-black' || theme === 'hc-light';
 			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
 			workbench.style.setProperty('--vscode-chat-list-background', '#123456');
+			workbench.style.setProperty('--vscode-editorWidget-background', '#654321');
+			workbench.style.setProperty('--session-view-background', '#abcdef');
 			workbench.style.setProperty('--vscode-spacing-size20', '2px');
 			workbench.style.setProperty('--vscode-spacing-size160', '16px');
 			workbench.style.setProperty('--vscode-strokeThickness', '1px');
@@ -3832,6 +3892,7 @@ suite('Sessions - Chat View', () => {
 			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 			const chatView = dom.append(part, dom.$('.chat-view'));
 			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
 			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
 			const sticky = dom.append(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
@@ -3843,19 +3904,30 @@ suite('Sessions - Chat View', () => {
 			const progress = dom.append(sticky, dom.$('.chat-working-progress', undefined, '1 confirmation pending'));
 			progress.style.height = '22px';
 			const fade = targetWindow.getComputedStyle(sticky, '::before');
+			const matchesResponseSurface = () => {
+				const responseColor = targetWindow.getComputedStyle(response, '::before').backgroundColor;
+				return targetWindow.getComputedStyle(sticky).backgroundColor === responseColor
+					&& fade.backgroundImage === `linear-gradient(rgba(0, 0, 0, 0) 0px, ${responseColor} 16px)`;
+			};
 			const pinned = {
 				content: fade.content,
-				matchesSurface: fade.backgroundImage === 'linear-gradient(rgba(0, 0, 0, 0) 0px, rgb(18, 52, 86) 16px)',
+				matchesSurface: matchesResponseSurface(),
 				aboveProgress: !highContrast && Number.parseFloat(fade.top) === -16 && fade.height === '16px',
 				pointerEvents: fade.pointerEvents,
 				textFilter: targetWindow.getComputedStyle(progress).filter,
 				outline: targetWindow.getComputedStyle(sticky).outlineStyle,
 				inputTop: inputPart.getBoundingClientRect().top,
 			};
+			workbench.style.removeProperty('--vscode-editorWidget-background');
+			const fallbackMatchesSurface = matchesResponseSurface();
+			part.classList.remove('has-chat-background');
+			const plainBackground = targetWindow.getComputedStyle(sticky).backgroundColor;
 			progress.remove();
 			assert.deepStrictEqual({
 				empty,
 				pinned,
+				fallbackMatchesSurface,
+				plainBackground,
 				returnedInline: targetWindow.getComputedStyle(sticky, '::before').content,
 			}, {
 				empty: 'none',
@@ -3868,6 +3940,8 @@ suite('Sessions - Chat View', () => {
 					outline: highContrast ? 'solid' : 'none',
 					inputTop,
 				},
+				fallbackMatchesSurface: true,
+				plainBackground: 'rgb(18, 52, 86)',
 				returnedInline: 'none',
 			});
 		});
