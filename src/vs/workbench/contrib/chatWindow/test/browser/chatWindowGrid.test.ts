@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
@@ -43,17 +44,44 @@ suite('Chat window grid', () => {
 		}();
 	}
 
+	/** A container in the window, where the sashes of the grid are where they show, for the user to drag. */
+	function createAttachedContainer(): HTMLElement {
+		const container = mainWindow.document.body.appendChild($('div'));
+		container.style.cssText = 'position: fixed; top: 0; left: 0; width: 1200px; height: 800px;';
+		disposables.add(toDisposable(() => container.remove()));
+		return container;
+	}
+
+	/** Drags, as the user does with the mouse, the sash at the bottom (`edge: 'bottom'`) or right of `cell` so that it is `size` tall or wide. */
+	function drag(container: HTMLElement, grid: ChatWindowGrid, cell: ChatWindowGridCell, edge: 'top' | 'right', size: number): void {
+		const element = container.querySelector(`[data-part-grid-cell="${cell}"]`)!;
+		const bounds = element.getBoundingClientRect();
+		const current = edge === 'top' ? grid.partGrid!.getCellSize(cell).height : grid.partGrid!.getCellSize(cell).width;
+		const sash = [...container.querySelectorAll<HTMLElement>(`.monaco-sash.${edge === 'top' ? 'horizontal' : 'vertical'}`)].find(candidate => {
+			const sashBounds = candidate.getBoundingClientRect();
+			return edge === 'top' ? Math.abs(sashBounds.top + sashBounds.height / 2 - bounds.top) < 8 : Math.abs(sashBounds.left + sashBounds.width / 2 - bounds.right) < 8;
+		});
+		assert.ok(sash, `a sash at the ${edge} of ${cell}`);
+		const sashBounds = sash.getBoundingClientRect();
+		const start = { clientX: sashBounds.left + sashBounds.width / 2, clientY: sashBounds.top + sashBounds.height / 2 };
+		const end = edge === 'top' ? { ...start, clientY: start.clientY + current - size } : { ...start, clientX: start.clientX + size - current };
+		sash.dispatchEvent(new MouseEvent('mousedown', { ...start, bubbles: true, button: 0 }));
+		mainWindow.dispatchEvent(new MouseEvent('mousemove', { ...end, bubbles: true }));
+		mainWindow.dispatchEvent(new MouseEvent('mouseup', { ...end, bubbles: true }));
+	}
+
 	function createChrome(size: number): IChatWindowGridChrome {
 		return { element: $('div'), visible: constObservable(true), size: constObservable(size), layout: () => { } };
 	}
 
 	function setup() {
 		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
-		const container = $('div');
+		const container = createAttachedContainer();
 		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34) }, mode, constObservable(0), undefined));
 		grid.layout(1000, 800);
 		const visible = () => [ChatWindowGridCell.TitleRow, ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Strip].filter(cell => grid.partGrid!.isCellVisible(cell));
-		return { mode, grid, visible };
+		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
+		return { mode, grid, visible, userResize };
 	}
 
 	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own while the chat is below the main part or hidden', () => {
@@ -125,10 +153,10 @@ suite('Chat window grid', () => {
 	});
 
 	test('a part keeps the size the user gave it in each arrangement, and the sizes come back for the chat in a new window', () => {
-		const { mode, grid } = setup();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 300, height: 770 });
+		const { mode, grid, userResize } = setup();
+		userResize(ChatWindowGridCell.Chat, 'right', 300);
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 966, height: 200 });
+		userResize(ChatWindowGridCell.Chat, 'top', 200);
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 		const backSideBySide = grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width;
 		const sizes = grid.exportSizes();
@@ -140,14 +168,14 @@ suite('Chat window grid', () => {
 	});
 
 	test('sizes of an arrangement that something else changed, such as a part moved, are not remembered for the arrangement: the main part comes back at its remembered share, not at its minimum', () => {
-		const { mode, grid } = setup();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 770 });
+		const { mode, grid, userResize } = setup();
+		userResize(ChatWindowGridCell.Chat, 'right', 300);
 		// Moved by the user, such as with Move Part Down: the chat across the window, below the main part.
 		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
-		assert.deepStrictEqual({ topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, exported: grid.exportSizes()['column(titleRow,row(chat,main))']?.[ChatWindowGridCell.Chat]?.width }, { topology: 'column(titleRow, row(chat, main))', chat: 400, exported: 400 });
+		assert.deepStrictEqual({ topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, exported: grid.exportSizes()['column(titleRow,row(chat,main))']?.[ChatWindowGridCell.Chat]?.width }, { topology: 'column(titleRow, row(chat, main))', chat: 300, exported: 300 });
 	});
 
 	/** A part whose editors come and go: it is empty until an editor opens in it. */
@@ -184,14 +212,16 @@ suite('Chat window grid', () => {
 		const position = observableValue<ChatWindowTerminalPosition>('position', ChatWindowTerminalPosition.FullWidth);
 		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
 		const terminalsPart = createPartWithEditors('terminals');
-		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, position));
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, position));
 		grid.layout(1000, 800);
+		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
 		const open = () => {
 			terminals.set(terminalsPart.part, undefined);
 			terminalsPart.setEmpty(false);
 		};
 		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
-		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, height };
+		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, height, userResize };
 	}
 
 	test('the terminals join the grid below the chat, below the main part or across the window, across the chat and the main part while stacked, and below the strip in editor only', () => {
@@ -227,9 +257,9 @@ suite('Chat window grid', () => {
 	});
 
 	test('the chat and the main part keep their widths as the terminals walk through every position, show and hide, after a mode round trip, a resize and a change of density', () => {
-		const { mode, position, grid, open, terminalsPart } = setupWithTerminals();
+		const { mode, position, grid, open, terminalsPart, userResize } = setupWithTerminals();
 		open();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 500 });
+		userResize(ChatWindowGridCell.Chat, 'right', 400);
 		const widths: number[] = [];
 		const read = () => widths.push(grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width);
 		for (const terminalPosition of [ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor, ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderEditor, ChatWindowTerminalPosition.UnderChat]) {
@@ -256,9 +286,9 @@ suite('Chat window grid', () => {
 	});
 
 	test('QA\'s INFO-2 sequence: side by side, only the chat (its sizes saved meanwhile), a part moved, stacked, and side by side again: the split the user had, never the main part at its minimum', () => {
-		const { mode, grid, open } = setupWithTerminals();
+		const { mode, grid, open, userResize } = setupWithTerminals();
 		open();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 500 });
+		userResize(ChatWindowGridCell.Chat, 'right', 400);
 		const split = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}`;
 		const sideBySide = split();
 		// The side part empties: only the chat shows, and the window saves its state meanwhile.
@@ -286,7 +316,9 @@ suite('Chat window grid', () => {
 		const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
 		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
 		const terminalsPart = createPartWithEditors('terminals');
-		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), undefined, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), undefined, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 		grid.layout(1200, 800);
 		terminals.set(terminalsPart.part, undefined);
@@ -295,9 +327,9 @@ suite('Chat window grid', () => {
 		// An earlier visit of each mode, with the terminals at other heights: the user's last height is what counts.
 		for (const [earlier, earlierHeight] of [[ChatWindowLayoutMode.Stacked, 286], [ChatWindowLayoutMode.EditorOnly, 265], [ChatWindowLayoutMode.SideBySide, 232]] as const) {
 			mode.set(earlier, undefined);
-			grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: earlierHeight });
+			userResize(ChatWindowGridCell.Terminals, 'top', earlierHeight);
 		}
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: 199 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 199);
 		const heights: Record<string, number>[] = [];
 		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
 			mode.set(candidate, undefined);
@@ -341,13 +373,15 @@ suite('Chat window grid', () => {
 		};
 		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
 		const terminalsPart = createPartWithEditors('terminals');
-		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat, titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), sizes, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat, titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), sizes, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 		grid.layout(1200, 800);
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 476, height: 796 });
+		userResize(ChatWindowGridCell.Chat, 'right', 476);
 		terminals.set(terminalsPart.part, undefined);
 		terminalsPart.setEmpty(false);
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: 199 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 199);
 		const read = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
 		const heights: string[] = [];
 		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
@@ -367,17 +401,19 @@ suite('Chat window grid', () => {
 			const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
 			const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
 			const terminalsPart = createPartWithEditors('terminals');
-			const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), sizes, constObservable(ChatWindowTerminalPosition.FullWidth)));
+			const container = createAttachedContainer();
+			const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), sizes, constObservable(ChatWindowTerminalPosition.FullWidth)));
+			const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
 			grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 			grid.layout(1200, 800);
 			terminals.set(terminalsPart.part, undefined);
 			terminalsPart.setEmpty(false);
 			const read = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}, terminals ${grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height}`;
-			return { mode, grid, read };
+			return { mode, grid, read, userResize };
 		};
-		const { mode, grid, read } = create(undefined);
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 476, height: 500 });
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: 105 });
+		const { mode, grid, read, userResize } = create(undefined);
+		userResize(ChatWindowGridCell.Chat, 'right', 476);
+		userResize(ChatWindowGridCell.Terminals, 'top', 105);
 		const walk: string[] = [read()];
 		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
 			mode.set(candidate, undefined);
@@ -392,10 +428,12 @@ suite('Chat window grid', () => {
 
 	test('a density round trip, default to compact and back, gives the chat and the main part back their exact widths', () => {
 		const gap = observableValue('gap', 4);
-		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: constObservable(false) }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), gap, undefined));
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: constObservable(false) }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), gap, undefined));
+		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 		grid.layout(1200, 800);
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 476, height: 796 });
+		userResize(ChatWindowGridCell.Chat, 'right', 476);
 		const split = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}`;
 		const before = split();
 		// Compact: flush, no outer insets; then default again.
@@ -423,11 +461,102 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ atOnce, onceStylesApply: layout.args.slice(atOnce) }, { atOnce: 0, onceStylesApply: [[1200, 800]] });
 	});
 
+	test('QA\'s gap-sash walk: the height the user drags the terminals to across the window comes back in every mode, and the default is a share of the window', () => {
+		const container = createAttachedContainer();
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const terminalsPart = createPartWithEditors('terminals');
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), undefined, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		grid.layout(1200, 800);
+		drag(container, grid, ChatWindowGridCell.Chat, 'right', 476);
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+		const read = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height}`;
+		const shown = read();
+		drag(container, grid, ChatWindowGridCell.Terminals, 'top', 199);
+		const heights = [`dragged ${read()}`];
+		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
+			mode.set(candidate, undefined);
+			heights.push(`${candidate} ${read()}`);
+		}
+
+		assert.deepStrictEqual({ shown, heights, split: `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}` }, {
+			shown: '239',
+			heights: ['dragged 199', 'stacked 199', 'sideBySide 199', 'chatOnly 199', 'sideBySide 199', 'editorOnly 199', 'sideBySide 199'],
+			split: '476/716',
+		});
+	});
+
+	test('terminals the user never sized keep their share of the window through every mode (QA: 239, then 215 after stacked)', () => {
+		const container = createAttachedContainer();
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const terminalsPart = createPartWithEditors('terminals');
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), undefined, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		grid.layout(1200, 800);
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+		const heights = [`shown ${grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height}`];
+		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
+			mode.set(candidate, undefined);
+			grid.exportSizes();
+			heights.push(`${candidate} ${grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height}`);
+		}
+
+		assert.deepStrictEqual(heights, ['shown 239', 'stacked 239', 'sideBySide 239', 'editorOnly 239', 'sideBySide 239']);
+	});
+
+	test('a width the chat is forced to, such as by an editor split into its part, is not remembered as the user\'s: once the editor leaves, side by side shows the user\'s split again', () => {
+		const container = createAttachedContainer();
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const onDidChangeChat = disposables.add(new Emitter<IViewSize | undefined>());
+		let chatMinimumWidth = 280;
+		const chat = new class extends mock<IContentPart>() {
+			override readonly element = $('.chat');
+			override get minimumWidth() { return chatMinimumWidth; }
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = onDidChangeChat.event;
+			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat, titleRow: { ...createChrome(33), visible: derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked) }, strip: createChrome(34) }, mode, constObservable(4), undefined));
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		grid.layout(1200, 800);
+		drag(container, grid, ChatWindowGridCell.Chat, 'right', 476);
+		const split = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}`;
+		const roundTrip = () => {
+			mode.set(ChatWindowLayoutMode.Stacked, undefined);
+			grid.exportSizes();
+			mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+			return split();
+		};
+		const user = split();
+		// An editor split into the chat part: the part is as wide as its chat and the editor's group at least.
+		chatMinimumWidth = 503;
+		onDidChangeChat.fire(undefined);
+		const forced = roundTrip();
+		// The editor moved out of the chat part again.
+		chatMinimumWidth = 280;
+		onDidChangeChat.fire(undefined);
+
+		assert.deepStrictEqual({ user, forced, again: roundTrip() }, { user: '476/716', forced: '505/687', again: '476/716' });
+	});
+
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
-		const { mode, position, grid, open, height } = setupWithTerminals();
+		const { mode, position, grid, open, height, userResize } = setupWithTerminals();
 		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
 		open();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 500, height: 200 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 200);
 		const read = () => ({
 			topology: grid.partGrid!.describe(),
 			visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals].filter(cell => grid.partGrid!.isCellVisible(cell)),
@@ -446,10 +575,10 @@ suite('Chat window grid', () => {
 	});
 
 	test('the terminal position moves the terminals\' part in the grid, which keeps its height, and the arrangement it moves to is the one a new grid shows', () => {
-		const { position, grid, open, height } = setupWithTerminals();
+		const { position, grid, open, height, userResize } = setupWithTerminals();
 		open();
 		const partGrid = grid.partGrid;
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1000, height: 200 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 200);
 		const moves = [ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor, ChatWindowTerminalPosition.FullWidth].map(terminalPosition => {
 			position.set(terminalPosition, undefined);
 			// A new grid of a window whose terminals are at that position from the start.
@@ -469,11 +598,11 @@ suite('Chat window grid', () => {
 	});
 
 	test('the terminals show only with a terminal in them: hiding them with their last terminal moves no other part, does not rebuild the grid, and showing them gives them their height back', () => {
-		const { grid, open, height, terminalsPart } = setupWithTerminals();
+		const { grid, open, height, terminalsPart, userResize } = setupWithTerminals();
 		const beforeFirst = grid.terminalsVisible.get();
 		open();
 		const partGrid = grid.partGrid;
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1000, height: 225 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 225);
 		const chatWidth = grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width;
 		terminalsPart.setEmpty(true);
 		const hidden = { visible: grid.terminalsVisible.get(), chatWidth: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height };
@@ -511,23 +640,23 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(result, expected);
 	});
 
-	test('tall terminals give way first when an arrangement shows that they did not show in yet, so that the chat and the main part keep their heights', () => {
-		const { mode, position, grid, open, height } = setupWithTerminals();
+	test('the height the user gave the terminals is theirs in an arrangement they did not show in yet, as far as the chat and the main part can give it', () => {
+		const { mode, position, grid, open, height, userResize } = setupWithTerminals();
 		position.set(ChatWindowTerminalPosition.UnderChat, undefined);
 		open();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 400, height: 600 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 600);
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		const main = grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height;
 		const chat = grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height;
 
-		assert.deepStrictEqual({ mainAndChatKeepMost: main + chat >= 770 * 0.9, fills: main + chat + height() }, { mainAndChatKeepMost: true, fills: 770 });
+		assert.deepStrictEqual({ terminals: height(), fills: main + chat + height() }, { terminals: 600, fills: 770 });
 	});
 
 	test('an arrangement shown with the terminals hidden does not squeeze them when it shows again with them', () => {
-		const { mode, grid, open, height } = setupWithTerminals(ChatWindowLayoutMode.EditorOnly);
+		const { mode, open, height, userResize } = setupWithTerminals(ChatWindowLayoutMode.EditorOnly);
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 		open();
-		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1000, height: 225 });
+		userResize(ChatWindowGridCell.Terminals, 'top', 225);
 		mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
 
 		assert.deepStrictEqual(height(), 225);

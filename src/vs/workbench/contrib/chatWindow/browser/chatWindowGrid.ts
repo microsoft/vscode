@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunHandleChanges, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
 import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
@@ -189,6 +189,7 @@ export class ChatWindowGrid extends Disposable {
 
 	private readonly _grid = this._register(new MutableDisposable<PartGrid>());
 	private readonly _gridListener = this._register(new MutableDisposable());
+	private readonly _userResize = this._register(new MutableDisposable());
 	private readonly _styleLayout = this._register(new MutableDisposable());
 	private _topologyKey: string | undefined;
 	/** The key the sizes of what shows are remembered under; see {@link getSizesKey}. */
@@ -228,27 +229,32 @@ export class ChatWindowGrid extends Disposable {
 		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
 
-		// What shows is remembered as soon as what arranges it changes, before anything reacts to the change: the chat, for
-		// one, may take another size in the new mode, such as only its input while stacked, and squeeze the other cells first.
-		this._register(autorunHandleChanges({
-			owner: this,
-			changeTracker: {
-				createChangeSummary: () => ({ remembered: false }),
-				handleChange: (_context, summary) => {
-					if (!summary.remembered) {
-						summary.remembered = true;
-						this._rememberSizes();
-					}
-					return true;
-				},
-			},
-		}, reader => {
+		this._register(autorun(reader => {
 			this._layoutMode.read(reader);
 			_cells.strip?.visible.read(reader);
 			_cells.titleRow?.visible.read(reader);
 			_cells.terminals?.read(reader);
 			this._terminalPosition.read(reader);
 			this._update();
+		}));
+		// Only the sizes the user gives the cells are remembered: those of a sash they drag or reset. The sizes the grid takes
+		// otherwise, such as by the least size of a part or as a mode shows, are not theirs.
+		this._register(addDisposableListener(_container, EventType.MOUSE_DOWN, e => {
+			const sash = this._sashOf(e);
+			if (!sash) {
+				return;
+			}
+			const before = this._cellSizes();
+			const window = getWindow(_container);
+			const up = this._userResize.value = addDisposableListener(window, EventType.MOUSE_UP, () => {
+				up.dispose();
+				this._rememberUserSizes(before);
+			});
+		}, true));
+		this._register(addDisposableListener(_container, EventType.DBLCLICK, e => {
+			if (this._sashOf(e)) {
+				this._rememberUserSizes(undefined);
+			}
 		}));
 		this._register(autorun(reader => {
 			// Read first: the grid is created later, and the gap must be followed from the start.
@@ -322,32 +328,54 @@ export class ChatWindowGrid extends Disposable {
 		this._updateTerminalsVisible();
 	}
 
-	/** The sizes of the cells per arrangement, including the one shown. */
+	/** The sizes the user gave the cells, per arrangement. */
 	exportSizes(): ChatWindowPartSizes {
-		this._rememberSizes();
 		return { ...this._sizes };
 	}
 
-	private _rememberSizes(): void {
+	private _sashOf(e: MouseEvent): boolean {
+		return isHTMLElement(e.target) && !!e.target.closest('.monaco-sash') && !!this._grid.value;
+	}
+
+	private _cellSizes(): Map<string, IViewSize> {
 		const grid = this._grid.value;
-		// Not once something else changed the arrangement, such as a part the user moved: its sizes are not the arrangement's.
-		if (!grid || !this._sizesKey || grid.describe() !== this._arranged) {
-			return;
-		}
-		const sizes: Record<string, { width: number; height: number }> = {};
+		const sizes = new Map<string, IViewSize>();
 		for (const cell of [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals]) {
-			if (grid.isCellVisible(cell)) {
+			if (grid?.isCellVisible(cell)) {
 				const { width, height } = grid.getCellSize(cell);
-				sizes[cell] = { width, height };
+				sizes.set(cell, { width, height });
 			}
 		}
-		this._sizes[this._sizesKey] = { ...this._sizes[this._sizesKey], ...sizes };
-		if (this._baseSizesKey && this._baseSizesKey !== this._sizesKey) {
-			const { [ChatWindowGridCell.Terminals]: _terminals, ...parts } = sizes;
-			this._sizes[this._baseSizesKey] = { ...this._sizes[this._baseSizesKey], ...parts };
+		return sizes;
+	}
+
+	/**
+	 * Remembers the sizes of the cells a sash the user dragged changed, or of all after they reset one (`before` is
+	 * undefined). The height of the terminals is theirs in every arrangement; the sizes of the chat and the main part are
+	 * those of the arrangement, while the grid still shows it as the window arranged it.
+	 */
+	private _rememberUserSizes(before: Map<string, IViewSize> | undefined): void {
+		const grid = this._grid.value;
+		if (!grid || !this._sizesKey) {
+			return;
 		}
-		if (sizes[ChatWindowGridCell.Terminals]) {
-			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: sizes[ChatWindowGridCell.Terminals] };
+		const changed: Record<string, IViewSize> = {};
+		for (const [cell, size] of this._cellSizes()) {
+			const previous = before?.get(cell);
+			if (!previous || previous.width !== size.width || previous.height !== size.height) {
+				changed[cell] = size;
+			}
+		}
+		if (changed[ChatWindowGridCell.Terminals]) {
+			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: changed[ChatWindowGridCell.Terminals] };
+		}
+		const { [ChatWindowGridCell.Terminals]: _terminals, ...parts } = changed;
+		if (!Object.keys(parts).length || grid.describe() !== this._arranged) {
+			return;
+		}
+		this._sizes[this._sizesKey] = { ...this._sizes[this._sizesKey], ...parts };
+		if (this._baseSizesKey && this._baseSizesKey !== this._sizesKey) {
+			this._sizes[this._baseSizesKey] = { ...this._sizes[this._baseSizesKey], ...parts };
 		}
 	}
 
@@ -360,7 +388,6 @@ export class ChatWindowGrid extends Disposable {
 		if (key === this._topologyKey) {
 			return;
 		}
-		const previousSizesKey = this._sizesKey;
 		this._topologyKey = key;
 		const sizesKey = getSizesKey(key, mode);
 
@@ -372,12 +399,10 @@ export class ChatWindowGrid extends Disposable {
 				grid.removeCell(ChatWindowGridCell.Terminals);
 				this._terminalsInGrid = false;
 			} else if (this._terminalsInGrid) {
-				const height = this._sizes[previousSizesKey ?? '']?.[ChatWindowGridCell.Terminals]?.height;
 				grid.moveCell(ChatWindowGridCell.Terminals, getTerminalsLocation(mode, position));
-				this._pendingTerminalsHeight = height;
+				this._pendingTerminalsHeight = this._terminalsHeight();
 			} else {
-				const remembered = this._sizes[sizesKey] ?? {};
-				const height = this._terminalsHeight(remembered, dimension.height);
+				const height = this._terminalsHeight();
 				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), height);
 				this._terminalsInGrid = true;
 				this._terminalsFirstShowHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? undefined : height;
@@ -396,7 +421,7 @@ export class ChatWindowGrid extends Disposable {
 		const height = Math.max(0, dimension.height - insets.top - insets.bottom);
 		const root = this._serialize(topology, orientation === Orientation.HORIZONTAL ? width : height, orientation, remembered, { width, height });
 		// Applied once the cells of the arrangement show or hide, such as the title row, whose room would otherwise go to them.
-		this._pendingTerminalsHeight = terminals ? Math.min(height, this._terminalsHeight(remembered, height)) : undefined;
+		this._pendingTerminalsHeight = terminals ? Math.min(height, this._terminalsHeight()) : undefined;
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
@@ -436,19 +461,11 @@ export class ChatWindowGrid extends Disposable {
 		});
 	}
 
-	/**
-	 * The height the terminals take in an arrangement: the height the user last gave them, in whatever mode, else their
-	 * share of `total`. Tall terminals give way first: last shown taller than their share, they take only their least
-	 * height in an arrangement they did not show in yet, so that the chat and the main part keep their heights.
-	 */
-	private _terminalsHeight(remembered: Record<string, { readonly width: number; readonly height: number }>, total: number): number {
-		const own = remembered[ChatWindowGridCell.Terminals]?.height;
-		const share = Math.round(total * TERMINALS_SHARE);
-		const last = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
-		if (last === undefined) {
-			return own ?? share;
-		}
-		return own !== undefined || last <= share ? last : Math.min(share, this._cells.terminals?.get()?.minimumHeight ?? 0);
+	/** The height the terminals take in every arrangement: the height the user last gave them, else their share of the window. */
+	private _terminalsHeight(): number {
+		const insets = this._outerInsets;
+		const total = Math.max(0, (this._dimension?.height ?? 0) - insets.top - insets.bottom);
+		return this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height ?? Math.round(total * TERMINALS_SHARE);
 	}
 
 	private _contentOf(id: string): PartGridCellContent {
@@ -525,7 +542,7 @@ export class ChatWindowGrid extends Disposable {
 				return horizontal ? this._strip?.minimumWidth ?? 0 : undefined;
 			}
 			if (child.cell === ChatWindowGridCell.Terminals) {
-				return horizontal ? undefined : Math.min(total, this._terminalsHeight(remembered, total));
+				return horizontal ? undefined : Math.min(total, this._terminalsHeight());
 			}
 			return undefined;
 		});
