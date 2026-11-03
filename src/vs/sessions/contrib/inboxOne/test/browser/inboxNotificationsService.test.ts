@@ -412,6 +412,79 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual({ loads, releases, id: fixture.service.notifications.get()[0].id }, { loads: 1, releases: 1, id: item.id });
 	});
 
+	for (const change of ['completion', 'nextTurn', 'conversation'] as const) {
+		test(`regenerates detail after ${change} with unchanged notification metadata`, async () => {
+			const session = createSession({ id: 'summary-refresh', status: SessionStatus.InProgress, updatedAt: 200 });
+			const chatService = new TestChatService();
+			const resource = session.mainChat.get().resource;
+			if (change === 'completion') {
+				chatService.setPendingParts(resource, {
+					requestId: 'turn', startedWaitingAt: 0,
+					parts: [{ kind: 'markdownContent', content: { value: 'Investigating the problem.' } }],
+				});
+			} else {
+				chatService.setCompletedResponse(resource, { requestId: 'turn', markdown: 'Previous result.' });
+			}
+			const requests: IChatUtilityModelRequest[] = [];
+			const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+				utilityRequest: async request => {
+					requests.push(request);
+					return JSON.stringify({ status: `Interpretation ${requests.length}`, decisions: [], evidence: [] });
+				},
+			});
+			const item = fixture.service.sessionRows.get()[0];
+			fixture.service.requestDetailSummary(item);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			const nextResource = change === 'conversation' ? URI.parse('test:///chat/another-conversation') : resource;
+			chatService.setCompletedResponse(nextResource, {
+				requestId: change === 'nextTurn' ? 'next-turn' : 'turn', markdown: 'Final result: the regression is fixed.',
+			});
+			const current = { ...item, chatResource: nextResource };
+			fixture.service.requestDetailSummary(current);
+			const stale = fixture.service.detailSummaries.get().get(item.id);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			fixture.service.requestDetailSummary(current);
+			assert.deepStrictEqual({
+				requests: requests.length, stale,
+				freshTranscript: requests.at(-1)?.messages.some(message => message.content.some(part => part.type === 'text' && part.value.includes('Final result: the regression is fixed.'))),
+				summary: fixture.service.detailSummaries.get().get(item.id)?.status,
+			}, { requests: 2, stale: undefined, freshTranscript: true, summary: 'Interpretation 2' });
+		});
+	}
+
+	test('a late pre-completion summary cannot overwrite the completed response summary', async () => {
+		const session = createSession({ id: 'late-summary', status: SessionStatus.InProgress, updatedAt: 200 });
+		const chatService = new TestChatService();
+		const resource = session.mainChat.get().resource;
+		chatService.setPendingParts(resource, {
+			requestId: 'turn', startedWaitingAt: 0,
+			parts: [{ kind: 'markdownContent', content: { value: 'Still working.' } }],
+		});
+		const started = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const results = [new DeferredPromise<string>(), new DeferredPromise<string>()];
+		let requests = 0;
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async () => {
+				const index = requests++;
+				started[index].complete();
+				return results[index].p;
+			},
+		});
+		const item = fixture.service.sessionRows.get()[0];
+		fixture.service.requestDetailSummary(item);
+		await started[0].p;
+		chatService.setCompletedResponse(resource, { requestId: 'turn', markdown: 'Finished.' });
+		fixture.service.requestDetailSummary(item);
+		await started[1].p;
+		await results[1].complete('{"status":"Final interpretation","decisions":[],"evidence":[]}');
+		await waitForState(fixture.service.detailSummaries, summaries => summaries.get(item.id)?.status === 'Final interpretation');
+		await results[0].complete('{"status":"Stale interpretation","decisions":[],"evidence":[]}');
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		assert.deepStrictEqual({ requests, summary: fixture.service.detailSummaries.get().get(item.id)?.status }, {
+			requests: 2, summary: 'Final interpretation',
+		});
+	});
+
 	for (const pending of [false, true]) {
 		test(`Done clears interpretation state and rejects late results: pending=${pending}`, async () => {
 			const session = createSession({ id: 'done-summary', status: SessionStatus.Completed, updatedAt: 200 });
@@ -2235,6 +2308,57 @@ suite('InboxNotificationsService', () => {
 			opened: { 'working-row': InboxTab.Working, 'pending-row': InboxTab.ReadyForYou, 'completed-row': InboxTab.Done },
 			held: InboxTab.OnHold, stillHeld: InboxTab.OnHold, resumed: InboxTab.ReadyForYou,
 		});
+	});
+
+	test('attention count groups multiple notifications per Ready for you row and excludes other workflows', () => {
+		const completed = createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 100 });
+		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: 200 });
+		const working = createSession({ id: 'working', status: SessionStatus.InProgress, updatedAt: 300 });
+		const fixture = createFixture([completed, pending, working]);
+		for (const id of ['first', 'second']) {
+			fixture.service.publishExternalNotification({ id, title: id, description: '', sessionResource: pending.resource });
+		}
+		const initial = fixture.service.attentionCount.get();
+		const pendingRow = fixture.service.sessionRows.get().find(row => row.sessionResource?.toString() === pending.resource.toString())!;
+		fixture.service.setSessionOnHold(pendingRow, true);
+		const held = fixture.service.attentionCount.get();
+		fixture.service.markSessionDone(fixture.service.sessionRows.get().find(row => row.sessionResource?.toString() === completed.resource.toString())!);
+		const done = fixture.service.attentionCount.get();
+		fixture.service.setSessionOnHold(pendingRow, false);
+		assert.deepStrictEqual({ initial, held, done, resumed: fixture.service.attentionCount.get() }, { initial: 2, held: 1, done: 0, resumed: 1 });
+	});
+
+	test('retains PR evidence without pending CI and keeps referenced PRs ineligible for merge actions', () => {
+		const session = createSession({
+			id: 'reference', status: SessionStatus.InProgress, updatedAt: 100,
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 44, createdByThisSession: false }],
+		});
+		const fixture = createFixture([session]);
+		const row = fixture.service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			tab: row.tab,
+			links: row.pullRequestStates?.map(state => [state.label, state.statusLabel, state.pullRequestUri?.toString()]),
+			actions: row.actions.map(action => action.kind),
+		}, {
+			tab: InboxTab.Working,
+			links: [['#44', 'Referenced pull request', 'https://github.com/owner/repo/pull/44']],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+		});
+	});
+
+	test('uses a recorded work title without renaming the session or losing PR evidence', () => {
+		const session = createSession({
+			id: 'work-title', title: 'Find the bug', status: SessionStatus.InProgress, updatedAt: 100,
+			artifacts: [{
+				id: 'pr', kind: SessionArtifactKind.PullRequest, isArtifact: true, isGitHub: true,
+				label: 'Fix keyboard navigation', link: URI.parse('https://github.com/owner/repo/pull/42'),
+			}],
+		});
+		const row = createFixture([session]).service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			work: row.workTitle, original: session.title.get(),
+			links: row.pullRequestStates?.map(state => state.pullRequestUri?.toString()),
+		}, { work: 'Fix keyboard navigation', original: 'Find the bug', links: ['https://github.com/owner/repo/pull/42'] });
 	});
 
 	test('Done is occurrence-scoped while dismiss only removes the individual notification', () => {

@@ -804,7 +804,9 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
-		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		if (this.options.renderAquarium !== false) {
+			this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		}
 		const aquariumAction = this._register(new Action(
 			'sessions.aquarium.showAction',
 			localize('aquariumAction', "Aquarium"),
@@ -834,7 +836,10 @@ export class NewChatWidget extends Disposable {
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => [aquariumAction, petAction],
+				getActions: () => [
+					...(this.options.renderAquarium !== false ? [aquariumAction] : []),
+					...(this.options.renderChatPet !== false ? [petAction] : []),
+				],
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));

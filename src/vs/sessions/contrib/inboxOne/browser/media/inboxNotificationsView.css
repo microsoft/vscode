@@ -36,7 +36,7 @@
 	width: auto;
 }
 
-.inbox-notifications-view .inbox-notifications-toolbar .inbox-notifications-tabs .monaco-button.active {
+.inbox-notifications-view .inbox-notifications-tabs .monaco-button.active {
 	background: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-foreground);
 	border-color: var(--vscode-contrastActiveBorder, transparent);
@@ -44,8 +44,7 @@
 }
 
 .inbox-notifications-search {
-	margin-inline-start: auto;
-	width: 160px;
+	flex: 1;
 	min-width: 80px;
 }
 
@@ -71,6 +70,28 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	padding-inline: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-composer-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-composer-header .monaco-button {
+	width: auto;
+	flex-shrink: 0;
+}
+
+.inbox-notifications-composer.replying {
+	align-self: flex-end;
+	max-width: none;
+}
+
+.inbox-notifications-feedback {
+	flex: none;
+	align-self: flex-start;
 }
 
 .inbox-notifications-content {

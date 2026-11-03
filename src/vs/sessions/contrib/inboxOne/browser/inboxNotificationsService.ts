@@ -37,7 +37,8 @@ import { getPullRequestKey } from '../../github/common/utils.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
+import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
@@ -78,7 +79,7 @@ const WORKFLOW_STORAGE_KEY = 'sessions.inboxNotifications.workflow';
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v9';
+const PREVIEW_PROMPT_VERSION = 'v10';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 75;
@@ -465,6 +466,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	readonly attentionCount: IObservable<number>;
 	private readonly _workflow = observableValue<ReadonlyMap<string, { hold?: boolean; done?: string }>>(this, new Map());
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
@@ -655,6 +657,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const source = itemsBySession.get(session.resource) ?? [];
 				const notifications = source.filter(item => !dismissed.has(item.id)).sort(compareInboxNotifications);
 				const sessionTitle = session.title.read(reader);
+				const references = getSessionGitHubReferences(session, reader);
+				const goals = [...references.pullRequests, ...references.issues].flatMap(ref => ref.title ? [ref.title] : []);
+				const workTitle = goals.length === 1 ? goals[0] : sessionTitle;
 				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
 				const occurrence = `${status}:${session.lastTurnEnd.read(reader)?.getTime() ?? 0}:${source.map(item => item.id).sort().join('|')}`;
 				const id = `session:${session.sessionId}`;
@@ -678,7 +683,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				}
 				const row: IInboxSessionRow = {
 					...lead,
-					id, tab, occurrence, title, sessionTitle, notifications,
+					id, tab, occurrence, title, sessionTitle, workTitle, notifications,
 					kind: lead?.kind ?? InboxNotificationKind.Completed,
 					priority: lead?.priority ?? InboxNotificationPriority.Later,
 					description: lead?.description ?? title,
@@ -686,12 +691,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					sessionResource: session.resource,
 					chatResource: chatResource ?? chat?.resource,
 					repositoryLabel: this.getSessionRepositoryLabel(session, reader),
-					pullRequestStates: [...new Map(notifications.flatMap(item => item.pullRequestStates ?? []).map(state => [state.pullRequestUri?.toString() ?? state.label, state])).values()],
+					pullRequestStates: this.getRowPullRequestStates(session, notifications, reader),
 					actions: this.sessionActions(true),
 					hasImages: !!chat && collectInboxEvidence(session, chat, model, lead?.needsInputPart?.requestId, reader).images.length > 0,
 				};
 				const inputText = [
-					`Workflow: ${tab}`, `Session title: ${sessionTitle}`,
+					`Workflow: ${tab}`, `Session title: ${sessionTitle}`, `Work: ${workTitle}`,
+					...goals.map(goal => `Recorded work item: ${goal}`),
 					...notifications.map(item => { const detail = this.describeItemForPreview(item); return `${detail.contextLabel}: ${detail.detailText}`; }),
 					`Fallback action: ${title}`,
 				].join('\n').slice(0, PREVIEW_MAX_INPUT_CHARS);
@@ -707,6 +713,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			return rows.sort(this.sortMode.read(reader) === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
+
+		this.attentionCount = derived(this, reader => this.sessionRows.read(reader).filter(row => row.tab === InboxTab.ReadyForYou).length);
 
 		this.dismissedNotifications = derived(this, reader => {
 			const dismissed = this._dismissedIds.read(reader);
@@ -1119,7 +1127,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return;
 		}
 		const key = item.id;
-		const signature = `${item.previewSignature ?? ''}:${item.timestamp}`;
+		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource ?? this.getMainChatResource(item);
+		const request = chatResource && this.chatService.getSession(chatResource)?.getRequests().at(-1);
+		const signature = JSON.stringify([
+			item.previewSignature, item.timestamp, chatResource?.toString(),
+			request?.id, request?.response?.isComplete, request?.response?.isCanceled,
+		]);
 		if (this._detailSummarySignatures.get(key) !== signature) {
 			this._detailSummarySignatures.set(key, signature);
 			this._detailSummaryInFlight.get(key)?.cancel();
@@ -1322,6 +1335,28 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			],
 		}, token);
 		return text === undefined || token.isCancellationRequested ? undefined : parseDetailSummary(text, sources);
+	}
+
+	private getRowPullRequestStates(session: ISession, notifications: readonly IInboxNotificationItem[], reader: IReader): readonly IInboxNotificationPullRequestState[] {
+		const states = new Map(notifications.flatMap(item => item.pullRequestStates ?? [])
+			.map(state => [state.pullRequestUri ? getComparisonKey(state.pullRequestUri) : state.label, state]));
+		const references = [
+			...getSessionGitHubReferences(session, reader).pullRequests,
+			...(session.workspace.read(reader)?.folders ?? []).flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))),
+		];
+		for (const ref of references) {
+			const key = getComparisonKey(ref.uri);
+			if (!states.has(key)) {
+				states.set(key, {
+					label: ref.title ? `${ref.title} #${ref.number}` : `#${ref.number}`,
+					repositoryLabel: `${ref.owner}/${ref.repo}`,
+					pullRequestUri: ref.uri,
+					icon: Codicon.gitPullRequest,
+					statusLabel: ref.createdByThisSession ? localize('inbox.pullRequest.associated', "Session pull request") : localize('inbox.pullRequest.reference', "Referenced pull request"),
+				});
+			}
+		}
+		return [...states.values()];
 	}
 
 	private collectSessionArtifacts(item: IInboxNotificationItem): IInboxEvidenceArtifact[] {
