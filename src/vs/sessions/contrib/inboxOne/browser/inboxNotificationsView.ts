@@ -1634,10 +1634,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		options.locationData = requestContext.request.locationData;
 		options.userSelectedModelId = requestContext.request.modelId;
 		options.userSelectedModelConfiguration = requestContext.request.modelConfiguration;
+		const acknowledgeRead = this.captureReadAcknowledgement(item);
 		const sendResult = await this.chatService.sendRequest(part.chatResource, prompt, options);
 		if (ChatSendResult.isSent(sendResult)) {
 			confirmationPart.isUsed = true;
-			await this.completeNeedsInputNotification(item);
+			await this.completeNeedsInputNotification(item, acknowledgeRead);
 			this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime, answerKind: buttonIndex === 0 ? 'approve' : 'deny' });
 			return;
 		}
@@ -1685,6 +1686,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}
 			: { type: ToolConfirmKind.Skipped as const, source: 'user' as const };
 		const details = getInboxToolConfirmationDetails(toolInvocation);
+		const acknowledgeRead = this.captureReadAcknowledgement(item);
 		const didConfirm = !details.requiresSession
 			&& part.confirmationKind === 'execution'
 			&& details.commandLine === part.commandLine
@@ -1697,7 +1699,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.notificationService.error(localize('inboxNotifications.toolConfirmation.staleState', "This confirmation changed before your action was applied. Open the session and try again."));
 			return;
 		}
-		await this.completeNeedsInputNotification(item);
+		await this.completeNeedsInputNotification(item, acknowledgeRead);
 		this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime, answerKind: button.kind });
 	}
 
@@ -1727,6 +1729,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 
 		const answersRecord = answers ? Object.fromEntries(answers.entries()) : undefined;
+		const acknowledgeRead = this.captureReadAcknowledgement(item);
 		if (carouselPart instanceof ChatQuestionCarouselData) {
 			carouselPart.dismiss(answersRecord);
 		} else {
@@ -1734,7 +1737,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			carouselPart.isUsed = true;
 		}
 		this.chatService.notifyQuestionCarouselAnswer(part.requestId, part.resolveId, answersRecord);
-		await this.completeNeedsInputNotification(item);
+		await this.completeNeedsInputNotification(item, acknowledgeRead);
 		const answerShape = this.classifyCarouselAnswers(answers);
 		this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'success', durationMs: Date.now() - startTime, answerKind: answerShape.answerKind, answerCharCount: answerShape.answerCharCount });
 	}
@@ -1798,8 +1801,28 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		return context as IChatContentPartRenderContext;
 	}
 
-	private async completeNeedsInputNotification(item: IInboxNotificationItem): Promise<void> {
-		await this.markDone(item, undefined);
+	private async completeNeedsInputNotification(item: IInboxNotificationItem, acknowledgeRead: (() => Promise<void>) | undefined): Promise<void> {
+		this.markDone(item, undefined);
+		await acknowledgeRead?.();
+	}
+
+	private captureReadAcknowledgement(item: IInboxNotificationItem): (() => Promise<void>) | undefined {
+		const session = item.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
+		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource;
+		const chat = chatResource
+			? session?.chats.get().find(chat => isEqual(chat.resource, chatResource))
+			: session?.mainChat.get();
+		if (!session || !chat) {
+			return undefined;
+		}
+		const updatedAt = chat.updatedAt.get()?.getTime();
+		const lastTurnEnd = chat.lastTurnEnd.get()?.getTime();
+		return async () => {
+			const currentChat = session.chats.get().find(candidate => isEqual(candidate.resource, chat.resource));
+			if (currentChat && currentChat.updatedAt.get()?.getTime() === updatedAt && currentChat.lastTurnEnd.get()?.getTime() === lastTurnEnd) {
+				await this.sessionsManagementService.markChatRead(session, currentChat);
+			}
+		};
 	}
 
 	private onListFocusIn(event: FocusEvent): void {
@@ -1988,6 +2011,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		};
 
 		try {
+			const acknowledgeRead = action.kind === InboxNotificationActionKind.MarkDone || item.kind === InboxNotificationKind.Completed
+				? this.captureReadAcknowledgement(item) : undefined;
 			let result: InboxInteractionResult;
 			switch (action.kind) {
 				case InboxNotificationActionKind.OpenSession: {
@@ -2040,11 +2065,15 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 							this.clearSelectedItem('done');
 						}
 						this.applyDeferredUpdates(true);
+						await acknowledgeRead?.();
 					}
 				} else if (action.kind === InboxNotificationActionKind.Dismiss) {
 					this.inboxNotificationsService.dismissNotification(item.id, item);
 				} else if (action.kind !== InboxNotificationActionKind.OpenSession) {
-					await this.markDone(item, undefined);
+					this.markDone(item, undefined);
+					if (item.kind === InboxNotificationKind.Completed) {
+						await acknowledgeRead?.();
+					}
 				}
 			}
 			logResult(result);
@@ -2489,16 +2518,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 	}
 
-	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
+	private markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): void {
 		this.maybeTriggerConfetti(sourceElement);
 		this.inboxNotificationsService.dismissNotification(item.id, item);
-
-		if (item.kind === InboxNotificationKind.Completed && item.sessionResource) {
-			const session = this.sessionsManagementService.getSession(item.sessionResource);
-			if (session) {
-				await this.sessionsManagementService.setSessionReadState(session, true);
-			}
-		}
 	}
 
 	private maybeTriggerConfetti(sourceElement: HTMLElement | IAnimationTarget | undefined): void {
