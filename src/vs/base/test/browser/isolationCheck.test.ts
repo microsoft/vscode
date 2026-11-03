@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { fakeTimersDetector, focusDetector, leftoverDomDetector } from './isolationCheck.js';
+import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, leftoverDomDetector } from './isolationCheck.js';
 
 suite('Isolation check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,5 +81,99 @@ suite('Isolation check', () => {
 			globalThis.setTimeout = realSetTimeout;
 		}
 		assert.deepStrictEqual(findings, ['left fake setTimeout installed']);
+	});
+
+	suite('animation frame queue', () => {
+		const stuckFinding = 'scheduleAtNextAnimationFrame runners stopped running before this suite started: a native frame ran but the runner scheduled at the end of the previous suite did not';
+
+		/**
+		 * A queue and native frames that run only when the test says so, so each `check` sees exactly the frames
+		 * that ran since the previous one. A stuck queue keeps its runners, like `dom.ts` once its flag is stuck.
+		 */
+		function createProbeHost() {
+			let queued: (() => void)[] = [];
+			let native: (() => void)[] = [];
+			const host = {
+				stuck: false,
+				fakeTimers: false,
+				requests: 0,
+				scheduleAtNextAnimationFrame: (runner: () => void) => { host.requests++; queued.push(runner); },
+				requestNativeAnimationFrame: (callback: () => void) => { host.requests++; native.push(callback); },
+				hasFakeTimers: () => host.fakeTimers,
+				/** Runs one frame: the queue's runners unless it is stuck, then the native callbacks, in request order. */
+				runFrame: () => {
+					const runners = host.stuck ? [] : queued;
+					const callbacks = native;
+					if (!host.stuck) {
+						queued = [];
+					}
+					native = [];
+					runners.forEach(runner => runner());
+					callbacks.forEach(callback => callback());
+				},
+			};
+			return host;
+		}
+
+		test('reports nothing while the queue runs its runners', () => {
+			const host = createProbeHost();
+			const detector = createAnimationFrameQueueDetector(host);
+			const findings: string[][] = [];
+			for (let i = 0; i < 3; i++) {
+				findings.push(detector.check());
+				host.runFrame();
+			}
+			assert.deepStrictEqual(findings, [[], [], []]);
+		});
+
+		test('reports a stuck queue on the first check after a native frame ran without the probe', () => {
+			const host = createProbeHost();
+			const detector = createAnimationFrameQueueDetector(host);
+			const first = detector.check();
+			host.stuck = true;
+			host.runFrame();
+			assert.deepStrictEqual({ first, second: detector.check() }, { first: [], second: [stuckFinding] });
+		});
+
+		test('reports nothing while no native frame runs, as in a window that does not paint', () => {
+			const host = createProbeHost();
+			host.stuck = true;
+			const detector = createAnimationFrameQueueDetector(host);
+			assert.deepStrictEqual([detector.check(), detector.check(), detector.check()], [[], [], []]);
+		});
+
+		test('reports a stuck queue once until it recovers, then again when it gets stuck again', () => {
+			const host = createProbeHost();
+			const detector = createAnimationFrameQueueDetector(host);
+			const findings: string[][] = [detector.check()];
+			host.stuck = true;
+			for (let i = 0; i < 3; i++) {
+				host.runFrame();
+				findings.push(detector.check());
+			}
+			host.stuck = false;
+			host.runFrame();
+			findings.push(detector.check());
+			host.runFrame();
+			findings.push(detector.check());
+			host.stuck = true;
+			host.runFrame();
+			findings.push(detector.check());
+			assert.deepStrictEqual(findings, [[], [stuckFinding], [], [], [], [], [stuckFinding]]);
+		});
+
+		test('does not schedule a probe while fake timers are installed', () => {
+			const host = createProbeHost();
+			const detector = createAnimationFrameQueueDetector(host);
+			host.fakeTimers = true;
+			const withFakes = detector.check();
+			const requestsWithFakes = host.requests;
+			host.fakeTimers = false;
+			const afterFakes = detector.check();
+			host.runFrame();
+			assert.deepStrictEqual({ withFakes, requestsWithFakes, afterFakes, requestsAfterFakes: host.requests, next: detector.check() }, {
+				withFakes: [], requestsWithFakes: 0, afterFakes: [], requestsAfterFakes: 2, next: [],
+			});
+		});
 	});
 });

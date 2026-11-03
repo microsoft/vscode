@@ -142,13 +142,19 @@ export const fakeTimersDetector: IIsolationDetector<ReturnType<typeof captureTim
 	},
 };
 
+export interface IAnimationFrameQueueProbeHost {
+	/** Schedules `runner` through the queue under test, `dom.ts`'s `scheduleAtNextAnimationFrame`. */
+	scheduleAtNextAnimationFrame(runner: () => void): void;
+	/** Requests a frame from the real `requestAnimationFrame`, bypassing the queue. */
+	requestNativeAnimationFrame(callback: () => void): void;
+	/** Whether fake time globals are installed, so the queue would request its frame from a fake. */
+	hasFakeTimers(): boolean;
+}
+
 interface IAnimationFrameProbe {
 	scheduledRan: boolean;
 	nativeRan: boolean;
 }
-
-let pendingAnimationFrameProbe: IAnimationFrameProbe | undefined;
-let reportedStuckAnimationFrames = false;
 
 /**
  * A stuck animation frame queue in `dom.ts`. `scheduleAtNextAnimationFrame` requests one native frame per window and sets
@@ -163,35 +169,44 @@ let reportedStuckAnimationFrames = false;
  * Not a default detector: the probe puts a runner in the `dom.ts` queue between suites, which could change when the runners
  * of the next suite run, so runners add it only for reporting runs.
  */
-export const animationFrameQueueDetector: IIsolationDetector<void> = {
-	kind: 'animationFrame',
-	snapshot: () => undefined,
-	check: () => {
-		const findings: string[] = [];
-		const probe = pendingAnimationFrameProbe;
-		if (probe && !probe.nativeRan) {
-			return findings;
-		}
-		if (probe && !probe.scheduledRan) {
-			if (!reportedStuckAnimationFrames) {
-				reportedStuckAnimationFrames = true;
-				findings.push('scheduleAtNextAnimationFrame runners stopped running before this suite started: a native frame ran but the runner scheduled at the end of the previous suite did not');
+export function createAnimationFrameQueueDetector(host: IAnimationFrameQueueProbeHost): IIsolationDetector<void> {
+	let pending: IAnimationFrameProbe | undefined;
+	let reportedStuck = false;
+	return {
+		kind: 'animationFrame',
+		snapshot: () => undefined,
+		check: () => {
+			const findings: string[] = [];
+			if (pending && !pending.nativeRan) {
+				return findings;
 			}
-		} else if (probe) {
-			reportedStuckAnimationFrames = false;
-		}
-		if (getReplacedTimeGlobals().length) {
-			// dom.ts would request the frame from the fake, which is what gets the queue stuck.
-			pendingAnimationFrameProbe = undefined;
+			if (pending && !pending.scheduledRan) {
+				if (!reportedStuck) {
+					reportedStuck = true;
+					findings.push('scheduleAtNextAnimationFrame runners stopped running before this suite started: a native frame ran but the runner scheduled at the end of the previous suite did not');
+				}
+			} else if (pending) {
+				reportedStuck = false;
+			}
+			if (host.hasFakeTimers()) {
+				// The queue would request its frame from the fake, which is what gets it stuck.
+				pending = undefined;
+				return findings;
+			}
+			const next: IAnimationFrameProbe = { scheduledRan: false, nativeRan: false };
+			host.scheduleAtNextAnimationFrame(() => next.scheduledRan = true);
+			host.requestNativeAnimationFrame(() => next.nativeRan = true);
+			pending = next;
 			return findings;
-		}
-		const next: IAnimationFrameProbe = { scheduledRan: false, nativeRan: false };
-		scheduleAtNextAnimationFrame(mainWindow, () => next.scheduledRan = true);
-		originalTimeGlobals.requestAnimationFrame.call(mainWindow, () => next.nativeRan = true);
-		pendingAnimationFrameProbe = next;
-		return findings;
-	},
-};
+		},
+	};
+}
+
+export const animationFrameQueueDetector = createAnimationFrameQueueDetector({
+	scheduleAtNextAnimationFrame: runner => scheduleAtNextAnimationFrame(mainWindow, runner),
+	requestNativeAnimationFrame: callback => originalTimeGlobals.requestAnimationFrame.call(mainWindow, callback),
+	hasFakeTimers: () => getReplacedTimeGlobals().length > 0,
+});
 
 export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftoverDomDetector, focusDetector, hoverDetector, fakeTimersDetector];
 
