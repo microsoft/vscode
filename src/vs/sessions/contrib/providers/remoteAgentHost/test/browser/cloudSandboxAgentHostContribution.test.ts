@@ -2375,73 +2375,179 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renewals catch up incrementally while periodic and reconnect scans remain authoritative', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
-		let sessions = [discoveredSession()];
+	interface IScan { readonly minute: number; readonly trigger: CloudSandboxDiscoveryTrigger | undefined; readonly incremental: boolean }
+
+	function recordScan(scans: IScan[], start: number, options: ICloudSandboxDiscoveryOptions | undefined): void {
+		scans.push({ minute: (Date.now() - start) / 60_000, trigger: options?.trigger, incremental: options?.incremental === true });
+	}
+
+	test('seamless renewals skip inventory scans while an unfocused window reconciles external changes at the full-scan deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const scans: IScan[] = [];
+		const kept = discoveredSession({ environmentId: 'env-2', taskId: 'task-2', sessionId: 'sess-2', name: 'Before rename' });
+		let sessions = [discoveredSession(), kept];
 		const harness = await createContribution(store, sessions, {
 			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
 			listSessions: async (_token, options) => {
-				requests.push(options);
-				return options?.incremental
-					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-					: { kind: 'complete', sessions };
+				recordScan(scans, start, options);
+				return options?.taskIds ? { kind: 'incremental', sessions: [], removedTaskIds: [] } : { kind: 'complete', sessions };
 			},
 		});
 		harness.setFocused(false);
-		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		sessions = [];
-		await timeout(8 * 60_000);
+		const deleted = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		const renamed = harness.contribution.stubProviders.get(cloudSandboxAddress('env-2'))!;
+		// Another client deletes one task, renames and archives another, and creates a third; their hints never arrive.
+		sessions = [{ ...kept, name: 'After rename', isArchived: true }, discoveredSession({ environmentId: 'env-3', taskId: 'task-3', sessionId: 'sess-3' })];
+		await timeout(7 * 60_000);
 		await harness.contribution.refreshFeed('renewal');
-		const retainedAfterRenewal = !provider.disposed;
-		await timeout(8 * 60_000);
+		await timeout(7 * 60_000);
 		await harness.contribution.refreshFeed('renewal');
-		const removedAfterPeriodicFullScan = provider.disposed;
+		// Targeted reads do not postpone the authoritative reconciliation.
+		await harness.contribution.refreshTasks(['unrelated']);
+		await timeout(60_000 - 1);
+		const beforeDeadline = { scans: scans.length, deleted: deleted.disposed, title: renamed.seeded[0].summary };
+		await timeout(1);
 		await harness.contribution.refreshFeed('reconnect');
-		assert.deepStrictEqual({ requests, retainedAfterRenewal, removedAfterPeriodicFullScan }, {
-			requests: [
-				{ incremental: false, trigger: 'startup' },
-				{ incremental: true, trigger: 'feedRenewal' },
-				{ incremental: false, trigger: 'feedRenewal' },
-				{ incremental: false, trigger: 'feedReconnect' },
+		await timeout(15 * 60_000 + 1);
+		assert.deepStrictEqual({
+			beforeDeadline, scans,
+			deleted: deleted.disposed,
+			renamed: { title: renamed.seeded[0].summary, archived: !!(renamed.seeded[0].status! & SessionStatus.IsArchived) },
+			created: harness.contribution.stubProviders.has(cloudSandboxAddress('env-3')),
+		}, {
+			beforeDeadline: { scans: 2, deleted: false, title: 'Before rename' },
+			scans: [
+				{ minute: 0, trigger: 'startup', incremental: false },
+				{ minute: 14, trigger: 'feedChange', incremental: true },
+				{ minute: 15, trigger: 'reconciliation', incremental: false },
+				{ minute: 15, trigger: 'feedReconnect', incremental: false },
+				{ minute: 30, trigger: 'reconciliation', incremental: false },
 			],
-			retainedAfterRenewal: true,
-			removedAfterPeriodicFullScan: true,
+			deleted: true,
+			renamed: { title: 'After rename', archived: true },
+			created: true,
 		});
 	}));
 
+	test('an empty account on a healthy feed publishes its first task from a hint and keeps the reconciliation deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const scans: IScan[] = [];
+		const found = discoveredSession();
+		const harness = await createContribution(store, [], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				recordScan(scans, start, options);
+				return options?.taskIds
+					? { kind: 'incremental', sessions: [found], removedTaskIds: [] }
+					: { kind: 'complete', sessions: scans.length > 2 ? [found] : [] };
+			},
+		});
+		// Windows spread their reconciliation up to a minute early, never late.
+		harness.contribution.pollJitter = 30_000;
+		await timeout(3 * 60_000);
+		await harness.contribution.refreshTasks([found.taskId]);
+		const published = harness.contribution.stubProviders.has(cloudSandboxAddress(found.environmentId));
+		await timeout(27 * 60_000);
+		assert.deepStrictEqual({ published, scans }, {
+			published: true,
+			scans: [
+				{ minute: 0, trigger: 'startup', incremental: false },
+				{ minute: 3, trigger: 'feedChange', incremental: true },
+				{ minute: 15, trigger: 'reconciliation', incremental: false },
+				{ minute: 29.5, trigger: 'reconciliation', incremental: false },
+			],
+		});
+	}));
+
+	for (const failure of ['failed', 'partial'] as const) {
+		test(`a ${failure} reconciliation establishes no freshness and retries on the discovery backoff, renewals and task hints included`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const start = Date.now();
+			const scans: IScan[] = [];
+			const harness = await createContribution(store, [discoveredSession()], {
+				sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+				listSessions: async (_token, options) => {
+					if (options?.taskIds) {
+						return { kind: 'incremental', sessions: [], removedTaskIds: [] };
+					}
+					recordScan(scans, start, options);
+					if (scans.length === 2 || scans.length === 3) {
+						return failure === 'failed' ? { kind: 'failed', reason: 'unavailable' } : { kind: 'partial', sessions: [discoveredSession()] };
+					}
+					return { kind: 'complete', sessions: [discoveredSession()] };
+				},
+			});
+			for (let minute = 7; minute <= 56; minute += 7) {
+				await timeout(7 * 60_000);
+				// A successful task read between failed reconciliations must not reset their backoff.
+				await harness.contribution.refreshTasks(['hinted']);
+				await harness.contribution.refreshFeed('renewal');
+			}
+			assert.deepStrictEqual(scans.map(scan => [scan.minute, scan.trigger]), [
+				[0, 'startup'],
+				[15, 'reconciliation'],
+				// Backoff doubles from the five-minute base to its fifteen-minute ceiling.
+				[25, 'reconciliation'],
+				[40, 'reconciliation'],
+				[55, 'reconciliation'],
+			]);
+		}));
+	}
+
+	test('an account change restarts the reconciliation deadline and disabling discovery stops it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const scans: IScan[] = [];
+		const harness = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				recordScan(scans, start, options);
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		await timeout(10 * 60_000);
+		harness.changeAccount('second-account');
+		await timeout(15 * 60_000 + 1);
+		await harness.setEnabled(false);
+		await timeout(30 * 60_000);
+		assert.deepStrictEqual(scans.map(scan => [scan.minute, scan.trigger]), [
+			[0, 'startup'],
+			[10, 'accountChange'],
+			[25, 'reconciliation'],
+		]);
+	}));
+
 	for (const manual of [false, true]) {
-		test(`coalesced renewals preserve incremental intent unless a manual full scan is queued (manual=${manual})`, async () => {
+		test(`renewals during an incremental scan add no scans and preserve a queued manual full scan (manual=${manual})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 			const entered = new DeferredPromise<void>();
-			let hold = false;
 			const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
-			const harness = await createContribution(store, [], {
+			let connected = false;
+			const harness = await createContribution(store, [discoveredSession()], {
+				sessionFeed: { get connected() { return connected; }, start: async () => { }, dispose: () => { } },
 				listSessions: async (_token, options) => {
 					requests.push(options);
-					if (hold) {
+					if (options?.incremental) {
 						await entered.complete();
 						return pending.p;
 					}
-					return options?.incremental
-						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-						: { kind: 'complete', sessions: [] };
+					return { kind: 'complete', sessions: [discoveredSession()] };
 				},
 			});
-			hold = true;
-			const first = harness.contribution.refreshFeed('renewal');
+			// A disconnected-feed poll starts the incremental scan; the feed then connects and renews during it.
+			harness.contribution.pollJitter = 60_000;
+			await timeout(5 * 60_000);
+			const poll = harness.contribution.checkForUpdates();
 			await entered.p;
-			const queued = harness.contribution.refreshFeed('renewal');
-			const queuedAgain = harness.contribution.refreshFeed('renewal');
+			connected = true;
+			const renewals = [harness.contribution.refreshFeed('renewal'), harness.contribution.refreshFeed('renewal')];
 			const full = manual ? harness.runDiscovery() : Promise.resolve();
-			hold = false;
 			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
-			await Promise.all([first, queued, queuedAgain, full]);
+			await Promise.all([poll, ...renewals, full]);
 			assert.deepStrictEqual(requests, [
 				{ incremental: false, trigger: 'startup' },
-				{ incremental: true, trigger: 'feedRenewal' },
-				{ incremental: !manual, trigger: manual ? 'manual' : 'feedRenewal' },
+				{ incremental: true, trigger: 'poll' },
+				...manual ? [{ incremental: false, trigger: 'manual' }] : [],
 			]);
-		});
+		}));
 	}
 
 	for (const failure of ['invalidated', 'partial', 'persistent'] as const) {

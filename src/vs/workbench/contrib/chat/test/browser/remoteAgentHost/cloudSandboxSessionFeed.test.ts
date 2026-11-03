@@ -60,6 +60,8 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly socketError?: boolean;
 	readonly onInvalidate?: () => void;
 	readonly disconnectAfterMs?: number;
+	/** Wall clock, which unlike timers keeps advancing while the machine sleeps. */
+	readonly now?: () => number;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const sockets: TestSocket[] = [];
@@ -105,7 +107,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 			store.add(disposableTimeout(() => socket.disconnect(), options.disconnectAfterMs));
 		}
 		return socket;
-	}, () => StopWatch.create(false)));
+	}, () => StopWatch.create(false), options?.now));
 	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs, telemetry };
 }
 
@@ -201,7 +203,7 @@ suite('CloudSandboxSessionFeed', () => {
 		}));
 	}
 
-	test('overlapping renewal requests incremental inventory catch-up rather than an empty targeted refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('overlapping renewal reports a seamless renewal rather than an empty targeted refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store, { autoReady: false });
 		const initial = h.feed.start();
 		await timeout(0);
@@ -238,6 +240,20 @@ suite('CloudSandboxSessionFeed', () => {
 		await timeout(501);
 		assert.deepStrictEqual({ reasons: h.reasons, connected: h.feed.connected }, {
 			reasons: ['reconnect'], connected: true,
+		});
+	}));
+
+	test('a renewal that fires long after it was due reports a connection gap', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let slept = 0;
+		const h = createFeed(store, { now: () => Date.now() + slept });
+		await h.feed.start();
+		await timeout(8 * 60_000 - 1);
+		// Timers stopped while the machine slept; the wall clock did not.
+		slept = 20 * 60_000;
+		await timeout(501);
+		await timeout(8 * 60_000 + 501);
+		assert.deepStrictEqual({ reasons: h.reasons, telemetry: h.telemetry.map(event => event.outcome), connected: h.feed.connected }, {
+			reasons: ['reconnect', 'renewal'], telemetry: ['connected', 'connected'], connected: true,
 		});
 	}));
 

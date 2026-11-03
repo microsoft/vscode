@@ -69,6 +69,7 @@ const DISCOVERY_POLL_INTERVAL_MS = 5 * 60_000;
 const DISCOVERY_POLL_JITTER_MS = 60_000;
 const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
 const MAX_DISCOVERY_RETRY_INTERVAL_MS = 15 * 60_000;
+const MIN_RECONCILIATION_SPACING_MS = 60_000;
 const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 
 interface ICloudSandboxDiscoveryRequest extends ICloudSandboxDiscoveryOptions {
@@ -198,12 +199,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _discoveryIncremental = false;
 	private _lastDiscoveryAttempt: number | undefined;
 	private _lastFullDiscovery: number | undefined;
+	/** How far before the full-scan interval this window's next connected-feed reconciliation runs, so windows do not reconcile in lockstep. */
+	private _reconciliationLead = 0;
 	private _discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 	private _accountKey: string | undefined;
 	private readonly _deletedTaskIds = new Set<string>();
 	private readonly _sessionFeed = this._register(new MutableDisposable<CloudSandboxSessionFeed>());
 	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
-		void this._refreshIfStale();
+		// With a connected feed the timer only enforces the authoritative reconciliation, focused or not.
+		void (this._sessionFeed.value?.connected ? this._reconcileIfDue() : this._refreshIfStale());
 		this._discoveryPoll.schedule(this._nextPollDelay());
 	}, DISCOVERY_POLL_INTERVAL_MS));
 
@@ -330,7 +334,32 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _nextPollDelay(): number {
 		const interval = this._pollInterval();
 		const due = this._lastDiscoveryAttempt === undefined ? 0 : this._lastDiscoveryAttempt + interval - Date.now();
-		return (due > 0 ? due : interval) + this._pollJitter();
+		const pollDelay = (due > 0 ? due : interval) + this._pollJitter();
+		const reconciliationDelay = this._reconciliationDelay();
+		return reconciliationDelay === undefined ? pollDelay : Math.min(pollDelay, Math.max(0, reconciliationDelay));
+	}
+
+	/**
+	 * Time until a connected feed's authoritative full reconciliation is due, or undefined without one.
+	 * Hints cannot report everything (a missed hint, a task that became inaccessible), so a full scan
+	 * runs within the full-scan interval of the last complete one. Failed and partial scans keep their
+	 * backoff, and any pass spaces the next so an overdue reconciliation cannot retry in a tight loop.
+	 */
+	private _reconciliationDelay(): number | undefined {
+		// A pass in flight re-arms the poll when it settles.
+		if (!this._sessionFeed.value?.connected || this._discoveryInFlight) {
+			return undefined;
+		}
+		const now = Date.now();
+		const due = this._lastFullDiscovery === undefined ? now : this._lastFullDiscovery + FULL_DISCOVERY_INTERVAL_MS - this._reconciliationLead;
+		const spacing = this._discoveryRetryInterval > DISCOVERY_POLL_INTERVAL_MS ? this._discoveryRetryInterval : MIN_RECONCILIATION_SPACING_MS;
+		const earliest = this._lastDiscoveryAttempt === undefined ? now : this._lastDiscoveryAttempt + spacing;
+		return Math.max(due, earliest) - now;
+	}
+
+	private _reconcileIfDue(): Promise<void> {
+		const delay = this._reconciliationDelay();
+		return delay !== undefined && delay <= 0 ? this._discoverAndSeed({ trigger: 'reconciliation' }) : Promise.resolve();
 	}
 
 	protected _pollJitter(): number {
@@ -388,11 +417,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (refresh.reason === 'change') {
 			return this._refreshTasks(refresh.taskIds);
 		}
-		return this._discoverAndSeed({
-			incremental: refresh.reason === 'renewal',
-			retry: true,
-			trigger: refresh.reason === 'renewal' ? 'feedRenewal' : 'feedReconnect',
-		});
+		// A seamless renewal overlaps the old socket, so no hint was missed; it only runs a reconciliation that is already due.
+		if (refresh.reason === 'renewal') {
+			return this._reconcileIfDue();
+		}
+		return this._discoverAndSeed({ retry: true, trigger: 'feedReconnect' });
 	}
 
 	private _refreshTasks(taskIds: readonly string[]): Promise<void> {
@@ -449,7 +478,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			}
 			if (this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true && !this._sessionFeed.value) {
 				const feed = this._sessionFeed.value = this._instantiationService.createInstance(CloudSandboxSessionFeed,
-					refresh => void this._refreshFromFeed(refresh), undefined, undefined);
+					refresh => void this._refreshFromFeed(refresh), undefined, undefined, undefined);
 				await feed.start();
 			}
 			if (token.isCancellationRequested || !this._isEnabled()) {
@@ -483,15 +512,19 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (token.isCancellationRequested || !this._isEnabled()) {
 			return;
 		}
-		this._discoveryRetryInterval = result.kind === 'failed' || result.kind === 'partial'
-			? Math.min(this._discoveryRetryInterval * 2, MAX_DISCOVERY_RETRY_INTERVAL_MS)
-			: DISCOVERY_POLL_INTERVAL_MS;
+		// Targeted feed reads are not inventory passes, so they neither reset nor extend its backoff.
+		if (!taskIds) {
+			this._discoveryRetryInterval = result.kind === 'failed' || result.kind === 'partial'
+				? Math.min(this._discoveryRetryInterval * 2, MAX_DISCOVERY_RETRY_INTERVAL_MS)
+				: DISCOVERY_POLL_INTERVAL_MS;
+		}
 		if (result.kind === 'failed') {
 			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
 			return;
 		}
 		if (result.kind === 'complete') {
 			this._lastFullDiscovery = Date.now();
+			this._reconciliationLead = this._pollJitter();
 		}
 
 		const present = new Set<string>();

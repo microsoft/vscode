@@ -22,6 +22,8 @@ const reconnectPolicy = { initialDelayMs: 1_000, maxDelayMs: maxBackoffMs, jitte
 /** Failed negotiations and handshakes start far slower: the service is the likely cause, and discovery polling covers the gap. */
 const retryPolicy = { initialDelayMs: 60_000, maxDelayMs: maxBackoffMs, jitter: true };
 const healthyConnectionMs = 60_000;
+/** Timers do not run while the machine sleeps, so a renewal this late may follow a gap in the old socket's delivery. */
+const lateRenewalMs = 60_000;
 
 type SessionFeedSocket = Pick<WebSocket, 'onmessage' | 'onerror' | 'onclose' | 'close'>;
 
@@ -29,11 +31,17 @@ export type CloudSandboxSessionFeedRefresh =
 	| { readonly reason: 'change'; readonly taskIds: readonly string[] }
 	| { readonly reason: 'renewal' | 'reconnect' };
 
-/** Account-scoped task invalidations, independent of the AHP relay. Seamless renewal catches up incrementally; connection gaps require full reconciliation. */
+/** Account-scoped task invalidations, independent of the AHP relay. A seamless renewal overlaps the old socket; connection gaps, including late renewals, require full reconciliation. */
 export class CloudSandboxSessionFeed extends Disposable {
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _reconnect = this._register(new RunOnceScheduler(() => void this._connect(true), reconnectPolicy.initialDelayMs));
+	private readonly _reconnect = this._register(new RunOnceScheduler(() => {
+		const late = this._renewalDue !== undefined && this._now() - this._renewalDue > lateRenewalMs;
+		this._renewalDue = undefined;
+		void this._connect(true, late);
+	}, reconnectPolicy.initialDelayMs));
+	/** Wall-clock time the scheduled renewal of a healthy connection is due; undefined for failure retries. */
+	private _renewalDue: number | undefined;
 	private readonly _refresh = this._register(new RunOnceScheduler(() => {
 		const reason = this._refreshReason;
 		const taskIds = [...this._taskIds];
@@ -61,6 +69,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 		private readonly _onInvalidate: (refresh: CloudSandboxSessionFeedRefresh) => void,
 		private readonly _webSocketFactory: (url: string, protocol: string) => SessionFeedSocket = (url, protocol) => new WebSocket(url, protocol),
 		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(),
+		private readonly _now: () => number = Date.now,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
 		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
@@ -85,11 +94,11 @@ export class CloudSandboxSessionFeed extends Disposable {
 		}
 	}
 
-	private _connect(refresh: boolean): Promise<void> {
-		return this._connecting ??= this._doConnect(refresh).finally(() => this._connecting = undefined);
+	private _connect(refresh: boolean, gap = false): Promise<void> {
+		return this._connecting ??= this._doConnect(refresh, gap).finally(() => this._connecting = undefined);
 	}
 
-	private async _doConnect(refresh: boolean): Promise<void> {
+	private async _doConnect(refresh: boolean, gap: boolean): Promise<void> {
 		const previousConnection = this._active.value;
 		const store = this._pending.value = new DisposableStore();
 		const cancellation = new CancellationTokenSource();
@@ -155,6 +164,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 					if (reconnect) {
 						const delay = computeReconnectDelay(reconnectPolicy, ++this._consecutiveFailures);
 						this._logService.debug(`${LOG_PREFIX} Disconnected; reconnecting in ${delay}ms with discovery polling retained.`);
+						this._renewalDue = undefined;
 						this._reconnect.schedule(delay);
 						this._report('disconnected', delay);
 					} else {
@@ -173,13 +183,14 @@ export class CloudSandboxSessionFeed extends Disposable {
 			if (closed) {
 				throw new Error('Session feed disconnected during setup');
 			}
-			const continuous = previousConnection !== undefined && this._active.value === previousConnection;
+			const continuous = !gap && previousConnection !== undefined && this._active.value === previousConnection;
 			store.add(disposableTimeout(() => this._consecutiveFailures = 0, healthyConnectionMs));
 			this._active.value = this._pending.clearAndLeak();
-			const reconnectDelay = connection.reconnect_in !== undefined
+			const reconnectDelay = Math.max(1_000, connection.reconnect_in !== undefined
 				? connection.reconnect_in - connectionTime.elapsed()
-				: Date.parse(connection.reconnect_after) - Date.now();
-			this._reconnect.schedule(Math.max(1_000, reconnectDelay));
+				: Date.parse(connection.reconnect_after) - Date.now());
+			this._renewalDue = this._now() + reconnectDelay;
+			this._reconnect.schedule(reconnectDelay);
 			this._logService.debug(`${LOG_PREFIX} Connected to task status feed.`);
 			if (!continuous) {
 				this._report('connected');
@@ -195,6 +206,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 				const delay = Math.max(computeReconnectDelay(retryPolicy, ++this._consecutiveFailures), retryAfterMs);
 				// Socket errors may contain the token-bearing URL.
 				this._logService.debug(`${LOG_PREFIX} Connection failed${statusCode !== undefined ? ` (HTTP ${statusCode})` : ''}; retrying in ${delay}ms with discovery polling retained.`);
+				this._renewalDue = undefined;
 				this._reconnect.schedule(delay);
 				this._report(negotiated ? 'socketFailed' : 'negotiationFailed', delay, statusCode);
 			}
