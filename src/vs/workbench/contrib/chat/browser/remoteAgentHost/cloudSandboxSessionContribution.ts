@@ -309,8 +309,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			await (this._discoveryQueued ?? this._discoveryInFlight);
 			return;
 		}
-		// A connected feed pushes task changes; renewals and reconnects catch up the inventory.
-		if (trigger === 'poll' && this._sessionFeed.value?.connected) {
+		// A connected feed supplies updates; explicit refreshes and feed catch-up use discovery directly.
+		if (this._sessionFeed.value?.connected) {
 			return;
 		}
 		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._pollInterval())) {
