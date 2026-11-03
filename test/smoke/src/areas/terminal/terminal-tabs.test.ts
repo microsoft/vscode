@@ -124,10 +124,14 @@ export function setup(options?: { skipSuite: boolean }) {
 				await terminal.createTerminal();
 				const script = [
 					'let i = 0;',
+					'let timer;',
 					'const tick = () => process.stdout.write(String.fromCharCode(27) + \']0;working-\' + (++i) + String.fromCharCode(7) + \'tick-\' + i + String.fromCharCode(13, 10));',
 					'tick();',
 					'process.stdin.setRawMode(true);',
-					'process.stdin.once(\'data\', () => setInterval(tick, 50));'
+					'process.stdin.on(\'data\', data => {',
+					'if (data.toString() === \'r\') { timer = setInterval(tick, 50); }',
+					'if (data.toString() === \'s\') { clearInterval(timer); process.stdout.write(\'stopped-\' + i + String.fromCharCode(13, 10)); }',
+					'});'
 				].join(' ');
 				await terminal.runCommandInTerminal(`node -e "${script}"`);
 				await terminal.createTerminal();
@@ -147,6 +151,24 @@ export function setup(options?: { skipSuite: boolean }) {
 					const match = /^tick-(\d+)$/.exec(line);
 					return !!match && Number(match[1]) >= minimumTick;
 				}));
+			}
+
+			async function stopTitleUpdates(): Promise<string> {
+				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 's');
+				let title = '';
+				await terminal.waitForTerminalText(buffer => buffer.some(line => {
+					const match = /^stopped-(?<tick>\d+)$/.exec(line);
+					if (!match) {
+						return false;
+					}
+					title = `working-${match.groups!.tick}`;
+					return true;
+				}));
+				const page = await terminal.getPage();
+				await page.waitForFunction(({ selector, title }) =>
+					document.querySelector(selector)?.getAttribute('aria-label')?.match(/working-\d+/)?.[0] === title,
+					{ selector: rowSelector, title });
+				return title;
 			}
 
 			async function pressAction(icon: string): Promise<void> {
@@ -216,8 +238,8 @@ export function setup(options?: { skipSuite: boolean }) {
 				assert.deepStrictEqual((await terminal.getTerminalGroups()).map(group => group.length), [1, 1]);
 			});
 
-			for (const key of ['Enter', 'Escape']) {
-				it(`should preserve rename input during title updates until ${key}`, async () => {
+			for (const finish of ['Enter', 'Escape', 'blur']) {
+				it(`should update the label on rename ${finish} after title updates stop`, async () => {
 					const page = await terminal.getPage();
 					await page.locator(rowSelector).click({ button: 'right' });
 					// Menu mouse-up handlers activate after 100ms to prevent accidental clicks.
@@ -226,14 +248,22 @@ export function setup(options?: { skipSuite: boolean }) {
 					await input.fill('renamed');
 					await startTitleUpdates();
 					await waitForTitleUpdates();
+					const lastTitle = await stopTitleUpdates();
 					assert.deepStrictEqual(await page.evaluate((selector: string) => {
 						const element = document.querySelector<HTMLInputElement>(selector);
 						return element ? { value: element.value, focused: document.activeElement === element } : undefined;
 					}, `${rowSelector} .monaco-inputbox input`), { value: 'renamed', focused: true });
-					await page.keyboard.press(key);
-					await page.waitForFunction(({ selector, pattern }: { selector: string; pattern: string }) =>
-						new RegExp(pattern).test(document.querySelector(`${selector} .label-name`)?.textContent?.trim() ?? ''),
-						{ selector: rowSelector, pattern: key === 'Enter' ? '^renamed$' : '^working-\\d+$' });
+					if (finish === 'blur') {
+						await input.evaluate(element => element.blur());
+					} else {
+						await page.keyboard.press(finish);
+					}
+					await page.waitForFunction(({ selector, title }) => {
+						const row = document.querySelector(selector);
+						return !row?.querySelector('.monaco-inputbox input') &&
+							row?.querySelector('.label-name')?.textContent?.trim() === title &&
+							row?.getAttribute('aria-label')?.includes(title);
+					}, { selector: rowSelector, title: finish === 'Escape' ? lastTitle : 'renamed' });
 					assert.strictEqual((await terminal.getTerminalGroups())[1][0].name?.trim(), 'neighbor');
 				});
 			}
