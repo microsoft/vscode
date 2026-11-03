@@ -256,8 +256,10 @@ export class CanvasView extends Disposable {
 		if (canvas === undefined || canvas.source === undefined) {
 			return;
 		}
-		// The page of this canvas stays presented while its new source loads into it in place.
-		if (!this._presents(input)) {
+		// The page of this canvas stays presented while its new source loads into it in place, but no longer counts as showing its last source.
+		if (this._presents(input)) {
+			this.loadedKey = undefined;
+		} else {
 			this._detach(localize('canvas.loading', "Loading canvas…"));
 		}
 		const sequence = ++this.loadSequence;
