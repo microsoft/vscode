@@ -361,9 +361,10 @@ export function getInlineRequestAttachments(parts: readonly IParsedChatRequestPa
  * file or folder, or the link of a GitHub issue or pull request. A Markdown
  * link that reads as an attachment's name mentions the attachment wherever the
  * link goes, since history may keep an attachment elsewhere than the prompt
- * said, as an agent host keeps its own copy of an image. Mentions of
- * attachments that share a name are bound to them in order, except that a link
- * is bound to the attachment that it links to.
+ * said, as an agent host keeps its own copy of an image. A link is bound to the
+ * attachment that it links to however often it is mentioned, and links to a
+ * location that attachments share are bound to them in order. Other mentions of
+ * attachments that share a name are bound to the ones that remain, in order.
  */
 export function recoverAttachmentMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
 	const referencedIds = new Set<string>();
@@ -405,18 +406,13 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 
 	const isWordCharacter = (character: string) => /[\p{L}\p{N}_-]/u.test(character);
 	const codeRanges = getMarkdownCodeRanges(message.text);
-	const positions = new PositionOffsetTransformer(message.text);
-	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
-	const occurrences = new Map<string, number>();
-	const parts: IParsedChatRequestPart[] = [];
+	const matchesByPart = new Map<IParsedChatRequestPart, IAttachmentMentionMatch[]>();
 	for (const part of message.parts) {
 		if (!(part instanceof ChatRequestTextPart)) {
-			parts.push(part);
 			continue;
 		}
 
-		// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
-		const matches: { start: number; end: number; mention: string }[] = [];
+		const matches: IAttachmentMentionMatch[] = [];
 		for (const mention of byMention.keys()) {
 			for (let start = message.text.indexOf(mention, part.range.start); start !== -1 && start + mention.length <= part.range.endExclusive; start = message.text.indexOf(mention, start + 1)) {
 				let end = start + mention.length;
@@ -441,32 +437,74 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 				}
 			}
 		}
+		// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
 		matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
-
-		let copiedUntil = part.range.start;
-		for (const { start, end, mention } of matches) {
-			if (start < copiedUntil) {
-				continue;
+		let matchedUntil = part.range.start;
+		matchesByPart.set(part, matches.filter(match => {
+			if (match.start < matchedUntil) {
+				return false;
 			}
-			const text = message.text.slice(start, end);
-			const candidates = byMention.get(mention)!;
-			const occurrence = occurrences.get(mention) ?? 0;
-			occurrences.set(mention, occurrence + 1);
-			const variable = (markdownLinks.has(mention) ? candidates.find(candidate => getAttachmentPromptText(candidate) === text) : undefined)
-				?? candidates[Math.min(occurrence, candidates.length - 1)];
+			matchedUntil = match.end;
+			return true;
+		}));
+	}
+
+	// Links claim the attachments they link to before the other mentions take the attachments that remain.
+	const matches = [...matchesByPart.values()].flat();
+	const bound = new Map<IAttachmentMentionMatch, IChatRequestVariableEntry>();
+	const claimed = new Set<IChatRequestVariableEntry>();
+	const bind = (match: IAttachmentMentionMatch, candidates: readonly IChatRequestVariableEntry[]) => {
+		const variable = candidates.find(candidate => !claimed.has(candidate)) ?? candidates[candidates.length - 1];
+		claimed.add(variable);
+		bound.set(match, variable);
+	};
+	for (const match of matches) {
+		if (markdownLinks.has(match.mention)) {
+			const text = message.text.slice(match.start, match.end);
+			const linked = byMention.get(match.mention)!.filter(candidate => getAttachmentPromptText(candidate) === text);
+			if (linked.length) {
+				bind(match, linked);
+			}
+		}
+	}
+	for (const match of matches) {
+		if (!bound.has(match)) {
+			bind(match, byMention.get(match.mention)!);
+		}
+	}
+
+	const positions = new PositionOffsetTransformer(message.text);
+	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
+	const parts: IParsedChatRequestPart[] = [];
+	for (const part of message.parts) {
+		const partMatches = matchesByPart.get(part);
+		if (!partMatches?.length) {
+			parts.push(part);
+			continue;
+		}
+		let copiedUntil = part.range.start;
+		for (const match of partMatches) {
+			const { start, end } = match;
+			const variable = bound.get(match)!;
 			if (start > copiedUntil) {
 				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, start), toRange(copiedUntil, start), message.text.slice(copiedUntil, start)));
 			}
-			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(start, end), toRange(start, end), text, variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
+			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(start, end), toRange(start, end), message.text.slice(start, end), variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
 			copiedUntil = end;
 		}
-		if (copiedUntil === part.range.start) {
-			parts.push(part);
-		} else if (copiedUntil < part.range.endExclusive) {
+		if (copiedUntil < part.range.endExclusive) {
 			parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, part.range.endExclusive), toRange(copiedUntil, part.range.endExclusive), message.text.slice(copiedUntil, part.range.endExclusive)));
 		}
 	}
 	return { text: message.text, parts };
+}
+
+/** Where in the text of a request a mention of an attachment is, see {@link recoverAttachmentMentions}. */
+interface IAttachmentMentionMatch {
+	readonly start: number;
+	readonly end: number;
+	/** The text by which the mention was found, such as `#attachment:index.ts` or `[index.ts](`. */
+	readonly mention: string;
 }
 
 /**

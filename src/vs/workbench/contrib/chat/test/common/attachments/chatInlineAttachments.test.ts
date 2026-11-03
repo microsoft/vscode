@@ -265,16 +265,28 @@ suite('Chat inline attachments', () => {
 		});
 	});
 
-	test('binds a link to the attachment it links to before the others of its name', () => {
-		const text = 'compare [shot.png](file:///b/shot.png) with [shot.png](file:///a/shot.png)';
-		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
-		const variables: IChatRequestVariableEntry[] = [
-			{ kind: 'image', id: 'a', name: 'shot.png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file('/a/shot.png') }] },
-			{ kind: 'image', id: 'b', name: 'shot.png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file('/b/shot.png') }] },
-		];
-		assert.deepStrictEqual(recoverAttachmentMentions(message, variables).parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text), [
-			'compare ', '[b]', ' with ', '[a]',
-		]);
+	test('binds a link to the attachment it links to, and other mentions to the remaining attachments of their name in order', () => {
+		const image = (id: string, location: string): IChatRequestVariableEntry => ({ kind: 'image', id, name: 'shot.png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file(location) }] });
+		const bind = (variables: IChatRequestVariableEntry[], ...locations: string[]) => {
+			const text = locations.map(location => `[shot.png](${URI.file(location).toString()})`).join(' and ');
+			const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+			return recoverAttachmentMentions(message, variables).parts.flatMap(part => part instanceof ChatRequestDynamicVariablePart ? [part.id] : []);
+		};
+		const distinct = [image('a', '/a/shot.png'), image('b', '/b/shot.png')];
+		const identical = [image('a', '/same/shot.png'), image('b', '/same/shot.png')];
+		assert.deepStrictEqual({
+			exact: bind(distinct, '/b/shot.png', '/a/shot.png'),
+			exactThenRelocated: bind(distinct, '/b/shot.png', '/old/shot.png'),
+			relocatedThenExact: bind(distinct, '/old/shot.png', '/a/shot.png'),
+			repeatedExact: bind(distinct, '/a/shot.png', '/a/shot.png', '/old/shot.png'),
+			identicalLocations: bind(identical, '/same/shot.png', '/same/shot.png'),
+		}, {
+			exact: ['b', 'a'],
+			exactThenRelocated: ['b', 'a'],
+			relocatedThenExact: ['b', 'a'],
+			repeatedExact: ['a', 'a', 'b'],
+			identicalLocations: ['a', 'b'],
+		});
 	});
 
 	test('opens pills only when activating them does something', () => {
