@@ -191,6 +191,11 @@
 	font-size: 16px;
 }
 
+.action-widget .monaco-list-row.action .action-list-label-icon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+	flex: 0 0 var(--vscode-codiconFontSize, 16px);
+}
+
 /* Compact icon modifier: render the leading row codicon at the compact size */
 .action-widget .actionList.compact-icons .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
@@ -240,6 +245,19 @@
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) .detail {
 	color: inherit;
 	opacity: 1;
+}
+
+.action-widget .actionList.wrap-details .monaco-list-row.action.has-detail {
+	padding-top: var(--vscode-spacing-size80);
+	padding-bottom: var(--vscode-spacing-size80);
+	row-gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+}
+
+.action-widget .actionList.wrap-details .monaco-list-row.action .detail {
+	white-space: normal;
+	overflow-wrap: anywhere;
+	box-sizing: border-box;
 }
 
 /* Floating keeps the link visible, since truncation shortens the text beside it. */

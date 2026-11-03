@@ -28,11 +28,11 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/br
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
-import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
+import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
@@ -46,9 +46,10 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { IExternalUriOpenContext } from '../../../../../platform/opener/common/opener.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -591,13 +592,22 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
+ * Offers the Integrated Browser as an external URI opener for http(s) links. It is preferred for
+ * localhost URLs and all-interfaces URLs when the setting is enabled.
  */
-export class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
+export class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpenerProvider {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+	static readonly OPENER_ID = 'workbench.integratedBrowser';
+
+	private readonly _opener: IExternalUriOpener = {
+		id: LocalhostLinkOpenerContribution.OPENER_ID,
+		label: localize('browser.externalUriOpener', "Open in Integrated Browser"),
+		canOpen: async uri => this.opensByDefault(uri) ? ExternalUriOpenerPriority.Preferred : ExternalUriOpenerPriority.Option,
+		openExternalUri: (href, ctx) => this.open(href, ctx),
+	};
 
 	constructor(
-		@IOpenerService openerService: IOpenerService,
+		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -605,36 +615,39 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 	) {
 		super();
 
-		this._register(openerService.registerExternalOpener(this));
+		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, _token: CancellationToken): Promise<boolean> {
+	async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
+		if (matchesSomeScheme(targetUri, Schemas.http, Schemas.https)) {
+			yield this._opener;
+		}
+	}
+
+	private opensByDefault(uri: URI): boolean {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
 		}
 
-		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
-		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
-			href = ctx.sourceUri.toString();
-		}
-
 		try {
-			const parsed = new URL(href);
-			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-				return false;
-			}
-			if (!isLocalhostAuthority(parsed.host) && !isAllInterfacesAuthority(parsed.host)) {
-				return false;
-			}
+			const { host } = new URL(uri.toString(true));
+			return isLocalhostAuthority(host) || isAllInterfacesAuthority(host);
 		} catch {
 			return false;
+		}
+	}
+
+	private async open(href: string, ctx: IExternalUriOpenContext): Promise<boolean> {
+		// Remote browsers need the original URL, not the forwarded address or a re-encoded URI.
+		if (this.browserViewWorkbenchService.resolveNetwork({ type: 'user' })) {
+			href = ctx.sourceHref;
 		}
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
 		// Check whether the setting was explicitly set by the user or is still at its default value.
 		// When it is a default, tag the viewState so that the hint pill can be shown.
-		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
+		const isDefaultLinkOpen = this.opensByDefault(ctx.sourceUri) && !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup(ctx.viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined));

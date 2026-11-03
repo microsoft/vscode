@@ -9,7 +9,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { resolveSymbolToolFileUri, findLineNumber, findSymbolColumn, errorResult, getChatPermissionLevelForToolInvocation, getSandboxPrecheckInputsForToolInvocation } from '../../../browser/tools/toolHelpers.js';
 import type { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
@@ -18,14 +17,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 
 suite('Tool Helpers', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const uriIdentityService = { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService;
-
-	teardown(() => {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createMockWorkspaceService(folderUris: URI | readonly URI[] = URI.parse('file:///workspace')): IWorkspaceContextService {
 		const uris = URI.isUri(folderUris) ? [folderUris] : folderUris;

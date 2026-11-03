@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! copilot [--vscode-shim <clear|verbose>]... [--] [copilot arguments...]
-//! copilot [--vscode-shim verbose]... --vscode-shim <probe|install> [command options...]
+//! copilot [--vscode-shim verbose]... --vscode-shim <probe|install|policy> [command options...]
 //! ```
 //!
 //! Modifiers are removed and the remaining arguments are forwarded to the Copilot CLI. Commands run and exit without
@@ -36,6 +36,8 @@ pub(crate) enum Invocation {
 	},
 	Probe(ProbeOptions),
 	Install(InstallOptions),
+	/// Reports the `CopilotCliCommand` policy through the exit code, for package install scripts.
+	Policy,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -164,11 +166,12 @@ fn parse_invocation(
 				*verbose = true;
 				index += 2;
 			}
-			Some("probe" | "install") if clear => {
+			Some("probe" | "install" | "policy") if clear => {
 				return Err(InvocationError::CommandAfterClear(name.clone()));
 			}
 			Some("probe") => return parse_probe(&arguments[index + 2..]),
 			Some("install") => return parse_install(&arguments[index + 2..]),
+			Some("policy") => return parse_policy(&arguments[index + 2..]),
 			_ => return Err(InvocationError::UnknownOption(name.clone())),
 		}
 	}
@@ -251,6 +254,16 @@ fn parse_probe(options: &[OsString]) -> Result<Invocation, InvocationError> {
 			option: "--result-file",
 		})?,
 	}))
+}
+
+fn parse_policy(options: &[OsString]) -> Result<Invocation, InvocationError> {
+	match options.first() {
+		Some(option) => Err(InvocationError::UnknownCommandOption {
+			command: "policy",
+			option: option.clone(),
+		}),
+		None => Ok(Invocation::Policy),
+	}
 }
 
 fn parse_install(options: &[OsString]) -> Result<Invocation, InvocationError> {
@@ -443,6 +456,12 @@ mod tests {
 					"install",
 					"--interactive"
 				])),
+				parse(arguments(&[
+					"--vscode-shim",
+					"verbose",
+					"--vscode-shim",
+					"policy"
+				])),
 			],
 			[
 				parsed(
@@ -471,6 +490,7 @@ mod tests {
 						mode: InstallMode::Interactive,
 					}))
 				),
+				parsed(true, Ok(Invocation::Policy)),
 			]
 		);
 	}
@@ -521,6 +541,18 @@ mod tests {
 					"x"
 				])),
 				parse(arguments(&["--vscode-shim", "install"])),
+				parse(arguments(&[
+					"--vscode-shim",
+					"policy",
+					"--result-file",
+					"x"
+				])),
+				parse(arguments(&[
+					"--vscode-shim",
+					"clear",
+					"--vscode-shim",
+					"policy"
+				])),
 			],
 			[
 				parsed(false, Err(InvocationError::MissingOptionName)),
@@ -584,6 +616,17 @@ mod tests {
 						command: "install",
 						option: "exactly one of --interactive or --non-interactive",
 					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::UnknownCommandOption {
+						command: "policy",
+						option: OsString::from("--result-file"),
+					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::CommandAfterClear(OsString::from("policy")))
 				),
 			]
 		);

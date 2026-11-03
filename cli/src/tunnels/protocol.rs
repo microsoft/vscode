@@ -204,7 +204,7 @@ pub struct FsReadDirEntry {
 	pub kind: Option<FsFileKind>,
 }
 
-/// Method: `fs_reaname`. Renames a file.
+/// Method: `fs_rename`. Renames a file.
 #[derive(Deserialize)]
 pub struct FsRenameRequest {
 	pub from_path: String,

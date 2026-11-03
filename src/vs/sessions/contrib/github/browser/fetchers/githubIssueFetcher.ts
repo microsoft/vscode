@@ -14,7 +14,7 @@ export class GitHubIssueFetcher {
 
 	getIssue(owner: string, repo: string, issueNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubIssue> {
 		return this.client.withClient(async (client, signal) => {
-			const issue = await client.issues.get({ owner, name: repo }, issueNumber, signal, options);
+			const issue = await client.issues.get({ owner, repo }, issueNumber, signal, options);
 			return {
 				number: issue.number,
 				title: issue.title,

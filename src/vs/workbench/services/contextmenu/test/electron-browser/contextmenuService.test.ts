@@ -7,11 +7,11 @@ import assert from 'assert';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../../base/common/platform.js';
-import { IContextMenuItem } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
+import { IContextMenuItem, IPopupOptions } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -27,6 +27,7 @@ suite('Native ContextMenuService', () => {
 	let focusMode: FocusMode | undefined;
 	let menu: IContextMenuItem[];
 	let closeMenu: (() => void) | undefined;
+	let popupOptions: IPopupOptions | undefined;
 
 	setup(() => {
 		ModifierKeyEmitter.getInstance().resetKeyStatus();
@@ -36,6 +37,7 @@ suite('Native ContextMenuService', () => {
 		focusMode = undefined;
 		menu = [];
 		closeMenu = undefined;
+		popupOptions = undefined;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IHostService, {
 			focus: async (targetWindow, options) => {
@@ -45,13 +47,39 @@ suite('Native ContextMenuService', () => {
 				await focus.p;
 			},
 		});
-		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, _options, onHide) => {
+		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, options, onHide) => {
 			menu = items;
+			popupOptions = options;
 			closeMenu = onHide;
 		}));
 	});
 
 	teardown(() => ModifierKeyEmitter.getInstance().resetKeyStatus());
+
+	for (const [selection, expected] of [
+		[undefined, undefined],
+		[false, undefined],
+		[true, 0],
+		[0, 0],
+		[2, 2],
+		[-1, undefined],
+		[NaN, undefined],
+		[Infinity, undefined],
+		[-Infinity, undefined],
+		[0.5, undefined],
+		[3, undefined],
+	] as const) {
+		test(`normalizes native menu selection ${selection} to ${expected}`, () => {
+			const actions = [store.add(new Action('first', 'First')), new Separator(), store.add(new Action('second', 'Second'))];
+			service.showContextMenu({
+				getAnchor: () => mainWindow.document.body,
+				getActions: () => actions,
+				autoSelectItem: selection,
+			});
+
+			assert.strictEqual(popupOptions?.positioningItem, expected);
+		});
+	}
 
 	for (const mouseAnchor of [false, true]) {
 		for (const mode of ['action', 'submenu', 'action runner'] as const) {

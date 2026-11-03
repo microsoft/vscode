@@ -88,17 +88,24 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
  * Descriptions for hook command fields, used by both the JSON schema and the hover provider.
  */
 export const HOOK_COMMAND_FIELD_DESCRIPTIONS: Record<string, string> = {
-	type: nls.localize('hook.type', 'Must be "command".'),
+	type: nls.localize('hook.type', 'Hook action type. Supported values depend on the active harness.'),
 	command: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.'),
 	windows: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.'),
 	linux: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.'),
 	osx: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.'),
 	bash: nls.localize('hook.bash', 'Bash command for Linux and macOS.'),
 	powershell: nls.localize('hook.powershell', 'PowerShell command for Windows.'),
+	exec: nls.localize('hook.exec', 'Native executable path. Cannot be combined with a shell command.'),
+	args: nls.localize('hook.args', 'Arguments passed to the native executable.'),
 	cwd: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).'),
 	env: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.'),
 	timeout: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).'),
 	timeoutSec: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).'),
+	matcher: nls.localize('hook.matcher', 'Regular expression selecting matching tools or events.'),
+	url: nls.localize('hook.url', 'HTTP or HTTPS URL invoked by the hook.'),
+	headers: nls.localize('hook.headers', 'HTTP headers sent with the request.'),
+	allowedEnvVars: nls.localize('hook.allowedEnvVars', 'Environment variable names whose values may be exposed to the HTTP hook.'),
+	prompt: nls.localize('hook.prompt', 'Prompt text added when the session starts.'),
 };
 
 /**

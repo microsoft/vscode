@@ -37,14 +37,7 @@ async function main() {
 	// Collect CSS module paths from the compiled output (same as @vscode/test-web does).
 	// These are turned into an import map so the browser can load `import './foo.css'`
 	// statements as JavaScript shims that inject the CSS via `_VSCODE_CSS_LOAD`.
-	let cssModules = [];
-	try {
-		const { glob } = require('tinyglobby');
-		cssModules = await glob('**/*.css', { cwd: path.join(APP_ROOT, 'out') });
-	} catch {
-		// tinyglobby may not be installed; fall back to a recursive fs walk
-		cssModules = collectCssFiles(path.join(APP_ROOT, 'out'), '');
-	}
+	const cssModules = collectCssFiles(path.join(APP_ROOT, 'out'), '');
 
 	const server = http.createServer((req, res) => {
 		const url = new URL(req.url, `http://${HOST}:${PORT}`);

@@ -56,7 +56,7 @@ suite('Mission Control projects', () => {
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
 		const git = new AgentHostGitService(new class extends mock<IFileService>() { }(), environment, log);
-		const options = { getRoots: () => separateProjectRoots ? [home, workspace] : [workspace], getProjectRoots: separateProjectRoots ? () => [workspace] : undefined, runGit, processEnvironment };
+		const options = { getRoots: () => separateProjectRoots ? [home, workspace] : [workspace], getProjectRoots: separateProjectRoots ? () => [workspace] : undefined, getCloneRoot: (): string | undefined => undefined, runGit, processEnvironment };
 		const projects = store.add(new MissionControlProjects(options, environment, git,
 			new class extends mock<IAgentHostAuthenticationService>() {
 				override getAuthToken(request: IAgentHostAuthTokenRequest, source?: Parameters<IAgentHostAuthenticationService['getAuthToken']>[1]): string | undefined {
@@ -514,24 +514,69 @@ suite('Mission Control projects', () => {
 		}, { removed: true, defaultDestination: join(home, 'owner', 'repo') });
 	});
 
-	test('runs a real git clone from a granted local repository and preserves its fetch refspec', async () => {
-		const { projects, workspace, home } = await fixture();
-		const source = join(workspace, 'owner', 'repo');
-		await mkdir(source, { recursive: true });
-		await promisify(execFile)('git', ['init', source]);
-		const ready = Event.toPromise(Event.filter(projects.onDidChange, envelope =>
-			envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'ready' && project.git)));
-		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', {
-			url: URI.file(source).toString(), depth: 1,
-		}))!;
-		await ready;
-		const cloned = join(home, 'owner', 'repo');
-		const { stdout } = await promisify(execFile)('git', ['-C', cloned, 'config', 'remote.origin.fetch']);
-		assert.deepStrictEqual({
-			status: catalogue(projects).find(project => project.id === initial.id)?.status,
-			path: await realpath(cloned),
-			refspec: stdout.trim(),
-		}, { status: 'ready', path: cloned, refspec: '+refs/heads/*:refs/remotes/origin/*' });
+	for (const location of ['default', 'absolute', 'home-relative', 'explicit'] as const) {
+		test(`runs a real git clone with a ${location} root and preserves its fetch refspec`, async () => {
+			const { projects, options, workspace, home } = await fixture();
+			const cloneRoot = location === 'absolute' ? join(directory, 'clones') : join(home, 'clones');
+			options.getCloneRoot = () => location === 'default' ? undefined : location === 'home-relative' ? '~/clones' : cloneRoot;
+			const source = join(workspace, 'owner', 'repo');
+			await mkdir(source, { recursive: true });
+			if (location === 'explicit') {
+				await mkdir(join(workspace, 'clones'));
+			}
+			await promisify(execFile)('git', ['init', source]);
+			const ready = Event.toPromise(Event.filter(projects.onDidChange, envelope =>
+				envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'ready' && project.git)));
+			const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', {
+				url: URI.file(source).toString(), depth: 1,
+				...(location === 'explicit' ? { targetRoot: join(workspace, 'clones') } : {}),
+			}))!;
+			await ready;
+			const cloned = join(location === 'default' ? home : location === 'explicit' ? join(workspace, 'clones') : cloneRoot, 'owner', 'repo');
+			const { stdout } = await promisify(execFile)('git', ['-C', cloned, 'config', 'remote.origin.fetch']);
+			assert.deepStrictEqual({
+				status: catalogue(projects).find(project => project.id === initial.id)?.status,
+				path: await realpath(cloned),
+				granted: projects.roots.includes(cloned),
+				refspec: stdout.trim(),
+			}, { status: 'ready', path: cloned, granted: true, refspec: '+refs/heads/*:refs/remotes/origin/*' });
+		});
+	}
+
+	test('uses clone root changes for future clones without moving existing projects', async () => {
+		const { projects, options, workspace, home } = await fixture(async args => {
+			await promisify(execFile)('git', ['init', args.at(-1)!]);
+		});
+		const paths: string[] = [];
+		for (const cloneRoot of [join(directory, 'first-root'), '~/second-root', '']) {
+			options.getCloneRoot = () => cloneRoot;
+			const ready = Event.toPromise(Event.filter(projects.onDidChange, () =>
+				catalogue(projects).filter(project => project.path !== workspace && project.status === 'ready').length === paths.length + 1));
+			const project = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo' }))!;
+			await ready;
+			paths.push(project.path);
+		}
+		assert.deepStrictEqual({ paths, catalogue: catalogue(projects).map(project => project.path) }, {
+			paths: [join(directory, 'first-root', 'owner', 'repo'), join(home, 'second-root', 'owner', 'repo'), join(home, 'owner', 'repo')],
+			catalogue: [workspace, ...paths],
+		});
+	});
+
+	test('rejects invalid configured roots and does not use them to authorize explicit client destinations', async () => {
+		let calls = 0;
+		const { projects, options, workspace } = await fixture(async () => { calls++; });
+		for (const cloneRoot of ['relative/clones', '~another-user/clones', '\0', join(directory, 'file')]) {
+			options.getCloneRoot = () => cloneRoot;
+			if (cloneRoot === join(directory, 'file')) {
+				await writeFile(cloneRoot, 'not a directory');
+			}
+			await assert.rejects(projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo' })!);
+		}
+		options.getCloneRoot = () => directory;
+		await assert.rejects(projects.handleRequest('extensions/cloneProject', {
+			url: 'https://github.com/owner/repo', targetRoot: directory,
+		})!, /targetRoot is outside the host workspace grants/);
+		assert.deepStrictEqual({ calls, paths: projects.roots }, { calls: 0, paths: [workspace] });
 	});
 
 	test('rejects malformed inputs, outside roots, occupied paths and symlink destinations before starting git', async () => {

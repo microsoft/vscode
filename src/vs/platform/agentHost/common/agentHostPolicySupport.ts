@@ -87,6 +87,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 
 	// #region Plugins, customizations, and hooks
 
+	// Governs the workbench discovery surface; legacy marketplaces remain available.
+	ChatCustomizationMarketplace: { status: 'enforced' },
+	// The effective setting gates renderer operations and is mirrored to the host's Connector gate.
+	ChatCopilotConnectors: { status: 'enforced' },
 	// The workbench filters the plugins it synchronizes, but runtime configuration discovery and Claude's
 	// native plugin scan find plugins independently. Not yet tracked.
 	ChatPluginsEnabled: { status: 'partial' },
@@ -122,8 +126,13 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Disables all AI features in the workbench, including Agent Host sessions.
 	ChatApprovedAccountOrganizations: { status: 'enforced' },
 	ChatDefaultModel: { status: 'enforced' },
+	// New Copilot sessions in both windows seed their mode and approvals from the effective value; the runtime still applies its own managed default.
+	ChatDefaultConfiguration: { status: 'enforced' },
 	ChatEditorPreferCopilotHarness: { status: 'enforced' },
 	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
+	ChatAgentHostGitHubEnvironments: { status: 'enforced' },
+	// Policy-backed configuration gates both workbench presentation and the mirrored Agent Host root setting.
+	ChatCanvases: { status: 'enforced' },
 	// Mirrored into the root config of every host.
 	CopilotSessionSync: { status: 'enforced' },
 
@@ -177,8 +186,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ExtensionGalleryServiceUrl: { status: 'enforced' },
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
-	// Windows setup and the `copilot` command read the policy themselves, so it applies to shells of
-	// every session type.
+	// Windows setup, the Linux DEB/RPM scripts, and the `copilot` command on every platform read the
+	// policy themselves, so it applies to shells of every session type.
 	CopilotCliCommand: { status: 'enforced' },
 
 	// #endregion

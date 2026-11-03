@@ -16,6 +16,25 @@ import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../a
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 import type { AuthenticateParams } from '../agent.js';
 
+const receivedMessageSizes = new WeakMap<object, number>();
+
+/** Preserve the original JSON size; reserialization can change escaping and whitespace. */
+export function parseProtocolMessage(text: string): ProtocolMessage {
+	const message: ProtocolMessage = JSON.parse(text);
+	if (message && typeof message === 'object') {
+		receivedMessageSizes.set(message, text.length * 2);
+	}
+	return message;
+}
+
+export function getProtocolMessageSize(message: object): number {
+	const bytes = receivedMessageSizes.get(message);
+	if (bytes === undefined) {
+		throw new Error('Transport did not preserve the received protocol message size');
+	}
+	return bytes;
+}
+
 /** Machine-readable reasons a transport cannot be reconnected. */
 export const enum AgentHostTransportFailureReason {
 	Unknown = 'unknown',
@@ -40,6 +59,8 @@ export interface ITransportCloseDetails {
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Bytes queued in the underlying transport, when available. */
+	readonly bufferedAmount?: number;
 	/** Trusted lane identity assigned by a relay server, never supplied by AHP. */
 	readonly relayClientId?: string;
 	/** Trusted read-only designation assigned by a relay server. */

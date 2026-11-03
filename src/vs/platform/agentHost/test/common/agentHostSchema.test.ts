@@ -5,8 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -389,11 +388,17 @@ suite('agentHostSchema', () => {
 			});
 		});
 
-		test('validates permissions shape', () => {
-			const ok: IPermissionsValue = { allow: ['read'], deny: [] };
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, ok), true);
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }), false);
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }), true);
+		test('validates permissions shape including optional ask rules', () => {
+			const ok: IPermissionsValue = { allow: ['Shell(npm run *)'], deny: [], ask: ['Shell(/git push/)'] };
+			assert.deepStrictEqual([
+				platformSessionSchema.validate(SessionConfigKey.Permissions, ok),
+				platformRootSchema.validate(SessionConfigKey.Permissions, ok),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [], deny: [], ask: [42] }),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [], deny: [], ask: 'Shell' }),
+				platformSessionSchema.toProtocol().properties[SessionConfigKey.Permissions].default,
+			], [true, true, false, true, false, false, { allow: [], deny: [] }]);
 		});
 
 		test('validates the agent modes', () => {
@@ -505,55 +510,4 @@ suite('agentHostSchema', () => {
 		});
 	});
 
-	// ---- terminal auto-approve rule forwarding -----------------------------
-
-	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
-
-		test('keeps null entries and object rules', () => {
-			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
-			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			}, inspectValue, false);
-
-			assert.deepStrictEqual(result, {
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			});
-		});
-
-		test('removes default-only entries when default rules are ignored', () => {
-			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
-				default: { value: { echo: true, ls: true, python: false } },
-				user: { value: { echo: null } },
-			};
-			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
-				echo: null,
-				ls: true,
-				python: true,
-			}, inspectValue, true);
-
-			assert.deepStrictEqual(result, {
-				echo: null,
-				python: true,
-			});
-		});
-
-		test('keeps entries that match defaults when they come from a non-default target', () => {
-			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
-				default: { value: { echo: true, ls: true } },
-				userValue: { ls: true },
-			};
-			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
-				echo: true,
-				ls: true,
-			}, inspectValue, true);
-
-			assert.deepStrictEqual(result, {
-				ls: true,
-			});
-		});
-	});
 });

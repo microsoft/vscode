@@ -30,6 +30,12 @@ Put new readers for namespaced protocol `_meta` slots under `common/meta`. Reade
 
 Host-specific parsers and writers live under `common/meta/vscode` and `common/meta/copilotd`. Feature code imports only top-level `common/meta` helpers, which own source selection and domain conversion; ESLint enforces this boundary for value and type imports.
 
+## Tools, Prompt Text and Reminders
+
+Tools the model can see are input tokens on every request. New tools are deferred by default, and the eager set is a reviewed budget pinned by tests. Prompt text and reminders have fixed homes based on how they affect the prompt cache. Follow §9 of `src/vs/platform/agentHost/AGENTS.md` when adding a tool, bumping the Copilot SDK, or adding text that reaches the model.
+
+When `copilotBuiltinToolAllowlist.integrationTest.ts` reports a new runtime built-in, first check whether it renames an allow-listed tool the runtime no longer registers. For a rename, replace the old name with the new one in the allow-list and in `expectedModelFacingToolNames`, and add it to the tool display mapping, so the capability stays on. Add any other new built-in to `KNOWN_LEFT_OFF` in that test with a reason. Never add a new tool to `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` or to a reviewed eager list just to make a test pass; adopting a new tool is a decision for the tool budget owners that `.github/CODENOTIFY` lists for those files.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.

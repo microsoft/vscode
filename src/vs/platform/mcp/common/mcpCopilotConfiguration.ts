@@ -7,7 +7,8 @@ import { normalizeMcpServerConfiguration } from '../../agentPlugins/common/plugi
 import { IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 
 export interface ICopilotLocalMcpServerConfiguration {
-	type: 'local';
+	/** The canonical stdio type. The Copilot CLI also reads the legacy `local` alias, but other readers may not. */
+	type: 'stdio';
 	command: string;
 	args: string[];
 	tools: string[];
@@ -29,7 +30,7 @@ export type ICopilotMcpServerConfiguration = ICopilotLocalMcpServerConfiguration
 export function toCopilotMcpServerConfiguration(config: IMcpServerConfiguration, cwd = config.type === McpServerType.LOCAL ? config.cwd : undefined): ICopilotMcpServerConfiguration {
 	if (config.type === McpServerType.LOCAL) {
 		return {
-			type: 'local',
+			type: 'stdio',
 			command: config.command,
 			args: config.args ? [...config.args] : [],
 			tools: ['*'],

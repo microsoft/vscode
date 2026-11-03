@@ -70,7 +70,7 @@ export class EditorHeaderControl extends Disposable {
 				showFileIcons: true,
 				showSymbolIcons: true,
 				showDecorationColors: false,
-				showPlaceholder: true,
+				showPlaceholder: false,
 				dragEditor: false,
 				showEditorTypePicker: true,
 			}));

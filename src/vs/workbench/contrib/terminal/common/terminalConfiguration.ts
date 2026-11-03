@@ -498,6 +498,16 @@ export const terminalConfiguration: IStringDictionary<IConfigurationPropertySche
 		type: 'boolean',
 		default: true,
 	},
+	[TerminalSettingId.WindowsReparentConsoleWindow]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsReparentConsoleWindow', "Whether to make the window that shows a terminal the owner of its console window, so dialogs that console applications open, like sign-in prompts, appear in front of VS Code instead of behind it. Requires {0}.", `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['advanced'],
+		experiment: {
+			mode: 'auto'
+		}
+	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 		type: 'string',

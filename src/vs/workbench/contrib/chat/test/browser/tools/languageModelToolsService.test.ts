@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Barrier } from '../../../../../../base/common/async.js';
+import { Barrier, DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -24,6 +24,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
@@ -192,6 +193,7 @@ interface TestToolsServiceOptions {
 	accessibilitySignalService?: Partial<IAccessibilitySignalService>;
 	telemetryService?: Partial<ITelemetryService>;
 	commandService?: Partial<ICommandService>;
+	extensionService?: Partial<IExtensionService>;
 	dialogService?: IDialogService;
 	configurationService?: TestConfigurationService;
 	confirmationService?: ILanguageModelToolsConfirmationService;
@@ -233,6 +235,9 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	}
 	if (options?.commandService) {
 		instaService.stub(ICommandService, options.commandService as ICommandService);
+	}
+	if (options?.extensionService) {
+		instaService.stub(IExtensionService, options.extensionService);
 	}
 	if (options?.dialogService) {
 		instaService.stub(IDialogService, options.dialogService);
@@ -4186,6 +4191,252 @@ suite('LanguageModelToolsService', () => {
 		const tool = service.getTool('disabledLookupTool');
 		assert.ok(tool, 'getTool should return tool even when disabled');
 		assert.strictEqual(tool.id, 'disabledLookupTool');
+	});
+
+	test('session-scoped tools are hidden from discovery and available by ID with explicit ownership', async () => {
+		const owner = URI.parse('test-session:/a');
+		const implementation: IToolImpl = {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		};
+		registerToolForTest(service, store, 'normalTool', implementation, { toolReferenceName: 'normalToolRef' });
+		const scopedTool = registerToolForTest(service, store, 'sessionScopedTool', implementation, {
+			toolReferenceName: 'sessionScopedToolRef',
+			sessionResource: owner,
+		});
+		const result = await service.invokeTool({ ...scopedTool.makeDto({}), toolSessionResource: owner }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			tools: [...service.getTools(undefined)].map(tool => tool.id),
+			allTools: [...service.getAllToolsIncludingDisabled()].map(tool => tool.id),
+			byName: service.getToolByName('sessionScopedToolRef')?.id,
+			observedTools: service.observeTools(undefined).get().map(tool => tool.id),
+			byId: service.getTool('sessionScopedTool')?.id,
+			result,
+		}, {
+			tools: ['normalTool'],
+			allTools: ['normalTool'],
+			byName: undefined,
+			observedTools: ['normalTool'],
+			byId: 'sessionScopedTool',
+			result: { content: [{ kind: 'text', value: 'result' }] },
+		});
+	});
+
+	suite('session-scoped execution', () => {
+		const owner = LocalChatSessionUri.forSession('tool-owner');
+		const other = LocalChatSessionUri.forSession('other-session');
+		const scopeError = /Tool "scopedTool" is not available in this session/;
+
+		for (const scenario of [
+			{ name: 'missing headless scope', toolSessionResource: undefined, context: undefined },
+			{ name: 'missing scope with owner presentation', toolSessionResource: undefined, context: { sessionResource: owner } },
+			{ name: 'wrong headless scope', toolSessionResource: other, context: undefined },
+			{ name: 'wrong scope with owner presentation', toolSessionResource: other, context: { sessionResource: owner } },
+		]) {
+			test(`rejects ${scenario.name} before invocation, streaming, or hook side effects`, async () => {
+				const effects: string[] = [];
+				const setup = createTestToolsService(store, {
+					commandService: { executeCommand: async () => { effects.push('validateInput'); return undefined; } },
+				});
+				stubGetSession(setup.chatService, 'tool-owner');
+				setup.chatService.appendProgress = () => { effects.push('progress'); };
+				const tool = registerToolForTest(setup.service, store, 'scopedTool', {
+					prepareToolInvocation: async () => { effects.push('prepare'); return undefined; },
+					invoke: async () => { effects.push('invoke'); return { content: [] }; },
+					handleToolStream: async () => { effects.push('stream'); return undefined; },
+				}, { sessionResource: owner, inputSchema: { type: 'object' } });
+				store.add(setup.service.onDidInvokeTool(() => effects.push('invokedEvent')));
+				const dto: IToolInvocation = {
+					...tool.makeDto({}),
+					toolSessionResource: scenario.toolSessionResource,
+					context: scenario.context,
+				};
+				await assert.rejects(setup.service.invokeTool({
+					...dto, preToolUseResult: { permissionDecision: 'deny' },
+				}, async () => 0, CancellationToken.None), scopeError);
+				await assert.rejects(setup.service.invokeTool({
+					...dto, preToolUseResult: { updatedInput: { changed: true } },
+				}, async () => 0, CancellationToken.None), scopeError);
+				assert.throws(() => setup.service.beginToolCall({
+					toolId: tool.id,
+					toolCallId: 'stream',
+					sessionResource: scenario.context?.sessionResource,
+					toolSessionResource: scenario.toolSessionResource,
+					force: true,
+				}), scopeError);
+				assert.deepStrictEqual(effects, []);
+			});
+		}
+
+		test('rejects unauthorized calls before extension activation', async () => {
+			const effects: string[] = [];
+			const setup = createTestToolsService(store, {
+				extensionService: { activateByEvent: async () => { effects.push('activate'); } },
+			});
+			store.add(setup.service.registerToolData({
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			}));
+			store.add(setup.service.onDidInvokeTool(() => effects.push('invokedEvent')));
+			for (const toolSessionResource of [undefined, other]) {
+				await assert.rejects(setup.service.invokeTool({
+					callId: 'call', toolId: 'scopedTool', parameters: {}, context: undefined, toolSessionResource,
+				}, async () => 0, CancellationToken.None), scopeError);
+				assert.throws(() => setup.service.beginToolCall({
+					toolCallId: 'stream', toolId: 'scopedTool', toolSessionResource,
+				}), scopeError);
+			}
+			assert.deepStrictEqual(effects, []);
+		});
+
+		for (const scenario of [
+			{ name: 'owning headless call', toolSessionResource: owner, sessionId: undefined },
+			{ name: 'equal URI value', toolSessionResource: URI.parse(owner.toString()), sessionId: undefined },
+			{ name: 'sibling presentation', toolSessionResource: owner, sessionId: 'sibling-chat' },
+			{ name: 'subagent presentation', toolSessionResource: owner, sessionId: 'subagent-chat' },
+		]) {
+			test(`accepts ${scenario.name} with explicit ownership`, async () => {
+				if (scenario.sessionId) {
+					stubGetSession(chatService, scenario.sessionId);
+				}
+				const calls: { scope: string | undefined; context: string | undefined }[] = [];
+				const tool = registerToolForTest(service, store, 'scopedTool', {
+					invoke: async invocation => {
+						calls.push({ scope: invocation.toolSessionResource?.toString(), context: invocation.context?.sessionResource.toString() });
+						return { content: [{ kind: 'text', value: 'owned' }] };
+					},
+				}, { sessionResource: owner });
+				const result = await service.invokeTool({
+					...tool.makeDto({}, scenario.sessionId ? { sessionId: scenario.sessionId } : undefined),
+					toolSessionResource: scenario.toolSessionResource,
+				}, async () => 0, CancellationToken.None);
+				assert.deepStrictEqual({ result, calls }, {
+					result: { content: [{ kind: 'text', value: 'owned' }] },
+					calls: [{ scope: owner.toString(), context: scenario.sessionId ? LocalChatSessionUri.forSession(scenario.sessionId).toString() : undefined }],
+				});
+			});
+		}
+
+		test('leaves unscoped calls unchanged with or without an explicit scope', async () => {
+			const effects: string[] = [];
+			stubGetSession(chatService, 'sibling-chat');
+			const tool = registerToolForTest(service, store, 'unscopedTool', {
+				invoke: async () => { effects.push('invoke'); return { content: [] }; },
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			});
+			for (const toolSessionResource of [undefined, other]) {
+				service.beginToolCall({ toolCallId: 'stream', toolId: tool.id, toolSessionResource });
+				await service.updateToolStream('stream', {}, CancellationToken.None);
+				await service.invokeTool({
+					...tool.makeDto({}, { sessionId: 'sibling-chat' }, 'stream'),
+					toolSessionResource,
+				}, async () => 0, CancellationToken.None);
+			}
+			assert.deepStrictEqual(effects, ['stream', 'stream', 'invoke', 'stream', 'stream', 'invoke']);
+		});
+
+		test('retains explicit streaming ownership and rejects updates after the tool changes sessions', async () => {
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(service.registerTool(data, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('ownerStream'); return undefined; },
+			}));
+			stubGetSession(chatService, 'sibling-chat');
+			const invocation = service.beginToolCall({
+				toolCallId: 'stream', toolId: data.id,
+				toolSessionResource: URI.parse(owner.toString()),
+				sessionResource: LocalChatSessionUri.forSession('sibling-chat'),
+			});
+			assert.ok(invocation);
+			await service.updateToolStream('stream', { first: true }, CancellationToken.None);
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: other }, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('replacementStream'); return undefined; },
+			}));
+			await assert.rejects(service.updateToolStream('stream', { second: true }, CancellationToken.None), scopeError);
+			assert.deepStrictEqual(effects, ['ownerStream', 'ownerStream']);
+		});
+
+		test('does not gain streaming ownership when an unscoped tool is replaced by a scoped tool', async () => {
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool', source: ToolDataSource.Internal,
+			};
+			const registration = store.add(service.registerTool(data, { invoke: async () => ({ content: [] }) }));
+			service.beginToolCall({ toolCallId: 'stream', toolId: data.id, sessionResource: owner, force: true });
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: owner }, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			}));
+			await assert.rejects(service.updateToolStream('stream', {}, CancellationToken.None), scopeError);
+			assert.deepStrictEqual(effects, []);
+		});
+
+		test('rechecks ownership after asynchronous activation before preparation', async () => {
+			const activating = new DeferredPromise<void>();
+			const activated = new DeferredPromise<void>();
+			const effects: string[] = [];
+			const setup = createTestToolsService(store, {
+				extensionService: {
+					activateByEvent: async () => { activating.complete(); await activated.p; },
+				},
+			});
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(setup.service.registerToolData(data));
+			const result = setup.service.invokeTool({
+				callId: 'call', toolId: data.id, parameters: {}, context: undefined, toolSessionResource: owner,
+			}, async () => 0, CancellationToken.None);
+			const rejected = assert.rejects(result, scopeError);
+			await activating.p;
+			registration.dispose();
+			store.add(setup.service.registerTool({ ...data, sessionResource: other }, {
+				prepareToolInvocation: async () => { effects.push('replacementPrepare'); return undefined; },
+				invoke: async () => { effects.push('replacementInvoke'); return { content: [] }; },
+			}));
+			await activated.complete();
+			await rejected;
+			assert.deepStrictEqual(effects, []);
+		});
+
+		test('rechecks ownership after asynchronous preparation before invoking a replacement', async () => {
+			const preparing = new DeferredPromise<void>();
+			const prepared = new DeferredPromise<void>();
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(service.registerTool(data, {
+				prepareToolInvocation: async () => {
+					effects.push('ownerPrepare');
+					preparing.complete();
+					await prepared.p;
+					return undefined;
+				},
+				invoke: async () => { effects.push('ownerInvoke'); return { content: [] }; },
+			}));
+			const result = service.invokeTool({
+				callId: 'call', toolId: data.id, parameters: {}, context: undefined, toolSessionResource: owner,
+			}, async () => 0, CancellationToken.None);
+			const rejected = assert.rejects(result, scopeError);
+			await preparing.p;
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: other }, {
+				invoke: async () => { effects.push('replacementInvoke'); return { content: [] }; },
+			}));
+			await prepared.complete();
+			await rejected;
+			assert.deepStrictEqual(effects, ['ownerPrepare']);
+		});
 	});
 
 	test('getToolByName returns tool regardless of when clause', () => {

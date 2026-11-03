@@ -234,6 +234,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		}
 		// Unwrap vscode-agent-host URIs to a host file path; pass file URIs through; omit unknown schemes.
 		if (cwd.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts a host-local cwd for remote task variable expansion and terminal creation
 			return fromAgentHostUri(cwd);
 		}
 		if (cwd.scheme === Schemas.file) {

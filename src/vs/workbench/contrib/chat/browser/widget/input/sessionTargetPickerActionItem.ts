@@ -9,6 +9,7 @@ import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabe
 import { IAction } from '../../../../../../base/common/actions.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -27,16 +28,14 @@ import { getCompactCodicon } from '../../chatIcons.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
-import { canInitializeCodexWithoutGitHub, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionTelemetryContext } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { hasAgentSdkSetupForSessionType } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
@@ -113,13 +112,13 @@ export function createSessionTypePickerAction(
 	const unavailable = availability !== SessionTypeAvailability.Available;
 	const description = getSessionTypeUnavailableDescription(availability) ?? sourceDescription;
 	const hoverDescription = getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription;
-	const ariaDescription = description ? renderAsPlaintext(description) : undefined;
+	const ariaDescription = description ? stripIcons(renderAsPlaintext(description)).trim() : undefined;
 	const ariaHoverDescription = hoverDescription ? renderAsPlaintext(hoverDescription) : undefined;
 	return {
 		...action,
 		id: sessionTypeItem.commandId,
 		label: sessionTypeItem.label,
-		checked: currentType === sessionTypeItem.type,
+		checked: availability !== SessionTypeAvailability.DisabledByPolicy && currentType === sessionTypeItem.type,
 		icon,
 		enabled: unavailable ? false : enabled,
 		category,
@@ -129,12 +128,16 @@ export function createSessionTypePickerAction(
 			: ariaDescription ?? ariaHoverDescription,
 		tooltip: '',
 		hover: { content: hoverDescription },
-		run: async () => run(),
+		run: async () => {
+			if (!unavailable && enabled) {
+				run();
+			}
+		},
 	};
 }
 
 /**
- * Returns picker availability using the signed-out Agent Host setting for every chat surface.
+ * Returns picker availability for every chat surface.
  */
 export function getConfiguredSessionTypePickerAvailability(
 	type: AgentSessionTarget,
@@ -143,16 +146,17 @@ export function getConfiguredSessionTypePickerAvailability(
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
 	agentSdkSetupService: IAgentSdkSetupService,
-	codexAccountService: ICodexAccountService,
+	managedSettingsService: IManagedSettingsService,
 ): SessionTypeAvailability {
-	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+	if (type === AgentSessionProviders.Local && requiresCopilotAgentHost(managedSettingsService, configurationService)) {
+		return SessionTypeAvailability.DisabledByPolicy;
+	}
+
 	const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(agentSdkSetupService.setups, type);
-	const canInitializeWithoutGitHub = type === AgentSessionProviders.AgentHostCodex && canInitializeCodexWithoutGitHub(codexAccountService.account);
 	return getSessionTypePickerAvailability(
 		type,
-		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
-		allowSignedOutWhenUsable,
-		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, canInitializeWithoutGitHub),
+		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type),
+		hasAgentSdkSetup,
 	);
 }
 
@@ -184,7 +188,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
-		@ICodexAccountService protected readonly codexAccountService: ICodexAccountService,
 		@IChatHarnessSwitchFeedbackSurveyService private readonly harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
@@ -202,7 +205,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.chatEntitlementService,
 						this.languageModelsService,
 						this.agentSdkSetupService,
-						this.codexAccountService,
+						this.managedSettingsService,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,
@@ -213,7 +216,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this._getSessionCategory(sessionTypeItem),
 						this._getSessionDescription(sessionTypeItem),
 						this._getSessionIcon(sessionTypeItem),
-						() => this._run(sessionTypeItem),
+						() => {
+							if (sessionTypeItem.type !== AgentSessionProviders.Local || !requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+								this._run(sessionTypeItem);
+							}
+						},
 					));
 				}
 
@@ -436,7 +443,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		if (type === AgentSessionProviders.Local) {
-			return true; // Local is always available
+			return !requiresCopilotAgentHost(this.managedSettingsService, this.configurationService);
 		}
 		// Disable non-local session types when their provider is not registered yet
 		return !!this.chatSessionsService.getChatSessionContribution(type);

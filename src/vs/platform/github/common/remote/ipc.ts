@@ -42,7 +42,7 @@ export interface AcquireClientRequest extends ClientRequest {
 }
 
 /** Endpoint profiles, not domain names: content and gist REST methods use the REST target. */
-export type ApiRequestTarget = 'rest' | 'graphql' | 'rawContent' | 'missionControl';
+export type ApiRequestTarget = 'rest' | 'graphql' | 'rawContent' | 'missionControl' | 'connectors';
 
 export interface ApiRequestEnvelope extends ClientRequest {
 	readonly target: ApiRequestTarget;
@@ -86,7 +86,7 @@ export type ApiResponseMessage = readonly [metadata: ApiResponseEnvelope, bodyTe
 
 export const parseRequestEnvelope = parse.object<ApiRequestEnvelope>({
 	clientId: parse.nonEmptyString,
-	target: parse.oneOf('rest', 'graphql', 'rawContent', 'missionControl'),
+	target: parse.oneOf('rest', 'graphql', 'rawContent', 'missionControl', 'connectors'),
 	request: parseRequest,
 	requestId: parse.optional(parse.nonEmptyString),
 });

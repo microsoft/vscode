@@ -554,17 +554,23 @@ export class ReleaseNotesManager extends Disposable {
 
 					/* Header styling */
 					h2 {
-						margin-top: 1.2em;
+						font-size: var(--vscode-fontSize-heading2);
+						font-weight: var(--vscode-fontWeight-semiBold);
+						margin-top: var(--vscode-spacing-size240);
 						scroll-margin-top: 1.2em;
 					}
 
 					h2:not(:first-of-type) {
-						margin-top: 4em;
+						border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-textSeparator-foreground));
+						padding-top: var(--vscode-spacing-size240);
+						margin-top: var(--vscode-spacing-size400);
 						scroll-margin-top: 1em;
 					}
 
 					h3 {
-						margin-top: 4em;
+						font-size: var(--vscode-fontSize-heading3);
+						font-weight: var(--vscode-fontWeight-semiBold);
+						margin-top: var(--vscode-spacing-size320);
 						scroll-margin-top: 1em;
 					}
 
@@ -572,17 +578,47 @@ export class ReleaseNotesManager extends Disposable {
 						margin-top: 0;
 					}
 
-					/* Highlights table styling */
+					/* Release highlights */
+					.release-notes-highlights,
 					.highlights-table {
-						border-collapse: collapse;
-						border: none;
+						box-sizing: border-box;
+						background-color: var(--vscode-editorWidget-background);
+						border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-textBlockQuote-border));
+						border-radius: var(--vscode-cornerRadius-medium);
+						margin-block: var(--vscode-spacing-size240);
+					}
+
+					.release-notes-highlights {
+						padding: var(--vscode-spacing-size160) var(--vscode-spacing-size200);
+					}
+
+					.release-notes-highlights > :first-child {
+						margin-top: 0;
+					}
+
+					.release-notes-highlights > :last-child {
+						margin-bottom: 0;
+					}
+
+					.highlights-table {
+						width: 100%;
+						table-layout: fixed;
+						border-collapse: separate;
+						border-spacing: 0;
+					}
+
+					.highlights-table th,
+					.highlights-table td {
+						padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+						overflow-wrap: anywhere;
 					}
 
 					.highlights-table th {
 						vertical-align: top;
 						border: none;
-						padding-top: 2em;
-						font-weight: bold;
+						padding-top: var(--vscode-spacing-size160);
+						padding-bottom: var(--vscode-spacing-size40);
+						font-weight: var(--vscode-fontWeight-semiBold);
 					}
 
 					.highlights-table td {
@@ -591,7 +627,17 @@ export class ReleaseNotesManager extends Disposable {
 					}
 
 					.highlights-table tr:nth-child(2) td {
-						padding-bottom: 1em;
+						padding-bottom: var(--vscode-spacing-size160);
+					}
+
+					pre {
+						box-sizing: border-box;
+						max-width: 100%;
+						background-color: var(--vscode-textCodeBlock-background);
+						border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-textSeparator-foreground));
+						border-radius: var(--vscode-cornerRadius-medium);
+						padding: var(--vscode-spacing-size160);
+						margin-block: var(--vscode-spacing-size160);
 					}
 
 					/* Main content layout */
@@ -632,6 +678,7 @@ export class ReleaseNotesManager extends Disposable {
 						text-decoration: none !important;
 						transition: background-color 0.2s, color 0.2s;
 						padding: 4px 6px;
+						border-inline-start: 2px solid transparent;
 						margin: -4px -6px;
 						border-radius: 4px;
 						display: block;
@@ -643,6 +690,13 @@ export class ReleaseNotesManager extends Disposable {
 						color: var(--vscode-button-secondaryForeground, #ffffff);
 						cursor: pointer;
 						text-decoration: none !important;
+					}
+
+					#toc-nav a[aria-current="location"] {
+						color: var(--vscode-textLink-foreground);
+						background-color: var(--vscode-list-inactiveSelectionBackground);
+						border-inline-start-color: var(--vscode-contrastActiveBorder, var(--vscode-textLink-foreground));
+						font-weight: var(--vscode-fontWeight-semiBold);
 					}
 
 					/* Main content area */
@@ -662,6 +716,7 @@ export class ReleaseNotesManager extends Disposable {
 						}
 
 						.notes-main {
+							align-self: stretch;
 							margin-left: 0;
 						}
 					}
@@ -727,6 +782,7 @@ export class ReleaseNotesManager extends Disposable {
 						vscode.postMessage({ type: 'showReleaseNotes', documentId, value: input.checked }, '*');
 					});
 					vscode.postMessage({ type: 'releaseNotesReady', documentId });
+					(${initializeReleaseNotesNavigation.toString()})(document, window);
 				</script>
 				<script nonce="${nonce}">
 					${tryouts.getScript()}
@@ -819,6 +875,10 @@ export async function renderReleaseNotesMarkdown(
 		activeConditions.add('TRYOUTS');
 	}
 	text = processConditionalBlocks(text, activeConditions);
+	text = text.replace(
+		/<!--\s*RELEASE_HIGHLIGHTS_START\s*-->([\s\S]*?)<!--\s*RELEASE_HIGHLIGHTS_END\s*-->/g,
+		(_match, highlights: string) => `<div class="release-notes-highlights">\n\n${highlights.trim()}\n\n</div>\n\n`,
+	);
 
 	const sanitizerConfig = {
 		allowRelativeMediaPaths: true,
@@ -875,7 +935,95 @@ export async function renderReleaseNotesMarkdown(
 	return sanitizeHtml(container.innerHTML, tryoutSanitizerConfig);
 }
 
-/* eslint-disable no-restricted-syntax -- This serialized function accesses IDs owned by the isolated release notes webview. */
+/* eslint-disable no-restricted-syntax -- These serialized functions access IDs owned by the isolated release notes webview. */
+export function initializeReleaseNotesNavigation(targetDocument: Document, targetWindow: Window & typeof globalThis): () => void {
+	const navigation = targetDocument.getElementById('toc-nav');
+	if (!navigation) {
+		return () => { };
+	}
+
+	const sections: { link: HTMLAnchorElement; target: HTMLElement }[] = [];
+	for (const link of navigation.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')) {
+		link.removeAttribute('aria-current');
+		const fragment = link.getAttribute('href')!.slice(1);
+		let id: string;
+		try {
+			id = decodeURIComponent(fragment);
+		} catch (error) {
+			targetWindow.console.warn('Invalid release notes section fragment', fragment, error);
+			continue;
+		}
+		const target = targetDocument.getElementById(id);
+		if (target && !sections.some(section => section.target === target)) {
+			sections.push({ link, target });
+		}
+	}
+	sections.sort((a, b) => a.target.compareDocumentPosition(b.target) & targetWindow.Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+	if (!sections.length) {
+		return () => { };
+	}
+
+	// Includes the scroll margin left above headings by native anchor navigation.
+	const headingActivationOffset = 32;
+	// scrollTop can be fractional while the other scroll dimensions are rounded.
+	const bottomScrollTolerance = 1;
+	let current: HTMLAnchorElement | undefined;
+	let frame: number | undefined;
+	const update = () => {
+		frame = undefined;
+		let next: HTMLAnchorElement | undefined;
+		const scrollingElement = targetDocument.scrollingElement;
+		if (scrollingElement && scrollingElement.scrollTop > 0 && scrollingElement.scrollTop + scrollingElement.clientHeight >= scrollingElement.scrollHeight - bottomScrollTolerance) {
+			next = sections[sections.length - 1].link;
+		} else {
+			// Search live positions so content resizing cannot leave cached offsets stale.
+			let start = 0;
+			let end = sections.length;
+			while (start < end) {
+				const index = Math.floor((start + end) / 2);
+				if (sections[index].target.getBoundingClientRect().top > headingActivationOffset) {
+					end = index;
+				} else {
+					start = index + 1;
+				}
+			}
+			next = sections[start - 1]?.link;
+		}
+		if (next !== current) {
+			current?.removeAttribute('aria-current');
+			next?.setAttribute('aria-current', 'location');
+			current = next;
+		}
+	};
+	const scheduleUpdate = () => {
+		frame ??= targetWindow.requestAnimationFrame(update);
+	};
+	const observer = new targetWindow.ResizeObserver(scheduleUpdate);
+	observer.observe(targetDocument.body);
+	const content = targetDocument.querySelector('.notes-main');
+	if (content) {
+		observer.observe(content);
+	}
+	targetWindow.addEventListener('scroll', scheduleUpdate, { passive: true });
+	targetWindow.addEventListener('resize', scheduleUpdate);
+	targetWindow.addEventListener('hashchange', scheduleUpdate);
+	targetWindow.addEventListener('pageshow', scheduleUpdate);
+	const dispose = () => {
+		targetWindow.removeEventListener('scroll', scheduleUpdate);
+		targetWindow.removeEventListener('resize', scheduleUpdate);
+		targetWindow.removeEventListener('hashchange', scheduleUpdate);
+		targetWindow.removeEventListener('pageshow', scheduleUpdate);
+		targetWindow.removeEventListener('pagehide', dispose);
+		observer.disconnect();
+		if (frame !== undefined) {
+			targetWindow.cancelAnimationFrame(frame);
+		}
+	};
+	targetWindow.addEventListener('pagehide', dispose, { once: true });
+	scheduleUpdate();
+	return dispose;
+}
+
 export function applyReleaseNotesTokenization(targetDocument: Document, update: IReleaseNotesTokenization): void {
 	const scrollingElement = targetDocument.scrollingElement;
 	const scrollTop = scrollingElement?.scrollTop ?? 0;

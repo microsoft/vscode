@@ -188,15 +188,7 @@ const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
  * refreshed, and it must have a `KNOWN_ISSUES.md` entry recording why. See
  * `harness/modelRequestProjection.ts`.
  */
-const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
-	// Re-recording anchors a side chat on a source turn, which hits the same
-	// anchor-resolution defect that gates `supportsChatForkE2E`: Claude cannot
-	// resolve a client-assigned turn id, so the fork silently degrades to an
-	// injected context preamble. The capture predates that preamble and cannot
-	// be refreshed until the defect is fixed. Claude only: the other providers
-	// fork fine and their captures are current.
-	'claude:side chat receives bounded source context without copied history',
-]);
+const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>();
 
 /** Captures whose providers can issue recorded parent and subagent turns concurrently. */
 const PROJECTED_REQUEST_MATCHING_CAPTURES = new Set<string>([
@@ -401,6 +393,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether peer chats can be created with an explicit initial title. */
+	readonly supportsInitialTitle: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
 	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;

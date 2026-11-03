@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AnnotatedStringEdit, StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
 import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -63,6 +63,113 @@ suite('Documents with Annotated Edits', () => {
 		context.disposables.dispose();
 	}));
 
+	test('diffs disk reloads without counting unchanged text between hunks', async () => {
+		const context = setup('aaa\nuntouched\nzzz');
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(17), 'AAA\nuntouched\nZZZ'), EditSources.reloadFromDisk());
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual(context.changes, [{
+				value: 'AAA\nuntouched\nZZZ',
+				source: 'external',
+				replacements: [
+					{ start: 0, endExclusive: 3, newText: 'AAA' },
+					{ start: 14, endExclusive: 17, newText: 'ZZZ' },
+				],
+			}]);
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
+	test('keeps consecutive reload snapshots separate and orders subsequent user edits', async () => {
+		const context = setup('aaa\nmiddle\nzzz');
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(14), 'AAA\nmiddle\nzzz'), EditSources.reloadFromDisk());
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(14), 'AAA\nmiddle\nZZZ'), EditSources.reloadFromDisk());
+			context.document.apply(StringEdit.insert(4, 'user '), EditSources.cursor({ kind: 'type' }));
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual(context.changes, [
+				{
+					value: 'AAA\nmiddle\nzzz',
+					source: 'external',
+					replacements: [{ start: 0, endExclusive: 3, newText: 'AAA' }],
+				},
+				{
+					value: 'AAA\nmiddle\nZZZ',
+					source: 'external',
+					replacements: [{ start: 11, endExclusive: 14, newText: 'ZZZ' }],
+				},
+				{
+					value: 'AAA\nuser middle\nZZZ',
+					source: 'user',
+					replacements: [{ start: 4, endExclusive: 4, newText: 'user ' }],
+				},
+			]);
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
+	test('preserves UTF-16 offsets and whitespace changes in CRLF reloads', async () => {
+		const before = 'const first = 1;\r\n// \u{1f600}\r\nconst last = 2;';
+		const after = '\tconst first = 1;\r\n// \u{1f600}\r\nconst last = 3;';
+		const context = setup(before);
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(before.length), after), EditSources.reloadFromDisk());
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual(context.changes, [{
+				value: after,
+				source: 'external',
+				replacements: [
+					{ start: 0, endExclusive: 0, newText: '\t' },
+					{ start: before.indexOf('2'), endExclusive: before.indexOf('2') + 1, newText: '3' },
+				],
+			}]);
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
+	test('queue barriers capture synchronous edits and run before post-boundary changes', async () => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const context = setup('aaa\nzzz', async (original, modified) => {
+			started.complete();
+			await release.p;
+			return computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+		});
+		try {
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'AAA\nZZZ'), EditSources.reloadFromDisk());
+			await started.p;
+			context.document.apply(StringEdit.insert(4, 'user'), EditSources.cursor({ kind: 'type' }));
+			let boundaryValue: string | undefined;
+			const drained = context.combined.waitForQueue(() => {
+				boundaryValue = context.combined.value.get().value;
+			});
+			context.document.apply(StringEdit.insert(8, 'later'), EditSources.cursor({ kind: 'type' }));
+			release.complete();
+			await drained;
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual({
+				boundaryValue,
+				publishedValues: context.changes.map(change => change.value),
+			}, {
+				boundaryValue: 'AAA\nuserZZZ',
+				publishedValues: ['AAA\nZZZ', 'AAA\nuserZZZ', 'AAA\nuserlaterZZZ'],
+			});
+		} finally {
+			release.complete();
+			context.disposables.dispose();
+		}
+	});
+
 	test('minimizes common prefixes and suffixes', () => {
 		const disposables = new DisposableStore();
 		const document = disposables.add(new TestSourceDocument('hello world'));
@@ -90,12 +197,10 @@ suite('Documents with Annotated Edits', () => {
 	});
 });
 
-function setup(initialValue: string) {
+function setup(initialValue: string, computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced')) {
 	const disposables = new DisposableStore();
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
-	instantiationService.stubInstance(DiffService, {
-		computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
-	});
+	instantiationService.stubInstance(DiffService, { computeDiff });
 	const document = disposables.add(new TestSourceDocument(initialValue));
 	const combined = disposables.add(instantiationService.createInstance(CombineStreamedChanges<EditSourceData>, document));
 	const changes: Array<{ value: string; source: string; replacements: Array<{ start: number; endExclusive: number; newText: string }> }> = [];
@@ -111,7 +216,7 @@ function setup(initialValue: string) {
 			})),
 		});
 	}));
-	return { disposables, document, changes };
+	return { disposables, document, combined, changes };
 }
 
 class TestSourceDocument extends Disposable implements IDocumentWithAnnotatedEdits<EditSourceData> {
@@ -128,8 +233,8 @@ class TestSourceDocument extends Disposable implements IDocumentWithAnnotatedEdi
 		this._value.set(edit.applyOnText(this._value.get()), undefined, { edit: edit.mapData(() => data) });
 	}
 
-	waitForQueue(): Promise<void> {
-		return Promise.resolve();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return Promise.resolve(onDrained?.());
 	}
 }
 

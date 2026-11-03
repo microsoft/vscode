@@ -53,10 +53,6 @@
 	max-width: none;
 }
 
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .chat-scroll-down {
-	right: calc(var(--session-activity-bar-content-inset, 0px) + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
-}
-
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {
 	max-width: none;
 }
