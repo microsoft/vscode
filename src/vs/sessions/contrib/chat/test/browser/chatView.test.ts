@@ -2555,6 +2555,39 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('uses a still koi background for reduced motion and preserves user image behavior', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part));
+		const imageBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/koi-dark.webp")',
+			backgroundImageReducedMotion: 'url("file:///textures/koi-dark-static.webp")',
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: 'auto',
+			backgroundPosition: 'center center',
+		} as const;
+		renderer.setBackground(imageBackground);
+		const backgroundLayer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		const readImage = () => backgroundLayer ? dom.getWindow(backgroundLayer).getComputedStyle(backgroundLayer).backgroundImage : undefined;
+		const animated = readImage();
+		workbench.classList.add('monaco-reduce-motion');
+		const reducedMotion = readImage();
+		workbench.classList.remove('monaco-reduce-motion');
+		const restored = readImage();
+		workbench.classList.add('monaco-reduce-motion');
+		renderer.setBackground({ ...imageBackground, backgroundImage: 'url("file:///textures/user.gif")', backgroundImageReducedMotion: undefined });
+
+		assert.deepStrictEqual({ animated, reducedMotion, restored, userImage: readImage() }, {
+			animated: 'url("file:///textures/koi-dark.webp")',
+			reducedMotion: 'url("file:///textures/koi-dark-static.webp")',
+			restored: 'url("file:///textures/koi-dark.webp")',
+			userImage: 'url("file:///textures/user.gif")',
+		});
+	});
+
 	test('renders the codicons background preset from decorative in-memory icons', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-foreground', '#202020');
