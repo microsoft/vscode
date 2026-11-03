@@ -253,8 +253,10 @@ export class Cache extends EventEmitter {
 			}
 		};
 
+		// Base database
 		await checkDatabase('base', this.base);
 
+		// Layer databases
 		for (const [uuid, database] of this.layers.entries()) {
 			await checkDatabase(uuid, database);
 		}
