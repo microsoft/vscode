@@ -31,6 +31,7 @@ import { SessionsManagementService } from '../../../../services/sessions/browser
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../browser/newChatWidget.js';
+import { WelcomeName } from '../../browser/welcomeName.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -201,8 +202,8 @@ const getComparisonModelIds = Reflect.get(NewChatWidget.prototype, '_getComparis
 }) => Set<string>;
 const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness) => boolean;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
-const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
-const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
+const getWelcomeName = Reflect.get(WelcomeName.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
+const getFirstName = Reflect.get(WelcomeName.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
 const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as (storageService: IStorageService) => number;
 
 interface IWelcomeAnnouncementHarness {
@@ -215,7 +216,9 @@ interface IWelcomeAnnouncementHarness {
 		getValue<T>(key: string): T;
 	};
 }
-const refreshGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_refreshGitHubProfileName') as (this: {
+const refreshGitHubProfileName = Reflect.get(WelcomeName.prototype, '_refreshGitHubProfileName') as (this: {
+	readonly enabled: { get(): boolean };
+	readonly _store: { readonly isDisposed: boolean };
 	_githubProfileAccountKey: string | undefined;
 	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
 	readonly configurationService: { getValue<T>(key: string): T };
@@ -225,7 +228,7 @@ const refreshGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_refreshG
 	};
 	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
 }) => Promise<void>;
-const fetchGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_fetchGitHubProfileName') as (this: {
+const fetchGitHubProfileName = Reflect.get(WelcomeName.prototype, '_fetchGitHubProfileName') as (this: {
 	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
 	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
 	readonly requestService: { request(): Promise<never> };
@@ -2635,6 +2638,8 @@ suite('NewChatWidget', () => {
 		const harness = {
 			_githubProfileAccountKey: 'github:stale',
 			_githubProfileName: githubProfileName,
+			enabled: { get: () => welcomePhrasesEnabled },
+			_store: { isDisposed: false },
 			configurationService: {
 				getValue: <T>(key: string): T => (key.endsWith('welcomePhrases') ? welcomePhrasesEnabled : configuredName) as T,
 			},
@@ -2680,6 +2685,8 @@ suite('NewChatWidget', () => {
 		const harness = {
 			_githubProfileAccountKey: undefined,
 			_githubProfileName: githubProfileName,
+			enabled: constObservable(true),
+			_store: { isDisposed: false },
 			configurationService: {
 				getValue: <T>(key: string): T => (key.endsWith('welcomePhrases') ? true : '') as T,
 			},

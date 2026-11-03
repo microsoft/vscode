@@ -77,7 +77,7 @@ class InboxNotificationsAccessibleView implements IAccessibleViewImplementation 
 			AccessibleViewProviderId.InboxNotifications,
 			{ type: AccessibleViewType.View },
 			() => [
-				buildInboxNotificationsAccessibleContent(notificationsService.sessionRows.get().map(row => ({
+				InboxNotificationsView.getActiveInstance()?.getEmptyAccessibleContent() ?? buildInboxNotificationsAccessibleContent(notificationsService.sessionRows.get().map(row => ({
 					...row, title: row.previewSignature ? notificationsService.previews.get().get(row.previewSignature) ?? row.title : row.title,
 				}))),
 				InboxNotificationsView.getActiveInstance()?.getDetailAccessibleContent(),

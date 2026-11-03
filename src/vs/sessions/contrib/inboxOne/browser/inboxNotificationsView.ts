@@ -68,6 +68,7 @@ import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/part
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { WelcomeName } from '../../chat/browser/welcomeName.js';
 import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -96,7 +97,7 @@ import {
 	getInboxPullRequestRefs,
 	getInboxToolConfirmationDetails,
 } from '../common/inboxNotificationsService.js';
-import { getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
+import { getInboxEmptyMessage, getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { createInboxEvidenceSection, InboxEvidenceWidget } from './inboxEvidenceWidget.js';
 import { InboxCanvases } from './inboxCanvases.js';
 
@@ -376,6 +377,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}));
 	private readonly recentCardsElement = $('.inbox-notifications-section-cards');
 	private readonly emptyListElement = $('.inbox-notifications-empty');
+	private readonly welcomeName: WelcomeName;
+	private emptyMessageIndex: number;
 	private readonly cardVisibilityObserver: IntersectionObserver;
 	private readonly visibleCardIds = new Set<string>();
 	private renderedCards: HTMLElement[] = [];
@@ -486,6 +489,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
+		this.emptyMessageIndex = this.storageService.getNumber('sessions.inbox.emptyMessageIndex', StorageScope.PROFILE, 0);
+		this.advanceEmptyMessage();
+		this.welcomeName = this._register(this.instantiationService.createInstance(WelcomeName, this.visible));
 		this._register(runOnChange(this.sessionsService.navigationRequest, () => this.sessionsPaneVisibility.clear()));
 		this._register(toDisposable(() => {
 			for (const rendering of this.cardRenderings.values()) {
@@ -565,6 +571,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (this.visible.get() === visible || this._store.isDisposed) {
 			return;
 		}
+		if (visible) {
+			this.emptyMessageIndex = this.storageService.getNumber('sessions.inbox.emptyMessageIndex', StorageScope.PROFILE, 0);
+			this.advanceEmptyMessage();
+		}
 		this.visible.set(visible, undefined);
 		if (visible) {
 			this.visibleSince = Date.now();
@@ -588,6 +598,16 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.newSessionView?.setVisible(composerVisible);
 		this.newSessionView?.setActive(composerVisible);
 		this.evidenceCanvases?.setVisible(visible);
+	}
+
+	private advanceEmptyMessage(): void {
+		this.storageService.store('sessions.inbox.emptyMessageIndex',
+			this.emptyMessageIndex + 1 < Number.MAX_SAFE_INTEGER ? this.emptyMessageIndex + 1 : 0,
+			StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	getEmptyAccessibleContent(): string | undefined {
+		return this.emptyListElement.isConnected ? this.emptyListElement.textContent ?? undefined : undefined;
 	}
 
 	focus(): void {
@@ -903,6 +923,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			if (!this.visible.read(reader)) {
 				return;
 			}
+			this.welcomeName.name.read(reader);
 			const tab = this.selectedTab.read(reader);
 			const query = this.searchText.read(reader).toLocaleLowerCase().trim();
 			const rows = this.inboxNotificationsService.sessionRows.read(reader);
@@ -1079,7 +1100,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const empty = this.emptyListElement;
 			empty.textContent = hiddenByFilter
 				? localize('inboxNotifications.empty.filtered', "No notifications match the current filter.")
-				: localize('inboxNotifications.empty', "You're all caught up.");
+				: this.selectedTab.get() === InboxTab.ReadyForYou
+					? getInboxEmptyMessage(this.welcomeName.name.get(),
+						this.inboxNotificationsService.sessionRows.get().some(row => row.tab === InboxTab.Working), this.emptyMessageIndex)
+					: localize('inboxNotifications.empty', "You're all caught up.");
 			sections.push(empty);
 		} else {
 			const cards = this.recentCardsElement;
