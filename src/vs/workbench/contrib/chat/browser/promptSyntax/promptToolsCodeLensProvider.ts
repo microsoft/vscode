@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { matchesFuzzy } from '../../../../../base/common/filters.js';
 import { Event } from '../../../../../base/common/event.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { CodeLens, CodeLensList, CodeLensProvider } from '../../../../../editor/common/languages.js';
@@ -149,7 +150,8 @@ export class PromptToolsCodeLensProvider extends Disposable implements CodeLensP
 			const picker = store.add(this.quickInputService.createQuickTree<IAgentToolTreeItem>());
 			picker.title = localize('configureTools', "Configure Tools");
 			picker.placeholder = localize('placeholder', "Select tools");
-			picker.matchOnDescription = true;
+			picker.matchOnLabel = false;
+			picker.matchOnDescription = false;
 			picker.sortByLabel = false;
 			picker.busy = true;
 			picker.enabled = false;
@@ -160,11 +162,12 @@ export class PromptToolsCodeLensProvider extends Disposable implements CodeLensP
 			let result: string[] | undefined;
 			let ready = false;
 			let unlistedTools: string[] = [];
+			const selectableTools: IAgentToolTreeItem[] = [];
 			store.add(picker.onDidAccept(() => {
 				if (!ready) {
 					return;
 				}
-				const checked = picker.checkedLeafItems.map(item => item.id);
+				const checked = selectableTools.filter(item => item.checked === true).map(item => item.id);
 				if (!checked.length && !unlistedTools.length) {
 					picker.severity = Severity.Warning;
 					picker.validationMessage = localize('toolsEmptySelection', "Select at least one tool, or select All Tools. An empty tools list allows all tools in Copilot.");
@@ -218,7 +221,6 @@ export class PromptToolsCodeLensProvider extends Disposable implements CodeLensP
 				const item: IAgentToolTreeItem = {
 					id: name,
 					label: name.substring(separator + 1),
-					filterText: name,
 					ariaLabel: description ? localize('agentToolAriaLabel', "{0}, {1}", name, description) : name,
 					description,
 					checked: allTools.checked === true || selectedTools.includes(name) || selectedTools.some(wildcard => wildcard.endsWith('/*') && name.startsWith(wildcard.slice(0, -1))),
@@ -227,7 +229,21 @@ export class PromptToolsCodeLensProvider extends Disposable implements CodeLensP
 				group.children.push(item);
 			}
 			unlistedTools = selectedTools.filter(name => name !== '*' && !leaves.some(item => item.id === name));
-			const render = () => picker.setItemTree([allTools, ...groups.values()]);
+			selectableTools.push(allTools, ...leaves);
+			const render = () => {
+				const query = picker.value.trim();
+				if (!query) {
+					picker.setItemTree([allTools, ...groups.values()]);
+					return;
+				}
+				const matches = (text: string | undefined) => !!text && !!matchesFuzzy(query, text);
+				const filteredGroups = [...groups.values()].flatMap(group => {
+					const children = matches(group.label) ? group.children : group.children.filter(item => matches(item.id) || matches(item.description));
+					return children.length ? [{ ...group, children }] : [];
+				});
+				picker.setItemTree(matches(allTools.label) || matches(allTools.description) || matches(allTools.id) ? [allTools, ...filteredGroups] : filteredGroups);
+			};
+			store.add(picker.onDidChangeValue(render));
 			store.add(picker.onDidChangeCheckboxState(changed => {
 				picker.validationMessage = undefined;
 				if (changed === allTools) {

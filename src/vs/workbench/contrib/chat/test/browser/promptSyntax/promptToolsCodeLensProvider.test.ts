@@ -49,6 +49,7 @@ suite('PromptToolsCodeLensProvider', () => {
 	let selectedNames: readonly string[] | undefined;
 	let pickerDisposed: boolean;
 	let toggleCheckbox: (id: string, checked: boolean) => void;
+	let filterPicker: (query: string) => void;
 
 	setup(() => {
 		activeTarget = Target.VSCode;
@@ -105,12 +106,15 @@ suite('PromptToolsCodeLensProvider', () => {
 		const accepted = disposables.add(new Emitter<void>());
 		const hidden = disposables.add(new Emitter<IQuickInputHideEvent>());
 		const changed = disposables.add(new Emitter<IQuickTreeItem>());
+		const valueChanged = disposables.add(new Emitter<string>());
 		let scheduled = false;
 		let validationMessage: string | undefined;
 		const picker = upcastPartial<IQuickTree<IQuickTreeItem>>({
 			onDidAccept: accepted.event,
 			onDidHide: hidden.event,
 			onDidChangeCheckboxState: changed.event,
+			onDidChangeValue: valueChanged.event,
+			value: '',
 			get validationMessage() { return validationMessage; },
 			set validationMessage(message: string | undefined) {
 				validationMessage = message;
@@ -147,6 +151,7 @@ suite('PromptToolsCodeLensProvider', () => {
 			dispose: () => { pickerDisposed = true; },
 		});
 		instantiationService.stub(IQuickInputService, 'createQuickTree', () => picker);
+		filterPicker = query => { picker.value = query; valueChanged.fire(query); };
 		toggleCheckbox = (id: string, checked: boolean) => {
 			const item = offeredGroups.find(item => item.id === id) ?? offeredTools.find(item => item.id === id);
 			assert.ok(item);
@@ -190,8 +195,30 @@ suite('PromptToolsCodeLensProvider', () => {
 		assert.deepStrictEqual(offeredTools.map(tool => [tool.label, tool.checked]), [
 			['All Tools', false], ['execute', false], ['read', true], ['edit', false], ['search', false],
 			['agent', false], ['web', false], ['todo', false],
-			['read_file', true],
+			['read_file', true], ['*', false], ['*', false],
 		]);
+	});
+
+	test('offers and saves spec-defined namespaces without inventory entries', async () => {
+		selectedNames = ['github/*', 'playwright/*'];
+		const model = createModel('target: github-copilot\ntools: [read]');
+		await runLens(model);
+		assert.deepStrictEqual({
+			namespaces: offeredGroups.filter(group => group.id === 'group:github' || group.id === 'group:playwright').map(group => [group.label, group.children?.map(item => [item.id, item.label])]),
+			content: model.getValue(),
+		}, {
+			namespaces: [['github', [['github/*', '*']]], ['playwright', [['playwright/*', '*']]]],
+			content: '---\ntarget: github-copilot\ntools: [\'github/*\', \'playwright/*\']\n---\n',
+		});
+	});
+
+	test('spec-defined namespaces do not override explicit inventory restrictions', async () => {
+		inventory = [
+			{ name: 'github/*', availability: 'disabled' },
+			{ name: 'playwright/*', availability: 'unavailable' },
+		];
+		await runLens(createModel('target: github-copilot\ntools: [read]'));
+		assert.deepStrictEqual(offeredGroups.map(group => group.label), ['All Tools', 'Built-In']);
 	});
 
 	test('groups unqualified tools and namespaced tools without losing reference names', async () => {
@@ -206,16 +233,18 @@ suite('PromptToolsCodeLensProvider', () => {
 		await runLens(model);
 		assert.deepStrictEqual({
 			allTools: offeredGroups[0].id,
-			groups: offeredGroups.filter(group => group.children).map(group => [group.label, group.children?.map(tool => [tool.id, tool.label, tool.filterText])]),
+			groups: offeredGroups.filter(group => group.children).map(group => [group.label, group.children?.map(tool => [tool.id, tool.label])]),
 			content: model.getValue(),
 			pickerDisposed,
 		}, {
 			allTools: '*',
 			groups: [
-				['Built-In', ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo'].map(name => [name, name, name])],
-				['vscode', [['vscode/usages', 'usages', 'vscode/usages'], ['vscode/runTask', 'runTask', 'vscode/runTask']]],
-				['browser', [['browser/openBrowserPage', 'openBrowserPage', 'browser/openBrowserPage']]],
-				['custom', [['custom/nested/tool', 'nested/tool', 'custom/nested/tool']]],
+				['Built-In', ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo'].map(name => [name, name])],
+				['vscode', [['vscode/usages', 'usages'], ['vscode/runTask', 'runTask']]],
+				['browser', [['browser/openBrowserPage', 'openBrowserPage']]],
+				['custom', [['custom/nested/tool', 'nested/tool']]],
+				['github', [['github/*', '*']]],
+				['playwright', [['playwright/*', '*']]],
 			],
 			content: '---\ntarget: github-copilot\ntools: [vscode/runTask, custom/nested/tool]\n---\n',
 			pickerDisposed: true,
@@ -226,7 +255,7 @@ suite('PromptToolsCodeLensProvider', () => {
 		activeTarget = Target.GitHubCopilot;
 		await runLens(createModel('tools: []'));
 		assert.deepStrictEqual(offeredTools.map(tool => tool.label), [
-			'All Tools', 'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo',
+			'All Tools', 'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', '*',
 		]);
 	});
 
@@ -291,7 +320,7 @@ suite('PromptToolsCodeLensProvider', () => {
 		test(`shows effective all-tools coverage for ${tools}`, async () => {
 			await runLens(createModel(`target: github-copilot\ntools: ${tools}`));
 			assert.deepStrictEqual(offeredTools.map(item => [item.id, item.checked]), [
-				['*', true], ['execute', true], ['read', true], ['edit', true], ['search', true], ['agent', true], ['web', true], ['todo', true],
+				['*', true], ['execute', true], ['read', true], ['edit', true], ['search', true], ['agent', true], ['web', true], ['todo', true], ['github/*', true], ['playwright/*', true],
 			]);
 		});
 	}
@@ -307,7 +336,7 @@ suite('PromptToolsCodeLensProvider', () => {
 		interaction = picker => { toggleCheckbox('read', false); picker.accept(); };
 		const model = createModel('target: github-copilot\ntools: [\'*\']');
 		await runLens(model);
-		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [execute, edit, search, agent, web, todo]\n---\n');
+		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [execute, edit, search, agent, web, todo, \'github/*\', \'playwright/*\']\n---\n');
 	});
 
 	test('selecting All Tools saves the explicit wildcard', async () => {
@@ -329,7 +358,44 @@ suite('PromptToolsCodeLensProvider', () => {
 		inventory = [{ name: 'vscode/usages', description: 'Find references', availability: 'available' }];
 		await runLens(createModel('target: github-copilot\ntools: [vscode/usages]'));
 		const item = offeredTools.find(item => item.id === 'vscode/usages');
-		assert.deepStrictEqual([item?.label, item?.ariaLabel, item?.filterText], ['usages', 'vscode/usages, Find references', 'vscode/usages']);
+		assert.deepStrictEqual([item?.label, item?.ariaLabel], ['usages', 'vscode/usages, Find references']);
+	});
+
+	test('filters qualified references locally without changing short labels', async () => {
+		inventory = ['vscode/usages', 'vscode/runTask', 'browser/usages'].map(name => ({ name, availability: 'available' }));
+		interaction = picker => { filterPicker('vscode/usages'); picker.hide(); };
+		await runLens(createModel('target: github-copilot\ntools: [read]'));
+		assert.deepStrictEqual(offeredGroups.map(group => [group.label, group.children?.map(item => [item.id, item.label])]), [['vscode', [['vscode/usages', 'usages']]]]);
+	});
+
+	test('keeps checked tools outside the local search results', async () => {
+		inventory = ['vscode/usages', 'vscode/runTask'].map(name => ({ name, availability: 'available' }));
+		interaction = picker => { filterPicker('vscode/usages'); toggleCheckbox('vscode/usages', true); picker.accept(); };
+		const model = createModel('target: github-copilot\ntools: [read, vscode/runTask]');
+		await runLens(model);
+		assert.strictEqual(model.getValue(), '---\ntarget: github-copilot\ntools: [read, vscode/usages, vscode/runTask]\n---\n');
+	});
+
+	test('local search matches namespaces and descriptions and restores all groups when cleared', async () => {
+		inventory = [
+			{ name: 'vscode/usages', description: 'Find references', availability: 'available' },
+			{ name: 'vscode/runTask', availability: 'available' },
+			{ name: 'browser/openBrowserPage', availability: 'available' },
+		];
+		const results: (string | undefined)[][] = [];
+		interaction = picker => {
+			for (const query of ['vscode', 'Find references', '']) {
+				filterPicker(query);
+				results.push(offeredTools.map(item => item.id));
+			}
+			picker.hide();
+		};
+		await runLens(createModel('target: github-copilot\ntools: [read]'));
+		assert.deepStrictEqual(results, [
+			['vscode/usages', 'vscode/runTask'],
+			['vscode/usages'],
+			['*', 'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', 'vscode/usages', 'vscode/runTask', 'browser/openBrowserPage', 'github/*', 'playwright/*'],
+		]);
 	});
 
 	test('reparses tools and their range when a stale code lens is invoked', async () => {

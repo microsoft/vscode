@@ -23,13 +23,11 @@ export class QuickInputTreeFilter implements ITreeFilter<IQuickTreeItem, IQuickT
 		const labelHighlights = this.matchOnLabel ? matchesFuzzyIconAware(this.filterValue, parseLabelWithIcons(element.label)) ?? undefined : undefined;
 		const descriptionHighlights = this.matchOnDescription ? matchesFuzzyIconAware(this.filterValue, parseLabelWithIcons(element.description || '')) ?? undefined : undefined;
 
-		const filterTextMatches = this.matchOnLabel && element.filterText ? matchesFuzzyIconAware(this.filterValue, parseLabelWithIcons(element.filterText)) : undefined;
-
 		const visibility = parentVisibility === TreeVisibility.Visible
 			// Parent is visible because it had matches, so we show all children
 			? TreeVisibility.Visible
 			// This would only happen on Parent is recurse so...
-			: (labelHighlights || descriptionHighlights || filterTextMatches)
+			: (labelHighlights || descriptionHighlights)
 				// If we have any highlights, we are visible
 				? TreeVisibility.Visible
 				// Otherwise, we defer to the children or if no children, we are hidden
