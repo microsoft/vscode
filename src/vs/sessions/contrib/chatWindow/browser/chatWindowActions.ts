@@ -97,6 +97,8 @@ for (const [button, group, order] of [[ChatWindowLayoutButton.Chat, WindowLayout
 			id: chatWindowLayoutButtonCommands[button],
 			title: chatWindowLayoutButtonTitles[button],
 			toggled: button === ChatWindowLayoutButton.Chat ? ChatShownContext : button === ChatWindowLayoutButton.Editor ? EditorShownContext : StackedContext,
+			// The part that shows alone can't be hidden, as the actions' own preconditions say.
+			precondition: button === ChatWindowLayoutButton.Chat ? LayoutModeContext.notEqualsTo(ChatWindowLayoutMode.ChatOnly) : button === ChatWindowLayoutButton.Editor ? LayoutModeContext.notEqualsTo(ChatWindowLayoutMode.EditorOnly) : undefined,
 		},
 		group,
 		order,

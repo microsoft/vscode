@@ -92,4 +92,20 @@ suite('Chat window contribution', () => {
 			mainWindow: [],
 		});
 	});
+
+	test('the Layout menu disables hiding the part that shows alone, as 491817 does', () => {
+		const items = MenuRegistry.getMenuItems(Menus.WindowLayout).filter(isIMenuItem);
+		const enabled = (mode: ChatWindowLayoutMode) => items
+			.filter(item => evaluate(item.when, { ...chatWindowKeys, [LayoutModeContext.key]: mode }) && evaluate(item.command.precondition, { ...chatWindowKeys, [LayoutModeContext.key]: mode }))
+			.map(item => item.command.id.replace('workbench.action.chatWindow.', ''));
+		assert.deepStrictEqual({
+			sideBySide: enabled(ChatWindowLayoutMode.SideBySide),
+			chatOnly: enabled(ChatWindowLayoutMode.ChatOnly),
+			editorOnly: enabled(ChatWindowLayoutMode.EditorOnly),
+		}, {
+			sideBySide: ['toggleChat', 'toggleEditor', 'toggleArrangement'],
+			chatOnly: ['toggleEditor', 'toggleArrangement'],
+			editorOnly: ['toggleChat', 'toggleArrangement'],
+		});
+	});
 });
