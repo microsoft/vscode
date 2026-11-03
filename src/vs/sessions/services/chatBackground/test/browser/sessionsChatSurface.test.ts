@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -52,7 +54,7 @@ suite('Sessions Chat Surface', () => {
 			background = value;
 			onDidChangeBackground.fire();
 		};
-		return { surface, read, setBackground };
+		return { surface, element, read, setBackground };
 	}
 
 	test('paints the chat background behind its element and follows the background service', () => {
@@ -70,6 +72,20 @@ suite('Sessions Chat Surface', () => {
 			cleared: { surface: true, hasBackground: false, layer: false, celebrates: true },
 			disposed: { surface: false, hasBackground: false, layer: false, celebrates: false },
 		});
+	});
+
+	test('the confetti button of a surface outside the Sessions part, such as the chat of a chat window, has its hit area', () => {
+		const { surface, element } = createSurface({ kind: 'codicons' });
+		// Mounted in the workbench without the classes of the Sessions part.
+		const workbench = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.appendChild(element);
+		const hitTarget = element.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target')!;
+		const style = mainWindow.getComputedStyle(hitTarget);
+		const hitArea = { inSessionsPart: !!element.closest('.part.sessionspart'), zIndex: style.zIndex, pointerEvents: style.pointerEvents, translated: style.transform !== 'none' };
+		surface.dispose();
+
+		assert.deepStrictEqual(hitArea, { inSessionsPart: false, zIndex: '3', pointerEvents: 'auto', translated: true });
 	});
 
 	test('announces and logs Codicon confetti activation', () => {
