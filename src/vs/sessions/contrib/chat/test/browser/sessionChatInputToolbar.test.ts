@@ -102,6 +102,8 @@ suite('SessionChatInputToolbar', () => {
 			activeSession: constObservable(undefined),
 		}));
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			// The dropdowns of the pills show in the container of their window.
+			getContainer: window => window.document.body,
 			onDidChangePartVisibility: Event.None,
 			onDidToggleSidePane: Event.None,
 			isSidePaneVisible: () => false,
@@ -162,6 +164,8 @@ suite('SessionChatInputToolbar', () => {
 			return undefined;
 		});
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			// The dropdowns of the pills show in the container of their window.
+			getContainer: window => window.document.body,
 			onDidChangePartVisibility: Event.map(stateChanged.event, () => ({ partId: 'workbench.parts.editor', visible: paneVisible })),
 			isSidePaneVisible: () => paneVisible || detailVisible,
 			isEditorPaneVisible: () => paneVisible || detailVisible,
@@ -833,6 +837,8 @@ suite('SessionChatInputToolbar', () => {
 					calls.push({ action: 'activate', resource: session?.resource });
 				});
 				instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+					// The dropdowns of the pills show in the container of their window.
+					getContainer: window => window.document.body,
 					revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
 				}));
 				instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
@@ -924,6 +930,8 @@ suite('SessionChatInputToolbar', () => {
 			const opened: (string | undefined)[] = [];
 			instantiationService.stub(ISessionsService, 'setActive', () => { });
 			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+				// The dropdowns of the pills show in the container of their window.
+				getContainer: window => window.document.body,
 				revealEditorPartExplicitly: () => { },
 			}));
 			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
@@ -1004,6 +1012,8 @@ suite('SessionChatInputToolbar', () => {
 		const opened: (string | undefined)[] = [];
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			// The dropdowns of the pills show in the container of their window.
+			getContainer: window => window.document.body,
 			revealEditorPartExplicitly: () => { },
 		}));
 		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
