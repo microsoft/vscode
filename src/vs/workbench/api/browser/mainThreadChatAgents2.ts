@@ -33,6 +33,7 @@ import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IC
 import { IAgentSkill, IChatPromptSlashCommand, ICustomAgent, IInstructionFile, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel, IChatResponseModel } from '../../contrib/chat/common/model/chatModel.js';
+import { hasChatBinaryReferences, resolveChatBinaryData } from '../../contrib/chat/common/model/chatSessionResources.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser, IChatParserContext } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
@@ -153,11 +154,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			if (typeof e.agentId === 'string') {
 				for (const [handle, agent] of this._agents) {
 					if (agent.id === e.agentId) {
-						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action);
-						} else {
-							this._proxy.$acceptAction(handle, e.result || {}, e);
-						}
+						void resolveChatBinaryData(e, 'request').then(resolved => {
+							if (this._store.isDisposed) {
+								return;
+							}
+							if (resolved.action.kind === 'vote') {
+								this._proxy.$acceptFeedback(handle, resolved.result ?? {}, resolved.action);
+							} else {
+								this._proxy.$acceptAction(handle, resolved.result ?? {}, resolved);
+							}
+						}, error => this._logService.error('Unable to resolve chat feedback resources', error));
 						break;
 					}
 				}
@@ -363,8 +369,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(this._chatSessionService.getSessionOptions(chatSessionResource)),
 					};
 
-					const rpcResult: IChatAgentInvokeResult | undefined = await this._proxy.$invokeAgent(handle, request, {
-						history,
+					const rpcResult: IChatAgentInvokeResult | undefined = await this._proxy.$invokeAgent(handle, hasChatBinaryReferences(request) ? await resolveChatBinaryData(request, 'request', token) : request, {
+						history: hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history,
 						chatSessionContext,
 					}, token);
 
@@ -418,13 +424,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
+				const input = { request, result, history };
+				const resolved = hasChatBinaryReferences(input) ? await resolveChatBinaryData(input, 'history', token) : input;
+				return this._proxy.$provideFollowups(resolved.request, handle, resolved.result, { history: resolved.history }, token);
 			},
-			provideChatTitle: (history, token) => {
-				return this._proxy.$provideChatTitle(handle, history, token);
+			provideChatTitle: async (history, token) => {
+				return this._proxy.$provideChatTitle(handle, hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history, token);
 			},
-			provideChatSummary: (history, token) => {
-				return this._proxy.$provideChatSummary(handle, history, token);
+			provideChatSummary: async (history, token) => {
+				return this._proxy.$provideChatSummary(handle, hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history, token);
 			},
 		};
 
@@ -698,7 +706,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatParticipantDetectionProviders.set(handle, this._chatAgentService.registerChatParticipantDetectionProvider(handle,
 			{
 				provideParticipantDetection: async (request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation; participants: IChatParticipantMetadata[] }, token: CancellationToken) => {
-					return await this._proxy.$detectChatParticipant(handle, request, { history }, options, token);
+					const input = { request, history };
+					const resolved = hasChatBinaryReferences(input) ? await resolveChatBinaryData(input, 'request', token) : input;
+					return await this._proxy.$detectChatParticipant(handle, resolved.request, { history: resolved.history }, options, token);
 				}
 			}
 		));

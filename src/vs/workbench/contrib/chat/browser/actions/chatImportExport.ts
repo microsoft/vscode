@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { parseChatImport } from '../../common/model/chatModel.js';
+import { exportChatBinaryData } from '../../common/model/chatSessionResources.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
@@ -35,8 +38,9 @@ export interface ChatImportOptions {
 	target?: ChatImportTarget;
 }
 
-export function registerChatExportActions() {
-	registerAction2(class ExportChatAction extends Action2 {
+export function registerChatExportActions(): IDisposable {
+	const registrations = new DisposableStore();
+	registrations.add(registerAction2(class ExportChatAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.export',
@@ -51,6 +55,7 @@ export function registerChatExportActions() {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const chatService = accessor.get(IChatService);
+			const logService = accessor.get(ILogService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
@@ -75,12 +80,25 @@ export function registerChatExportActions() {
 			}
 
 			// Using toJSON on the model
-			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
-			await fileService.writeFile(outputPath, content);
+			const exported = exportChatBinaryData(model.toExport());
+			const staging = joinPath(dirname(outputPath), `.${basename(outputPath)}.${generateUuid()}.tmp`);
+			try {
+				await fileService.writeFile(staging, exported.object);
+				await fileService.move(staging, outputPath, true);
+			} finally {
+				exported.dispose();
+				try {
+					await fileService.del(staging);
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						logService.error('Unable to remove staged chat export', error);
+					}
+				}
+			}
 		}
-	});
+	}));
 
-	registerAction2(class ImportChatAction extends Action2 {
+	registrations.add(registerAction2(class ImportChatAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.import',
@@ -138,5 +156,6 @@ export function registerChatExportActions() {
 				throw err;
 			}
 		}
-	});
+	}));
+	return registrations;
 }

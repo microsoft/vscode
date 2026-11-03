@@ -29,6 +29,9 @@ export interface IFileService {
 
 	readonly _serviceBrand: undefined;
 
+	/** Drains admitted backend mutations and refreshes cached metadata when the provider supports it. Later mutations require external coordination. */
+	synchronize(resource: URI): Promise<string | undefined>;
+
 	/**
 	 * An event that is fired when a file system provider is added or removed
 	 */
@@ -171,7 +174,7 @@ export interface IFileService {
 	 *
 	 * Emits a `FileOperation.MOVE` file operation event when successful.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	move(source: URI, target: URI, overwrite?: boolean, options?: IFileSynchronizationOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a move operation is possible given the arguments. No changes on disk will
@@ -185,7 +188,7 @@ export interface IFileService {
 	 *
 	 * Emits a `FileOperation.COPY` file operation event when successful.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(source: URI, target: URI, overwrite?: boolean, options?: IFileSynchronizationOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a copy operation is possible given the arguments. No changes on disk will
@@ -269,7 +272,12 @@ export interface IFileService {
 	dispose(): void;
 }
 
-export interface IFileOverwriteOptions {
+export interface IFileSynchronizationOptions {
+	/** Opaque backend fences returned by synchronize; prevents a superseded client from mutating storage. */
+	readonly synchronization?: readonly string[];
+}
+
+export interface IFileOverwriteOptions extends IFileSynchronizationOptions {
 
 	/**
 	 * Set to `true` to overwrite a file if it exists. Will
@@ -404,7 +412,7 @@ export interface IFileOpenForReadOptions {
 	readonly create: false;
 }
 
-export interface IFileOpenForWriteOptions extends IFileUnlockOptions {
+export interface IFileOpenForWriteOptions extends IFileUnlockOptions, IFileSynchronizationOptions {
 
 	/**
 	 * A hint that the file should be opened for reading and writing.
@@ -418,7 +426,7 @@ export interface IFileOpenForWriteOptions extends IFileUnlockOptions {
 	readonly append?: boolean;
 }
 
-export interface IFileDeleteOptions {
+export interface IFileDeleteOptions extends IFileSynchronizationOptions {
 
 	/**
 	 * Set to `true` to recursively delete any children of the file. This
@@ -679,13 +687,15 @@ export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
+	/** Refreshes shared backing-store metadata after previously admitted mutations have settled. */
+	synchronize?(resource: URI): Promise<string | undefined>;
 
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	readonly onDidWatchError?: Event<string>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;
-	mkdir(resource: URI): Promise<void>;
+	mkdir(resource: URI, options?: IFileSynchronizationOptions): Promise<void>;
 	readdir(resource: URI): Promise<[string, FileType][]>;
 	delete(resource: URI, opts: IFileDeleteOptions): Promise<void>;
 
@@ -1385,7 +1395,7 @@ export interface IReadFileOptions extends IBaseReadFileOptions {
 	readonly atomic?: boolean;
 }
 
-export interface IWriteFileOptions {
+export interface IWriteFileOptions extends IFileSynchronizationOptions {
 
 	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.

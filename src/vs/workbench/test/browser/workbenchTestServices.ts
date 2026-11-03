@@ -135,6 +135,8 @@ import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '..
 import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { IChatSessionStore } from '../../contrib/chat/common/model/chatSessionStore.js';
+import { TestChatSessionStore } from '../../contrib/chat/test/common/model/testChatSessionStore.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
 import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -401,6 +403,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
+	instantiationService.stub(IChatSessionStore, new TestChatSessionStore());
 	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
 
 	return instantiationService;

@@ -30,7 +30,10 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -51,7 +54,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
-import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -71,7 +74,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
-import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
+import { ChatSessionStore, IChatSessionIndex, IChatSessionStore } from '../../../common/model/chatSessionStore.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -82,6 +85,8 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
+import { IChatSessionResourceLocks } from '../../../common/model/chatSessionResourceLocks.js';
+import { createTestChatSessionResourceLocks } from '../model/chatSessionResourceLocks.js';
 import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
@@ -170,7 +175,7 @@ suite('ChatService', () => {
 	const testDisposables = new DisposableStore();
 
 	let instantiationService: TestInstantiationService;
-	let testFileService: InMemoryTestFileService;
+	let testFileWrites: { resource: URI; content: string }[];
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
 	let slashCommandService: ChatSlashCommandService;
 	let editingSessionState: ISettableObservable<ChatEditingSessionState>;
@@ -182,6 +187,7 @@ suite('ChatService', () => {
 	 * Ensure we wait for model disposals from all created ChatServices
 	 */
 	function createChatService(): ChatService {
+		instantiationService.stub(IChatSessionStore, testDisposables.add(instantiationService.createInstance(ChatSessionStore)));
 		const service = testDisposables.add(instantiationService.createInstance(ChatService));
 		testServices.push(service);
 		return service;
@@ -209,6 +215,7 @@ suite('ChatService', () => {
 			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(IChatSessionResourceLocks, createTestChatSessionResourceLocks());
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
@@ -247,7 +254,15 @@ suite('ChatService', () => {
 		});
 
 		// Configure test file service with tracking and in-memory storage
-		testFileService = testDisposables.add(new InMemoryTestFileService());
+		testFileWrites = [];
+		const testFileService = testDisposables.add(new FileService(new NullLogService()));
+		const provider = testDisposables.add(new class extends InMemoryFileSystemProvider {
+			override async writeFile(resource: URI, data: Uint8Array, options: IFileWriteOptions): Promise<void> {
+				testFileWrites.push({ resource, content: VSBuffer.wrap(data).toString() });
+				return super.writeFile(resource, data, options);
+			}
+		}());
+		testDisposables.add(testFileService.registerProvider('file', provider));
 		instantiationService.stub(IFileService, testFileService);
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
@@ -990,11 +1005,11 @@ suite('ChatService', () => {
 		await testService.waitForModelDisposals();
 
 		// Verify that sessions were written to the file service
-		assert.strictEqual(testFileService.writeOperations.length, 2, 'Should have written 2 sessions to file service');
+		assert.strictEqual(testFileWrites.length, 2, 'Should have written 2 sessions to file service');
 
-		const session1WriteOp = testFileService.writeOperations.find((op: { resource: URI; content: string }) =>
+		const session1WriteOp = testFileWrites.find((op: { resource: URI; content: string }) =>
 			op.content.includes('request 1'));
-		const session2WriteOp = testFileService.writeOperations.find((op: { resource: URI; content: string }) =>
+		const session2WriteOp = testFileWrites.find((op: { resource: URI; content: string }) =>
 			op.content.includes('request 2'));
 
 		assert.ok(session1WriteOp, 'Session 1 should have been written to file service');

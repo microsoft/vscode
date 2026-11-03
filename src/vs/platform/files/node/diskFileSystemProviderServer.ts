@@ -12,10 +12,13 @@ import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
-import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions, isFileOpenForWriteOptions, IFileSynchronizationOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../common/files.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IRecursiveWatcherOptions } from '../common/watcher.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -25,6 +28,9 @@ export interface ISessionFileWatcher extends IDisposable {
  * A server implementation for a IPC based file system provider client.
  */
 export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposable implements IServerChannel<T> {
+	private readonly pendingMutations = new Set<{ readonly resources: readonly URI[]; readonly done: Promise<void> }>();
+	private readonly openResources = new Map<number, { resource: URI; synchronization?: readonly string[] }>();
+	private readonly synchronizationFences = new Map<string, URI>();
 
 	constructor(
 		protected readonly provider: DiskFileSystemProvider,
@@ -35,7 +41,32 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 	call<TResult>(ctx: T, command: string, args: unknown[]): Promise<TResult> {
 		const uriTransformer = this.getUriTransformer(ctx);
+		if (command === 'synchronize') {
+			return this.synchronize(this.transformIncoming(uriTransformer, args[0] as UriComponents)) as Promise<TResult>;
+		}
+		const resources = this.mutatedResources(uriTransformer, command, args);
+		if (!resources) {
+			return this.callCommand<TResult>(command, args, uriTransformer);
+		}
+		this.validateSynchronization(command, args, resources);
+		const done = new DeferredPromise<void>();
+		const pending = { resources, done: done.p };
+		this.pendingMutations.add(pending);
+		const finish = () => {
+			this.pendingMutations.delete(pending);
+			done.complete();
+		};
+		try {
+			const operation = this.callCommand<TResult>(command, args, uriTransformer);
+			void operation.then(finish, finish);
+			return operation;
+		} catch (error) {
+			finish();
+			throw error;
+		}
+	}
 
+	private callCommand<TResult>(command: string, args: unknown[], uriTransformer: IURITransformer): Promise<TResult> {
 		switch (command) {
 			case 'stat': return this.stat(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
 			case 'realpath': return this.realpath(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
@@ -56,6 +87,62 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
+	}
+
+	private mutatedResources(transformer: IURITransformer, command: string, args: unknown[]): readonly URI[] | undefined {
+		switch (command) {
+			case 'writeFile':
+			case 'mkdir':
+			case 'delete':
+				return [this.transformIncoming(transformer, args[0] as UriComponents)];
+			case 'rename':
+			case 'copy':
+			case 'cloneFile':
+				return [this.transformIncoming(transformer, args[0] as UriComponents), this.transformIncoming(transformer, args[1] as UriComponents)];
+			case 'open':
+				return isFileOpenForWriteOptions(args[1] as IFileOpenOptions) ? [this.transformIncoming(transformer, args[0] as UriComponents, true)] : undefined;
+			case 'write':
+			case 'close': {
+				const resource = this.openResources.get(args[0] as number)?.resource;
+				return resource ? [resource] : [];
+			}
+			default:
+				return undefined;
+		}
+	}
+
+	private validateSynchronization(command: string, args: unknown[], resources: readonly URI[]): void {
+		const options: IFileSynchronizationOptions | undefined = command === 'writeFile' ? args[2] as IFileWriteOptions
+			: command === 'delete' || command === 'open' || command === 'mkdir' ? args[1] as IFileSynchronizationOptions
+				: command === 'rename' || command === 'copy' ? args[2] as IFileSynchronizationOptions
+					: command === 'write' ? this.openResources.get(args[0] as number) : undefined;
+		if (!options?.synchronization?.length) {
+			return;
+		}
+		const scopes = options.synchronization.map(token => this.synchronizationFences.get(token));
+		const targets = command === 'copy' ? resources.slice(1) : resources;
+		if (scopes.some(scope => !scope) || targets.some(target => !scopes.some(scope => scope && (extUriBiasedIgnorePathCase.isEqualOrParent(target, scope)
+			|| command === 'mkdir' && extUriBiasedIgnorePathCase.isEqualOrParent(scope, target))))) {
+			throw createFileSystemProviderError('File system synchronization was superseded', FileSystemProviderErrorCode.Unavailable);
+		}
+	}
+
+	private async synchronize(resource: URI): Promise<string> {
+		for (const [token, scope] of this.synchronizationFences) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(scope, resource) || extUriBiasedIgnorePathCase.isEqualOrParent(resource, scope)) {
+				this.synchronizationFences.delete(token);
+			}
+		}
+		const token = generateUuid();
+		this.synchronizationFences.set(token, resource);
+		while (true) {
+			const pending = [...this.pendingMutations].filter(operation => !operation.resources.length || operation.resources.some(candidate =>
+				extUriBiasedIgnorePathCase.isEqualOrParent(candidate, resource) || extUriBiasedIgnorePathCase.isEqualOrParent(resource, candidate)));
+			if (!pending.length) {
+				return token;
+			}
+			await Promise.all(pending.map(operation => operation.done));
+		}
 	}
 
 	listen<TResult>(ctx: T, event: string, args: unknown[]): Event<TResult> {
@@ -141,14 +228,22 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.writeFile(resource, content.buffer, opts);
 	}
 
-	private open(uriTransformer: IURITransformer, _resource: UriComponents, opts: IFileOpenOptions): Promise<number> {
+	private async open(uriTransformer: IURITransformer, _resource: UriComponents, opts: IFileOpenOptions): Promise<number> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
-
-		return this.provider.open(resource, opts);
+		const fd = await this.provider.open(resource, opts);
+		this.openResources.set(fd, { resource, ...(isFileOpenForWriteOptions(opts) ? { synchronization: opts.synchronization } : {}) });
+		return fd;
 	}
 
-	private close(fd: number): Promise<void> {
-		return this.provider.close(fd);
+	private async close(fd: number): Promise<void> {
+		const resource = this.openResources.get(fd);
+		try {
+			await this.provider.close(fd);
+		} finally {
+			if (this.openResources.get(fd) === resource) {
+				this.openResources.delete(fd);
+			}
+		}
 	}
 
 	private async read(fd: number, pos: number, length: number): Promise<[VSBuffer, number]> {

@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { cloneChatData } from '../../common/model/chatSessionResources.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
@@ -349,13 +350,13 @@ class InspectChatModelAction extends Action2 {
 			const latestRequest = requests[requests.length - 1];
 			if (latestRequest.response) {
 				output += '## Latest Response\n\n';
-				output += '```json\n' + JSON.stringify(latestRequest.response, uriReplacer, 2) + '\n```\n\n';
+				output += '```json\n' + JSON.stringify(cloneChatData(latestRequest.response, reference => ({ $chatBinary: reference.descriptor })), uriReplacer, 2) + '\n```\n\n';
 			}
 		}
 
 		// Show full model data
 		output += '## Full Chat Model\n\n';
-		output += '```json\n' + JSON.stringify(modelData, uriReplacer, 2) + '\n```\n';
+		output += '```json\n' + JSON.stringify(cloneChatData(modelData, reference => ({ $chatBinary: reference.descriptor })), uriReplacer, 2) + '\n```\n';
 
 		await editorService.openEditor({
 			resource: undefined,

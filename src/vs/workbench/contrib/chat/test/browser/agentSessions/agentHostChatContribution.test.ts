@@ -17,6 +17,7 @@ import { AgentPolicyError } from '../../../../../../platform/agentHost/common/ag
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -29,7 +30,7 @@ import { autorun, constObservable, derived, ISettableObservable, observableValue
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
@@ -125,6 +126,10 @@ import { AgentHostSessionListController } from '../../../browser/agentSessions/a
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { getChatBinaryReference } from '../../../common/model/chatSessionResources.js';
+import { createTestChatSessionResources } from '../../common/model/chatSessionResourceLocks.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { isResourceEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../common/editor.js';
@@ -4250,6 +4255,56 @@ suite('AgentHostChatContribution', () => {
 			}));
 		}
 
+		test('persists hydrated pasted images through the Agent Host draft boundary', async () => {
+			const files = disposables.add(new FileService(new NullLogService()));
+			disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const resources = disposables.add(createTestChatSessionResources(files));
+			const directory = URI.file('/session.resources');
+			const prepared = await resources.prepare({ value: new Uint8Array([0, 128, 255]) }, directory);
+			const restored = resources.restore(prepared.value, directory);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'binary-draft-sync');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/binary-draft-sync' });
+			seedDraftSession(agentHostService, backendSession, 'Binary Draft');
+			const { inputModel } = createDraftInputModel({
+				attachments: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: restored.value }],
+				mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined,
+				inputText: 'keep image', selections: [], contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({ sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [] }));
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			await retry(async () => assert.ok(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatDraftChanged)), 10, 200);
+			const drafts = agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []);
+			assert.strictEqual(drafts.at(-1)?.attachments?.length, 1);
+			assert.ok(JSON.stringify(drafts.at(-1)).includes('AID/'));
+		});
+
+		test('a synchronized hydrated image draft accepts a later remote clear', async () => {
+			const files = disposables.add(new FileService(new NullLogService()));
+			disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const resources = disposables.add(createTestChatSessionResources(files));
+			const directory = URI.file('/session.resources');
+			const prepared = await resources.prepare({ value: new Uint8Array([0, 128, 255]) }, directory);
+			const image = resources.restore(prepared.value, directory).value;
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'binary-remote-draft');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/binary-remote-draft' });
+			seedDraftSession(agentHostService, backendSession, 'Binary Remote Draft');
+			const { inputModel, inputState } = createDraftInputModel({
+				attachments: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: image }],
+				mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined,
+				inputText: 'local image', selections: [], contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({ sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [] }));
+			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			await retry(async () => assert.ok(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatDraftChanged)), 10, 200);
+			fireRemoteDraft(agentHostService, backendSession, { text: 'remote edit', origin: { kind: MessageKind.User } });
+			assert.deepStrictEqual({ text: inputState.get()?.inputText, attachments: inputState.get()?.attachments }, { text: 'remote edit', attachments: [] });
+			fireRemoteDraft(agentHostService, backendSession, undefined);
+			assert.strictEqual(inputState.get()?.inputText, '');
+		});
+
 		test('flushes pending chat input draft when the session is disposed', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'draft-sync-dispose');
@@ -7508,6 +7563,21 @@ suite('AgentHostChatContribution', () => {
 				agentHostService,
 			};
 		}
+
+		test('fork prompt materializes restored pasted image bytes before creating the host chat', async () => {
+			const files = disposables.add(new FileService(new NullLogService()));
+			disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const resources = disposables.add(createTestChatSessionResources(files));
+			const directory = URI.file('/session.resources');
+			const prepared = await resources.prepare({ value: new Uint8Array([0, 128, 255]) }, directory);
+			const image = resources.restore(prepared.value, directory).value;
+			const result = await forkSession('Fork', 'Fork', {
+				text: 'continue with image',
+				requestOptions: { attachedContext: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: image }] },
+			});
+			assert.strictEqual(result.call.options?.initialMessage?.attachments?.length, 1);
+			assert.ok(JSON.stringify(result.call.options?.initialMessage?.attachments).includes('AID/'));
+		});
 
 		test('prompt fork from an active request keeps the last completed turn', async () => {
 			const result = await forkSession('Fork', 'Fork', { text: 'Continue in a fork' }, false, {
@@ -19170,6 +19240,240 @@ suite('AgentHostChatContribution', () => {
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
 		}
+
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			test(`pending ${kind} messages materialize stored images before protocol dispatch`, async () => {
+				const files = disposables.add(new FileService(new NullLogService()));
+				disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+				const resources = disposables.add(createTestChatSessionResources(files));
+				const directory = URI.file('/session.resources');
+				const prepared = await resources.prepare({ value: new Uint8Array([0, 128, 255]) }, directory);
+				const image = resources.restore(prepared.value, directory).value;
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/binary-pending-${kind}` });
+				disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				const pending: IChatPendingRequest[] = [];
+				const chatModel = createPendingChatModel(sessionResource, pending);
+				chatService.setSession(sessionResource, chatModel.model);
+				agentHostService.dispatchedActions.length = 0;
+				pending.push({
+					request: upcastPartial<IChatRequestModel>({
+						id: 'image-request', message: { text: 'image', parts: [] },
+						variableData: { variables: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: image }] },
+					}),
+					kind, sendOptions: {},
+				});
+				chatModel.firePendingRequestsChanged();
+				await retry(async () => assert.ok(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatPendingMessageSet)), 10, 50);
+				const action = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatPendingMessageSet)?.action;
+				assert.ok(action?.type === ActionType.ChatPendingMessageSet);
+				assert.strictEqual(action.message.attachments?.length, 1);
+				assert.ok(JSON.stringify(action.message.attachments).includes('AID/'));
+			});
+		}
+
+		async function openPendingImage(kind: ChatRequestQueueKind) {
+			const readStarted = new DeferredPromise<void>();
+			const releaseRead = new DeferredPromise<void>();
+			const files = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+				pause = false;
+				fail = false;
+				override async readFile(resource: URI): Promise<Uint8Array> {
+					if (this.pause && resource.path.includes('.resources/')) {
+						await readStarted.complete();
+						await releaseRead.p;
+						if (this.fail) {
+							throw new Error('injected pending image read failure');
+						}
+					}
+					return super.readFile(resource);
+				}
+			}());
+			disposables.add(files.registerProvider(Schemas.file, provider));
+			const resources = disposables.add(createTestChatSessionResources(files));
+			const directory = URI.file('/pending.resources');
+			const prepared = await resources.prepare({ value: new Uint8Array([0, 128, 255]) }, directory);
+			const image = resources.restore(prepared.value, directory).value;
+			const binaryReads = sinon.spy(getChatBinaryReference(image)!, 'read');
+			const services = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatService, instantiationService } = services;
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/delayed-image-${kind}` });
+			const backendSession = AgentSession.uri('copilot', `delayed-image-${kind}`);
+			const chat = agentHostService.defaultChatUri = 'ahp-chat:/host-assigned/delayed-image';
+			const summary = { resource: backendSession.toString(), provider: 'copilot', title: 'Image', status: SessionStatus.InProgress, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() };
+			agentHostService.sessionStates.set(backendSession.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
+			agentHostService.chatStates.set(chat, { ...createChatState(createDefaultChatSummary(summary, chat)), activeTurn: createActiveTurn('active', { text: 'working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()) });
+			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			const pending: IChatPendingRequest[] = [];
+			const model = createPendingChatModel(sessionResource, pending);
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				const existing = new Map(pending.map(entry => [entry.request.id, entry]));
+				const next = requests.map(remote => {
+					const previous = existing.get(remote.id);
+					if (previous && previous.kind === remote.kind && previous.request.message.text === remote.message && equals(previous.request.variableData, remote.variableData)) {
+						return previous;
+					}
+					return { request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] }, variableData: remote.variableData }), kind: remote.kind, sendOptions: {} };
+				});
+				if (next.length !== pending.length || next.some((entry, index) => entry !== pending[index])) {
+					pending.splice(0, pending.length, ...next);
+					model.firePendingRequestsChanged();
+				}
+			};
+			chatService.setSession(sessionResource, model.model);
+			let serverSeq = 0;
+			const fire = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin: undefined });
+			sinon.stub(agentHostService, 'dispatch').callsFake((channel, action) => {
+				agentHostService.dispatchedActions.push({ channel, action, clientId: agentHostService.clientId, clientSeq: serverSeq + 1 });
+				if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved || action.type === ActionType.ChatQueuedMessagesReordered) {
+					fire(action);
+				}
+			});
+			const errors = sinon.stub(instantiationService.get(INotificationService), 'error');
+			agentHostService.dispatchedActions.length = 0;
+			provider.pause = true;
+			const enqueue = () => {
+				pending.push({ request: upcastPartial<IChatRequestModel>({ id: 'image', message: { text: 'keep image', parts: [] }, variableData: { variables: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: image }] } }), kind, sendOptions: {} });
+				model.firePendingRequestsChanged();
+			};
+			const stream = () => fire({ type: ActionType.ChatResponsePart, turnId: 'active', part: { kind: ResponsePartKind.Markdown, id: `chunk-${serverSeq}`, content: 'streaming' } });
+			const sentImages = () => agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatPendingMessageSet && entry.action.id === 'image');
+			const finishReads = async () => {
+				await releaseRead.complete();
+				const results = await Promise.allSettled(binaryReads.returnValues);
+				assert.deepStrictEqual(results.filter(result => result.status === 'rejected' && !isCancellationError(result.reason)), []);
+				await timeout(0);
+			};
+			return { ...services, pending, model, provider, image, errors, fire, enqueue, stream, sentImages, readStarted, releaseRead, finishReads };
+		}
+
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			test(`streaming preserves unpublished ${kind} images and sends unrelated text immediately`, async () => {
+				const { pending, model, agentHostService, enqueue, stream, sentImages, readStarted, releaseRead } = await openPendingImage(kind);
+				enqueue();
+				await readStarted.p;
+				stream();
+				pending.push({ request: upcastPartial<IChatRequestModel>({ id: 'text', message: { text: 'also keep text', parts: [] }, variableData: { variables: [] } }), kind: ChatRequestQueueKind.Queued, sendOptions: {} });
+				model.firePendingRequestsChanged();
+				stream();
+				assert.deepStrictEqual({ pending: pending.map(entry => entry.request.id), images: sentImages().length, textSent: agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatPendingMessageSet && entry.action.id === 'text') }, { pending: ['image', 'text'], images: 0, textSent: true });
+				await releaseRead.complete();
+				await retry(async () => assert.strictEqual(sentImages().length, 1), 10, 50);
+				const action = sentImages()[0].action;
+				assert.ok(action.type === ActionType.ChatPendingMessageSet);
+				assert.ok(JSON.stringify(action.message.attachments).includes('AID/'));
+				stream();
+				assert.deepStrictEqual(pending.map(entry => entry.request.id), ['image', 'text']);
+			});
+
+			test(`explicit cancellation discards an unpublished ${kind} image without sending it`, async () => {
+				const { pending, model, enqueue, stream, sentImages, readStarted, finishReads } = await openPendingImage(kind);
+				enqueue();
+				await readStarted.p;
+				pending.length = 0;
+				model.firePendingRequestsChanged();
+				stream();
+				await finishReads();
+				assert.deepStrictEqual({ pending, sent: sentImages() }, { pending: [], sent: [] });
+			});
+
+			test(`streaming preserves edits to already published ${kind} messages while reading an image`, async () => {
+				const { pending, model, image, fire, stream, sentImages, readStarted, releaseRead } = await openPendingImage(kind);
+				fire({ type: ActionType.ChatPendingMessageSet, kind: kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued, id: 'image', message: { text: 'old message', origin: { kind: MessageKind.User } } });
+				pending.splice(0, pending.length, {
+					request: upcastPartial<IChatRequestModel>({ id: 'image', message: { text: 'edited image', parts: [] }, variableData: { variables: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: image }] } }),
+					kind, sendOptions: {},
+				});
+				model.firePendingRequestsChanged();
+				await readStarted.p;
+				stream();
+				assert.deepStrictEqual({ text: pending[0].request.message.text, retainsImage: pending[0].request.variableData?.variables[0]?.value === image }, { text: 'edited image', retainsImage: true });
+				await releaseRead.complete();
+				await retry(async () => assert.strictEqual(sentImages().length, 1), 10, 50);
+				const action = sentImages()[0].action;
+				assert.ok(action.type === ActionType.ChatPendingMessageSet);
+				assert.deepStrictEqual({ text: action.message.text, bytes: JSON.stringify(action.message.attachments).includes('AID/') }, { text: 'edited image', bytes: true });
+			});
+
+			for (const change of ['edit', 'remove'] as const) {
+				test(`a remote ${change} wins over an in-flight ${kind} image edit`, async () => {
+					const { pending, model, image, fire, stream, sentImages, readStarted, finishReads } = await openPendingImage(kind);
+					const hostKind = kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued;
+					fire({ type: ActionType.ChatPendingMessageSet, kind: hostKind, id: 'image', message: { text: 'old message', origin: { kind: MessageKind.User } } });
+					pending.splice(0, pending.length, {
+						request: upcastPartial<IChatRequestModel>({ id: 'image', message: { text: 'local edit', parts: [] }, variableData: { variables: [{ kind: 'image', id: 'image', name: 'image.png', mimeType: 'image/png', isPasted: true, value: image }] } }),
+						kind, sendOptions: {},
+					});
+					model.firePendingRequestsChanged();
+					await readStarted.p;
+					if (change === 'remove') {
+						fire({ type: ActionType.ChatPendingMessageRemoved, kind: hostKind, id: 'image' });
+					} else {
+						for (const text of ['remote edit', 'old message']) {
+							fire({ type: ActionType.ChatPendingMessageSet, kind: hostKind, id: 'image', message: { text, origin: { kind: MessageKind.User } } });
+						}
+					}
+					stream();
+					await finishReads();
+					assert.deepStrictEqual({
+						pending: pending.map(entry => ({ text: entry.request.message.text, image: entry.request.variableData?.variables.some(variable => variable.kind === 'image') ?? false })),
+						sent: sentImages().length,
+					}, { pending: change === 'remove' ? [] : [{ text: 'old message', image: false }], sent: 0 });
+				});
+			}
+		}
+
+		test('pending image read failures remain explicit and preserve the request for retry', async () => {
+			const { pending, model, provider, errors, enqueue, stream, sentImages, readStarted, releaseRead } = await openPendingImage(ChatRequestQueueKind.Queued);
+			enqueue();
+			await readStarted.p;
+			provider.fail = true;
+			await releaseRead.complete();
+			await retry(async () => assert.strictEqual(errors.callCount, 1), 10, 50);
+			stream();
+			assert.deepStrictEqual({ pending: pending.map(entry => entry.request.id), sent: sentImages().length }, { pending: ['image'], sent: 0 });
+			provider.fail = false;
+			model.firePendingRequestsChanged();
+			await retry(async () => assert.strictEqual(sentImages().length, 1), 10, 50);
+		});
+
+		test('pending image preparation does not restore a remotely consumed request', async () => {
+			const { pending, agentHostService, fire, enqueue, stream, sentImages, readStarted, releaseRead } = await openPendingImage(ChatRequestQueueKind.Queued);
+			fire({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'remote', message: { text: 'already on host', origin: { kind: MessageKind.User } } });
+			enqueue();
+			await readStarted.p;
+			fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: 'remote' });
+			stream();
+			await releaseRead.complete();
+			await retry(async () => assert.strictEqual(sentImages().length, 1), 10, 50);
+			assert.deepStrictEqual({
+				pending: pending.map(entry => entry.request.id),
+				repeated: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatPendingMessageSet && entry.action.id === 'remote').length,
+			}, { pending: ['image'], repeated: 0 });
+		});
+
+		test('pending image preparation preserves immediate removals and reordered queue positions', async () => {
+			const { pending, model, agentHostService, fire, enqueue, stream, sentImages, readStarted, releaseRead } = await openPendingImage(ChatRequestQueueKind.Queued);
+			for (const id of ['first', 'removed', 'last']) {
+				fire({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id, message: { text: id, origin: { kind: MessageKind.User } } });
+			}
+			enqueue();
+			await readStarted.p;
+			const entries = new Map(pending.map(entry => [entry.request.id, entry]));
+			pending.splice(0, pending.length, ...['last', 'image', 'first'].map(id => entries.get(id)!));
+			model.firePendingRequestsChanged();
+			stream();
+			assert.deepStrictEqual({
+				pending: pending.map(entry => entry.request.id),
+				removed: agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatPendingMessageRemoved && entry.action.id === 'removed'),
+				sent: sentImages().length,
+			}, { pending: ['last', 'image', 'first'], removed: true, sent: 0 });
+			await releaseRead.complete();
+			await retry(async () => assert.strictEqual(sentImages().length, 1), 10, 50);
+			stream();
+			assert.deepStrictEqual(pending.map(entry => entry.request.id), ['last', 'image', 'first']);
+		});
 
 		async function openSteeringHandoff(retainConsumedSteeringMessages = false, provider = 'copilot') {
 			const services = createContribution(disposables, { retainConsumedSteeringMessages, provider });

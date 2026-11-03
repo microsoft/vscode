@@ -38,6 +38,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isReques
 import { IChatWidgetService, isChatContextMenuActionContext, unwrapChatContextMenuActionContext } from '../chat.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { toPortableMarkdown } from '../widget/chatClipboard.js';
+import { resolveChatMarkdownResources } from '../../common/model/chatSessionResources.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -271,7 +272,7 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, context?: unknown) {
+		async run(accessor: ServicesAccessor, context?: unknown) {
 			const clipboardService = accessor.get(IClipboardService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			context = unwrapChatContextMenuActionContext(context);
@@ -283,7 +284,7 @@ export function registerChatCopyActions() {
 					.map(item => stringifyItem(item))
 					.join('\n\n');
 				if (sessionAsText) {
-					clipboardService.writeText(toPortableMarkdown(sessionAsText));
+					await clipboardService.writeText(toPortableMarkdown(await resolveChatMarkdownResources(sessionAsText)));
 				}
 			}
 		}
@@ -340,7 +341,7 @@ export function registerChatCopyActions() {
 			}
 
 			const text = stringifyItem(item, false);
-			await clipboardService.writeText(toPortableMarkdown(text));
+			await clipboardService.writeText(toPortableMarkdown(await resolveChatMarkdownResources(text)));
 		}
 	});
 
@@ -378,7 +379,7 @@ export function registerChatCopyActions() {
 
 			const text = item.response.getFinalResponse();
 			if (text) {
-				await clipboardService.writeText(toPortableMarkdown(text));
+				await clipboardService.writeText(toPortableMarkdown(await resolveChatMarkdownResources(text)));
 			}
 		}
 	});

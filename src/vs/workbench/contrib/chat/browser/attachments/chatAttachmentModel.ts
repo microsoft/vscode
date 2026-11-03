@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { combinedDisposable, Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -16,6 +16,7 @@ import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
+import { retainChatBinaryReferences } from '../../common/model/chatSessionResources.js';
 
 export interface IChatAttachmentChangeEvent {
 	readonly deleted: readonly string[];
@@ -27,6 +28,7 @@ export class ChatAttachmentModel extends Disposable {
 
 	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
 	private readonly _fileWatchers = this._register(new DisposableMap<IChatRequestFileEntry['id'], IDisposable>());
+	private readonly _binaryReferences = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
@@ -85,10 +87,14 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	clear(clearStickyAttachments: boolean = false): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (clearStickyAttachments) {
 			const deleted = Array.from(this._attachments.keys());
 			this._attachments.clear();
 			this._fileWatchers.clearAndDisposeAll();
+			this._binaryReferences.clear();
 			this._onDidChange.fire({ deleted, added: [], updated: [] });
 		} else {
 			const deleted: string[] = [];
@@ -101,6 +107,7 @@ export class ChatAttachmentModel extends Disposable {
 					deleted.push(id);
 				}
 			}
+			this._binaryReferences.value = retainChatBinaryReferences(this.attachments);
 			this._onDidChange.fire({ deleted, added: [], updated: [] });
 		}
 	}
@@ -119,6 +126,9 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	updateContext(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
+		if (this._store.isDisposed) {
+			return;
+		}
 		const deleted: string[] = [];
 		const added: IChatRequestVariableEntry[] = [];
 		const updated: IChatRequestVariableEntry[] = [];
@@ -149,6 +159,7 @@ export class ChatAttachmentModel extends Disposable {
 		}
 
 		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
+			this._binaryReferences.value = retainChatBinaryReferences(this.attachments);
 			this._onDidChange.fire({ deleted, added, updated });
 		}
 	}
@@ -161,6 +172,9 @@ export class ChatAttachmentModel extends Disposable {
 		}
 		const uri = attachment.value;
 		this.chatAttachmentResolveService.resolveDirectoryImages(uri).then(images => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			const current = this._attachments.get(attachment.id);
 			if (current && current.kind === 'directory' && current.value?.toString() === uri.toString()) {
 				this.updateContext(Iterable.empty(), [{ ...current, imageCount: images.length }]);

@@ -16,6 +16,7 @@ import { autorun, IObservable, observableSignalFromEvent, observableValue } from
 import { isEqual } from '../../../base/common/resources.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { hasChatBinaryReferences, resolveChatBinaryData } from '../../contrib/chat/common/model/chatSessionResources.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -244,7 +245,9 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 					});
 
 					try {
-						await this._proxy.$invokeChatSessionRequestHandler(this._providerHandle, this.sessionResource, request, history, token);
+						const resolvedRequest = hasChatBinaryReferences(request) ? await resolveChatBinaryData(request, 'request', token) : request;
+						const resolvedHistory = hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history;
+						await this._proxy.$invokeChatSessionRequestHandler(this._providerHandle, this.sessionResource, resolvedRequest, resolvedHistory, token);
 
 						// Only mark as complete if there's no active response callback
 						// Sessions with active response callbacks should only complete when explicitly told to via handleProgressComplete

@@ -22,6 +22,7 @@ import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
 import type { ILanguageModelChatMetadata } from '../languageModels.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Mutable } from '../../../../../base/common/types.js';
+import { coerceImageBuffer } from './chatImageData.js';
 
 
 /**
@@ -796,6 +797,17 @@ export namespace IChatRequestVariableEntry {
 					...v,
 					imageData: decodeBase64(v.imageData.$base64).buffer
 				};
+			}
+			if (v.kind === 'image' || v.kind === 'notebookOutput') {
+				const bytes = coerceImageBuffer(v.value);
+				if (bytes && bytes !== v.value) {
+					return { ...v, value: bytes };
+				}
+			} else if (isElementVariableEntry(v)) {
+				const bytes = coerceImageBuffer(v.imageData);
+				if (bytes && bytes !== v.imageData) {
+					return { ...v, imageData: bytes };
+				}
 			}
 
 			return v;

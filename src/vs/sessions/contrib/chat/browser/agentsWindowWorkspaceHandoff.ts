@@ -27,6 +27,7 @@ import { INewSessionComposerService } from './newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { readNewChatDraftState } from '../common/newChatDraftState.js';
+import { ChatStorageOwner, IChatSessionStore } from '../../../../workbench/contrib/chat/common/model/chatSessionStore.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
@@ -57,6 +58,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatSessionStore private readonly chatSessionStore: IChatSessionStore,
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
@@ -118,7 +120,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			previousCreated = created;
 		}));
 		try {
-			if (intent.draft && !intent.revealNewSession && this._hasDraftInput()) {
+			if (intent.draft && !intent.revealNewSession && await raceCancellationError(this._hasDraftInput(), source.token)) {
 				onState('preservedSession');
 				return;
 			}
@@ -135,13 +137,13 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				if (source.token.isCancellationRequested) {
 					return;
 				}
-				if (intent.draft && !intent.revealNewSession && this._hasDraftInput()) {
+				if (intent.draft && !intent.revealNewSession && await raceCancellationError(this._hasDraftInput(), source.token)) {
 					onState('preservedSession');
 					return;
 				}
 				if (!intent.draft || intent.revealNewSession) {
 					// Navigation can rebind the mounted composer before its draft is restored.
-					const preserveDraft = intent.revealNewSession && this._hasDraftInput();
+					const preserveDraft = intent.revealNewSession && await raceCancellationError(this._hasDraftInput(), source.token);
 					await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
 					if (preserveDraft) {
 						if (!source.token.isCancellationRequested) {
@@ -157,7 +159,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
-				if ((!intent.draft && currentSession?.isCreated.get()) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
+				if ((!intent.draft && currentSession?.isCreated.get()) || ((intent.draft || intent.revealNewSession) && await raceCancellationError(this._hasDraftInput(), source.token))) {
 					onState('preservedSession');
 					return;
 				}
@@ -239,7 +241,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		}
 	}
 
-	private _hasDraftInput(): boolean {
+	private async _hasDraftInput(): Promise<boolean> {
 		const activeSession = this.sessionsService.activeSession.get();
 		if (!activeSession?.isCreated.get() && !activeSession?.isQuickChat?.get()) {
 			const mountedInput = this.composerService.getDraftInputStateForSession(activeSession?.resource);
@@ -247,8 +249,13 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				return mountedInput;
 			}
 		}
-		const savedDraft = readNewChatDraftState(this.storageService);
-		return !!savedDraft && (!!savedDraft.inputText || savedDraft.attachments.length > 0);
+		const owned = await this.chatSessionStore.readOwnedData(ChatStorageOwner.NewSessionDraft);
+		try {
+			const savedDraft = owned?.object ?? readNewChatDraftState(this.storageService);
+			return !!savedDraft && (!!savedDraft.inputText || savedDraft.attachments.length > 0);
+		} finally {
+			owned?.dispose();
+		}
 	}
 
 	private _showRecovery(intent: IAgentsWindowWorkspaceHandoff, onState: (state: WorkspaceHandoffState) => void): void {

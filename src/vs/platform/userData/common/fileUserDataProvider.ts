@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, hasFileFolderCopyCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileCloneCapability, hasFileCloneCapability, IFileAtomicReadOptions, IFileAtomicOptions } from '../../files/common/files.js';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, hasFileFolderCopyCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileCloneCapability, hasFileCloneCapability, IFileAtomicReadOptions, IFileAtomicOptions, IFileSynchronizationOptions } from '../../files/common/files.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ReadableStreamEvents } from '../../../base/common/stream.js';
@@ -97,8 +97,8 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.stat(this.toFileSystemResource(resource));
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		return this.fileSystemProvider.mkdir(this.toFileSystemResource(resource));
+	mkdir(resource: URI, options?: IFileSynchronizationOptions): Promise<void> {
+		return options ? this.fileSystemProvider.mkdir(this.toFileSystemResource(resource), options) : this.fileSystemProvider.mkdir(this.toFileSystemResource(resource));
 	}
 
 	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
@@ -115,6 +115,10 @@ export class FileUserDataProvider extends Disposable implements
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this.fileSystemProvider.readdir(this.toFileSystemResource(resource));
+	}
+
+	async synchronize(resource: URI): Promise<string | undefined> {
+		return this.fileSystemProvider.synchronize?.(this.toFileSystemResource(resource));
 	}
 
 	enforceAtomicReadFile(resource: URI): boolean {

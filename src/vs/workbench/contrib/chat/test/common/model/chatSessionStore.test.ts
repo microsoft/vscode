@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
-import { IFileDeleteOptions, IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IFileService, IFileWriteOptions, IReadFileOptions, IWriteFileOptions } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -21,13 +26,19 @@ import { IAnyWorkspaceIdentifier, IWorkspaceContextService, WorkspaceFolder } fr
 import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
-import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
-import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
+import { ChatSessionStore, ChatStorageOwner, IChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
+import { ChatInputStorage } from '../../../common/model/chatInputStorage.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { getChatBinaryReference, resolveChatBinaryData } from '../../../common/model/chatSessionResources.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IChatSessionResourceLocks } from '../../../common/model/chatSessionResourceLocks.js';
+import { createTestChatSessionResourceLocks } from './chatSessionResourceLocks.js';
 
 function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {
 	const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -59,8 +70,25 @@ class MockWorkspaceEditingService extends Disposable implements Partial<IWorkspa
 	}
 }
 
-class TestChatSessionFileService extends InMemoryTestFileService {
+class TestChatSessionFileService extends FileService {
 	readonly deleteOperations: URI[] = [];
+	readonly readOperations: { resource: URI }[] = [];
+	readonly writeOperations: { resource: URI }[] = [];
+
+	constructor(provider?: InMemoryFileSystemProvider) {
+		super(new NullLogService());
+		this._register(this.registerProvider(Schemas.file, provider ?? this._register(new InMemoryFileSystemProvider())));
+	}
+
+	override async readFile(resource: URI, options?: IReadFileOptions) {
+		this.readOperations.push({ resource });
+		return super.readFile(resource, options);
+	}
+
+	override async writeFile(resource: URI, data: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions) {
+		this.writeOperations.push({ resource });
+		return super.writeFile(resource, data, options);
+	}
 
 	override async del(resource: URI, options?: IFileDeleteOptions): Promise<void> {
 		this.deleteOperations.push(resource);
@@ -70,6 +98,7 @@ class TestChatSessionFileService extends InMemoryTestFileService {
 
 suite('ChatSessionStore', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	let instantiationService: TestInstantiationService;
 	let mockWorkspaceEditingService: MockWorkspaceEditingService;
@@ -83,6 +112,7 @@ suite('ChatSessionStore', () => {
 
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection()));
+		instantiationService.stub(IChatSessionResourceLocks, createTestChatSessionResourceLocks());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -191,6 +221,7 @@ suite('ChatSessionStore', () => {
 		const session = await store.readSession('session-1');
 
 		assert.ok(session);
+		testDisposables.add(session.resources!);
 		assert.strictEqual((session.value as ISerializableChatData3).sessionId, 'session-1');
 	});
 
@@ -201,6 +232,8 @@ suite('ChatSessionStore', () => {
 		const index = await store.getIndex();
 		index['../../../outside'] = { ...index['session-1'], sessionId: '../../../outside' };
 		delete index['session-1'];
+		fileService.deleteOperations.length = 0;
+		fileService.readOperations.length = 0;
 
 		const session = await store.readSession('../../../outside');
 
@@ -236,6 +269,7 @@ suite('ChatSessionStore', () => {
 		const index = await store.getIndex();
 		index['../../../outside'] = { ...index['session-1'], sessionId: '../../../outside' };
 		delete index['session-1'];
+		fileService.deleteOperations.length = 0;
 
 		await store.deleteSession('../../../outside');
 
@@ -286,6 +320,7 @@ suite('ChatSessionStore', () => {
 
 	test('multiple stores can be created with different workspaces', async () => {
 		const store1 = createChatSessionStore(false);
+		instantiationService.stub(IFileService, testDisposables.add(new TestChatSessionFileService()));
 		const store2 = createChatSessionStore(true);
 
 		const folder1 = store1.getChatStorageFolder();
@@ -355,6 +390,7 @@ suite('ChatSessionStore', () => {
 
 			const sessionData = await store.readTransferredSession(sessionResource);
 			assert.ok(sessionData);
+			testDisposables.add(sessionData.resources!);
 			assert.strictEqual((sessionData.value as ISerializableChatData3).sessionId, 'transfer-session');
 		});
 
@@ -368,7 +404,7 @@ suite('ChatSessionStore', () => {
 			await store.storeTransferSession(transferData, model);
 
 			// Read the session
-			await store.readTransferredSession(sessionResource);
+			(await store.readTransferredSession(sessionResource))?.resources?.dispose();
 
 			// Transfer should be cleaned up
 			const result = store.getTransferredSessionData();
@@ -465,8 +501,133 @@ suite('ChatSessionStore', () => {
 	});
 
 	suite('workspace migration', () => {
+		for (const failure of ['partial-copy', 'existing-corrupt'] as const) {
+			test(`owned-input migration repairs ${failure} blobs before publishing references`, async () => {
+				sinon.useFakeTimers();
+				const target = URI.file(`/test/workspaceStorage/${TestWorkspace.id}/chatSessions/.input`);
+				const provider = testDisposables.add(new class extends InMemoryFileSystemProvider {
+					failCopy = false;
+					override get capabilities(): FileSystemProviderCapabilities {
+						return FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+					}
+					override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+						if (this.failCopy && resource.path.startsWith(`${target.path}/newSessionDraft.resources/`)) {
+							this.failCopy = false;
+							await super.writeFile(resource, content.subarray(0, 1), options);
+							throw new Error('injected partial blob copy');
+						}
+						await super.writeFile(resource, content, options);
+					}
+				}());
+				fileService = testDisposables.add(new TestChatSessionFileService(provider));
+				instantiationService.stub(IFileService, fileService);
+				const source = createChatSessionStore(true);
+				const bytes = new Uint8Array([0, 1, 2, 128, 254, 255]);
+				const draft = testDisposables.add(await source.writeOwnedData(ChatStorageOwner.NewSessionDraft, { inputText: 'keep image', attachments: [{ kind: 'image', id: 'image', name: 'image.png', value: bytes }] }));
+				const hash = getChatBinaryReference(draft.object.attachments[0].value)!.descriptor.sha256;
+				const targetBlob = URI.joinPath(target, 'newSessionDraft.resources', hash);
+				if (failure === 'existing-corrupt') {
+					await fileService.writeFile(targetBlob, VSBuffer.wrap(new Uint8Array(bytes.length).fill(99)));
+				} else {
+					provider.failCopy = true;
+				}
+				await mockWorkspaceEditingService.fireWorkspaceTransition({ id: 'empty-window-id' }, { id: TestWorkspace.id, uri: URI.file('/target') });
+				if (failure === 'partial-copy') {
+					assert.strictEqual(await fileService.exists(URI.joinPath(target, 'newSessionDraft.json')), false);
+				}
+				const restored = await source.readOwnedData(ChatStorageOwner.NewSessionDraft);
+				assert.ok(restored);
+				testDisposables.add(restored);
+				assert.deepStrictEqual({
+					bytes: (await resolveChatBinaryData(restored.object, 'request')).attachments[0].value,
+					storedBytes: new Uint8Array((await fileService.readFile(targetBlob)).value.buffer),
+					temporary: await fileService.exists(targetBlob.with({ path: `${targetBlob.path}.tmp` })),
+				}, { bytes, storedBytes: bytes, temporary: false });
+			});
+		}
+
+		test('failed owned-input migration retries for a later reader without an existing cache', async () => {
+			sinon.useFakeTimers();
+			const source = createChatSessionStore(true);
+			instantiationService.stub(IChatSessionStore, source);
+			const original = { inputText: 'keep unopened draft', attachments: [{ kind: 'image' as const, id: 'image', name: 'image.png', value: new Uint8Array([0, 128, 255]) }] };
+			testDisposables.add(await source.writeOwnedData(ChatStorageOwner.NewSessionDraft, original));
+			const copying = sinon.stub(fileService, 'copy').callThrough();
+			copying.withArgs(sinon.match((uri: URI) => uri.path.endsWith('/newSessionDraft.json')), sinon.match.any).rejects(new Error('injected migration failure'));
+			await mockWorkspaceEditingService.fireWorkspaceTransition({ id: 'empty-window-id' }, { id: TestWorkspace.id, uri: URI.file('/target') });
+			const cache = testDisposables.add(instantiationService.createInstance(ChatInputStorage<ChatStorageOwner.NewSessionDraft>, ChatStorageOwner.NewSessionDraft, { inputText: '', attachments: [] }, () => { }));
+			await cache.whenReady;
+			await cache.save();
+			const destination = URI.joinPath(source.getChatStorageFolder(), '.input', 'newSessionDraft.json');
+			assert.strictEqual(await fileService.exists(destination), false);
+			copying.restore();
+			await cache.save();
+			assert.deepStrictEqual(await resolveChatBinaryData(cache.value, 'request'), original);
+		});
+
+		test('a failed owned-input migration retries an unchanged live draft on the next save', async () => {
+			sinon.useFakeTimers();
+			const source = createChatSessionStore(true);
+			instantiationService.stub(IChatSessionStore, source);
+			const original = { inputText: 'keep draft', attachments: [{ kind: 'image' as const, id: 'image', name: 'image.png', value: new Uint8Array([0, 128, 255]) }] };
+			testDisposables.add(await source.writeOwnedData(ChatStorageOwner.NewSessionDraft, original));
+			const cache = testDisposables.add(instantiationService.createInstance(ChatInputStorage<ChatStorageOwner.NewSessionDraft>, ChatStorageOwner.NewSessionDraft, { inputText: '', attachments: [] }, () => { }));
+			await cache.whenReady;
+			sinon.stub(fileService, 'copy').callThrough().withArgs(sinon.match((uri: URI) => uri.path.endsWith('/newSessionDraft.json')), sinon.match.any).onFirstCall().rejects(new Error('injected migration failure'));
+			await mockWorkspaceEditingService.fireWorkspaceTransition({ id: 'empty-window-id' }, { id: TestWorkspace.id, uri: URI.file('/target') });
+			cache.set({ ...cache.value, attachments: [...cache.value.attachments] });
+			await cache.save();
+			const restored = await source.readOwnedData(ChatStorageOwner.NewSessionDraft);
+			assert.ok(restored);
+			testDisposables.add(restored);
+			assert.deepStrictEqual(await resolveChatBinaryData(restored.object, 'request'), original);
+			fileService.writeOperations.length = 0;
+			await cache.save();
+			assert.deepStrictEqual(fileService.writeOperations, []);
+		});
+
+		for (const hasTranscript of [false, true]) {
+			test(`owned input migrates from an empty window ${hasTranscript ? 'alongside a transcript' : 'without any transcript'}`, async () => {
+				const source = createChatSessionStore(true);
+				const image: IChatRequestVariableEntry = { kind: 'image', id: 'image', name: 'image.png', value: new Uint8Array([0, 128, 255]) };
+				const state = { inputText: 'history', attachments: [image], mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [], contrib: {} };
+				testDisposables.add(await source.writeOwnedData(ChatStorageOwner.InputHistory, { history: { [ChatAgentLocation.Chat]: [state] } }));
+				testDisposables.add(await source.writeOwnedData(ChatStorageOwner.EmptyDraftAttachments, [image]));
+				testDisposables.add(await source.writeOwnedData(ChatStorageOwner.NewSessionDraft, { inputText: 'draft', attachments: [image] }));
+				if (hasTranscript) {
+					await source.storeSessions([testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')))]);
+				}
+				await mockWorkspaceEditingService.fireWorkspaceTransition({ id: 'empty-window-id' }, { id: TestWorkspace.id, uri: URI.file('/target') });
+				const history = await source.readOwnedData(ChatStorageOwner.InputHistory);
+				const attachments = await source.readOwnedData(ChatStorageOwner.EmptyDraftAttachments);
+				const draft = await source.readOwnedData(ChatStorageOwner.NewSessionDraft);
+				assert.ok(history && attachments && draft);
+				testDisposables.add(history);
+				testDisposables.add(attachments);
+				testDisposables.add(draft);
+				assert.deepStrictEqual({
+					history: (await resolveChatBinaryData(history.object, 'request')).history?.[ChatAgentLocation.Chat][0].attachments[0].value,
+					attachments: (await resolveChatBinaryData(attachments.object, 'request'))[0].value,
+					draft: (await resolveChatBinaryData(draft.object, 'request')).attachments[0].value,
+				}, { history: image.value, attachments: image.value, draft: image.value });
+			});
+		}
+
+		test('different empty windows do not read or overwrite each other owned input', async () => {
+			const first = createChatSessionStore(true);
+			testDisposables.add(await first.writeOwnedData(ChatStorageOwner.NewSessionDraft, { inputText: 'private first draft', attachments: [] }));
+			instantiationService.stub(IWorkspaceContextService, new TestContextService(new Workspace('another-empty-window', [])));
+			const second = testDisposables.add(instantiationService.createInstance(ChatSessionStore));
+			assert.strictEqual(await second.readOwnedData(ChatStorageOwner.NewSessionDraft), undefined);
+			testDisposables.add(await second.writeOwnedData(ChatStorageOwner.NewSessionDraft, { inputText: 'private second draft', attachments: [] }));
+			const reloaded = await first.readOwnedData(ChatStorageOwner.NewSessionDraft);
+			assert.ok(reloaded);
+			testDisposables.add(reloaded);
+			assert.strictEqual(reloaded.object.inputText, 'private first draft');
+		});
+
 		test('migration is triggered when onDidEnterWorkspace fires', async () => {
-			const fileService = instantiationService.get(IFileService) as InMemoryTestFileService;
+			const fileService = instantiationService.get(IFileService);
 
 			// Create store with empty window
 			const store = createChatSessionStore(true);
@@ -478,7 +639,7 @@ suite('ChatSessionStore', () => {
 
 			// Get the file path for the session in empty window storage
 			const emptyWindowStorageRoot = store.getChatStorageFolder();
-			const sessionFile = URI.joinPath(emptyWindowStorageRoot, 'session-1.json');
+			const sessionFile = URI.joinPath(emptyWindowStorageRoot, 'session-1.jsonl');
 			const fileExists = await fileService.exists(sessionFile);
 			assert.strictEqual(fileExists, true, 'Session file should exist in empty window storage');
 
@@ -491,7 +652,7 @@ suite('ChatSessionStore', () => {
 
 			// Verify file was copied to new location
 			const newStorageRoot = store.getChatStorageFolder();
-			const migratedSessionFile = URI.joinPath(newStorageRoot, 'session-1.json');
+			const migratedSessionFile = URI.joinPath(newStorageRoot, 'session-1.jsonl');
 			const migratedFileExists = await fileService.exists(migratedSessionFile);
 			assert.strictEqual(migratedFileExists, true, 'Session file should be migrated to workspace storage');
 		});

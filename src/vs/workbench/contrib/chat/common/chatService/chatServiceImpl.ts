@@ -55,7 +55,7 @@ import { IRemoteChatHistoryScheduler, IRemoteChatSessionRestoreOptions, IRemoteC
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatSession, IChatSessionsService, IChatSessionServerRequest, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
-import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
+import { IChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
@@ -275,7 +275,6 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
-	private readonly _chatSessionStore: ChatSessionStore;
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
@@ -328,6 +327,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
+		@IChatSessionStore private readonly _chatSessionStore: IChatSessionStore,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, Event.any(
@@ -385,8 +385,7 @@ export class ChatService extends Disposable implements IChatService {
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
-		this._chatSessionStore = this._register(this.instantiationService.createInstance(ChatSessionStore));
-		this._chatSessionStore.migrateDataIfNeeded(() => this.migrateData());
+		void this._chatSessionStore.migrateDataIfNeeded(() => this.migrateData()).catch(error => this.logService.error('Unable to initialize saved chat sessions', error));
 
 		const transferredData = this._chatSessionStore.getTransferredSessionData();
 		if (transferredData) {

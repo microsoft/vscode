@@ -36,6 +36,13 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatAgents2 } from '../../browser/mainThreadChatAgents2.js';
 import { IChatUsageDto, IExtensionChatAgentMetadata } from '../../common/extHost.protocol.js';
+import { FileService } from '../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createTestChatSessionResources } from '../../../contrib/chat/test/common/model/chatSessionResourceLocks.js';
+import { ChatAgentResult, ChatPromptReference } from '../../common/extHostTypeConverters.js';
+import { ChatReferenceBinaryData, LanguageModelTextPart, LanguageModelToolResult } from '../../common/extHostTypes.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { resolveChatBinaryData } from '../../../contrib/chat/common/model/chatSessionResources.js';
 
 suite('MainThreadChatAgents2', function () {
 
@@ -48,18 +55,23 @@ suite('MainThreadChatAgents2', function () {
 	let agentImpl: IChatAgentImplementation;
 	let warnings: string[];
 	let resolveInvoke: (result: unknown) => void;
+	let invokedRequest: IChatAgentRequest | undefined;
 
 	setup(async function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		warnings = [];
+		invokedRequest = undefined;
 
 		// `$invokeAgent` is kept pending so the `_pendingProgress` entry registered at
 		// the start of `invoke` stays alive while we route a usage chunk through it.
 		const invokePromise = new Promise<unknown>(resolve => { resolveInvoke = resolve; });
 		const proxy = {
 			$acceptActiveChatSession: () => { },
-			$invokeAgent: () => invokePromise,
+			$invokeAgent: (_handle: number, request: IChatAgentRequest) => {
+				invokedRequest = request;
+				return invokePromise;
+			},
 			$onDidChangePlugins: () => { },
 		};
 		const extHostContext = new class implements IExtHostContext {
@@ -146,6 +158,69 @@ suite('MainThreadChatAgents2', function () {
 			subAgentInvocationId,
 		};
 	}
+
+	test('persisted images reach participants as non-empty binary data with original authorization references', async () => {
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resources = disposables.add(createTestChatSessionResources(files));
+		const directory = URI.file('/session.resources');
+		const source = new Uint8Array([0, 1, 128, 255]);
+		const prepared = await resources.prepare({ value: source }, directory);
+		const restored = resources.restore(prepared.value, directory);
+		const originalResource = URI.file('/original/screenshot.png');
+		const request: IChatAgentRequest = {
+			...makeRequest('binary-request', URI.parse('vscode-local-chat-session:/binary')),
+			variables: {
+				variables: [{
+					kind: 'image', id: 'image', name: 'screenshot.png', mimeType: 'image/png', isPasted: true,
+					value: restored.value, references: [{ kind: 'reference', reference: originalResource }],
+				}]
+			},
+		};
+		resolveInvoke({});
+		await agentImpl.invoke(request, () => { }, [], CancellationToken.None);
+		assert.ok(invokedRequest);
+		const reference = ChatPromptReference.to(invokedRequest.variables.variables[0], [], new NullLogService());
+		assert.ok(reference?.value instanceof ChatReferenceBinaryData);
+		assert.deepStrictEqual({
+			bytes: await reference.value.data(),
+			reference: reference.value.reference,
+			isPasted: reference.value.isPasted,
+		}, { bytes: source, reference: originalResource, isPasted: true });
+	});
+
+	test('unavailable tool data revives as an explicit extension text part', async () => {
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resources = disposables.add(createTestChatSessionResources(files));
+		const directory = URI.file('/session.resources');
+		const prepared = await resources.prepare({
+			metadata: { tool: { $mid: MarshalledId.LanguageModelToolResult, content: [{ $mid: MarshalledId.LanguageModelDataPart, data: 'AQID', mimeType: 'image/png' }] } },
+		}, directory);
+		const restored = resources.restore(prepared.value, directory);
+		await files.del(directory, { recursive: true });
+		const result = ChatAgentResult.to(await resolveChatBinaryData(restored, 'history'));
+		assert.ok(result?.metadata?.tool instanceof LanguageModelToolResult);
+		const part = result.metadata.tool.content[0];
+		assert.ok(part instanceof LanguageModelTextPart);
+		assert.match(part.value, /unavailable/);
+	});
+
+	test('missing persisted image fails before calling a participant', async () => {
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resources = disposables.add(createTestChatSessionResources(files));
+		const directory = URI.file('/missing.resources');
+		const prepared = await resources.prepare({ value: new Uint8Array([1, 2, 3]) }, directory);
+		const restored = resources.restore(prepared.value, directory);
+		await files.del(directory, { recursive: true });
+		const request: IChatAgentRequest = {
+			...makeRequest('missing-request', URI.parse('vscode-local-chat-session:/missing')),
+			variables: { variables: [{ kind: 'image', id: 'image', name: 'missing.png', value: restored.value }] },
+		};
+		await assert.rejects(agentImpl.invoke(request, () => { }, [], CancellationToken.None));
+		assert.strictEqual(invokedRequest, undefined);
+	});
 
 	/**
 	 * Starts an agent invocation (which registers the pending-progress entry) and routes a

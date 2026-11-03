@@ -58,7 +58,9 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
-import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
+import { clearNewChatDraftState, readNewChatDraftState } from '../common/newChatDraftState.js';
+import { ChatInputStorage } from '../../../../workbench/contrib/chat/common/model/chatInputStorage.js';
+import { ChatStorageOwner } from '../../../../workbench/contrib/chat/common/model/chatSessionStore.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -182,6 +184,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _boundResource: URI | undefined;
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
+	private readonly _draftStorage: ChatInputStorage<ChatStorageOwner.NewSessionDraft>;
 	private readonly _sending = observableValue(this, false);
 	/** Whether the host is asking to confirm a send. Other sends stay blocked, but nothing shows progress yet. */
 	private readonly _confirmingSend = observableValue(this, false);
@@ -209,6 +212,19 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		let legacyDraft: IChatDraft | undefined;
+		try {
+			legacyDraft = readNewChatDraftState(storageService);
+		} catch (error) {
+			this.logService.warn('[SharedChatInputComposer] Could not restore the saved draft', error);
+		}
+		this._draftStorage = this._register(this.instantiationService.createInstance(ChatInputStorage<ChatStorageOwner.NewSessionDraft>,
+			ChatStorageOwner.NewSessionDraft, legacyDraft ?? { inputText: '', attachments: [] }, () => clearNewChatDraftState(storageService)));
+		this._register(this._draftStorage.onDidLoad(() => {
+			if (this._widget && !this.hasInput) {
+				this._restoreDraftState();
+			}
+		}));
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 		this.pickerVisibility = this._register(new SessionInputPickerVisibility());
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
@@ -642,7 +658,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	get isInputReady(): boolean {
-		return !!this._widget;
+		return !!this._widget && this._draftStorage.isReady;
 	}
 
 	get canApplyWorkspaceDefault(): boolean {
@@ -674,7 +690,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	saveState(): void {
 		const widget = this._widget;
 		if (widget) {
-			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+			const draft = { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) };
+			this._draftStorage.set(draft);
 		}
 	}
 
@@ -696,12 +713,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _restoreDraftState(): void {
-		let draft: IChatDraft | undefined;
-		try {
-			draft = readNewChatDraftState(this.storageService);
-		} catch {
-			this.logService.warn('[SharedChatInputComposer] Could not restore the saved draft');
-		}
+		const draft = this._draftStorage.value;
 		if (draft) {
 			this.setInputValue(draft.inputText);
 			if (draft.attachments.length) {

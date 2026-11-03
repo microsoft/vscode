@@ -124,7 +124,11 @@ export class ChatModelStore extends Disposable {
 
 	public acquireOrCreate(props: IStartSessionProps, debugOwner?: string): IReference<ChatModel> {
 		const key = this.toKey(props.sessionResource);
-		return this.wrapReference(key, this._refCollection.acquire(key, props, debugOwner), debugOwner);
+		try {
+			return this.wrapReference(key, this._refCollection.acquire(key, props, debugOwner), debugOwner);
+		} finally {
+			props.initialData?.resources?.dispose();
+		}
 	}
 
 	public getReferenceDebugSnapshot(): IChatModelReferenceDebugSnapshot {

@@ -16,6 +16,7 @@ import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, ISerializablePendingRequestData, SerializedChatResponsePart, serializeSendOptions } from './chatModel.js';
 import * as Adapt from './objectMutationLog.js';
+import { cloneChatData } from './chatSessionResources.js';
 
 /**
  * ChatModel has lots of properties and lots of ways those properties can mutate.
@@ -126,7 +127,7 @@ const agentEditedFileEventSchema = Adapt.object<IChatAgentEditedFileEvent, IChat
 });
 
 const chatVariableSchema = Adapt.object<IChatRequestVariableData, IChatRequestVariableData>({
-	variables: Adapt.t(v => v.variables.map(IChatRequestVariableEntry.toExport), Adapt.array(Adapt.value((a, b) => a.name === b.name))),
+	variables: Adapt.t((v, cloneValues) => cloneValues === false ? v.variables : v.variables.map(IChatRequestVariableEntry.toExport), Adapt.array(Adapt.value((a, b) => a.name === b.name))),
 });
 
 const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestData>({
@@ -187,7 +188,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 });
 
 const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISerializableChatModelInputState>({
-	attachments: Adapt.v(i => i.attachments.map(IChatRequestVariableEntry.toExport), objectsEqual),
+	attachments: Adapt.v((i, cloneValues) => cloneValues === false ? i.attachments : i.attachments.map(IChatRequestVariableEntry.toExport), objectsEqual),
 	mode: Adapt.v(i => i.mode, (a, b) => a.id === b.id),
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier && objectsEqual(a?.modelConfiguration, b?.modelConfiguration)),
 	inputText: Adapt.v(i => i.inputText),
@@ -205,10 +206,11 @@ const pendingRequestSchema = Adapt.object<IChatPendingRequest, ISerializablePend
 
 export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	version: Adapt.v(() => 3),
+	binaryResourcesVersion: Adapt.v(() => undefined),
 	creationDate: Adapt.v(m => m.timestamp),
 	customTitle: Adapt.v(m => m.hasCustomTitle ? m.title : undefined),
 	initialLocation: Adapt.v(m => m.initialLocation),
-	inputState: Adapt.t(m => m.inputModel.toJSON(), inputStateSchema),
+	inputState: Adapt.t((m, cloneValues) => m.inputModel.toJSON({ skipBinaryEncoding: cloneValues === false }), inputStateSchema),
 	responderUsername: Adapt.v(m => m.responderUsername),
 	sessionId: Adapt.v(m => m.sessionId),
 	requests: Adapt.t(m => m.getRequests(), Adapt.array(requestSchema)),
@@ -222,5 +224,14 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {
 	constructor() {
 		super(storageSchema, 1024);
+	}
+
+	static snapshot(model: IChatModel, clone = true): ISerializableChatData {
+		const snapshot = storageSchema.extract(model, false);
+		return clone ? cloneChatData(snapshot) : snapshot;
+	}
+
+	static serialize(model: IChatModel): ISerializableChatData {
+		return storageSchema.extract(model);
 	}
 }

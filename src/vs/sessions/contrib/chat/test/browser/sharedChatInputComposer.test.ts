@@ -112,7 +112,7 @@ suite('SharedChatInputComposer', () => {
 					return options.sendResult ?? true;
 				},
 			},
-			storageService: { store: () => { } },
+			_draftStorage: { set: () => { } },
 			logService: new NullLogService(),
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },

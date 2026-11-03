@@ -10,6 +10,7 @@ import { getDurationString } from '../../../../../../../base/common/date.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { getChatBinaryReference } from '../../../../common/model/chatSessionResources.js';
 import { getExtensionForMimeType, Mimes, normalizeMimeType } from '../../../../../../../base/common/mime.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
@@ -135,15 +136,16 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					if (image) {
 						return { kind: 'data', uri: image.uri, name: image.name, mimeType: image.mimeType, base64Value: image.base64Value, audience: image.audience };
 					}
-					const permalinkBasename = o.type === 'ref' || o.uri
+					const stored = o.type === 'ref' && getChatBinaryReference(o.uri);
+					const permalinkBasename = o.uri && !stored
 						? basename(o.uri!)
 						: o.mimeType && getExtensionForMimeType(o.mimeType)
 							? `file${getExtensionForMimeType(o.mimeType)}`
-							: 'file' + (o.isText ? '.txt' : '.bin');
+							: 'file' + (o.type === 'embed' && o.isText ? '.txt' : '.bin');
 
 
 					if (o.type === 'ref') {
-						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
+						return { kind: 'data', uri: o.uri, mimeType: o.mimeType, name: stored ? permalinkBasename : undefined, audience: o.audience };
 					} else if (o.isText && !o.asResource) {
 						return createCodePart(o.value, getOutputLanguageId(o));
 					} else {

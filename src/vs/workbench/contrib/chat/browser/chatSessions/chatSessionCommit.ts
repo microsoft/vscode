@@ -20,6 +20,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { resolveChatBinaryData } from '../../common/model/chatSessionResources.js';
 
 /**
  * Replaces an untitled chat session with the session its provider committed it to: carries todos,
@@ -78,10 +79,11 @@ export async function commitChatSession(accessor: ServicesAccessor, chatSessionT
 
 		// Prefetch the chat session content to make the subsequent editor swap quick
 		const newSession = await chatSessionsService.getOrCreateChatSession(modifiedResource, CancellationToken.None);
+		const inputState = await resolveChatBinaryData(originalModel?.object.inputModel.toJSON(), 'export');
 
 		if (originalEditor) {
 			newSession.transferredState = originalEditor instanceof ChatEditorInput
-				? { editingSession: originalEditor.transferOutEditingSession(), inputState: originalModel?.object?.inputModel.toJSON() }
+				? { editingSession: originalEditor.transferOutEditingSession(), inputState }
 				: undefined;
 
 			await editorService.replaceEditors([{
@@ -102,7 +104,7 @@ export async function commitChatSession(accessor: ServicesAccessor, chatSessionT
 		if (originalModel) {
 			newSession.transferredState = {
 				editingSession: originalModel.object.editingSession,
-				inputState: originalModel.object.inputModel.toJSON()
+				inputState
 			};
 		}
 

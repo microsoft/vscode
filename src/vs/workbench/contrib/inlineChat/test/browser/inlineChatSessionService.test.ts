@@ -35,6 +35,9 @@ import { ChatEditingSession } from '../../../chat/browser/chatEditing/chatEditin
 import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
+import { ChatSessionStore, IChatSessionStore } from '../../../chat/common/model/chatSessionStore.js';
+import { IChatSessionResourceLocks } from '../../../chat/common/model/chatSessionResourceLocks.js';
+import { createTestChatSessionResourceLocks } from '../../../chat/test/common/model/chatSessionResourceLocks.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { IChatEditingService } from '../../../chat/common/editing/chatEditingService.js';
@@ -208,6 +211,8 @@ suite('InlineChatSessionService', () => {
 		collection.set(ITextModelService, textModelService);
 
 		const instantiationService = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		instantiationService.stub(IChatSessionResourceLocks, createTestChatSessionResourceLocks());
+		instantiationService.stub(IChatSessionStore, store.add(instantiationService.createInstance(ChatSessionStore)));
 		store.add(instantiationService.get(IEditorWorkerService) as TestWorkerService);
 		store.add(instantiationService.get(IChatSessionsService) as ChatSessionsService);
 		chatService = instantiationService.get(IChatService);

@@ -5,13 +5,15 @@
 
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { INativeHostService, INativeZipFile } from '../../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
@@ -20,6 +22,7 @@ import { captureRepoInfo } from '../../browser/chatRepoInfo.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
+import { exportChatBinaryData } from '../../common/model/chatSessionResources.js';
 
 export function registerChatExportZipAction() {
 	return registerAction2(class ExportChatAsZipAction extends Action2 {
@@ -41,6 +44,7 @@ export function registerChatExportZipAction() {
 			const notificationService = accessor.get(INotificationService);
 			const scmService = accessor.get(ISCMService);
 			const fileService = accessor.get(IFileService);
+			const environmentService = accessor.get(INativeEnvironmentService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
@@ -63,12 +67,7 @@ export function registerChatExportZipAction() {
 				return;
 			}
 
-			const files: { path: string; contents: string }[] = [
-				{
-					path: 'chat.json',
-					contents: JSON.stringify(model.toExport(), undefined, 2)
-				}
-			];
+			const files: INativeZipFile[] = [];
 
 			const hasMessages = model.getRequests().length > 0;
 
@@ -109,13 +108,27 @@ export function registerChatExportZipAction() {
 				}
 			}
 
+			const temporaryExport = joinPath(environmentService.tmpDir, `vscode-chat-export-${generateUuid()}.json`);
+			const exported = exportChatBinaryData(model.toExport());
 			try {
+				await fileService.writeFile(temporaryExport, exported.object);
+				const stat = await fileService.stat(temporaryExport);
+				files.unshift({ path: 'chat.json', source: temporaryExport, size: stat.size });
 				await nativeHostService.createZipFile(result, files);
 			} catch (error) {
 				notificationService.notify({
 					severity: Severity.Error,
 					message: localize('chatExportZip.error', "Failed to export chat as zip: {0}", error instanceof Error ? error.message : String(error))
 				});
+			} finally {
+				exported.dispose();
+				try {
+					await fileService.del(temporaryExport);
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						notificationService.error(localize('chatExportZip.cleanupError', "Failed to remove temporary chat export: {0}", error instanceof Error ? error.message : String(error)));
+					}
+				}
 			}
 		}
 	});

@@ -14,6 +14,11 @@ import { IAgentsWindowDraft, isAgentsWindowDraft } from '../../../../../../platf
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { SymbolKind } from '../../../../../../editor/common/languages.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createTestChatSessionResources } from '../model/chatSessionResourceLocks.js';
+import { resolveChatBinaryData } from '../../../common/model/chatSessionResources.js';
 
 suite('Chat draft handoff serialization', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,6 +67,26 @@ suite('Chat draft handoff serialization', () => {
 			kind: attachment.kind, name: attachment.name, value: attachment.value,
 			hasHandle: Object.hasOwn(attachment, 'handle'),
 		})), [{ kind: 'paste', name: 'Context', value: 'Resolved text', hasHandle: false }]);
+	});
+
+	test('a hydrated binary draft handoff remains portable after the source is deleted', async () => {
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const resources = disposables.add(createTestChatSessionResources(files));
+		const directory = URI.file('/session.resources');
+		const source: IChatDraft = { inputText: 'Keep image', attachments: [{ kind: 'image', id: 'image', name: 'image.png', value: new Uint8Array([0, 128, 255]), references: [{ kind: 'reference', reference: URI.file('/original.png') }] }] };
+		const prepared = await resources.prepare(source, directory);
+		const restored = resources.restore(prepared.value, directory);
+		const serialized = serializeChatDraft(await resolveChatBinaryData(restored, 'request'));
+		await files.del(directory, { recursive: true });
+		const portable = reviveChatDraft(JSON.parse(JSON.stringify(serialized)));
+		assert.ok(portable.attachments[0].value instanceof Uint8Array);
+		assert.deepStrictEqual({
+			text: portable.inputText,
+			bytes: [...portable.attachments[0].value],
+			references: portable.attachments[0].references,
+			internal: serialized.attachments.includes('$chatBinary'),
+		}, { text: source.inputText, bytes: [0, 128, 255], references: source.attachments[0].references, internal: false });
 	});
 
 	test('rejects unresolved extension context instead of silently dropping it', () => {

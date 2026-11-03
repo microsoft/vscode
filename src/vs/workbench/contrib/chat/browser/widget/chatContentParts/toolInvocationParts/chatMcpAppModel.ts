@@ -9,6 +9,7 @@ import { softAssertNever } from '../../../../../../../base/common/assert.js';
 import { DeferredPromise, disposableTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { resolveChatBinaryData } from '../../../../common/model/chatSessionResources.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
@@ -727,13 +728,13 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			});
 
 			if (this.toolInvocation.kind === 'toolInvocationSerialized') {
-				this._sendToolResult(this.toolInvocation.resultDetails);
+				await this._sendToolResult(this.toolInvocation.resultDetails);
 			} else if (this.toolInvocation.kind === 'toolInvocation') {
 				const invocation = this.toolInvocation;
 				this._appDisposables.add(autorunSelfDisposable(reader => {
 					const state = invocation.state.read(reader);
 					if (state.type === IChatToolInvocation.StateKind.Completed) {
-						this._sendToolResult(state.resultDetails);
+						void this._sendToolResult(state.resultDetails);
 						reader.dispose();
 					}
 				}));
@@ -819,12 +820,26 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		return McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, serverUri);
 	}
 
-	private _sendToolResult(resultDetails: IToolResult['toolResultDetails'] | IChatToolInvocationSerialized['resultDetails']): void {
+	private async _sendToolResult(resultDetails: IToolResult['toolResultDetails'] | IChatToolInvocationSerialized['resultDetails']): Promise<void> {
 		if (isToolResultInputOutputDetails(resultDetails) && resultDetails.mcpOutput) {
-			this._sendNotification({
-				method: 'ui/notifications/tool-result',
-				params: resultDetails.mcpOutput as MCP.CallToolResult,
-			});
+			const cts = new CancellationTokenSource(this._disposeCts.token);
+			const lifetime = this._appDisposables.add(toDisposable(() => cts.dispose(true)));
+			try {
+				const result = await resolveChatBinaryData(resultDetails.mcpOutput, 'request', cts.token);
+				if (!cts.token.isCancellationRequested) {
+					await this._sendNotification({
+						method: 'ui/notifications/tool-result',
+						params: result as MCP.CallToolResult,
+					});
+				}
+			} catch (error) {
+				if (!cts.token.isCancellationRequested) {
+					this._logService.error('[MCP App] Unable to read saved tool result:', error);
+					this._loadState.set({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) }, undefined);
+				}
+			} finally {
+				this._appDisposables.delete(lifetime);
+			}
 		}
 	}
 

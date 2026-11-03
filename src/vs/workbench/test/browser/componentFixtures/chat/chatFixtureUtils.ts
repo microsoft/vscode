@@ -85,6 +85,7 @@ import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/wid
 import { IChatEditPresentationService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { DefaultChatEditPresentationService } from '../../../../contrib/chat/browser/widget/chatContentParts/defaultChatEditPresentation.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
+import { IChatSessionStore } from '../../../../contrib/chat/common/model/chatSessionStore.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
 import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
@@ -96,6 +97,7 @@ import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes
 import { ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentService, IChatAgent, IChatAgentNameService, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { TestChatSessionStore } from '../../../../contrib/chat/test/common/model/testChatSessionStore.js';
 import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
@@ -440,6 +442,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override async resolveDirectoryImages() { return []; }
 	}());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());
+	reg.define(IChatSessionStore, TestChatSessionStore);
 	reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {

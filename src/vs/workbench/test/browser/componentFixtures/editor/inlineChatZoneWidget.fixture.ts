@@ -53,6 +53,8 @@ import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugServ
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IPromptsService } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
+import { IChatSessionStore } from '../../../../contrib/chat/common/model/chatSessionStore.js';
+import { TestChatSessionStore } from '../../../../contrib/chat/test/common/model/testChatSessionStore.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -354,6 +356,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override getHistory() { return []; }
 				override readonly onDidChangeHistory = Event.None;
 			}());
+			reg.define(IChatSessionStore, TestChatSessionStore);
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
 				override editingSessionsObs = observableValue('editingSessionsObs', []);
 				override getEditingSession() { return undefined; }

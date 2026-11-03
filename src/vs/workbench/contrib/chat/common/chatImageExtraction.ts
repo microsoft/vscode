@@ -22,6 +22,10 @@ import { IChatContentInlineReference, IChatMarkdownContent, IChatToolInvocation,
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolInputOutputBase } from './tools/languageModelToolsService.js';
 import { getExplicitFileOrImageAttachmentSummary, type IChatRequestVariableEntry, isImageVariableEntry } from './attachments/chatVariableEntries.js';
 import { annotateSpecialMarkdownContent, contentRefUrl } from './widget/annotations.js';
+import { getChatBinaryReference } from './model/chatSessionResources.js';
+import { coerceImageBuffer } from './attachments/chatImageData.js';
+
+export { coerceImageBuffer };
 
 export interface IChatExtractedImage {
 	readonly id: string;
@@ -67,7 +71,7 @@ export function getToolResultImageResources(details: IToolResultInputOutputDetai
 		}
 		images.push({
 			uri: output.type === 'ref' ? output.uri : ChatResponseResource.createUri(sessionResource, toolCallId, index, fileName),
-			name: output.type === 'ref' && name !== 'generated-image' ? basename(output.uri) : fileName,
+			name: output.type === 'ref' && !getChatBinaryReference(output.uri) && name !== 'generated-image' ? basename(output.uri) : fileName,
 			mimeType: output.mimeType,
 			index,
 			base64Value: output.type === 'embed' ? output.value : undefined,
@@ -172,9 +176,11 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 	else if (isToolResultOutputDetails(resultDetails)) {
 		const output = resultDetails.output;
 		if (output.mimeType?.startsWith('image/')) {
+			const serializedDetails = toolInvocation.kind === 'toolInvocationSerialized' ? toolInvocation.resultDetails : undefined;
+			const resource = serializedDetails && !Array.isArray(serializedDetails) && !isToolResultInputOutputDetails(serializedDetails) ? serializedDetails.output.resource : undefined;
 			const data = getImageDataFromOutputDetails(resultDetails, toolInvocation);
-			if (data) {
-				pushImage(output.mimeType, data, 0);
+			if (data || resource) {
+				pushImage(output.mimeType, data, 0, resource);
 			}
 		}
 	}
@@ -223,7 +229,7 @@ export async function extractImagesFromToolInvocationMessages(
 function getImageDataFromOutputDetails(resultDetails: IToolResultOutputDetails, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): VSBuffer | undefined {
 	if (toolInvocation.kind === 'toolInvocationSerialized') {
 		const serializedDetails = resultDetails as unknown as IToolResultOutputDetailsSerialized;
-		if (serializedDetails.output.base64Data) {
+		if (typeof serializedDetails.output.base64Data === 'string') {
 			return decodeBase64(serializedDetails.output.base64Data);
 		}
 		return undefined;
@@ -276,6 +282,9 @@ export function getChatMarkdownImageFile(markdown: IMarkdownString, source: stri
 	const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
 	const uri = URI.parse(href);
 	const resource = URI.revive(markdown.uris?.[href]) ?? uri;
+	if (getChatBinaryReference(resource)?.descriptor.mimeType?.startsWith('image/')) {
+		return resource;
+	}
 	if (resource.scheme === AGENT_HOST_SCHEME) {
 		// Only a local raster image that the session resolves to itself, so a response cannot read other files
 		// eslint-disable-next-line local/code-agent-host-uri-mapping -- inspects a wrapped filesystem image and verifies it resolves back to the same session resource
@@ -337,34 +346,6 @@ async function extractImagesFromMarkdown(responseId: string, part: IChatMarkdown
 	return images;
 }
 
-export function coerceImageBuffer(value: unknown): Uint8Array | undefined {
-	if (value instanceof Uint8Array) {
-		return value;
-	}
-	if (value instanceof ArrayBuffer) {
-		return new Uint8Array(value);
-	}
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-
-	const record = value as Record<string, unknown>;
-	const keys = Object.keys(record).sort((a, b) => Number(a) - Number(b));
-	if (keys.length === 0) {
-		return undefined;
-	}
-
-	const result = new Uint8Array(keys.length);
-	for (let index = 0; index < keys.length; index++) {
-		const byte = record[keys[index]];
-		if (keys[index] !== String(index) || typeof byte !== 'number' || !Number.isInteger(byte) || byte < 0 || byte > 255) {
-			return undefined;
-		}
-		result[index] = byte;
-	}
-	return result;
-}
-
 /**
  * Extract images from a chat request's variable attachments (user-attached images).
  */
@@ -384,7 +365,7 @@ export function extractImagesFromChatVariables(
 		}
 		const buffer = coerceImageBuffer(variable.value);
 		const reference = variable.references?.[0]?.reference;
-		const resource = URI.isUri(reference) ? reference : URI.isUri(variable.value) ? variable.value : undefined;
+		const resource = getChatBinaryReference(variable.value)?.uri ?? (URI.isUri(reference) ? reference : URI.isUri(variable.value) ? variable.value : undefined);
 		if (!buffer && !resource) {
 			continue;
 		}

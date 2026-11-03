@@ -36,6 +36,7 @@ import { fromRelativeRange } from '../../../../common/attachments/chatInlineAtta
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
 import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
+import { assertPortableChatData, resolveChatBinaryData } from '../../../../common/model/chatSessionResources.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 export const pastedTextArtifactDefaultMinLength = 10000;
@@ -242,7 +243,7 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 	}
 }
 
-class CopyAttachmentsProvider implements DocumentPasteEditProvider {
+export class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.attachments');
 	public readonly providedPasteEditKinds = [this.kind];
@@ -269,9 +270,10 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		// A ranged attachment whose reference is not carried along would be pruned
 		// as an orphan by the receiving input, so send it as a plain attachment.
 		// Attachments shown inline only go along with their pills.
-		const attachments = target.attachments
+		const selectedAttachments = target.attachments
 			.filter(attachment => !copiedInlinePrompt?.excludedAttachmentIds.has(attachment.id))
 			.map(attachment => attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
+		const attachments = (await resolveChatBinaryData(selectedAttachments, 'export', _token)).map(IChatRequestVariableEntry.toExport);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;
@@ -312,6 +314,8 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		if (!Array.isArray(pastedData?.attachments) && !Array.isArray(pastedData?.dynamicVariables)) {
 			return;
 		}
+		assertPortableChatData(pastedData);
+		pastedData.attachments = pastedData.attachments.map(IChatRequestVariableEntry.fromExport);
 
 		// References relative to the pasted text start where it is inserted.
 		const pasteStart = _ranges.length === 1 ? Range.lift(_ranges[0]).getStartPosition() : undefined;

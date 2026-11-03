@@ -34,6 +34,8 @@ import { TestFileService, workbenchInstantiationService } from '../../../../../.
 import { ChatResourceGroupWidget } from '../../../../browser/widget/chatContentParts/chatResourceGroupWidget.js';
 import { getGeneratedImageResultParts } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { IChatCollapsibleIODataPart } from '../../../../browser/widget/chatContentParts/chatToolInputOutputContentPart.js';
+import { createTestChatSessionResources } from '../../../common/model/chatSessionResourceLocks.js';
+import { getChatBinaryReference } from '../../../../common/model/chatSessionResources.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatResourceGroupWidget', () => {
@@ -239,6 +241,36 @@ suite('ChatResourceGroupWidget', () => {
 			reads: [resource.toString()],
 		});
 	});
+
+	for (const missing of [false, true]) {
+		test(`stored thumbnail ${missing ? 'shows a missing-resource error' : 'renders its saved bytes'} instead of a file fallback`, async () => {
+			const files = store.add(new FileService(new NullLogService()));
+			store.add(files.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			const resources = store.add(createTestChatSessionResources(files));
+			const directory = URI.file('/session.resources');
+			const prepared = await resources.prepare({ value: decodeBase64(imageData).buffer }, directory);
+			const restored = resources.restore(prepared.value, directory);
+			const reference = getChatBinaryReference(restored.value)!;
+			instantiationService.stub(IFileService, files);
+			if (missing) {
+				await files.del(directory, { recursive: true });
+			}
+			const widget = render([{ kind: 'data', uri: reference.uri, mimeType: 'image/png', name: 'saved.png' }], false);
+			await retry(async () => {
+				if (missing) {
+					assert.ok(widget.domNode.textContent?.includes('Image unavailable: saved.png'));
+				} else {
+					const image = widget.domNode.querySelector<HTMLImageElement>('img.chat-attached-context-pill-image');
+					assert.ok(image?.complete && image.naturalWidth === 1 && image.naturalHeight === 1);
+				}
+			}, 10, 50);
+			assert.deepStrictEqual({
+				filePills: snapshot(widget).filePills,
+				error: widget.domNode.textContent?.includes('Image unavailable: saved.png'),
+				exposesCapabilityName: widget.domNode.textContent?.includes(reference.uri.path),
+			}, { filePills: 0, error: missing, exposesCapabilityName: false });
+		});
+	}
 
 	for (const [width, height] of [[800, 1600], [1600, 800]]) {
 		test(`known image dimensions reserve responsive space until a ${width}x${height} image reloads`, async () => {

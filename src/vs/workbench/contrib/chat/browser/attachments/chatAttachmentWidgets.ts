@@ -10,6 +10,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { getChatBinaryReference } from '../../common/model/chatSessionResources.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -544,7 +545,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		const ref = attachment.references?.[0]?.reference;
-		resource = ref && URI.isUri(ref) ? ref : undefined;
+		resource = getChatBinaryReference(attachment.value)?.uri ?? (ref && URI.isUri(ref) ? ref : undefined);
 		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
 			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
@@ -556,7 +557,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
-		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
+		const fullName = URI.isUri(ref) && !getChatBinaryReference(ref) ? this.labelService.getUriLabel(ref) : (attachment.fullName || attachment.name);
 
 		if (options.imagePresentation === 'inline' && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded && (!currentLanguageModel || modelSupportsVision(currentLanguageModel))) {
 			this._register(this.renderInlineImage(resource, attachment.name, fullName, options.imageBase64Data ?? imageData, ariaLabel, options.imageReveal, options.imageDimensions));
@@ -572,7 +573,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 			// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
 			if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
-				void this.loadImageBytes(resource, renderImageElements);
+				void this.loadImageBytes(resource, renderImageElements, message => {
+					const unavailable = localize('chat.imageUnavailable', "Image unavailable: {0}", attachment.name);
+					this.label.setLabel(unavailable);
+					this.element.ariaLabel = this.appendDeletionHint(`${unavailable}. ${message}`);
+				});
 			}
 		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
@@ -1672,9 +1677,9 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			if (previewDisposables.isDisposed) {
 				return;
 			}
-			const resource = URI.isUri(attachment.imageData)
+			const resource = getChatBinaryReference(attachment.imageData)?.uri ?? (URI.isUri(attachment.imageData)
 				? attachment.imageData
-				: URI.from({ scheme: Schemas.data, path: `${attachment.id}/${encodeURIComponent(attachment.name)}` });
+				: URI.from({ scheme: Schemas.data, path: `${attachment.id}/${encodeURIComponent(attachment.name)}` }));
 			const clickHandler = this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)
 				? async () => this.chatImageCarouselService.openCarouselAtResource(resource, data)
 				: undefined;
@@ -1693,14 +1698,18 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		};
 
 		const inlineData = coerceImageBuffer(attachment.imageData);
+		const resource = getChatBinaryReference(attachment.imageData)?.uri ?? (URI.isUri(attachment.imageData) ? attachment.imageData : undefined);
 		if (inlineData) {
 			appendPreview(inlineData);
-		} else if (URI.isUri(attachment.imageData)) {
-			void this.fileService.readFile(attachment.imageData).then(
+		} else if (resource) {
+			void this.fileService.readFile(resource).then(
 				content => appendPreview(content.value.buffer),
 				error => {
 					this.logService.warn(`[ElementChatAttachmentWidget] Failed to read screenshot '${attachment.imageData}': ${toErrorMessage(error)}`);
-					section.remove();
+					if (previewDisposables.isDisposed) {
+						return;
+					}
+					section.appendChild(dom.$('span', { role: 'status' }, localize('chat.elementScreenshotUnavailable', "Screenshot unavailable.")));
 					onContentsChanged();
 				}
 			);

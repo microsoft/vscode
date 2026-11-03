@@ -7,11 +7,22 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IChatSessionStore } from '../../../common/model/chatSessionStore.js';
+import { TestChatSessionStore } from '../model/testChatSessionStore.js';
 import { IChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatHistoryNavigator, ChatInputHistoryMaxEntries, ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../common/widget/chatWidgetHistoryService.js';
 import { Memento } from '../../../../../common/memento.js';
+
+function stubHistoryStorage(instantiation: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>): void {
+	instantiation.stub(IChatSessionStore, new TestChatSessionStore());
+	instantiation.stub(ILogService, new NullLogService());
+	instantiation.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+}
 
 suite('ChatWidgetHistoryService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +39,7 @@ suite('ChatWidgetHistoryService', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 		return testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 	}
 
@@ -177,6 +189,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
@@ -312,6 +325,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
@@ -329,6 +343,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
@@ -371,6 +386,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
@@ -405,6 +421,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
@@ -448,6 +465,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
@@ -479,6 +497,7 @@ suite('ChatHistoryNavigator', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		stubHistoryStorage(instantiationService, testDisposables);
 
 		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
 		instantiationService.stub(IChatWidgetHistoryService, historyService);
