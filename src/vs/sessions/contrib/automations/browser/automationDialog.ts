@@ -135,6 +135,7 @@ export async function canSelectAutomationWorkspace(
 	return !!await workspaceTrustRequestService.requestResourcesTrust({
 		uri: folderUri,
 		message: localize('automation.form.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		remoteHostLabel: sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 	});
 }
 
@@ -1098,6 +1099,7 @@ export function renderForm(
 	setRepositoryWarningVisible: (visible: boolean) => void = () => { },
 	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
 	focusDialogMessage: () => void = () => { },
+	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1851,6 +1853,7 @@ export function renderForm(
 		// A scheduling form, not a chat about to be sent: keep promos out.
 		isTransientChat: true,
 		inputEditorMinLines: 3,
+		inputEditorOptions,
 		inputEditorQuickSuggestions: EditorOptions.quickSuggestions.defaultValue,
 		// The dialog renders the composer flush with its form column (the
 		// `.interactive-input-part` margin is zeroed in CSS), so there is no

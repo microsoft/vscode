@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { resolve } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -6616,7 +6617,8 @@ suite('AgentSideEffects', () => {
 	suite('edit auto-approve', () => {
 
 		test('auto-approves writes to regular source files', async () => {
-			setupSession(URI.file('/workspace').toString());
+			const workingDirectory = URI.file(resolve('/workspace'));
+			setupSession(workingDirectory.toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -6637,7 +6639,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write src/app.ts', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/src/app.ts',
+				permissionKind: AgentPermissionKind.Write, permissionPath: URI.joinPath(workingDirectory, 'src', 'app.ts').fsPath,
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);

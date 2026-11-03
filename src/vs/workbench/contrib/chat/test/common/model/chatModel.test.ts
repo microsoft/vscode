@@ -33,7 +33,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, reviveSerializableInputState, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
@@ -42,6 +42,8 @@ import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, 
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1234,6 +1236,20 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('input model serialization preserves chat-local configuration provenance', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		model.inputModel.setState({
+			selectedModel: { identifier: 'test/model', metadata: upcastPartial<ILanguageModelChatMetadata>({ name: 'Test' }) },
+			modelConfiguration: { reasoningEffort: 'low' },
+			modelConfigurationIsTransient: true,
+		});
+		const state = reviveSerializableInputState(JSON.parse(JSON.stringify(model.inputModel.toJSON())));
+		assert.deepStrictEqual({
+			configuration: state.modelConfiguration,
+			transient: state.modelConfigurationIsTransient,
+		}, { configuration: { reasoningEffort: 'low' }, transient: true });
+	});
+
 	test('modeInfo roundtrips through serialization', async () => {
 		const modeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
@@ -1401,6 +1417,28 @@ suite('Response', () => {
 			]);
 		});
 	}
+
+	for (const isStandalone of [false, true]) {
+		test(`subagent file metadata preserves its Markdown boundary (standalone=${isStandalone})`, () => {
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('```ts\nconst value = ') });
+			response.updateContent({ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent', isStandalone });
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('42;\n```') });
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'markdownContent' ? part.content.value : part.kind), isStandalone
+				? ['```ts\nconst value = 42;\n```', 'codeblockUri']
+				: ['```ts\nconst value = ', 'codeblockUri', '42;\n```']);
+			assert.strictEqual(response.toString(), '```ts\nconst value = 42;\n```\n\nfile:///workspace/child.ts');
+		});
+	}
+
+	test('legacy empty scaffolding leaves no whitespace-only copy blocks', () => {
+		const response = store.add(new Response([
+			{ kind: 'markdownContent', content: new MarkdownString('```\n') },
+			{ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' },
+			{ kind: 'markdownContent', content: new MarkdownString('\n```\n\n') },
+		]));
+		assert.strictEqual(response.toString(), 'file:///workspace/child.ts');
+	});
 
 	test('mergeable thinking across nested subagent progress', () => {
 		const clock = sinon.useFakeTimers({ now: 1000 });
@@ -2565,6 +2603,21 @@ suite('ChatResponseModel', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 	});
+
+	for (const isStandalone of [false, true]) {
+		test(`undoing a subagent edit retains preceding real Markdown (standalone=${isStandalone})`, () => {
+			const session = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const response = testDisposables.add(new ChatResponseModel({ session, requestId: 'request', responseContent: [], codeBlockInfos: undefined }));
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Parent explanation that must stay visible.', { supportThemeIcons: true }) });
+			if (!isStandalone) {
+				response.updateContent({ kind: 'markdownContent', content: new MarkdownString('```\n') });
+			}
+			response.addUndoStop({ kind: 'undoStop', id: 'edit' });
+			response.updateContent({ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent', isStandalone });
+			response.shouldBeRemovedOnSend = { requestId: 'request', afterUndoStop: 'edit' };
+			assert.strictEqual(response.response.toString(), 'Parent explanation that must stay visible.');
+		});
+	}
 
 	suite('pending confirmations', () => {
 		teardown(() => sinon.restore());

@@ -287,6 +287,21 @@ suite('ChatTipService', () => {
 		assert.strictEqual(clearCount, 1);
 	});
 
+	test('resets contextual providers with the chat session', () => {
+		const service = createService();
+		let resetCount = 0;
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+			resetSession: () => resetCount++,
+		}));
+
+		service.resetSession();
+
+		assert.strictEqual(resetCount, 1);
+	});
+
 	test('contextual provider changes notify tip presenters', () => {
 		const service = createService();
 		const onDidChange = testDisposables.add(new Emitter<void>());

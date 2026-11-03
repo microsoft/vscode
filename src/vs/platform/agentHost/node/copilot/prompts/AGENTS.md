@@ -9,6 +9,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
+- `progressUpdatesInstructions.ts` — the shared GPT model matcher and the experiment-gated progress-update guidance for GPT and Auto launches.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -17,7 +18,7 @@ Unless the matching `chat.agentHost.copilot.modelCapabilityOverrides` entry prov
 
 1. **Base** — **`_resolveModelConfig`** picks the per-model (or default) config. Falls back to `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` when there's no model, no matching contributor, or the contributor opts out for this `context`. A contributor's `customize` config gets the default sections composed **underneath** it (`withDefaultSections`), so a contributor only overrides the sections it names — the default `identity` survives unless explicitly overridden.
 2. **`_withUniversalSections`** — layers the model-agnostic tool instructions on top, **composing** with — never clobbering — any per-model override for that section. For a `replace` base the lines are appended after the replacement content instead.
-3. **Workspaceless scratch + file-link contract** — appended as trailing `content` for every mode, including `replace`, so a full replacement owns the prompt body but not the host's response-format plumbing.
+3. **Workspaceless scratch, progress updates + file-link contract** — appended as trailing `content` for every mode, including `replace`, so a full replacement owns the prompt body but not the host's response-format plumbing. The progress-update guidance (`progressUpdatesInstructions.ts`) applies only to GPT and Auto launches while the experiment-controlled `chat.agentHost.copilot.progressUpdatesPrompt.enabled` setting is on; it asks for one user-visible sentence in the same response as the first tool call, and short updates between phases, so these turns show text before their first tool call as Copilot Chat's GPT prompts do. The launcher decides eligibility at launch from the family-aliased model and any `systemPrompt` override, in both arms, and the session reports the experiment trigger at root turn start only for eligible launches whose setting is still controlled by its default.
 
 The per-model prompt override supports the same fields and precedence as the Copilot Chat debug prompt override: inline YAML takes precedence over a YAML file, `systemPrompt` bypasses this registry and is sent directly as the Copilot SDK's `systemMessage` in `replace` mode, and `toolDescriptions` replaces descriptions on tools registered by Agent Host. This internal debugging setting assumes those values use the documented string shape.
 

@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
@@ -31,7 +31,8 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private readonly _innerInput = this._register(new MutableDisposable<MultiDiffEditorInput>());
+	private readonly _innerInput = new MutableDisposable<MultiDiffEditorInput>();
+	private _viewModelRetainers = 0;
 
 	constructor(
 		readonly multiDiffSource: URI,
@@ -115,6 +116,32 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	clear(): void {
 		this._innerInput.clear();
+	}
+
+	/**
+	 * Keeps the resolved view model alive, even after this input is disposed, until the
+	 * returned handle is disposed. The Changes editor retains the input it is showing
+	 * while it resolves the next one, so replacing the input does not blank the diffs.
+	 */
+	retainViewModel(): IDisposable {
+		this._viewModelRetainers++;
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			if (--this._viewModelRetainers === 0 && this.isDisposed()) {
+				this._innerInput.dispose();
+			}
+		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+		if (this._viewModelRetainers === 0) {
+			this._innerInput.dispose();
+		}
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
