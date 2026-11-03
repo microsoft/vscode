@@ -6,16 +6,8 @@
 export const TestingCacheSalts = {
 	requestCacheSalt: '2025-02-19T14:49:06.023Z',
 	nesFetchCacheSalt: '2025-02-19T14:49:06.023Z',
-	embeddingsCacheSalt: '2025-02-19T14:49:06.023Z',
 	tscCacheSalt: '2025-02-19T14:49:06.023Z',
 	pyrightCacheSalt: '2025-02-19T14:49:06.023Z',
 	pythonCacheSalt: '2025-02-19T14:49:06.023Z',
-	globalStateSalt: '2025-02-19T14:49:06.023Z',
-	globalStorageSalt: 'NOT USED',
-	notebookCacheSalt: '2025-02-19T14:49:06.023Z',
-	docSearchCacheSalt: '2025-02-19T14:49:06.023Z',
-	codeSearchCacheSalt: 'NOT USED',
-	chunksEndpointCacheSalt: '2025-02-19T14:49:06.023Z',
-	globalStateCacheSalt: '2025-02-19T14:49:06.023Z',
 	modelMetadata: '2025-10-23T15:44:16.705Z'
 };

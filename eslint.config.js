@@ -151,6 +151,15 @@ export default defineConfig(
 			]
 		},
 	},
+	{
+		files: [
+			'src/vs/workbench/**/*.ts',
+			'src/vs/sessions/**/*.ts',
+		],
+		rules: {
+			'local/code-agent-host-uri-mapping': 'error',
+		},
+	},
 	// Production filesystem operations must not block the event loop.
 	{
 		files: [
@@ -2944,7 +2953,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
 			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
 			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
-			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
 			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
 			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
 			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
@@ -3002,7 +3010,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
 			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
 			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
-			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
 			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
 			'extensions/copilot/src/platform/test/node/extensionContext.ts',
 			'extensions/copilot/src/platform/test/node/fetcher.ts',

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createChatUriError } from '../common/agentHostChatMinting.js';
-import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
-import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
+import { sandboxCertificateInstallationCapability, sandboxCertificateRefreshCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
+import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -987,6 +989,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& compareProtocolVersions(protocolVersion, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0;
 	}
 
+	private _supportsTcpConnections(transport: IProtocolTransport): boolean {
+		return !this._config.relayRoots && !this._config.relayRootMeta
+			&& transport.relayClientId === undefined && !transport.relayPassive;
+	}
+
 	private _handleInitialize(
 		params: InitializeParams,
 		transport: IProtocolTransport,
@@ -1049,6 +1056,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		try {
 			this._initializeClientExtensions(client);
 			this._registerClientCertificates(client, params);
+			const servesClientProxy = this._registerClientProxy(client, params);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1115,6 +1123,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							!!this._agentService.deleteAutomation,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
+						...(servesClientProxy ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [ForceWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.listManagedWorktrees && this._agentService.cleanupManagedWorktree ? { [ManagedWorktreesCapabilityMetaKey]: true } : {}),
@@ -1124,6 +1133,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [sandboxCertificateRotationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.removeSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateRemovalCapability]: true } : {}),
+						...(this._config.allowExtensionMethods !== false && this._agentService.refreshSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateRefreshCapability]: true } : {}),
 						...transport.relayHandshakeMeta,
 					}),
 					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),
@@ -1135,7 +1146,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
 				...(this._supportsMultipleChatProviders(negotiated) ? { multipleChatProviders: {} } : {}),
-				tcpConnections: this._connectionChannels.get(transport)?.tcp.supported && !this._config.relayRoots ? {} : undefined,
+				tcpConnections: this._supportsTcpConnections(transport) ? {} : undefined,
 			};
 			return {
 				client,
@@ -1387,6 +1398,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		try {
 			this._initializeClientExtensions(client);
 			this._registerClientCertificates(client, params);
+			this._registerClientProxy(client, params);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -1435,7 +1447,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _registerClientCertificates(client: IConnectedClient, params: InitializeParams | ReconnectParams): void {
-		if (this._config.relayRoots || this._config.relayRootMeta || client.transport.relayClientId !== undefined || client.transport.relayPassive) {
+		if (this._isRelayClient(client)) {
 			return;
 		}
 		const id = this._managedSettingsContributionId(client.clientId);
@@ -1443,6 +1455,29 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response = await this._sendReverseRequestToConnection<unknown>(client, LoadClientCertificatesExtensionMethod, {}, 30_000);
 			return loadClientCertificatesResultValidator.validateOrThrow(response).certificates;
 		} : undefined));
+	}
+
+	/** Lets a client sharing this agent host's network, such as one in WSL or a local container, serve its proxy lookups. */
+	private _registerClientProxy(client: IConnectedClient, params: InitializeParams | ReconnectParams): boolean {
+		if (!supportsAgentHostClientProxy(params) || this._isRelayClient(client)) {
+			return false;
+		}
+		client.initializationDisposables.add(this._proxyResolver.registerSharedNetworkClient(this._managedSettingsContributionId(client.clientId), {
+			resolveProxy: async url => {
+				const response = await this._sendReverseRequestToConnection<unknown>(client, ResolveClientProxyExtensionMethod, { url }, 30_000);
+				return resolveClientProxyResultValidator.validateOrThrow(response).proxy;
+			},
+			lookupKerberosAuthorization: async proxyUrl => {
+				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }, 30_000);
+				return lookupClientProxyKerberosAuthorizationResultValidator.validateOrThrow(response).authorization;
+			},
+		}));
+		return true;
+	}
+
+	/** Relay clients never share this agent host's network. */
+	private _isRelayClient(client: IConnectedClient): boolean {
+		return !!(this._config.relayRoots || this._config.relayRootMeta || client.transport.relayClientId !== undefined || client.transport.relayPassive);
 	}
 
 	/**
@@ -2139,6 +2174,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		createTcpConnection: async (client, params) => {
+			if (!this._supportsTcpConnections(client.transport)) {
+				throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not available to relay clients: createTcpConnection');
+			}
 			return client.channels.tcp.create(params);
 		},
 		subscribe: async (client, params) => {
@@ -3819,6 +3857,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return request.handle(params, this._captureRelayRequestAuthorization(client, method, params), this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 			}
 		}
+		if (method === ClientProxyChangedExtensionMethod) {
+			this._proxyResolver.notifySharedNetworkClientChanged(this._managedSettingsContributionId(client.clientId));
+			return Promise.resolve();
+		}
 		if (method === ReportChatUserInteractionExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {
 				return Promise.resolve();
@@ -3891,12 +3933,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		switch (method) {
 			case InstallSandboxCertificateExtensionMethod:
 			case RotateSandboxCertificateExtensionMethod:
-			case RemoveSandboxCertificateExtensionMethod: {
+			case RemoveSandboxCertificateExtensionMethod:
+			case RefreshSandboxCertificateExtensionMethod: {
 				const operation = method === InstallSandboxCertificateExtensionMethod
 					? 'installSandboxCertificate'
 					: method === RotateSandboxCertificateExtensionMethod
 						? 'rotateSandboxCertificate'
-						: 'removeSandboxCertificate';
+						: method === RemoveSandboxCertificateExtensionMethod
+							? 'removeSandboxCertificate'
+							: 'refreshSandboxCertificate';
 				if (!this._agentService[operation] || client.transport.relayClientId !== undefined || client.transport.relayPassive) {
 					return undefined;
 				}

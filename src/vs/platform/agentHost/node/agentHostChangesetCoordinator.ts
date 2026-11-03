@@ -257,6 +257,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			if (sessionLoaded) {
 				void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
+				// Catch up Git state missed while the changeset was unobserved.
+				if (!this._isSubagentChat(parsed.ownerUri)) {
+					void this._gitStateService.refreshSessionGitState(parsed.ownerUri);
+				}
 			}
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
 			return;

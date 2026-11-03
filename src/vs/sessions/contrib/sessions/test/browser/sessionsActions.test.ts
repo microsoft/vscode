@@ -153,41 +153,37 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('swaps the primary session row action when New Chat is promoted', () => {
-		const actionRegistration = new DisposableStore();
+		const actionRegistration = disposables.add(new DisposableStore());
 		actionRegistration.add(registerAction2(ArchiveSessionAction));
-		try {
-			const actionIds = new Set([
-				'sessions.chatCompositeBar.addChat',
-				'sessionsViewPane.pinSession',
-				'sessionsViewPane.unpinSession',
-				ARCHIVE_SESSION_COMMAND_ID,
-			]);
-			const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
-				.filter(isIMenuItem)
-				.filter(item => actionIds.has(item.command.id))
-				.sort((a, b) => a.command.id.localeCompare(b.command.id))
-				.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			ARCHIVE_SESSION_COMMAND_ID,
+		]);
+		const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.sort((a, b) => a.command.id.localeCompare(b.command.id))
+			.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
 
-			assert.deepStrictEqual({
-				toolbar: snapshot(Menus.SessionItemToolbar),
-				contextMenu: snapshot(Menus.SessionItemContextMenu),
-			}, {
-				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
-					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
-				],
-				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
-					{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
-				],
-			});
-		} finally {
-			actionRegistration.dispose();
-		}
+		assert.deepStrictEqual({
+			toolbar: snapshot(Menus.SessionItemToolbar),
+			contextMenu: snapshot(Menus.SessionItemContextMenu),
+		}, {
+			toolbar: [
+				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
+				{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
+				{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
+			],
+			contextMenu: [
+				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+				{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
+				{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
+			],
+		});
 	});
 
 	test('uses the promoted session row action by default and preserves experiment assignments', async () => {
@@ -874,47 +870,43 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('switches nested session headers from Delete Chat to archive after commit', () => {
-		const actionRegistration = new DisposableStore();
+		const actionRegistration = disposables.add(new DisposableStore());
 		actionRegistration.add(registerAction2(ArchiveSessionAction));
 		actionRegistration.add(registerAction2(ArchiveChatAction));
-		try {
-			const getItems = (commandId: string) => MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
-				.filter(isIMenuItem)
-				.filter(item => item.command.id === commandId)
-				.map(item => ({
-					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-					group: item.group,
-					order: item.order,
-					when: item.when?.serialize(),
-				}));
+		const getItems = (commandId: string) => MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === commandId)
+			.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
 
-			assert.deepStrictEqual({
-				archiveSession: getItems(ARCHIVE_SESSION_COMMAND_ID),
-				archiveNestedSession: getItems(ARCHIVE_CHAT_COMMAND_ID),
-				deleteChat: getItems('sessions.chatCompositeBar.deleteChat'),
-			}, {
-				archiveSession: [{
-					title: 'Archive',
-					group: 'secondary/1_state',
-					order: 20,
-					when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
-				}],
-				archiveNestedSession: [{
-					title: 'Archive',
-					group: 'secondary/1_state',
-					order: 20,
-					when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
-				}],
-				deleteChat: [{
-					title: 'Delete Chat',
-					group: 'secondary/4_manage',
-					order: 20,
-					when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
-				}],
-			});
-		} finally {
-			actionRegistration.dispose();
-		}
+		assert.deepStrictEqual({
+			archiveSession: getItems(ARCHIVE_SESSION_COMMAND_ID),
+			archiveNestedSession: getItems(ARCHIVE_CHAT_COMMAND_ID),
+			deleteChat: getItems('sessions.chatCompositeBar.deleteChat'),
+		}, {
+			archiveSession: [{
+				title: 'Archive',
+				group: 'secondary/1_state',
+				order: 20,
+				when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
+			}],
+			archiveNestedSession: [{
+				title: 'Archive',
+				group: 'secondary/1_state',
+				order: 20,
+				when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
+			}],
+			deleteChat: [{
+				title: 'Delete Chat',
+				group: 'secondary/4_manage',
+				order: 20,
+				when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
+			}],
+		});
 	});
 
 	test('routes New Quick Chat through the new-session composer', async () => {

@@ -156,11 +156,11 @@ suite('build-fast planning', () => {
 		const previous = state({ 'extensions/git/src/git.ts': 'old' });
 		const snapshot: BuildFastSnapshot = { head: 'next', dirty: { 'extensions/git/src/git.ts': 'new' } };
 		const updated = createBuildFastState(previous, environment, snapshot, true);
-		const pendingChanges = computeChangedPaths(updated.extensions, snapshot, ['package-lock.json']);
+		const pendingChanges = computeChangedPaths(updated.extensions, snapshot, ['pnpm-lock.yaml']);
 		const plan = createBuildPlan({ state: updated, reason: undefined }, environment, {
 			client: [],
 			extensions: pendingChanges,
-			copilot: ['package-lock.json'],
+			copilot: ['pnpm-lock.yaml'],
 		}, outputsPresent, false);
 		assert.deepStrictEqual({
 			snapshots: [updated.client, updated.extensions, updated.copilot],

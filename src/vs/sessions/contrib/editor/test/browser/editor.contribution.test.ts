@@ -279,38 +279,35 @@ suite('Sessions - Editor Contribution', () => {
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
 		const editor = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
 		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
-		try {
-			const getBorders = () => {
-				const frame = mainWindow.getComputedStyle(group, '::after');
-				return {
-					outerBorder: mainWindow.getComputedStyle(editor).borderColor,
-					frameWidth: frame.borderWidth,
-					frameColor: frame.borderColor,
-					frameRadius: frame.borderRadius,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getBorders = () => {
+			const frame = mainWindow.getComputedStyle(group, '::after');
+			return {
+				outerBorder: mainWindow.getComputedStyle(editor).borderColor,
+				frameWidth: frame.borderWidth,
+				frameColor: frame.borderColor,
+				frameRadius: frame.borderRadius,
 			};
-			const borders = [];
-			const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
-			for (const theme of themes) {
-				workbench.classList.add(theme);
-				workbench.classList.remove('noauxiliarybar');
-				const docked = getBorders();
-				workbench.classList.add('noauxiliarybar');
-				borders.push({ theme, docked, editorOnly: getBorders() });
-				workbench.classList.remove(theme);
-			}
-			assert.deepStrictEqual(borders, themes.map(theme => {
-				const expected = {
-					outerBorder: 'rgba(0, 0, 0, 0)',
-					frameWidth: '1px',
-					frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
-					frameRadius: '7px',
-				};
-				return { theme, docked: expected, editorOnly: expected };
-			}));
-		} finally {
-			workbench.remove();
+		};
+		const borders = [];
+		const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
+		for (const theme of themes) {
+			workbench.classList.add(theme);
+			workbench.classList.remove('noauxiliarybar');
+			const docked = getBorders();
+			workbench.classList.add('noauxiliarybar');
+			borders.push({ theme, docked, editorOnly: getBorders() });
+			workbench.classList.remove(theme);
 		}
+		assert.deepStrictEqual(borders, themes.map(theme => {
+			const expected = {
+				outerBorder: 'rgba(0, 0, 0, 0)',
+				frameWidth: '1px',
+				frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
+				frameRadius: '7px',
+			};
+			return { theme, docked: expected, editorOnly: expected };
+		}));
 	});
 
 	test('matches the chat separator with and without the theme border class', () => {
@@ -342,87 +339,84 @@ suite('Sessions - Editor Contribution', () => {
 		const expectedColorReference = appendElement(workbench, 'expected-color-reference');
 		expectedColorReference.style.color = 'color-mix(in srgb, rgb(100, 100, 100) 12%, transparent)';
 
-		try {
-			const getSidePanelSeparatorStyles = () => {
-				const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
-				return {
-					color: style.backgroundColor,
-					leftInset: style.left,
-					rightInset: style.right,
-					width: style.height,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getSidePanelSeparatorStyles = () => {
+			const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
+			return {
+				color: style.backgroundColor,
+				leftInset: style.left,
+				rightInset: style.right,
+				width: style.height,
 			};
-			const chatBarStyle = mainWindow.getComputedStyle(chatBar);
-			const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
-			const chatSeparatorStyles = {
-				color: chatTabsRowStyle.borderBottomColor,
-				leftInset: chatBarStyle.paddingLeft,
-				rightInset: chatBarStyle.paddingRight,
-				width: chatTabsRowStyle.borderBottomWidth,
-			};
-			const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
-			const withoutThemeBorderClass = getSidePanelSeparatorStyles();
+		};
+		const chatBarStyle = mainWindow.getComputedStyle(chatBar);
+		const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
+		const chatSeparatorStyles = {
+			color: chatTabsRowStyle.borderBottomColor,
+			leftInset: chatBarStyle.paddingLeft,
+			rightInset: chatBarStyle.paddingRight,
+			width: chatTabsRowStyle.borderBottomWidth,
+		};
+		const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
+		const withoutThemeBorderClass = getSidePanelSeparatorStyles();
 
-			tabsAndActionsContainer.classList.add('tabs-border-bottom');
-			tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
-			const withThemeBorderClass = getSidePanelSeparatorStyles();
+		tabsAndActionsContainer.classList.add('tabs-border-bottom');
+		tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
+		const withThemeBorderClass = getSidePanelSeparatorStyles();
 
-			workbench.classList.add('hc-black');
-			const highContrast = getSidePanelSeparatorStyles();
-			const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
-			const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
-			const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
+		workbench.classList.add('hc-black');
+		const highContrast = getSidePanelSeparatorStyles();
+		const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
+		const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
+		const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
 
-			assert.deepStrictEqual({
-				expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
-				withoutThemeBorderClass,
-				withThemeBorderClass,
-				chatSeparatorStyles,
-				highContrast,
-				highContrastChatColor,
-				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
-				modal: {
-					borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
-					leftInset: modalSeparatorStyle.left,
-					rightInset: modalSeparatorStyle.right,
-				},
-			}, {
-				expectedColorIsTransparent: false,
-				withoutThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				withThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				chatSeparatorStyles: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrast: {
-					color: 'rgb(255, 255, 255)',
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrastChatColor: 'rgb(255, 255, 255)',
-				hasDuplicateTitleSeparator: false,
-				modal: {
-					borderColor: 'transparent',
-					leftInset: '0px',
-					rightInset: '0px',
-				},
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
+			withoutThemeBorderClass,
+			withThemeBorderClass,
+			chatSeparatorStyles,
+			highContrast,
+			highContrastChatColor,
+			hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
+			modal: {
+				borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
+				leftInset: modalSeparatorStyle.left,
+				rightInset: modalSeparatorStyle.right,
+			},
+		}, {
+			expectedColorIsTransparent: false,
+			withoutThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			withThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			chatSeparatorStyles: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrast: {
+				color: 'rgb(255, 255, 255)',
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrastChatColor: 'rgb(255, 255, 255)',
+			hasDuplicateTitleSeparator: false,
+			modal: {
+				borderColor: 'transparent',
+				leftInset: '0px',
+				rightInset: '0px',
+			},
+		});
 	});
 
 	for (const connected of [false, true]) {
@@ -457,39 +451,36 @@ suite('Sessions - Editor Contribution', () => {
 				return style.content !== 'none' && style.display !== 'none';
 			};
 
-			try {
-				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-					workbench.classList.add(theme);
-					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
-					const states = [false, true, false].map(compact => {
-						workbench.classList.toggle('modern-ui-compact', compact);
-						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
-						return {
-							separator: hasSeparator(row),
-							pinnedSeparator: hasSeparator(pinnedRow),
-							unpinnedSeparator: hasSeparator(unpinnedRow),
-							singleSeparator: hasSeparator(singleRow),
-							modalSeparator: hasSeparator(modalRow),
-							capBorder: mainWindow.getComputedStyle(fill).borderTop,
-							detailsTopBorder: detailsFrame.borderTopWidth,
-							detailsSideBorder: detailsFrame.borderLeftWidth,
-						};
-					});
+			store.add(toDisposable(() => workbench.remove()));
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+				const states = [false, true, false].map(compact => {
+					workbench.classList.toggle('modern-ui-compact', compact);
+					const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+					return {
+						separator: hasSeparator(row),
+						pinnedSeparator: hasSeparator(pinnedRow),
+						unpinnedSeparator: hasSeparator(unpinnedRow),
+						singleSeparator: hasSeparator(singleRow),
+						modalSeparator: hasSeparator(modalRow),
+						capBorder: mainWindow.getComputedStyle(fill).borderTop,
+						detailsTopBorder: detailsFrame.borderTopWidth,
+						detailsSideBorder: detailsFrame.borderLeftWidth,
+					};
+				});
 
-					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
-						separator: true,
-						pinnedSeparator: false,
-						unpinnedSeparator: true,
-						singleSeparator: true,
-						modalSeparator: true,
-						capBorder,
-						detailsTopBorder: '0px',
-						detailsSideBorder: compact ? '1px' : '0px',
-					})), theme);
-					workbench.classList.remove(theme);
-				}
-			} finally {
-				workbench.remove();
+				assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+					separator: true,
+					pinnedSeparator: false,
+					unpinnedSeparator: true,
+					singleSeparator: true,
+					modalSeparator: true,
+					capBorder,
+					detailsTopBorder: '0px',
+					detailsSideBorder: compact ? '1px' : '0px',
+				})), theme);
+				workbench.classList.remove(theme);
 			}
 		});
 	}

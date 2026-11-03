@@ -309,6 +309,8 @@ export interface ICustomAgent {
 	 * Model metadata in the prompt header.
 	 */
 	readonly model?: readonly string[];
+	/** Reasoning effort metadata in the prompt header. */
+	readonly reasoningEffort?: string;
 
 	/**
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.

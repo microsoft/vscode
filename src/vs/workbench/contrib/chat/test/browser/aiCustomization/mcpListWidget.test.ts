@@ -108,6 +108,7 @@ function createAgentHostCustomizations(hasWorkspace = true): { service: IAgentHo
 	const calls: unknown[][] = [];
 	const service = {
 		getWorkingDirectories: () => hasWorkspace ? ['file:///workspace'] : [],
+		getClientPluginUri: (_session: URI, plugin: { uri: string }) => URI.parse(plugin.uri),
 		setCustomizationEnablement: (sessionResource: URI, serverId: string, enablement: unknown, kind: unknown, enabled: boolean) => {
 			calls.push([sessionResource, serverId, enablement, kind, enabled]);
 		},
@@ -1822,6 +1823,21 @@ suite('mcpListWidget', () => {
 				clientCalls: [[pluginUri.toString(), ContributionEnablementState.EnabledProfile]],
 				hostCalls: [],
 			});
+		});
+
+		test('does not route a foreign plugin global enablement decision to this client', () => {
+			const { service } = createAgentHostCustomizations();
+			service.getClientPluginUri = () => undefined;
+			const server = createAgentHostServer({
+				enabled: false,
+				disabledReason: {
+					source: 'plugin', plugin: {
+						id: 'foreign-plugin', name: 'Foreign', uri: 'file:///plugins/plugin-1', clientId: 'foreign',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					}
+				},
+			});
+			assert.deepStrictEqual(getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server), []);
 		});
 
 		test('offers the inverse session action and preserves all decisions when dispatching', () => {

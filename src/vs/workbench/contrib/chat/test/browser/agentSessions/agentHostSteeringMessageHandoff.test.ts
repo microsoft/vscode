@@ -12,6 +12,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType, ChatAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { createActiveTurn, createChatState, createDefaultChatSummary, createErrorResponsePart, Message, MessageAttachmentKind, MessageKind, PendingMessageKind, SessionStatus, withMessageRequestHiddenFromTranscript } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostSteeringMessageHandoff } from '../../../browser/agentSessions/agentHost/agentHostSteeringMessageHandoff.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
@@ -121,7 +122,7 @@ suite('AgentHostSteeringMessageHandoff', () => {
 		h.consume('one');
 		h.addPending('two');
 		h.consume('two');
-		h.fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+		h.fire(chatTurnComplete('active', 1));
 		h.start('different', { ...message, attachments: [{ type: MessageAttachmentKind.Simple, label: 'context', modelRepresentation: 'different context' }] });
 		h.applyRequest('different');
 		const unmatched = h.ids();
@@ -144,7 +145,7 @@ suite('AgentHostSteeringMessageHandoff', () => {
 	test('retains successful completion then removal until the new model request arrives', () => {
 		const h = setupHandoff();
 		h.addPending();
-		h.fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+		h.fire(chatTurnComplete('active', 1));
 		h.consume();
 		const beforeTurn = h.ids();
 		h.start();

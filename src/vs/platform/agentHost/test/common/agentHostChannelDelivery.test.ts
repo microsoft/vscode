@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { vObj, vString } from '../../../../base/common/validation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostChannelDelivery, AgentHostChannelScheduler } from '../../common/agentHostChannelDelivery.js';
@@ -104,159 +105,138 @@ suite('AgentHostChannelDelivery', () => {
 
 	test('limits duplicate and unknown-channel controls by transport, not subscription', () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			for (let i = 0; i < 4096; i++) {
-				const message = parseProtocolMessage(JSON.stringify({
-					jsonrpc: '2.0', method: 'channel/credit', params: { channel: i % 2 ? channel : 'test:/unknown', consumedBytes: 0 },
-				}));
-				assert.ok(isJsonRpcNotification(message));
-				h.scheduler.acceptMessage(message);
-			}
-			assert.strictEqual(h.errors.length, 0);
-			const excess = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 0 } }));
-			assert.ok(isJsonRpcNotification(excess));
-			h.scheduler.acceptMessage(excess);
-			assert.match(h.errors[0].message, /control receive budget/);
-			assert.strictEqual(h.transportDisposed, true);
-		} finally {
-			clock.restore();
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		for (let i = 0; i < 4096; i++) {
+			const message = parseProtocolMessage(JSON.stringify({
+				jsonrpc: '2.0', method: 'channel/credit', params: { channel: i % 2 ? channel : 'test:/unknown', consumedBytes: 0 },
+			}));
+			assert.ok(isJsonRpcNotification(message));
+			h.scheduler.acceptMessage(message);
 		}
+		assert.strictEqual(h.errors.length, 0);
+		const excess = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 0 } }));
+		assert.ok(isJsonRpcNotification(excess));
+		h.scheduler.acceptMessage(excess);
+		assert.match(h.errors[0].message, /control receive budget/);
+		assert.strictEqual(h.transportDisposed, true);
 	});
 
 	test('replenishes control allowance without treating duplicate credit as invalid', () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			const credit = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 0 } }));
-			assert.ok(isJsonRpcNotification(credit));
-			for (let second = 0; second < 2; second++) {
-				for (let i = 0; i < 4096; i++) {
-					h.scheduler.acceptMessage(credit);
-				}
-				clock.tick(1000);
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		const credit = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 0 } }));
+		assert.ok(isJsonRpcNotification(credit));
+		for (let second = 0; second < 2; second++) {
+			for (let i = 0; i < 4096; i++) {
+				h.scheduler.acceptMessage(credit);
 			}
-			assert.deepStrictEqual(h.errors, []);
-		} finally {
-			clock.restore();
+			clock.tick(1000);
 		}
+		assert.deepStrictEqual(h.errors, []);
 	});
 
 	test('a paced sender stays within the peer receive budget when delivery is bunched', () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			// The receiver checks controls when they arrive. A busy peer or congested
-			// transport can deliver a second of paced controls from 256 streams at once.
-			const receiver = fixture();
-			const queued: string[] = [];
-			const sender = fixture();
-			sender.route(text => queued.push(text));
-			for (let ms = 0; ms < 1000; ms++) {
-				for (let i = 0; i < 16; i++) {
-					sender.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: `test:/${(ms * 16 + i) % 256}`, consumedBytes: ms } });
-				}
-				// Controls are paced with timers only, so ticking synchronously avoids a real
-				// (and in browsers, clamped) timer per millisecond, which can exceed the test timeout
-				clock.tick(1);
+		store.add(toDisposable(() => clock.restore()));
+		// The receiver checks controls when they arrive. A busy peer or congested
+		// transport can deliver a second of paced controls from 256 streams at once.
+		const receiver = fixture();
+		const queued: string[] = [];
+		const sender = fixture();
+		sender.route(text => queued.push(text));
+		for (let ms = 0; ms < 1000; ms++) {
+			for (let i = 0; i < 16; i++) {
+				sender.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: `test:/${(ms * 16 + i) % 256}`, consumedBytes: ms } });
 			}
-			for (const text of queued.splice(0)) {
-				const message = parseProtocolMessage(text);
-				assert.ok(isJsonRpcNotification(message));
-				receiver.scheduler.acceptMessage(message);
-			}
-			assert.deepStrictEqual({ senderErrors: sender.errors, receiverErrors: receiver.errors }, { senderErrors: [], receiverErrors: [] });
-		} finally {
-			clock.restore();
+			// Controls are paced with timers only, so ticking synchronously avoids a real
+			// (and in browsers, clamped) timer per millisecond, which can exceed the test timeout
+			clock.tick(1);
 		}
+		for (const text of queued.splice(0)) {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			receiver.scheduler.acceptMessage(message);
+		}
+		assert.deepStrictEqual({ senderErrors: sender.errors, receiverErrors: receiver.errors }, { senderErrors: [], receiverErrors: [] });
 	});
 
 	test('bounds aggregate control bytes independently of the message count', () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			const reset = parseProtocolMessage(JSON.stringify(notification('x'.repeat(7000), 'tcp/reset')));
-			assert.ok(isJsonRpcNotification(reset));
-			const allowance = Math.floor(1024 * 1024 / getProtocolMessageSize(reset));
-			for (let i = 0; i < allowance; i++) {
-				assert.strictEqual(h.scheduler.checkControl(reset), true);
-			}
-			assert.strictEqual(h.scheduler.checkControl(reset), false);
-			assert.strictEqual(h.transportDisposed, true);
-		} finally {
-			clock.restore();
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		const reset = parseProtocolMessage(JSON.stringify(notification('x'.repeat(7000), 'tcp/reset')));
+		assert.ok(isJsonRpcNotification(reset));
+		const allowance = Math.floor(1024 * 1024 / getProtocolMessageSize(reset));
+		for (let i = 0; i < allowance; i++) {
+			assert.strictEqual(h.scheduler.checkControl(reset), true);
 		}
+		assert.strictEqual(h.scheduler.checkControl(reset), false);
+		assert.strictEqual(h.transportDisposed, true);
 	});
 
 	test('coalesces queued credits and preserves control ordering through transport congestion', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			h.setBufferedAmount(1024 * 1024);
-			const control = (method: string, consumedBytes?: number): JsonRpcNotification => ({
-				jsonrpc: '2.0', method, params: { channel, ...(consumedBytes === undefined ? {} : { consumedBytes }) },
-			});
-			h.scheduler.sendControl(control('channel/credit', 10));
-			h.scheduler.sendControl(control('channel/credit', 20));
-			h.scheduler.sendControl(control('tcp/reset'));
-			h.scheduler.sendControl(control('unsubscribe'));
-			assert.deepStrictEqual(h.sent, []);
-			h.setBufferedAmount(256 * 1024);
-			await clock.tickAsync(25);
-			assert.deepStrictEqual(h.sent, [control('channel/credit', 20), control('tcp/reset'), control('unsubscribe')]);
-			assert.deepStrictEqual(h.errors, []);
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		h.setBufferedAmount(1024 * 1024);
+		const control = (method: string, consumedBytes?: number): JsonRpcNotification => ({
+			jsonrpc: '2.0', method, params: { channel, ...(consumedBytes === undefined ? {} : { consumedBytes }) },
+		});
+		h.scheduler.sendControl(control('channel/credit', 10));
+		h.scheduler.sendControl(control('channel/credit', 20));
+		h.scheduler.sendControl(control('tcp/reset'));
+		h.scheduler.sendControl(control('unsubscribe'));
+		assert.deepStrictEqual(h.sent, []);
+		h.setBufferedAmount(256 * 1024);
+		await clock.tickAsync(25);
+		assert.deepStrictEqual(h.sent, [control('channel/credit', 20), control('tcp/reset'), control('unsubscribe')]);
+		assert.deepStrictEqual(h.errors, []);
 	});
 
 	test('bounds the outgoing control queue and throttles sends without dropping the latest credit', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			// Controls are paced at half the peer's receive budget.
-			for (let i = 0; i < 2049; i++) {
-				h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: i } });
-			}
-			assert.strictEqual(h.sent.length, 2048);
-			await clock.tickAsync(25);
-			assert.strictEqual(h.sent.length, 2049);
-			assert.deepStrictEqual(h.sent.at(-1)?.params, { channel, consumedBytes: 2048 });
-			assert.deepStrictEqual(h.errors, []);
-
-			const congested = fixture();
-			congested.setBufferedAmount(1024 * 1024);
-			for (let i = 0; i < 1024 && !congested.transportDisposed; i++) {
-				congested.scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel: `ahp-tcp:/${i}` } });
-			}
-			assert.strictEqual(congested.sent.length, 0);
-			assert.strictEqual(congested.transportDisposed, true);
-			assert.match(congested.errors[0].message, /control send queue capacity/);
-		} finally {
-			clock.restore();
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		// Controls are paced at half the peer's receive budget.
+		for (let i = 0; i < 2049; i++) {
+			h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: i } });
 		}
+		assert.strictEqual(h.sent.length, 2048);
+		await clock.tickAsync(25);
+		assert.strictEqual(h.sent.length, 2049);
+		assert.deepStrictEqual(h.sent.at(-1)?.params, { channel, consumedBytes: 2048 });
+		assert.deepStrictEqual(h.errors, []);
+
+		const congested = fixture();
+		congested.setBufferedAmount(1024 * 1024);
+		for (let i = 0; i < 1024 && !congested.transportDisposed; i++) {
+			congested.scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel: `ahp-tcp:/${i}` } });
+		}
+		assert.strictEqual(congested.sent.length, 0);
+		assert.strictEqual(congested.transportDisposed, true);
+		assert.match(congested.errors[0].message, /control send queue capacity/);
 	});
 
 	test('outgoing controls honor the individual size limit and reserved transport capacity', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			const reset = notification('', 'tcp/reset');
-			const bytes = JSON.stringify(reset).length * 2;
-			h.setBufferedAmount(320 * 1024 - bytes + 1);
-			h.scheduler.sendControl(reset);
-			assert.strictEqual(h.sent.length, 0);
-			h.setBufferedAmount(320 * 1024 - bytes);
-			await clock.tickAsync(25);
-			assert.deepStrictEqual(h.sent, [reset]);
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		const reset = notification('', 'tcp/reset');
+		const bytes = JSON.stringify(reset).length * 2;
+		h.setBufferedAmount(320 * 1024 - bytes + 1);
+		h.scheduler.sendControl(reset);
+		assert.strictEqual(h.sent.length, 0);
+		h.setBufferedAmount(320 * 1024 - bytes);
+		await clock.tickAsync(25);
+		assert.deepStrictEqual(h.sent, [reset]);
 
-			const oversized = fixture();
-			oversized.scheduler.sendControl(notification('x'.repeat(8192), 'tcp/reset'));
-			assert.strictEqual(oversized.sent.length, 0);
-			assert.strictEqual(oversized.transportDisposed, true);
-			assert.match(oversized.errors[0].message, /oversized channel control/);
-		} finally {
-			clock.restore();
-		}
+		const oversized = fixture();
+		oversized.scheduler.sendControl(notification('x'.repeat(8192), 'tcp/reset'));
+		assert.strictEqual(oversized.sent.length, 0);
+		assert.strictEqual(oversized.transportDisposed, true);
+		assert.match(oversized.errors[0].message, /oversized channel control/);
 	});
 
 	test('does not accept data against credit still queued behind transport backpressure', () => {
@@ -273,21 +253,18 @@ suite('AgentHostChannelDelivery', () => {
 
 	test('channel reuse cannot receive controls queued for the previous incarnation', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			h.setBufferedAmount(1024 * 1024);
-			h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 42 } });
-			h.scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel } });
-			h.delivery.dispose();
-			const replacement = store.add(new AgentHostChannelDelivery(channel, limits, limits, h.transport, h.scheduler, () => { }, error => h.errors.push(error)));
-			const sent = replacement.send(notification('replacement'));
-			h.setBufferedAmount(0);
-			await clock.tickAsync(25);
-			await sent;
-			assert.deepStrictEqual(h.sent, [notification('replacement')]);
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		h.setBufferedAmount(1024 * 1024);
+		h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 42 } });
+		h.scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel } });
+		h.delivery.dispose();
+		const replacement = store.add(new AgentHostChannelDelivery(channel, limits, limits, h.transport, h.scheduler, () => { }, error => h.errors.push(error)));
+		const sent = replacement.send(notification('replacement'));
+		h.setBufferedAmount(0);
+		await clock.tickAsync(25);
+		await sent;
+		assert.deepStrictEqual(h.sent, [notification('replacement')]);
 	});
 
 	test('admits over 1024 small messages up to the negotiated byte window', () => {
@@ -316,65 +293,56 @@ suite('AgentHostChannelDelivery', () => {
 
 	test('backs off transport-buffer polling and resumes queued sends after drain', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture();
-			h.setBufferedAmount(256 * 1024);
-			const sent = h.delivery.send(notification('data'));
-			await clock.tickAsync(100);
-			assert.ok(h.bufferChecks <= 5, `Polled ${h.bufferChecks} times in 100ms`);
-			assert.strictEqual(h.sent.length, 0);
-			h.setBufferedAmount(0);
-			await clock.tickAsync(25);
-			await sent;
-			assert.strictEqual(h.sent.length, 1);
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture();
+		h.setBufferedAmount(256 * 1024);
+		const sent = h.delivery.send(notification('data'));
+		await clock.tickAsync(100);
+		assert.ok(h.bufferChecks <= 5, `Polled ${h.bufferChecks} times in 100ms`);
+		assert.strictEqual(h.sent.length, 0);
+		h.setBufferedAmount(0);
+		await clock.tickAsync(25);
+		await sent;
+		assert.strictEqual(h.sent.length, 1);
 	});
 
 	test('batches fragments fairly within a bounded burst before yielding to a timer', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const h = fixture({ windowBytes: 4 * 1024 * 1024 });
-			const otherChannel = 'test:/other';
-			const other = store.add(new AgentHostChannelDelivery(otherChannel,
-				{ ...limits, windowBytes: 4 * 1024 * 1024 }, limits, h.transport, h.scheduler,
-				() => { }, error => h.errors.push(error)));
-			const first = h.delivery.send(notification('x'.repeat(256 * 1024)));
-			const second = other.send({ jsonrpc: '2.0', method: 'example/data', params: { channel: otherChannel, data: 'y'.repeat(256 * 1024) } });
-			const sent = Promise.allSettled([first, second]);
-			clock.runMicrotasks();
-			assert.ok(h.sent.length > 2, 'Available credit should allow more than one frame per channel before a timer');
-			const bytes = h.sent.reduce((total, message) => total + JSON.stringify(message).length * 2, 0);
-			assert.ok(bytes <= 256 * 1024, 'A burst must yield before exceeding the transport byte budget');
-			assert.ok(bytes > 255 * 1024, 'A ready channel should use the available burst budget');
-			const channels = h.sent.slice(0, 4).map(message => vObj({ channel: vString() }).validateOrThrow(message.params).channel);
-			assert.deepStrictEqual(channels, [channel, otherChannel, channel, otherChannel]);
-			await clock.runAllAsync();
-			assert.ok((await sent).every(result => result.status === 'fulfilled'));
-			assert.deepStrictEqual(h.errors, []);
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture({ windowBytes: 4 * 1024 * 1024 });
+		const otherChannel = 'test:/other';
+		const other = store.add(new AgentHostChannelDelivery(otherChannel,
+			{ ...limits, windowBytes: 4 * 1024 * 1024 }, limits, h.transport, h.scheduler,
+			() => { }, error => h.errors.push(error)));
+		const first = h.delivery.send(notification('x'.repeat(256 * 1024)));
+		const second = other.send({ jsonrpc: '2.0', method: 'example/data', params: { channel: otherChannel, data: 'y'.repeat(256 * 1024) } });
+		const sent = Promise.allSettled([first, second]);
+		clock.runMicrotasks();
+		assert.ok(h.sent.length > 2, 'Available credit should allow more than one frame per channel before a timer');
+		const bytes = h.sent.reduce((total, message) => total + JSON.stringify(message).length * 2, 0);
+		assert.ok(bytes <= 256 * 1024, 'A burst must yield before exceeding the transport byte budget');
+		assert.ok(bytes > 255 * 1024, 'A ready channel should use the available burst budget');
+		const channels = h.sent.slice(0, 4).map(message => vObj({ channel: vString() }).validateOrThrow(message.params).channel);
+		assert.deepStrictEqual(channels, [channel, otherChannel, channel, otherChannel]);
+		await clock.runAllAsync();
+		assert.ok((await sent).every(result => result.status === 'fulfilled'));
+		assert.deepStrictEqual(h.errors, []);
 	});
 
 	test('refills a channel from promise continuations without a timer per message', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const h = fixture({ windowBytes: 256 * 1024 });
-			const message = notification('small');
-			const writer = (async () => {
-				for (let i = 0; i < 100; i++) {
-					await h.delivery.send(message);
-				}
-			})();
-			const done = Promise.allSettled([writer]);
-			await clock.tickAsync(0);
-			assert.strictEqual(h.sent.length, 100);
-			assert.deepStrictEqual(await done, [{ status: 'fulfilled', value: undefined }]);
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture({ windowBytes: 256 * 1024 });
+		const message = notification('small');
+		const writer = (async () => {
+			for (let i = 0; i < 100; i++) {
+				await h.delivery.send(message);
+			}
+		})();
+		const done = Promise.allSettled([writer]);
+		await clock.tickAsync(0);
+		assert.strictEqual(h.sent.length, 100);
+		assert.deepStrictEqual(await done, [{ status: 'fulfilled', value: undefined }]);
 	});
 
 	test('direct messages account for the complete serialized notification and partial credit', async () => {
@@ -444,143 +412,125 @@ suite('AgentHostChannelDelivery', () => {
 
 	test('batches incomplete fragments for five seconds below the credit threshold', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const h = fixture({ receiveWindowBytes: 256 * 1024 });
-			const frame = notification('{"jsonrpc":', 'channel/frame');
-			const bytes = JSON.stringify(frame).length * 2;
-			h.delivery.accept(frame, bytes);
-			clock.runMicrotasks();
-			const immediate = [...h.sent];
-			await clock.tickAsync(4999);
-			const beforeDeadline = [...h.sent];
-			await clock.tickAsync(1);
-			assert.deepStrictEqual({ immediate, beforeDeadline, sent: h.sent, received: h.received, errors: h.errors }, {
-				immediate: [], beforeDeadline: [],
-				sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes } }],
-				received: [], errors: [],
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture({ receiveWindowBytes: 256 * 1024 });
+		const frame = notification('{"jsonrpc":', 'channel/frame');
+		const bytes = JSON.stringify(frame).length * 2;
+		h.delivery.accept(frame, bytes);
+		clock.runMicrotasks();
+		const immediate = [...h.sent];
+		await clock.tickAsync(4999);
+		const beforeDeadline = [...h.sent];
+		await clock.tickAsync(1);
+		assert.deepStrictEqual({ immediate, beforeDeadline, sent: h.sent, received: h.received, errors: h.errors }, {
+			immediate: [], beforeDeadline: [],
+			sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes } }],
+			received: [], errors: [],
+		});
 	});
 
 	test('explicit fragment credit flushes respect the control rate limit and coalesce while throttled', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const h = fixture({ receiveWindowBytes: 256 * 1024 });
-			const frame = notification('{', 'channel/frame');
-			const bytes = JSON.stringify(frame).length * 2;
-			for (let i = 0; i < 2050; i++) {
-				h.delivery.accept(frame, bytes);
-				h.delivery.flushCredit();
-				clock.runMicrotasks();
-			}
-			const immediate = h.sent.length;
-			await clock.tickAsync(25);
-			assert.deepStrictEqual({
-				immediate,
-				afterRefill: h.sent.length,
-				lastCredit: h.sent.at(-1)?.params,
-				errors: h.errors,
-			}, {
-				immediate: 2048,
-				afterRefill: 2049,
-				lastCredit: { channel, consumedBytes: bytes * 2050 },
-				errors: [],
-			});
-		} finally {
-			clock.restore();
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture({ receiveWindowBytes: 256 * 1024 });
+		const frame = notification('{', 'channel/frame');
+		const bytes = JSON.stringify(frame).length * 2;
+		for (let i = 0; i < 2050; i++) {
+			h.delivery.accept(frame, bytes);
+			h.delivery.flushCredit();
+			clock.runMicrotasks();
 		}
+		const immediate = h.sent.length;
+		await clock.tickAsync(25);
+		assert.deepStrictEqual({
+			immediate,
+			afterRefill: h.sent.length,
+			lastCredit: h.sent.at(-1)?.params,
+			errors: h.errors,
+		}, {
+			immediate: 2048,
+			afterRefill: 2049,
+			lastCredit: { channel, consumedBytes: bytes * 2050 },
+			errors: [],
+		});
 	});
 
 	test('disposal cancels a queued prompt credit before a channel URI can be reused', () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const h = fixture({ receiveWindowBytes: 1 });
-			const frame = notification('{', 'channel/frame');
-			h.delivery.accept(frame, JSON.stringify(frame).length * 2);
-			h.delivery.dispose();
-			clock.runMicrotasks();
-			assert.deepStrictEqual(h.sent, []);
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture({ receiveWindowBytes: 1 });
+		const frame = notification('{', 'channel/frame');
+		h.delivery.accept(frame, JSON.stringify(frame).length * 2);
+		h.delivery.dispose();
+		clock.runMicrotasks();
+		assert.deepStrictEqual(h.sent, []);
 	});
 
 	test('credits three quarters of the window promptly', () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const message = notification('data');
-			const bytes = JSON.stringify(message).length * 2;
-			const h = fixture({ receiveWindowBytes: bytes * 4, release: true });
-			h.delivery.accept(message, bytes);
-			h.delivery.accept(message, bytes);
-			clock.runMicrotasks();
-			const belowThreshold = [...h.sent];
-			h.delivery.accept(message, bytes);
-			const beforeMicrotask = [...h.sent];
-			clock.runMicrotasks();
-			assert.deepStrictEqual({ belowThreshold, beforeMicrotask, sent: h.sent, errors: h.errors }, {
-				belowThreshold: [], beforeMicrotask: [],
-				sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes * 3 } }],
-				errors: [],
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const message = notification('data');
+		const bytes = JSON.stringify(message).length * 2;
+		const h = fixture({ receiveWindowBytes: bytes * 4, release: true });
+		h.delivery.accept(message, bytes);
+		h.delivery.accept(message, bytes);
+		clock.runMicrotasks();
+		const belowThreshold = [...h.sent];
+		h.delivery.accept(message, bytes);
+		const beforeMicrotask = [...h.sent];
+		clock.runMicrotasks();
+		assert.deepStrictEqual({ belowThreshold, beforeMicrotask, sent: h.sent, errors: h.errors }, {
+			belowThreshold: [], beforeMicrotask: [],
+			sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes * 3 } }],
+			errors: [],
+		});
 	});
 
 	test('does not restart the credit deadline when more bytes are released', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const h = fixture({ release: true });
-			const message = notification('data');
-			const bytes = JSON.stringify(message).length * 2;
-			h.delivery.accept(message, bytes);
-			await clock.tickAsync(4000);
-			h.delivery.accept(message, bytes);
-			await clock.tickAsync(999);
-			const beforeDeadline = [...h.sent];
-			await clock.tickAsync(1);
-			assert.deepStrictEqual({ beforeDeadline, sent: h.sent, errors: h.errors }, {
-				beforeDeadline: [],
-				sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes * 2 } }],
-				errors: [],
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const h = fixture({ release: true });
+		const message = notification('data');
+		const bytes = JSON.stringify(message).length * 2;
+		h.delivery.accept(message, bytes);
+		await clock.tickAsync(4000);
+		h.delivery.accept(message, bytes);
+		await clock.tickAsync(999);
+		const beforeDeadline = [...h.sent];
+		await clock.tickAsync(1);
+		assert.deepStrictEqual({ beforeDeadline, sent: h.sent, errors: h.errors }, {
+			beforeDeadline: [],
+			sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes * 2 } }],
+			errors: [],
+		});
 	});
 
 	test('releasing exactly one outstanding window resumes the sender without a timer', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
-		try {
-			const message = notification('data');
-			const bytes = JSON.stringify(message).length * 2;
-			const windowBytes = bytes * 4;
-			const sender = fixture({ windowBytes });
-			const receiver = fixture({ receiveWindowBytes: windowBytes });
-			const route = (target: ReturnType<typeof fixture>) => (text: string) => {
-				const parsed = parseProtocolMessage(text);
-				assert.ok(isJsonRpcNotification(parsed));
-				target.scheduler.acceptMessage(parsed);
-			};
-			sender.route(route(receiver));
-			receiver.route(route(sender));
-			const writes = Array.from({ length: 5 }, () => sender.delivery.send(message));
-			clock.runMicrotasks();
-			const whileFull = { sent: sender.sent.length, canSend: sender.delivery.canSend };
-			for (const release of receiver.releases) { release(); }
-			clock.runMicrotasks();
-			await Promise.all(writes);
-			assert.deepStrictEqual({ whileFull, sent: sender.sent.length, credits: receiver.sent, errors: [...sender.errors, ...receiver.errors] }, {
-				whileFull: { sent: 4, canSend: false }, sent: 5,
-				credits: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: windowBytes } }],
-				errors: [],
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const message = notification('data');
+		const bytes = JSON.stringify(message).length * 2;
+		const windowBytes = bytes * 4;
+		const sender = fixture({ windowBytes });
+		const receiver = fixture({ receiveWindowBytes: windowBytes });
+		const route = (target: ReturnType<typeof fixture>) => (text: string) => {
+			const parsed = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(parsed));
+			target.scheduler.acceptMessage(parsed);
+		};
+		sender.route(route(receiver));
+		receiver.route(route(sender));
+		const writes = Array.from({ length: 5 }, () => sender.delivery.send(message));
+		clock.runMicrotasks();
+		const whileFull = { sent: sender.sent.length, canSend: sender.delivery.canSend };
+		for (const release of receiver.releases) { release(); }
+		clock.runMicrotasks();
+		await Promise.all(writes);
+		assert.deepStrictEqual({ whileFull, sent: sender.sent.length, credits: receiver.sent, errors: [...sender.errors, ...receiver.errors] }, {
+			whileFull: { sent: 4, canSend: false }, sent: 5,
+			credits: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: windowBytes } }],
+			errors: [],
+		});
 	});
 
 	test('release receipts credit only the contiguous consumed prefix', () => {

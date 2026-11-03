@@ -288,13 +288,13 @@ fi
 
 if should_run_suite colorize; then
 start_suite "Colorize tests"
-npm run test-extension -- -l vscode-colorize-tests "${GREP_ARGS[@]}"
+pnpm run test-extension -l vscode-colorize-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite terminal-suggest; then
 start_suite "Terminal Suggest tests"
-npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests "${GREP_ARGS[@]}"
+pnpm run test-extension -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -306,7 +306,7 @@ fi
 
 if should_run_suite markdown; then
 start_suite "Markdown tests"
-npm run test-extension -- -l markdown-language-features "${GREP_ARGS[@]}"
+pnpm run test-extension -l markdown-language-features "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -324,37 +324,37 @@ fi
 
 if should_run_suite git-base; then
 start_suite "Git Base tests"
-npm run test-extension -- -l git-base "${GREP_ARGS[@]}"
+pnpm run test-extension -l git-base "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite ipynb; then
 start_suite "Ipynb tests"
-npm run test-extension -- -l ipynb "${GREP_ARGS[@]}"
+pnpm run test-extension -l ipynb "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite notebook-renderers; then
 start_suite "Notebook Output tests"
-npm run test-extension -- -l notebook-renderers "${GREP_ARGS[@]}"
+pnpm run test-extension -l notebook-renderers "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite configuration-editing; then
 start_suite "Configuration editing tests"
-npm run test-extension -- -l configuration-editing "${GREP_ARGS[@]}"
+pnpm run test-extension -l configuration-editing "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite github-authentication; then
 start_suite "GitHub Authentication tests"
-npm run test-extension -- -l github-authentication "${GREP_ARGS[@]}"
+pnpm run test-extension -l github-authentication "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite copilot; then
 start_suite "Copilot tests"
-npm run test-extension -- -l copilot "${GREP_ARGS[@]}"
+pnpm run test-extension -l copilot "${GREP_ARGS[@]}"
 kill_app
 fi
 

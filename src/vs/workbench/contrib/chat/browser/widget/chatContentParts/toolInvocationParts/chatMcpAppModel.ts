@@ -813,6 +813,7 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	 */
 	private _resolveServerResourceUri(serverUri: string): URI {
 		if (this.renderData.kind === 'agentHost') {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- MCP server resources resolve through the Agent Host filesystem provider, not the workspace connection mapper
 			return toAgentHostUri(URI.parse(serverUri), this.renderData.connectionAuthority);
 		}
 		return McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, serverUri);

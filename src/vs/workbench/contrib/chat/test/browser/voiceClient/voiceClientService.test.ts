@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Language } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -628,70 +629,67 @@ suite('VoiceClientService', () => {
 
 	test('keeps session briefings silent across reconnects until meaningful user input', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const track = new TestMediaStreamTrack();
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService, {
-				'agents.voice.sessionAwareness': true,
-			}));
-			const responses: IVoiceAudioResponse[] = [];
-			const speaking: boolean[] = [];
-			const calls: IVoiceToolCall[] = [];
-			store.add(service.onAudioResponse(response => responses.push(response)));
-			store.add(service.onDidChangeRemoteAudioState(value => speaking.push(value)));
-			store.add(service.onToolCall(call => calls.push(call)));
-			const context: IVoiceSessionContext = {
-				display_locale: 'en-US',
-				sessions: [{
-					id: 'chat-session:/active', is_active: true, agent_state: 'idle',
-					last_response_summary: 'Files in the current directory are example.ts and README.md.',
-					recent_turns: [{ user: 'List files in the terminal', assistant: 'example.ts and README.md' }],
-				}],
-			};
-			const connections = [];
-			for (let connection = 0; connection < 2; connection++) {
-				await service.connect(createTestWindow());
-				peer.ontrack?.(new TestRtcTrackEvent(track));
-				peer.channel.fireMessage({ type: 'session.started' });
-				service.sendStartSession(context, 'machine');
-				service.sendPttStart('passive-turn', { hasActiveSession: true, passive: true });
-				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: '[cough]', is_final: true });
-				peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Files in the current directory are' });
-				await clock.tickAsync(800);
-				peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'example.ts and README.md' });
-				await clock.tickAsync(800);
-				peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: `unsolicited-${connection}` } });
-				connections.push({
-					muted: service.audio.muted,
-					responseCount: responses.length,
-					speaking: [...speaking],
-					callCount: calls.length,
-					commentaryCount: peer.channel.sent.filter(event => event.type === 'session.commentary.append').length,
-				});
-				service.sendPttStart('question-turn', { hasActiveSession: true });
-				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'What just happened?', is_final: true });
-				peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'You listed the files.' });
-				await clock.tickAsync(800);
-				connections.push({
-					muted: service.audio.muted,
-					responseCount: responses.length,
-					speaking: [...speaking],
-					callCount: calls.length,
-					commentaryCount: peer.channel.sent.filter(event => event.type === 'session.commentary.append').length,
-				});
-				service.disconnect();
-				responses.length = 0;
-				speaking.length = 0;
-			}
-			assert.deepStrictEqual(connections, [
-				{ muted: true, responseCount: 0, speaking: [], callCount: 0, commentaryCount: 0 },
-				{ muted: false, responseCount: 2, speaking: [true, false], callCount: 0, commentaryCount: 0 },
-				{ muted: true, responseCount: 0, speaking: [], callCount: 0, commentaryCount: 0 },
-				{ muted: false, responseCount: 2, speaking: [true, false], callCount: 0, commentaryCount: 0 },
-			]);
-		} finally {
-			clock.restore();
+		store.add(toDisposable(() => clock.restore()));
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService, {
+			'agents.voice.sessionAwareness': true,
+		}));
+		const responses: IVoiceAudioResponse[] = [];
+		const speaking: boolean[] = [];
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onAudioResponse(response => responses.push(response)));
+		store.add(service.onDidChangeRemoteAudioState(value => speaking.push(value)));
+		store.add(service.onToolCall(call => calls.push(call)));
+		const context: IVoiceSessionContext = {
+			display_locale: 'en-US',
+			sessions: [{
+				id: 'chat-session:/active', is_active: true, agent_state: 'idle',
+				last_response_summary: 'Files in the current directory are example.ts and README.md.',
+				recent_turns: [{ user: 'List files in the terminal', assistant: 'example.ts and README.md' }],
+			}],
+		};
+		const connections = [];
+		for (let connection = 0; connection < 2; connection++) {
+			await service.connect(createTestWindow());
+			peer.ontrack?.(new TestRtcTrackEvent(track));
+			peer.channel.fireMessage({ type: 'session.started' });
+			service.sendStartSession(context, 'machine');
+			service.sendPttStart('passive-turn', { hasActiveSession: true, passive: true });
+			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: '[cough]', is_final: true });
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Files in the current directory are' });
+			await clock.tickAsync(800);
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'example.ts and README.md' });
+			await clock.tickAsync(800);
+			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: `unsolicited-${connection}` } });
+			connections.push({
+				muted: service.audio.muted,
+				responseCount: responses.length,
+				speaking: [...speaking],
+				callCount: calls.length,
+				commentaryCount: peer.channel.sent.filter(event => event.type === 'session.commentary.append').length,
+			});
+			service.sendPttStart('question-turn', { hasActiveSession: true });
+			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'What just happened?', is_final: true });
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'You listed the files.' });
+			await clock.tickAsync(800);
+			connections.push({
+				muted: service.audio.muted,
+				responseCount: responses.length,
+				speaking: [...speaking],
+				callCount: calls.length,
+				commentaryCount: peer.channel.sent.filter(event => event.type === 'session.commentary.append').length,
+			});
+			service.disconnect();
+			responses.length = 0;
+			speaking.length = 0;
 		}
+		assert.deepStrictEqual(connections, [
+			{ muted: true, responseCount: 0, speaking: [], callCount: 0, commentaryCount: 0 },
+			{ muted: false, responseCount: 2, speaking: [true, false], callCount: 0, commentaryCount: 0 },
+			{ muted: true, responseCount: 0, speaking: [], callCount: 0, commentaryCount: 0 },
+			{ muted: false, responseCount: 2, speaking: [true, false], callCount: 0, commentaryCount: 0 },
+		]);
 	});
 
 	test('allows explicit narration before the first user input with session awareness enabled', async () => {
@@ -938,64 +936,61 @@ suite('VoiceClientService', () => {
 
 	test('plays autoplay-blocked remote audio through shared WebAudio with session awareness, mute, interruption, and disposal', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const disconnected: string[] = [];
-			const streams: MediaStream[] = [];
-			let resumes = 0;
-			let contextCloses = 0;
-			const gain: GainNode = upcastPartial<GainNode>({
-				gain: upcastPartial<AudioParam>({ value: 1 }),
-				connect: () => gain,
-				disconnect: () => disconnected.push('gain'),
-			});
-			const source = upcastPartial<MediaStreamAudioSourceNode>({
-				connect: () => gain,
-				disconnect: () => disconnected.push('source'),
-			});
-			const context = upcastPartial<AudioContext>({
-				destination: upcastPartial<AudioDestinationNode>({}),
-				createMediaStreamSource: stream => { streams.push(stream); return source; },
-				createGain: () => gain,
-				resume: async () => { resumes++; },
-				close: async () => { contextCloses++; },
-			});
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService, {
-				'agents.voice.sessionAwareness': true,
-			}, new class extends mock<ITtsPlaybackService>() {
-				override ensureContext(): AudioContext { return context; }
-			}()));
-			await service.connect(createTestWindow());
-			peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-audio-fallback' } });
-			service.audio.playResult = Promise.reject(new DOMException('Playback requires a user gesture', 'NotAllowedError'));
-			peer.ontrack?.(new TestRtcTrackEvent(new TestMediaStreamTrack()));
-			await clock.tickAsync(0);
-			const levels = [gain.gain.value];
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Unsolicited briefing.' });
-			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'What just happened?', is_final: true });
-			levels.push(gain.gain.value);
-			await service.configurationService.setUserConfiguration('agents.voice.speakResponses', false);
-			fireConfigurationChange(service.configurationService, 'agents.voice.speakResponses');
-			levels.push(gain.gain.value);
-			await service.configurationService.setUserConfiguration('agents.voice.speakResponses', true);
-			fireConfigurationChange(service.configurationService, 'agents.voice.speakResponses');
-			levels.push(gain.gain.value);
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Speaking.' });
-			service.stopSpeaking();
-			levels.push(gain.gain.value);
-			await clock.tickAsync(751);
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'New reply.' });
-			levels.push(gain.gain.value);
-			service.disconnect();
-			assert.deepStrictEqual({
-				levels, streams: streams.length, resumes, contextCloses, disconnected, htmlPlayCalls: service.audio.playCalls, htmlMuted: service.audio.muted,
-			}, {
-				levels: [0, 1, 0, 1, 0, 1], streams: 1, resumes: 1, contextCloses: 0,
-				disconnected: ['source', 'gain'], htmlPlayCalls: 1, htmlMuted: true,
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const disconnected: string[] = [];
+		const streams: MediaStream[] = [];
+		let resumes = 0;
+		let contextCloses = 0;
+		const gain: GainNode = upcastPartial<GainNode>({
+			gain: upcastPartial<AudioParam>({ value: 1 }),
+			connect: () => gain,
+			disconnect: () => disconnected.push('gain'),
+		});
+		const source = upcastPartial<MediaStreamAudioSourceNode>({
+			connect: () => gain,
+			disconnect: () => disconnected.push('source'),
+		});
+		const context = upcastPartial<AudioContext>({
+			destination: upcastPartial<AudioDestinationNode>({}),
+			createMediaStreamSource: stream => { streams.push(stream); return source; },
+			createGain: () => gain,
+			resume: async () => { resumes++; },
+			close: async () => { contextCloses++; },
+		});
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService, {
+			'agents.voice.sessionAwareness': true,
+		}, new class extends mock<ITtsPlaybackService>() {
+			override ensureContext(): AudioContext { return context; }
+		}()));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-audio-fallback' } });
+		service.audio.playResult = Promise.reject(new DOMException('Playback requires a user gesture', 'NotAllowedError'));
+		peer.ontrack?.(new TestRtcTrackEvent(new TestMediaStreamTrack()));
+		await clock.tickAsync(0);
+		const levels = [gain.gain.value];
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Unsolicited briefing.' });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'What just happened?', is_final: true });
+		levels.push(gain.gain.value);
+		await service.configurationService.setUserConfiguration('agents.voice.speakResponses', false);
+		fireConfigurationChange(service.configurationService, 'agents.voice.speakResponses');
+		levels.push(gain.gain.value);
+		await service.configurationService.setUserConfiguration('agents.voice.speakResponses', true);
+		fireConfigurationChange(service.configurationService, 'agents.voice.speakResponses');
+		levels.push(gain.gain.value);
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Speaking.' });
+		service.stopSpeaking();
+		levels.push(gain.gain.value);
+		await clock.tickAsync(751);
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'New reply.' });
+		levels.push(gain.gain.value);
+		service.disconnect();
+		assert.deepStrictEqual({
+			levels, streams: streams.length, resumes, contextCloses, disconnected, htmlPlayCalls: service.audio.playCalls, htmlMuted: service.audio.muted,
+		}, {
+			levels: [0, 1, 0, 1, 0, 1], streams: 1, resumes: 1, contextCloses: 0,
+			disconnected: ['source', 'gain'], htmlPlayCalls: 1, htmlMuted: true,
+		});
 	});
 
 	test('does not create a remote audio fallback after its connection was retired', async () => {
@@ -1623,76 +1618,70 @@ suite('VoiceClientService', () => {
 	for (const sessionId of ['chat-session:/a', undefined]) {
 		test(`preserves GPT-Live clarification questions when handing off to ${sessionId ? 'an existing chat' : 'the new-session composer'}`, async () => {
 			const clock = sinon.useFakeTimers();
-			try {
-				const peer = new TestRtcPeerConnection();
-				const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
-				const calls: IVoiceToolCall[] = [];
-				const transcriptions: IVoiceTranscription[] = [];
-				store.add(service.onToolCall(event => calls.push(event)));
-				store.add(service.onTranscription(event => transcriptions.push(event)));
-				await service.connect(createTestWindow());
-				peer.channel.fireMessage({ type: 'session.started' });
-				service.sendStartSession({ sessions: sessionId ? [{ id: sessionId, is_active: true, agent_state: 'idle' }] : [], display_locale: 'en-US' }, 'machine');
-				service.sendPttStart('request', { hasActiveSession: !!sessionId });
-				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Add a theme', is_final: true });
-				peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Should it be ' });
-				peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'light or dark?' });
-				await clock.tickAsync(750);
-				service.sendPttStart('answer', { hasActiveSession: !!sessionId, passive: true });
-				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Dark', is_final: true });
-				peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'answer-delegation' } });
-				peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'answer-delegation' } });
+			store.add(toDisposable(() => clock.restore()));
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+			const calls: IVoiceToolCall[] = [];
+			const transcriptions: IVoiceTranscription[] = [];
+			store.add(service.onToolCall(event => calls.push(event)));
+			store.add(service.onTranscription(event => transcriptions.push(event)));
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started' });
+			service.sendStartSession({ sessions: sessionId ? [{ id: sessionId, is_active: true, agent_state: 'idle' }] : [], display_locale: 'en-US' }, 'machine');
+			service.sendPttStart('request', { hasActiveSession: !!sessionId });
+			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Add a theme', is_final: true });
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Should it be ' });
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'light or dark?' });
+			await clock.tickAsync(750);
+			service.sendPttStart('answer', { hasActiveSession: !!sessionId, passive: true });
+			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Dark', is_final: true });
+			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'answer-delegation' } });
+			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'answer-delegation' } });
 
-				assert.deepStrictEqual({ calls, transcriptions }, {
-					calls: [{
-						callId: 'answer-delegation', name: 'send_to_chat', turnId: 'answer',
-						args: {
-							text: 'Voice conversation context:\nUser: Add a theme\nVoice assistant: Should it be light or dark?\n\nUser: Dark',
-							...(sessionId ? { coding_session_id: sessionId } : {}),
-						},
-					}],
-					transcriptions: [
-						{ text: 'Add a theme', status: 'final', turnId: 'request' },
-						{ text: 'Dark', status: 'final', turnId: 'answer' },
-					],
-				});
-			} finally {
-				clock.restore();
-			}
+			assert.deepStrictEqual({ calls, transcriptions }, {
+				calls: [{
+					callId: 'answer-delegation', name: 'send_to_chat', turnId: 'answer',
+					args: {
+						text: 'Voice conversation context:\nUser: Add a theme\nVoice assistant: Should it be light or dark?\n\nUser: Dark',
+						...(sessionId ? { coding_session_id: sessionId } : {}),
+					},
+				}],
+				transcriptions: [
+					{ text: 'Add a theme', status: 'final', turnId: 'request' },
+					{ text: 'Dark', status: 'final', turnId: 'answer' },
+				],
+			});
 		});
 	}
 
 	test('preserves multiple voice-only exchanges and snapshots context before the delegated answer', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
-			const calls: string[] = [];
-			store.add(service.onToolCall(event => calls.push(String(event.args.text))));
-			await service.connect(createTestWindow());
-			peer.channel.fireMessage({ type: 'session.started' });
-			service.sendStartSession({ sessions: [{ id: 'chat-session:/a', is_active: true, agent_state: 'idle' }], display_locale: 'en-US' }, 'machine');
-			for (const [text, response] of [['Add a theme', 'Light or dark?'], ['Dark', 'Which accent color?']]) {
-				service.sendPttStart(text, { hasActiveSession: true });
-				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: text, is_final: true });
-				peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: response });
-				await clock.tickAsync(750);
-			}
-			service.sendPttStart('answer', { hasActiveSession: true });
-			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Blue', is_final: true });
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'I will send that to chat.' });
-			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'answer-delegation' } });
-			service.sendPttStart('next', { hasActiveSession: true });
-			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Run the tests', is_final: true });
-			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'next-delegation' } });
-
-			assert.deepStrictEqual(calls, [
-				'Voice conversation context:\nUser: Add a theme\nVoice assistant: Light or dark?\n\nUser: Dark\nVoice assistant: Which accent color?\n\nUser: Blue',
-				'Run the tests',
-			]);
-		} finally {
-			clock.restore();
+		store.add(toDisposable(() => clock.restore()));
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const calls: string[] = [];
+		store.add(service.onToolCall(event => calls.push(String(event.args.text))));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		service.sendStartSession({ sessions: [{ id: 'chat-session:/a', is_active: true, agent_state: 'idle' }], display_locale: 'en-US' }, 'machine');
+		for (const [text, response] of [['Add a theme', 'Light or dark?'], ['Dark', 'Which accent color?']]) {
+			service.sendPttStart(text, { hasActiveSession: true });
+			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: text, is_final: true });
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: response });
+			await clock.tickAsync(750);
 		}
+		service.sendPttStart('answer', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Blue', is_final: true });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'I will send that to chat.' });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'answer-delegation' } });
+		service.sendPttStart('next', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Run the tests', is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'next-delegation' } });
+
+		assert.deepStrictEqual(calls, [
+			'Voice conversation context:\nUser: Add a theme\nVoice assistant: Light or dark?\n\nUser: Dark\nVoice assistant: Which accent color?\n\nUser: Blue',
+			'Run the tests',
+		]);
 	});
 
 	test('preserves a direct voice question spoken after a chat handoff', async () => {
@@ -1823,72 +1812,63 @@ suite('VoiceClientService', () => {
 
 	test('keeps a transient WebRTC disconnect alive and cancels its grace timer on recovery', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
-			const fatal: IVoiceFatalDisconnect[] = [];
-			store.add(service.onFatalDisconnect(event => fatal.push(event)));
-			await service.connect(createTestWindow());
-			peer.channel.fireMessage({ type: 'session.started' });
-			peer.fireConnectionState('disconnected');
-			await clock.tickAsync(9_999);
-			const beforeRecovery = service.isConnected;
-			peer.fireConnectionState('connected');
-			await clock.tickAsync(10_001);
-			assert.deepStrictEqual({ beforeRecovery, connected: service.isConnected, closeCalls: peer.closeCalls, fatal }, {
-				beforeRecovery: true, connected: true, closeCalls: 0, fatal: [],
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		peer.fireConnectionState('disconnected');
+		await clock.tickAsync(9_999);
+		const beforeRecovery = service.isConnected;
+		peer.fireConnectionState('connected');
+		await clock.tickAsync(10_001);
+		assert.deepStrictEqual({ beforeRecovery, connected: service.isConnected, closeCalls: peer.closeCalls, fatal }, {
+			beforeRecovery: true, connected: true, closeCalls: 0, fatal: [],
+		});
 	});
 
 	test('ends a sustained WebRTC disconnect at the original grace deadline', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
-			const fatal: IVoiceFatalDisconnect[] = [];
-			store.add(service.onFatalDisconnect(event => fatal.push(event)));
-			await service.connect(createTestWindow());
-			peer.channel.fireMessage({ type: 'session.started' });
-			peer.fireConnectionState('disconnected');
-			await clock.tickAsync(9_999);
-			peer.fireConnectionState('disconnected');
-			const beforeDeadline = service.isConnected;
-			await clock.tickAsync(1);
-			assert.deepStrictEqual({ beforeDeadline, connected: service.isConnected, closeCalls: peer.closeCalls, fatalCount: fatal.length }, {
-				beforeDeadline: true, connected: false, closeCalls: 1, fatalCount: 1,
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		peer.fireConnectionState('disconnected');
+		await clock.tickAsync(9_999);
+		peer.fireConnectionState('disconnected');
+		const beforeDeadline = service.isConnected;
+		await clock.tickAsync(1);
+		assert.deepStrictEqual({ beforeDeadline, connected: service.isConnected, closeCalls: peer.closeCalls, fatalCount: fatal.length }, {
+			beforeDeadline: true, connected: false, closeCalls: 1, fatalCount: 1,
+		});
 	});
 
 	test('failed WebRTC peers terminate immediately and explicit disconnect cancels a recovery timer', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
-			const fatal: IVoiceFatalDisconnect[] = [];
-			store.add(service.onFatalDisconnect(event => fatal.push(event)));
-			await service.connect(createTestWindow());
-			peer.channel.fireMessage({ type: 'session.started' });
-			peer.fireConnectionState('disconnected');
-			peer.fireConnectionState('failed');
-			const failedImmediately = !service.isConnected;
-			peer.connectionState = 'connected';
-			await service.connect(createTestWindow());
-			peer.channel.fireMessage({ type: 'session.started' });
-			peer.fireConnectionState('disconnected');
-			service.disconnect();
-			await clock.tickAsync(10_000);
-			assert.deepStrictEqual({ failedImmediately, connected: service.isConnected, closeCalls: peer.closeCalls, fatalCount: fatal.length }, {
-				failedImmediately: true, connected: false, closeCalls: 2, fatalCount: 1,
-			});
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		peer.fireConnectionState('disconnected');
+		peer.fireConnectionState('failed');
+		const failedImmediately = !service.isConnected;
+		peer.connectionState = 'connected';
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		peer.fireConnectionState('disconnected');
+		service.disconnect();
+		await clock.tickAsync(10_000);
+		assert.deepStrictEqual({ failedImmediately, connected: service.isConnected, closeCalls: peer.closeCalls, fatalCount: fatal.length }, {
+			failedImmediately: true, connected: false, closeCalls: 2, fatalCount: 1,
+		});
 	});
 
 	test('cancels ICE gathering immediately and removes the listener', async () => {
@@ -1919,47 +1899,41 @@ suite('VoiceClientService', () => {
 
 	test('resumes remote playback for the next response after stopping speech', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const track = new TestMediaStreamTrack();
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
-			await service.connect(createTestWindow());
-			peer.ontrack?.(new TestRtcTrackEvent(track));
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'First response' });
-			service.stopSpeaking();
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: ' continuation' });
-			const playsDuringInterruption = service.audio.playCalls;
-			await clock.tickAsync(800);
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Next response' });
-			assert.deepStrictEqual({ playsDuringInterruption, playsAfterNextResponse: service.audio.playCalls }, { playsDuringInterruption: 2, playsAfterNextResponse: 3 });
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
+		await service.connect(createTestWindow());
+		peer.ontrack?.(new TestRtcTrackEvent(track));
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'First response' });
+		service.stopSpeaking();
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: ' continuation' });
+		const playsDuringInterruption = service.audio.playCalls;
+		await clock.tickAsync(800);
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Next response' });
+		assert.deepStrictEqual({ playsDuringInterruption, playsAfterNextResponse: service.audio.playCalls }, { playsDuringInterruption: 2, playsAfterNextResponse: 3 });
 	});
 
 	test('suppresses output from the old input target until the next meaningful input', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const track = new TestMediaStreamTrack();
-			const peer = new TestRtcPeerConnection();
-			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
-			await service.connect(createTestWindow());
-			peer.ontrack?.(new TestRtcTrackEvent(track));
-			service.prepareForInputTargetChange();
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Old response' });
-			const playsForOldResponse = service.audio.playCalls;
-			await clock.tickAsync(800);
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Delayed old response' });
-			const playsAfterFinalizedOldResponse = service.audio.playCalls;
-			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'New question' });
-			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'New response' });
+		store.add(toDisposable(() => clock.restore()));
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
+		await service.connect(createTestWindow());
+		peer.ontrack?.(new TestRtcTrackEvent(track));
+		service.prepareForInputTargetChange();
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Old response' });
+		const playsForOldResponse = service.audio.playCalls;
+		await clock.tickAsync(800);
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Delayed old response' });
+		const playsAfterFinalizedOldResponse = service.audio.playCalls;
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'New question' });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'New response' });
 
-			assert.deepStrictEqual({ playsForOldResponse, playsAfterFinalizedOldResponse, playsForNewResponse: service.audio.playCalls }, {
-				playsForOldResponse: 1, playsAfterFinalizedOldResponse: 1, playsForNewResponse: 2,
-			});
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual({ playsForOldResponse, playsAfterFinalizedOldResponse, playsForNewResponse: service.audio.playCalls }, {
+			playsForOldResponse: 1, playsAfterFinalizedOldResponse: 1, playsForNewResponse: 2,
+		});
 	});
 
 	test('keeps output suppressed for input captured before the target change', async () => {

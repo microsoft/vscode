@@ -24,6 +24,7 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
@@ -242,37 +243,53 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('captures plugins durably and seeds a disconnected run with the rewritten agent', async () => {
-		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
-		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
-		const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
-		const service = createService({
-			createSession: async (template, _run, _session, activeClient) => {
-				created.complete({ activeClient, agent: template.agent?.uri });
-				return AgentSession.uri('mock', 'customized');
-			},
-			startSession: async () => { },
+	for (const hasMessageAgent of [false, true]) {
+		test(`captures plugins durably and seeds a disconnected run with the rewritten ${hasMessageAgent ? 'explicit' : 'inherited'} agent`, async () => {
+			const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+			await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+			const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
+			const started = new DeferredPromise<AutomationDefinition['message']>();
+			const service = createService({
+				createSession: async (template, _run, _session, activeClient) => {
+					created.complete({ activeClient, agent: template.agent?.uri });
+					return AgentSession.uri('mock', 'customized');
+				},
+				startSession: async (_session, message) => { await started.complete(message); },
+			});
+			const action = createAction();
+			action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
+			if (hasMessageAgent) {
+				action.definition.message.agent = { uri: 'virtual:/bundle/agents/planner.md' };
+			}
+			const originalDefinition = structuredClone(action.definition);
+			await service.handleCreate(action, 'author');
+			const entry = stateManager.getAutomationCatalogState()!.entries[0];
+			const copy = entry.customizations![0];
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
+			const run = await created.p;
+			const message = await started.p;
+			const agent = { uri: URI.joinPath(URI.parse(copy.uri), hasMessageAgent ? 'agents/planner.md' : 'agents/reviewer.md').toString() };
+			const stored = storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0];
+			assert.deepStrictEqual({
+				copy,
+				stored: stored.customizations,
+				run,
+				message,
+				definition: entry.definition,
+				storedDefinition: stored.definition,
+			}, {
+				copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
+				stored: [copy],
+				run: {
+					activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
+					agent: agent.uri,
+				},
+				message: { ...originalDefinition.message, agent },
+				definition: originalDefinition,
+				storedDefinition: originalDefinition,
+			});
 		});
-		const action = createAction();
-		action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
-		await service.handleCreate(action, 'author');
-		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		const copy = entry.customizations![0];
-		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
-		const run = await created.p;
-		assert.deepStrictEqual({
-			copy,
-			stored: storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0].customizations,
-			run,
-		}, {
-			copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
-			stored: [copy],
-			run: {
-				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
-				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
-			},
-		});
-	});
+	}
 
 	test('creates and updates local file customizations in place using connection service locality', async () => {
 		disposables.add(clientConnections.registerSource({
@@ -1490,11 +1507,7 @@ suite('AgentHostAutomationService', () => {
 				void completed.complete();
 			}
 		}));
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnComplete,
-			turnId,
-			duration: 10,
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 10));
 		await completed.p;
 
 		assert.deepStrictEqual({
@@ -1504,7 +1517,7 @@ suite('AgentHostAutomationService', () => {
 			run: AutomationRunStatus.Completed,
 			summary: AutomationRunStatus.Completed,
 		});
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId, duration: 10 });
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 10));
 		await service.fetchAutomationRuns({ channel: 'ahp-automations://', automation: params.automation });
 		assert.deepStrictEqual(telemetry.events.filter(event => event.name !== 'automation.created').map(event => ({
 			name: event.name,
@@ -1562,11 +1575,7 @@ suite('AgentHostAutomationService', () => {
 						startedAt: new Date().toISOString(),
 						message,
 					});
-					stateManager.dispatchServerAction(chat, {
-						type: ActionType.ChatTurnComplete,
-						turnId: 'model-configuration-turn',
-						duration: 0,
-					});
+					stateManager.dispatchServerAction(chat, chatTurnComplete('model-configuration-turn', 0));
 				},
 			});
 			const automation = definition();
@@ -1594,6 +1603,74 @@ suite('AgentHostAutomationService', () => {
 				savedModel: model,
 			});
 		});
+	}
+
+	for (const hasSessionAgent of [false, true]) {
+		for (const hasMessageAgent of [false, true]) {
+			test(`records the Automation custom agent on its first turn (session: ${hasSessionAgent}, message: ${hasMessageAgent})`, async () => {
+				const session = URI.parse('mock:/agent-selection-run');
+				const sessionAgent = hasSessionAgent ? { uri: 'file:///agents/reviewer.md' } : undefined;
+				const messageAgent = hasMessageAgent ? { uri: 'file:///agents/planner.md' } : undefined;
+				const expectedAgent = messageAgent ?? sessionAgent;
+				const completed = new DeferredPromise<void>();
+				let createdAgent: AutomationDefinition['session']['agent'];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
+						void completed.complete();
+					}
+				}));
+				const service = createService({
+					createSession: async template => {
+						createdAgent = template.agent;
+						stateManager.createSession({
+							resource: session.toString(),
+							provider: 'mock',
+							title: '',
+							status: SessionStatus.Idle,
+							createdAt: new Date().toISOString(),
+							modifiedAt: new Date().toISOString(),
+							defaultChat: buildDefaultChatUri(session.toString()),
+						});
+						return session;
+					},
+					startSession: async (createdSession, message) => {
+						const chat = buildDefaultChatUri(createdSession);
+						stateManager.dispatchServerAction(chat, {
+							type: ActionType.ChatTurnStarted,
+							turnId: 'agent-selection-turn',
+							startedAt: new Date().toISOString(),
+							message,
+						});
+						stateManager.dispatchServerAction(chat, chatTurnComplete('agent-selection-turn', 0));
+					},
+				});
+				const automation = definition();
+				if (sessionAgent) {
+					automation.session.agent = sessionAgent;
+				}
+				if (messageAgent) {
+					automation.message.agent = messageAgent;
+				}
+				const originalDefinition = structuredClone(automation);
+				await service.handleCreate({ ...createAction(), definition: automation });
+				await service.runAutomation({
+					channel: AUTOMATION_CATALOG_URI,
+					automation: 'ahp-automation:/review-changes',
+					requestId: 'agent-selection-request',
+				});
+				await completed.p;
+
+				assert.deepStrictEqual({
+					createdAgent,
+					recordedMessage: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message,
+					savedDefinition: stateManager.getAutomationCatalogState()?.entries[0].definition,
+				}, {
+					createdAgent: expectedAgent,
+					recordedMessage: { ...originalDefinition.message, ...(expectedAgent ? { agent: expectedAgent } : {}) },
+					savedDefinition: originalDefinition,
+				});
+			});
+		}
 	}
 
 	for (const scheduled of [false, true]) {
@@ -1759,7 +1836,7 @@ suite('AgentHostAutomationService', () => {
 				},
 				cancelSession: async () => {
 					if (outcome === 'success') {
-						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+						stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('turn', 0));
 					} else {
 						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
 					}
@@ -2130,7 +2207,7 @@ suite('AgentHostAutomationService', () => {
 				systemWake.setFullyAwake(true);
 				await timeout(60_000);
 				if (then === 'complete') {
-					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+					stateManager.dispatchServerAction(chat, chatTurnComplete('turn', 0));
 				} else {
 					failTurn();
 				}
