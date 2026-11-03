@@ -72,7 +72,7 @@ The UI tests open a Markdown preview and wait up to one minute for its webview t
 
 HTTP errors and failed requests for CDN webview bootstrap files also interrupt the render/load wait immediately. A `Webview fatal error:` console message interrupts the wait too, including service-worker installation failures that page network listeners do not observe; it does not add a failed resource, preserving the unsupported-browser skip above. Failure messages include status, URL (without credentials/query/fragment), frame URLs, console errors and page errors, rather than reporting only a heading timeout. Newly attached frames without a URL use a fixed placeholder so formatting cannot mask the original failure. A missing bootstrap asset is a failure, not a reason to skip the preview check or increase its timeout.
 
-Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
+Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run. On x64, setup first installs the pinned WSL release, including its WSL2 kernel.
 
 Extension installation makes at most three attempts, each allowing 30 seconds to click Install, 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup, the Markdown preview check and cleanup within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so increasing these waits can cause a retry to start before the previous attempt has cleaned up.
 
@@ -82,7 +82,7 @@ Platform-specific scripts are provided in the `scripts/` directory to set up the
 
 |Script|Platform|Description|
 |--------|----------|-------------|
-|`run-win32.cmd`|Windows|Runs tests using Edge as the Playwright browser|
+|`run-win32.cmd`|Windows|On x64, installs the WSL release pinned in `build/checksums/wsl.txt` and imports Ubuntu into WSL2, then runs tests using Edge as the Playwright browser|
 |`run-macOS.sh`|macOS|Installs Playwright WebKit and runs tests|
 |`run-ubuntu.sh`|Ubuntu|Sets up X11, Chromium, and Snap daemon, then runs tests|
 |`run-docker.sh`|Linux (Docker)|Pulls a prebuilt image and runs tests inside a Docker container|

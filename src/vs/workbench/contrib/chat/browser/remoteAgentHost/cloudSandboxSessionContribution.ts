@@ -304,7 +304,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}));
 	}
 
-	protected async _refreshIfStale(trigger: 'poll' | 'focus' | 'selection' = 'poll'): Promise<void> {
+	protected async _refreshIfStale(trigger: 'poll' | 'focus' | 'selection' | 'automatic' = 'poll'): Promise<void> {
 		if (this._discoveryInFlight) {
 			await (this._discoveryQueued ?? this._discoveryInFlight);
 			return;

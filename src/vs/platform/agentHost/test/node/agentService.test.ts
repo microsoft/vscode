@@ -11201,6 +11201,55 @@ suite('AgentService (node dispatcher)', () => {
 			}, { workspaceless: false, persisted: 'false' });
 		});
 
+		test('set_workspace stays loaded after converting a workspace-less session', async () => {
+			const scratch = URI.file('/home/.copilot/chats/own');
+			const destination = URI.file('/workspace/destination');
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async setWorkingDirectory(): Promise<void> { }
+				async setChatWorkingDirectory(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new WorkspaceAgent('copilot', { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true }));
+			agent.resolvedWorkingDirectory = scratch;
+			registerTestAgentProvider(svc, agent);
+			const clientConnections = Reflect.get(svc, '_clientConnections') as IAgentHostClientConnectionService;
+			disposables.add(clientConnections.registerSource({
+				hasSeenClient: clientId => clientId === 'client',
+				isClientConnected: clientId => clientId === 'client',
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => true,
+				requestMcpAuthentication: async () => false,
+			}));
+			const setWorkspaceDeferral = (session: URI) => agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === SessionServerToolName.SetWorkspace)?.deferLoading;
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
+			const beforeConversion = setWorkspaceDeferral(session);
+			getStateManager(svc).dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const main = buildDefaultChatUri(session);
+			svc.dispatchAction(main, {
+				type: ActionType.ChatTurnStarted, turnId: 'request-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'Expected the requesting turn to start');
+			await agent.serverToolHost!.executeTool(main, SessionServerToolName.SetWorkspace, { workspaceFolder: destination.toString(), isolation: false });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(main), action: { type: ActionType.ChatTurnComplete, turnId: 'request-turn', duration: 1 } });
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 2, 'Expected the host to continue the original task');
+			agent.resolvedWorkingDirectory = destination;
+			const workspaceSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [destination] });
+
+			assert.deepStrictEqual({
+				workspaceless: readSessionWorkspaceless(getStateManager(svc).getSessionState(session.toString())?._meta),
+				beforeConversion,
+				afterConversion: setWorkspaceDeferral(session),
+				startedWithWorkspace: setWorkspaceDeferral(workspaceSession),
+			}, { workspaceless: false, beforeConversion: false, afterConversion: false, startedWithWorkspace: true });
+		});
+
 		test('set_workspace uses the sole connected active client for a provider-started turn', async () => {
 			const original = URI.file('/workspace/original');
 			const destination = URI.file('/workspace/destination');
