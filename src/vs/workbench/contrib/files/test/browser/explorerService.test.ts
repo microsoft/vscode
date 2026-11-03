@@ -15,9 +15,9 @@ import { dirname, extUriIgnorePathCase, joinPath } from '../../../../../base/com
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { IBulkEditService, ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { IBulkEditOptions, IBulkEditService, ResourceEdit, ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent, IFileCopyProgress } from '../../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
@@ -81,6 +81,32 @@ suite('Files - ExplorerService', () => {
 		const root = explorerService.roots[0];
 		item = new NewExplorerItem(fileService, configurationService, NullFilesConfigurationService, root, false);
 		root.addChild(item);
+	});
+
+	test('applyBulkEdit forwards copy byte progress separately', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const reports: IFileCopyProgress[] = [];
+		const fileCopyProgress = { report: (event: IFileCopyProgress) => reports.push(event) };
+		const source = item.resource;
+		const target = joinPath(source, 'copy');
+		const edits = [new ResourceFileEdit(source, target, { copy: true })];
+		let applied = false;
+		instantiationService.stub(IBulkEditService, new class extends mock<IBulkEditService>() {
+			override async apply(edit: ResourceEdit[], options?: IBulkEditOptions) {
+				assert.strictEqual(edit, edits);
+				assert.strictEqual(options?.fileCopyProgress, fileCopyProgress);
+				assert.ok(options?.progress);
+				assert.notStrictEqual(options.progress, fileCopyProgress);
+				options.fileCopyProgress.report({ source, target, bytesWritten: 7 });
+				applied = true;
+				return { isApplied: true, ariaSummary: '' };
+			}
+		});
+		const service = store.add(instantiationService.createInstance(ExplorerService));
+
+		await service.applyBulkEdit(edits, { undoLabel: 'Copy', progressLabel: 'Copying', fileCopyProgress });
+
+		assert.deepStrictEqual({ applied, reports }, { applied: true, reports: [{ source, target, bytesWritten: 7 }] });
 	});
 
 	suite('move batches', () => {

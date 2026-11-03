@@ -7,6 +7,7 @@ import { ICodeEditor } from '../editorBrowser.js';
 import { TextEdit, WorkspaceEdit, WorkspaceEditMetadata, IWorkspaceFileEdit, WorkspaceFileEditOptions, IWorkspaceTextEdit } from '../../common/languages.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
+import { IFileCopyProgress } from '../../../platform/files/common/files.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
@@ -96,6 +97,7 @@ export class ResourceFileEdit extends ResourceEdit implements IWorkspaceFileEdit
 export interface IBulkEditOptions {
 	editor?: ICodeEditor;
 	progress?: IProgress<IProgressStep>;
+	fileCopyProgress?: IProgress<IFileCopyProgress>;
 	token?: CancellationToken;
 	showPreview?: boolean;
 	label?: string;

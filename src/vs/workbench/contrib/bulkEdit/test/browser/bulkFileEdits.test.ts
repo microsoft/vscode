@@ -13,19 +13,66 @@ import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEdi
 import { WorkspaceFileEditOptions } from '../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { FileType, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { FileType, IFileContent, IFileCopyProgress, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { Progress } from '../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressStep, Progress } from '../../../../../platform/progress/common/progress.js';
 import { IUndoRedoElement, IUndoRedoService, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
-import { mock } from '../../../../test/common/workbenchTestServices.js';
+import { createFileStat, mock } from '../../../../test/common/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { ICreateFileOperation, ICreateOperation, IDeleteOperation, IWorkingCopyFileService } from '../../../../services/workingCopy/common/workingCopyFileService.js';
+import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IFileOperationUndoRedoInfo, IWorkingCopyFileService } from '../../../../services/workingCopy/common/workingCopyFileService.js';
 import { BulkFileEdits } from '../../browser/bulkFileEdits.js';
+import { BulkEditService } from '../../browser/bulkEditService.js';
 
 suite('BulkFileEdits', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bulk edit forwards copy byte progress separately and preserves undo/redo', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const source = URI.file('/workspace/source');
+		const target = URI.file('/workspace/target');
+		const reports: IFileCopyProgress[] = [];
+		const steps: IProgressStep[] = [];
+		const fileCopyProgress = { report: (event: IFileCopyProgress) => reports.push(event) };
+		const operations: string[] = [];
+		instantiationService.stub(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
+			override async copy(copies: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, progress?: IProgress<IFileCopyProgress>) {
+				assert.strictEqual(progress, fileCopyProgress);
+				assert.strictEqual(token, CancellationToken.None);
+				assert.ok(undoInfo?.undoRedoGroupId);
+				assert.deepStrictEqual(copies, [{ file: { source, target }, overwrite: true }]);
+				operations.push('copy');
+				progress.report({ source, target, bytesWritten: 3 });
+				progress.report({ source, target, bytesWritten: 2 });
+				return [createFileStat(target, false, false, true)];
+			}
+			override async delete() { operations.push('delete'); }
+			override async create() { return []; }
+			override async createFolder() { operations.push('createFolder'); return []; }
+		});
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async resolve() { return createFileStat(target, false, false, true); }
+			override hasCapability() { return false; }
+		});
+		let undoElement: IUndoRedoElement | undefined;
+		instantiationService.stub(IUndoRedoService, new class extends mock<IUndoRedoService>() {
+			override pushElement(element: IUndoRedoElement) { undoElement = element; }
+		});
+
+		await instantiationService.createInstance(BulkEditService).apply([
+			new ResourceFileEdit(source, target, { copy: true, overwrite: true, folder: true })
+		], { fileCopyProgress, progress: { report: step => steps.push(step) } });
+		assert.ok(undoElement);
+		await undoElement.undo();
+		await undoElement.redo();
+		assert.deepStrictEqual({ reports, steps, operations }, {
+			reports: [{ source, target, bytesWritten: 3 }, { source, target, bytesWritten: 2 }],
+			steps: [{ increment: undefined, total: 100 }, { increment: 100 }],
+			operations: ['copy', 'delete', 'createFolder']
+		});
+	});
 
 	async function applyDelete(types: readonly FileType[], options?: WorkspaceFileEditOptions) {
 		const files = types.map((type, index) => ({

@@ -20,6 +20,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
+import { IFileCopyProgress } from '../../../../platform/files/common/files.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { BulkCellEdits, ResourceNotebookCellEdit } from './bulkCellEdits.js';
@@ -64,6 +65,7 @@ class BulkEdit {
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _confirmBeforeUndo: boolean,
+		private readonly _fileCopyProgress: IProgress<IFileCopyProgress> | undefined,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -151,7 +153,7 @@ class BulkEdit {
 	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, confirmBeforeUndo: boolean, progress: IProgress<void>): Promise<readonly URI[]> {
 		this._logEdits('_performFileEdits', edits);
 		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', undoRedoGroup, undoRedoSource, confirmBeforeUndo, progress, this._token, edits);
-		return await model.apply();
+		return await model.apply(this._fileCopyProgress);
 	}
 
 	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>, reason: TextModelEditSource | undefined): Promise<readonly URI[]> {
@@ -259,7 +261,8 @@ export class BulkEditService implements IBulkEditService {
 			edits,
 			undoRedoGroup,
 			options?.undoRedoSource,
-			!!options?.confirmBeforeUndo
+			!!options?.confirmBeforeUndo,
+			options?.fileCopyProgress
 		);
 
 		let listener: IDisposable | undefined;

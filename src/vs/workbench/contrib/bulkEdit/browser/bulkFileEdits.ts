@@ -5,7 +5,7 @@
 
 
 import { WorkspaceFileEditOptions } from '../../../../editor/common/languages.js';
-import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata, IFileCopyProgress } from '../../../../platform/files/common/files.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from '../../../services/workingCopy/common/workingCopyFileService.js';
@@ -21,7 +21,7 @@ import { Schemas } from '../../../../base/common/network.js';
 
 interface IFileOperation {
 	uris: URI[];
-	perform(token: CancellationToken): Promise<IFileOperation>;
+	perform(token: CancellationToken, progress?: IProgress<IFileCopyProgress>): Promise<IFileOperation>;
 }
 
 class Noop implements IFileOperation {
@@ -108,7 +108,7 @@ class CopyOperation implements IFileOperation {
 		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
-	async perform(token: CancellationToken): Promise<IFileOperation> {
+	async perform(token: CancellationToken, progress?: IProgress<IFileCopyProgress>): Promise<IFileOperation> {
 
 		// (1) create copy operations, remove noops
 		const copies: ICopyOperation[] = [];
@@ -125,7 +125,7 @@ class CopyOperation implements IFileOperation {
 		}
 
 		// (2) perform the actual copy and use the return stats to build undo edits
-		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
+		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo, progress);
 		const undoes: DeleteEdit[] = [];
 
 		for (let i = 0; i < stats.length; i++) {
@@ -342,7 +342,7 @@ export class BulkFileEdits {
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 	) { }
 
-	async apply(): Promise<readonly URI[]> {
+	async apply(fileCopyProgress?: IProgress<IFileCopyProgress>): Promise<readonly URI[]> {
 		const undoOperations: IFileOperation[] = [];
 		const undoRedoInfo = { undoRedoGroupId: this._undoRedoGroup.id };
 
@@ -399,7 +399,7 @@ export class BulkFileEdits {
 			}
 
 			if (op) {
-				const undoOp = await op.perform(this._token);
+				const undoOp = await op.perform(this._token, fileCopyProgress);
 				undoOperations.push(undoOp);
 			}
 			this._progress.report(undefined);

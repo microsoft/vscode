@@ -20,10 +20,18 @@ import { isWeb } from '../../../base/common/platform.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Lazy } from '../../../base/common/lazy.js';
+import { IProgress } from '../../progress/common/progress.js';
 
 //#region file service & providers
 
 export const IFileService = createDecorator<IFileService>('fileService');
+
+export interface IFileCopyProgress {
+	readonly source: URI;
+	readonly target: URI;
+	/** The delta of bytes successfully written to the target, not a cumulative total. */
+	readonly bytesWritten: number;
+}
 
 export interface IFileService {
 
@@ -183,9 +191,11 @@ export interface IFileService {
 	 * Copies the file/folder to a path identified by the resource. A folder is copied
 	 * recursively.
 	 *
+	 * Progress reports successful destination writes; provider-native copies do not report byte progress.
+	 *
 	 * Emits a `FileOperation.COPY` file operation event when successful.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(source: URI, target: URI, overwrite?: boolean, progress?: IProgress<IFileCopyProgress>): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a copy operation is possible given the arguments. No changes on disk will

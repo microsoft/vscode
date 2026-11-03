@@ -16,7 +16,8 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IEditableData } from '../../../common/views.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
-import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IProgress, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IFileCopyProgress } from '../../../../platform/files/common/files.js';
 import { isActiveElement } from '../../../../base/browser/dom.js';
 
 export interface IExplorerService {
@@ -36,7 +37,7 @@ export interface IExplorerService {
 	refresh(): Promise<void>;
 	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
-	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void>;
+	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window; fileCopyProgress?: IProgress<IFileCopyProgress> }): Promise<void>;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
