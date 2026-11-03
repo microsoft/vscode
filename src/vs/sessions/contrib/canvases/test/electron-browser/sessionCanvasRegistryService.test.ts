@@ -25,10 +25,11 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { CanvasInput, ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { CanvasInput, getCanvasReferenceKey, ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ActiveSessionCanvasReferenceContext, SessionActiveChatCanvasReferenceKeysContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -211,8 +212,17 @@ suite('SessionCanvasRegistryService', () => {
 			resource: URI.parse('agent-host-canvas:/session/second'), instanceId: 'second',
 			title: 'Second', source: URI.parse('https://example.com/second'),
 		};
-		let activeEditor = CanvasInput.EDITOR_ID;
+		const activeEditor = CanvasInput.EDITOR_ID;
 		let editorAreaVisible = true;
+		const firstReference = {
+			providerId: 'local-agent-host',
+			session: URI.parse('agent-host-session:/session'),
+			chat: URI.parse('agent-host-chat:/session/main'),
+			canvas: first.resource,
+		};
+		const secondReference = { ...firstReference, canvas: second.resource };
+		let activeCanvasReference = getCanvasReferenceKey(firstReference);
+		const activeChatCanvasReferences = [activeCanvasReference, getCanvasReferenceKey(secondReference)];
 		const contextKeyService = store.add(new class extends MockContextKeyService {
 			override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
 				return rules?.evaluate({
@@ -223,7 +233,13 @@ suite('SessionCanvasRegistryService', () => {
 						if (key === MainEditorAreaVisibleContext.key) {
 							return editorAreaVisible as T;
 						}
-						if (key === AuxiliaryBarVisibleContext.key || key === IsAuxiliaryWindowContext.key || key === WindowCanvasesAvailableContext.key) {
+						if (key === ActiveSessionCanvasReferenceContext.key) {
+							return activeCanvasReference as T;
+						}
+						if (key === SessionActiveChatCanvasReferenceKeysContext.key) {
+							return activeChatCanvasReferences as T;
+						}
+						if (key === IsAuxiliaryWindowContext.key || key === WindowCanvasesAvailableContext.key) {
 							return false as T;
 						}
 						return true as T;
@@ -241,10 +257,14 @@ suite('SessionCanvasRegistryService', () => {
 		harness.canvases.set([first], undefined);
 		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
 		const singleActive = getAction().checked;
-		activeEditor = 'workbench.editors.files.textFileEditor';
-		const singleOtherEditor = getAction().checked;
-		activeEditor = CanvasInput.EDITOR_ID;
+		activeCanvasReference = getCanvasReferenceKey({ ...firstReference, chat: URI.parse('agent-host-chat:/session/sibling') });
+		const singleSiblingCanvas = getAction().checked;
+		activeCanvasReference = activeChatCanvasReferences[0];
+		editorAreaVisible = false;
+		const singleHidden = getAction().checked;
+		editorAreaVisible = true;
 		harness.canvases.set([first, second], undefined);
+		activeCanvasReference = activeChatCanvasReferences[1];
 		const multiple = getAction();
 		assert.ok(multiple instanceof SubmenuItemAction);
 		const multipleActive = { checked: multiple.checked, childChecks: multiple.actions.map(action => action.checked) };
@@ -253,12 +273,14 @@ suite('SessionCanvasRegistryService', () => {
 
 		assert.deepStrictEqual({
 			singleActive,
-			singleOtherEditor,
+			singleSiblingCanvas,
+			singleHidden,
 			multipleActive,
 			multipleClosed,
 		}, {
 			singleActive: true,
-			singleOtherEditor: false,
+			singleSiblingCanvas: false,
+			singleHidden: false,
 			multipleActive: { checked: true, childChecks: [undefined, undefined] },
 			multipleClosed: false,
 		});

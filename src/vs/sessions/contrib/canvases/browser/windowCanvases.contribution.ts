@@ -14,16 +14,15 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { CanvasInput } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus, SessionActivityBarGroup, sessionActivityBarEntryToggled } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
+import { SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 import { WindowCanvasEditor } from './windowCanvasEditor.js';
 
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
@@ -63,7 +62,10 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 			}
 		}));
 		const when = ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated(), WindowCanvasesAvailableContext);
-		const activityBarToggled = sessionActivityBarEntryToggled(CanvasInput.EDITOR_ID);
+		const activityBarToggled = ContextKeyExpr.or(
+			SessionCanvasActivityBarToggledContext,
+			ContextKeyExpr.and(MainEditorAreaVisibleContext, ActiveEditorContext.isEqualTo(WindowCanvasInput.EDITOR_ID)),
+		);
 		for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab, Menus.SessionActivityBar]) {
 			const activityBar = menu === Menus.SessionActivityBar;
 			this._register(MenuRegistry.appendMenuItem(menu, {
