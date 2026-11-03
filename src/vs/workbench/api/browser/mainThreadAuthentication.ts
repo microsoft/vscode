@@ -160,17 +160,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
 		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
-			const registration = this._registrations.get(e.id);
-			// Another extension host may have replaced the provider registered by this host.
-			if (registration && (!this.authenticationService.isAuthenticationProviderRegistered(e.id) || this.authenticationService.getProvider(e.id) !== registration.provider)) {
-				this._registrations.deleteAndDispose(e.id);
-			}
-		}));
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
-			// Do not send an old removal to a host whose registration RPC is still in flight.
-			if (!this._suppressUnregisterEvent && this._registrations.has(e.id)) {
-				this._registrations.deleteAndDispose(e.id);
+			if (!this._suppressUnregisterEvent) {
 				this._proxy.$onDidUnregisterAuthenticationProvider(e.id);
 			}
 		}));
@@ -247,8 +238,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	override dispose(): void {
-		this._suppressUnregisterEvent = true;
+		const registrations = [...this._registrations];
 		super.dispose();
+		for (const [id, { provider }] of registrations) {
+			if (this.authenticationService.isAuthenticationProviderRegistered(id) && this.authenticationService.getProvider(id) === provider) {
+				this.authenticationService.unregisterAuthenticationProvider(id);
+			}
+		}
 	}
 
 	async $registerAuthenticationProvider({ id, label, supportsMultipleAccounts, resourceServer, supportedAuthorizationServers, supportsChallenges }: IRegisterAuthenticationProviderDetails): Promise<void> {
@@ -284,24 +280,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resourceServer ? URI.revive(resourceServer) : undefined,
 					emitter
 				);
+		this._registrations.set(id, { provider, emitter, dispose: () => emitter.dispose() });
 		this.authenticationService.registerAuthenticationProvider(id, provider);
-		this._registrations.set(id, {
-			provider,
-			emitter,
-			dispose: () => {
-				emitter.dispose();
-				if (this.authenticationService.isAuthenticationProviderRegistered(id) && this.authenticationService.getProvider(id) === provider) {
-					this.authenticationService.unregisterAuthenticationProvider(id);
-				}
-			}
-		});
 	}
 
 	async $unregisterAuthenticationProvider(id: string): Promise<void> {
+		this._registrations.deleteAndDispose(id);
 		// The ext host side already unregisters the provider, so we can suppress the event here.
 		this._suppressUnregisterEvent = true;
 		try {
-			this._registrations.deleteAndDispose(id);
+			this.authenticationService.unregisterAuthenticationProvider(id);
 		} finally {
 			this._suppressUnregisterEvent = false;
 		}
