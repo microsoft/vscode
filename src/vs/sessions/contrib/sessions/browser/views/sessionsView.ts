@@ -424,11 +424,11 @@ export class SessionsView extends ViewPane {
 			}));
 		}
 
-		// When the active session changes, reveal it in the sessions list.
+		// Keep the active session selected without reopening a section the user collapsed.
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			if (activeSession) {
-				if (!sessionsControl.reveal(activeSession.resource)) {
+				if (!sessionsControl.reveal(activeSession.resource, true)) {
 					sessionsControl.clearFocus();
 				}
 			} else {
@@ -636,7 +636,7 @@ export class SessionsView extends ViewPane {
 	private restoreLastSelectedSession(): void {
 		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
-			this.sessionsControl.reveal(activeSession.resource);
+			this.sessionsControl.reveal(activeSession.resource, true);
 		}
 	}
 
