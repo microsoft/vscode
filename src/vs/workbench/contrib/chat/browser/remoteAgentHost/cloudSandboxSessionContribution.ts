@@ -362,6 +362,17 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return delay !== undefined && delay <= 0 ? this._discoverAndSeed({ trigger: 'reconciliation' }) : Promise.resolve();
 	}
 
+	/**
+	 * How long after a complete scan an incremental pass may stay incremental. With a connected feed,
+	 * a pass close enough to the reconciliation deadline to postpone it by the minimum spacing runs as
+	 * the full reconciliation instead, since an incremental pass cannot detect removed tasks.
+	 */
+	private _incrementalWindow(): number {
+		return this._sessionFeed.value?.connected
+			? FULL_DISCOVERY_INTERVAL_MS - this._reconciliationLead - MIN_RECONCILIATION_SPACING_MS
+			: FULL_DISCOVERY_INTERVAL_MS;
+	}
+
 	protected _pollJitter(): number {
 		return Math.floor(Math.random() * DISCOVERY_POLL_JITTER_MS);
 	}
@@ -393,7 +404,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const now = Date.now();
 		this._lastDiscoveryAttempt = now;
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
-			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
+			&& now - this._lastFullDiscovery < this._incrementalWindow();
 		this._discoveryToken = this._enabledCts.token;
 		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds).finally(() => {
 			this._discoveryInFlight = undefined;

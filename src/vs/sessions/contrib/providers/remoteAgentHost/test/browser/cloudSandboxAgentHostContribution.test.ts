@@ -2429,6 +2429,36 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		});
 	}));
 
+	test('a focus refresh close to the reconciliation deadline runs as the full reconciliation instead of postponing it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const scans: IScan[] = [];
+		const harness = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				recordScan(scans, start, options);
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		const focus = async () => {
+			harness.setFocused(false);
+			harness.setFocused(true);
+			await harness.contribution.checkForUpdates();
+		};
+		await timeout(7 * 60_000);
+		await focus();
+		await timeout(7 * 60_000 + 50_000);
+		await focus();
+		await timeout(16 * 60_000);
+		assert.deepStrictEqual(scans.map(scan => [Math.round(scan.minute * 60), scan.trigger, scan.incremental]), [
+			[0, 'startup', false],
+			[7 * 60, 'focus', true],
+			[14 * 60 + 50, 'focus', false],
+			[29 * 60 + 50, 'reconciliation', false],
+		]);
+	}));
+
 	test('an empty account on a healthy feed publishes its first task from a hint and keeps the reconciliation deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const start = Date.now();
 		const scans: IScan[] = [];

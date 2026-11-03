@@ -36,9 +36,9 @@ export class CloudSandboxSessionFeed extends Disposable {
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _reconnect = this._register(new RunOnceScheduler(() => {
-		const late = this._renewalDue !== undefined && this._now() - this._renewalDue > lateRenewalMs;
+		const renewalDue = this._renewalDue;
 		this._renewalDue = undefined;
-		void this._connect(true, late);
+		void this._connect(true, renewalDue);
 	}, reconnectPolicy.initialDelayMs));
 	/** Wall-clock time the scheduled renewal of a healthy connection is due; undefined for failure retries. */
 	private _renewalDue: number | undefined;
@@ -50,8 +50,8 @@ export class CloudSandboxSessionFeed extends Disposable {
 		if (reason) {
 			this._onInvalidate({ reason });
 		}
-		// Incremental catch-up must not discard explicit hints for removed or inaccessible tasks.
-		if (taskIds.length && reason !== 'reconnect') {
+		// Explicit hints, including removed or inaccessible tasks, are read even alongside a full catch-up that may fail.
+		if (taskIds.length) {
 			this._onInvalidate({ reason: 'change', taskIds });
 		}
 	}, 500));
@@ -94,11 +94,12 @@ export class CloudSandboxSessionFeed extends Disposable {
 		}
 	}
 
-	private _connect(refresh: boolean, gap = false): Promise<void> {
-		return this._connecting ??= this._doConnect(refresh, gap).finally(() => this._connecting = undefined);
+	/** `renewalDue` is when a healthy connection's renewal was due; finishing it much later means delivery may have stopped meanwhile. */
+	private _connect(refresh: boolean, renewalDue?: number): Promise<void> {
+		return this._connecting ??= this._doConnect(refresh, renewalDue).finally(() => this._connecting = undefined);
 	}
 
-	private async _doConnect(refresh: boolean, gap: boolean): Promise<void> {
+	private async _doConnect(refresh: boolean, renewalDue: number | undefined): Promise<void> {
 		const previousConnection = this._active.value;
 		const store = this._pending.value = new DisposableStore();
 		const cancellation = new CancellationTokenSource();
@@ -183,7 +184,9 @@ export class CloudSandboxSessionFeed extends Disposable {
 			if (closed) {
 				throw new Error('Session feed disconnected during setup');
 			}
-			const continuous = !gap && previousConnection !== undefined && this._active.value === previousConnection;
+			// Checked once the new socket is ready, so sleeping during negotiation or the handshake also counts.
+			const late = renewalDue !== undefined && this._now() - renewalDue > lateRenewalMs;
+			const continuous = !late && previousConnection !== undefined && this._active.value === previousConnection;
 			store.add(disposableTimeout(() => this._consecutiveFailures = 0, healthyConnectionMs));
 			this._active.value = this._pending.clearAndLeak();
 			const reconnectDelay = Math.max(1_000, connection.reconnect_in !== undefined

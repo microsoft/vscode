@@ -257,6 +257,27 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+	test('sleeping during renewal negotiation reports a connection gap and still delivers coalesced task hints', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let slept = 0;
+		let negotiations = 0;
+		const h = createFeed(store, {
+			now: () => Date.now() + slept,
+			connect: async () => {
+				if (++negotiations === 2) {
+					// The renewal starts on time, then the machine sleeps before the new socket is ready.
+					h.sockets[0].receive(changed('removed'));
+					slept = 20 * 60_000;
+				}
+				return connection();
+			},
+		});
+		await h.feed.start();
+		await timeout(8 * 60_000 + 501);
+		assert.deepStrictEqual({ reasons: h.reasons, taskBatches: h.taskBatches, connected: h.feed.connected }, {
+			reasons: ['reconnect', 'change'], taskBatches: [undefined, ['removed']], connected: true,
+		});
+	}));
+
 	test('renewal preserves coalesced task hints for targeted removal checks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store, { autoReady: false });
 		const initial = h.feed.start();
