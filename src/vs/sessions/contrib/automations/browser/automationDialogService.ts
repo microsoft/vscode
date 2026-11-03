@@ -36,6 +36,7 @@ import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICre
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
@@ -92,6 +93,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -465,7 +467,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus());
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;

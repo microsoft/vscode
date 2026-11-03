@@ -1,6 +1,7 @@
 {
   "name": "vscode-web",
   "version": "0.0.0",
+  "packageManager": "pnpm@12.16.0",
   "private": true,
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",

@@ -428,7 +428,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			const result = await service.connect({ connectionId: 'certificates', workspaceFolder: '/workspace', name: 'Certificates' });
 
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
+				eligible: result.sharesClientNetwork,
 				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
 				logsCertificates: service.devContainerArgs.flat().some(argument => argument.includes('LOCAL CA')),
 			}, { eligible: true, configuresCertificates: false, logsCertificates: false });
@@ -445,21 +445,21 @@ suite('Dev Container Agent Host Main Service', () => {
 		{ name: 'remote context overridden by a local host', environment: { DOCKER_CONTEXT: 'remote', DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: 'ssh://remote.example', forwards: true },
 		{ name: 'local context overridden by a remote host', environment: { DOCKER_CONTEXT: 'desktop-linux', DOCKER_HOST: 'ssh://remote.example' }, endpoint: 'unix:///var/run/docker.sock', forwards: false },
 	]) {
-		test(`certificate forwarding with ${name}`, async () => {
+		test(`client network sharing with ${name}`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, true, ['LOCAL CA']));
 			service.inheritedEnvironment = {};
 			service.dockerEndpoint = endpoint;
 			service.endpointSessionId = undefined;
 			const result = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name });
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
+				eligible: result.sharesClientNetwork,
 				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
 			}, { eligible: forwards ? true : undefined, configuresCertificates: false });
 		});
 	}
 
 	for (const failure of ['exit', 'exception'] as const) {
-		test(`does not forward certificates when Docker locality cannot be determined (${failure})`, async () => {
+		test(`does not share the client network when Docker locality cannot be determined (${failure})`, async () => {
 			const log = new TestLogService();
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, true, ['LOCAL CA'], new Set(), '/tmp', log));
 			service.inheritedEnvironment = {};
@@ -471,16 +471,16 @@ suite('Dev Container Agent Host Main Service', () => {
 			service.endpointSessionId = undefined;
 			const result = await service.connect({ connectionId: `unknown-${failure}`, workspaceFolder: '/workspace', name: 'Unknown Docker host' });
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
-				warned: log.warnings.some(warning => warning.message.includes('not forwarding certificates')),
+				eligible: result.sharesClientNetwork,
+				warned: log.warnings.some(warning => warning.message.includes('treating it as remote')),
 			}, { eligible: undefined, warned: true });
 		});
 	}
 
-	test('a remote launcher never forwards its host certificates into containers', async () => {
+	test('a remote launcher never shares its host network with containers', async () => {
 		const service = store.add(new class extends RemoteDevContainerAgentHostService {
-			shouldForwardCertificates(): Promise<boolean> {
-				return this._shouldForwardCertificates(CancellationToken.None);
+			sharesClientNetwork(): Promise<boolean> {
+				return this._sharesClientNetwork(CancellationToken.None);
 			}
 		}(
 			new NullLogService(),
@@ -490,7 +490,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			new class extends mock<IRequestService>() { }(),
 			new class extends mock<IGitHubService>() { }(),
 		));
-		assert.strictEqual(await service.shouldForwardCertificates(), false);
+		assert.strictEqual(await service.sharesClientNetwork(), false);
 	});
 
 	test('an Agent Host Dev Container CLI refreshes the shared Copilot certificate bundle before each run', async () => {
@@ -836,7 +836,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				remoteWorkspaceFolder: '/workspaces/project',
 				hostWorkspaceFolder: '/workspace',
 				sandboxSupported: false,
-				forwardClientCertificates: true,
+				sharesClientNetwork: true,
 			},
 			devContainerArgs: [
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],

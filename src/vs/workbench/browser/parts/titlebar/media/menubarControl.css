@@ -26,6 +26,16 @@
 	background-color: var(--vscode-menubar-selectionBackground);
 }
 
+.monaco-workbench .part.titlebar .menubar.compact > .menubar-menu-button.open,
+.monaco-workbench .part.titlebar .menubar.compact > .menubar-menu-button:focus {
+	background-color: var(--vscode-menubar-selectionBackground);
+}
+
+/* The compact menu opens over the title bar's drag region, so it must not drag the window */
+.monaco-workbench .part.titlebar .menubar.compact .menubar-menu-items-holder {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
 .monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more {
 	color: var(--vscode-titleBar-inactiveForeground);

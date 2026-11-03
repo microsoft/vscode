@@ -33,6 +33,22 @@ import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 
+/* __GDPR__
+	"copilot-chat/conversation.messageText": {
+		"owner": "amunger",
+		"comment": "SDK conversation correlation on existing restricted user and model text events.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ]
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/request.options.tools": {
+		"owner": "amunger",
+		"comment": "SDK conversation correlation on the existing restricted offered-tools event.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ]
+	}
+*/
+
 type AgentHostProviderTimingEvent = IAgentHostEventTelemetry & AgentHostProviderTimingMeasurements & {
 	schemaVersion: number;
 	group: string;
@@ -1088,6 +1104,43 @@ export interface IAgentHostSkillContentReadReport {
 	pluginVersion: string | undefined;
 }
 
+const skillInvocationTriggers: ReadonlySet<string> = new Set(['agent-invoked', 'user-invoked', 'context-load']);
+
+export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedReport {
+	provider: string;
+	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	/** The root turn the invocation belongs to; for a subagent, the turn it (or its spawning subagent) was invoked in. */
+	turnId: string | undefined;
+	/** The SDK `skill.invoked` event id; equals `event_id` on the forwarded `copilotSdk/skill_invoked`. */
+	sdkEventId: string;
+	trigger: string | undefined;
+	isSubagentInvocation: boolean;
+}
+
+type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string | undefined;
+	sdkEventId: string;
+	trigger: string;
+	isSubagentInvocation: boolean;
+};
+
+type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
+	owner: 'bhavyaus';
+	comment: 'Records what triggered each agent host skill invocation, to tell skills the agent chose apart from skills the user ran. Skill identity is on copilotSdk/skill_invoked, joined by sdkEventId.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The root turn the invocation belongs to; for a subagent, the turn it or its spawning subagent was invoked in, even after that turn ends.' };
+	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
+	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };
+};
+
 export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
 
 export interface IAgentHostRepoInfoReport {
@@ -1403,13 +1456,14 @@ export class AgentHostTelemetryReporter {
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	async assistantMessageReceived(session: string, chat: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
+	async assistantMessageReceived(session: string, chat: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[], sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
 		}
 		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
 			headerRequestId: clientRequestId,
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
@@ -1430,13 +1484,14 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	async userMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
+	async userMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
 		const properties = await multiplexProperties({
 			source: 'user',
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
@@ -1459,13 +1514,14 @@ export class AgentHostTelemetryReporter {
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
 	 */
-	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
+	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
 		const properties = await multiplexProperties({
 			source: 'model',
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
@@ -1652,6 +1708,25 @@ export class AgentHostTelemetryReporter {
 		});
 		restricted.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
+	}
+
+	/**
+	 * Records what triggered a skill invocation. Skill identity (hashed name, plugin) stays on the
+	 * forwarded runtime `copilotSdk/skill_invoked`; join the two on `sdkEventId` = `event_id`.
+	 */
+	skillInvoked(report: IAgentHostSkillInvokedReport): void {
+		const agentSessionId = AgentSession.id(report.owner);
+		this._telemetryService.publicLog2<IAgentHostSkillInvokedEvent, IAgentHostSkillInvokedClassification>('agentHost.skillInvoked', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			provider: report.provider,
+			agentSessionId,
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			turnId: report.turnId,
+			sdkEventId: report.sdkEventId,
+			trigger: report.trigger !== undefined && skillInvocationTriggers.has(report.trigger) ? report.trigger : 'unknown',
+			isSubagentInvocation: report.isSubagentInvocation,
+		});
 	}
 
 	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {
