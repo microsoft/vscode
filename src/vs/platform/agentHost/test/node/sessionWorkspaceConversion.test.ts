@@ -1673,6 +1673,63 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	}
 
+	test('workspace tool moves an inheriting peer of a workspace-less session with another chat\'s folder to a new worktree', async () => {
+		const destination = URI.file('/workspace/destination');
+		const worktree = URI.file('/workspace/destination.worktrees/task');
+		const otherFolder = URI.file('/workspace/other');
+		const host: IChatIsolationHost = {
+			runWithChatCatalogLock: (_session, operation) => operation(),
+			prepareChatWorkingDirectory: async (session, _directory, options) => {
+				assert.strictEqual(options.isolation, 'worktree');
+				// As agentService: attaching a folder first pins every inheriting chat to the folders it inherits.
+				harness.stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionChatUpdated, chat: peer.toString(), changes: { workingDirectories: [harness.scratch.toString()] } });
+				harness.stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: worktree.toString() });
+				return { directory: worktree, release: async () => assert.fail('Must retain successful destination') };
+			},
+			setChatWorkingDirectory: async (session, chat, directory) => {
+				harness.stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [directory.toString()] },
+				});
+			},
+		};
+		const harness = createHarness(new TestWorktreeIsolation(worktree), async () => true, new TestSessionDatabase(), 'copilot', host);
+		makeFolderSession(harness);
+		harness.stateManager.setSessionMeta(harness.session.toString(), withSessionWorkspaceless(undefined, true));
+		harness.stateManager.setScratchFolder(harness.scratch.toString(), true);
+		const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+		const other = URI.parse(buildChatUri(harness.session, 'other'));
+		const storage = (chat: URI) => creationTimeChatStorageResource(harness.session.toString(), chat.toString(), buildDefaultChatUri(harness.session.toString()));
+		harness.stateManager.addChat(harness.session.toString(), peer.toString(), storage(peer));
+		harness.stateManager.addChat(harness.session.toString(), other.toString(), storage(other), { workingDirectories: [otherFolder.toString()] });
+		harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: otherFolder.toString() });
+		const calls: string[] = [];
+		const provider: IAgent = harness.agent;
+		provider.setChatWorkingDirectory = async (resource, _context, directory) => {
+			calls.push(`${resource.toString()} -> ${directory.toString()}`);
+		};
+		startTurn(harness.stateManager, peer);
+
+		harness.service.requestSessionWorkspaceUpdate(peer, 'turn-1', destination, true, 'client-1');
+		completeTurn(harness.stateManager, peer);
+		await harness.service.updateSessionWorkspace(peer.toString(), 'turn-1');
+		const state = harness.stateManager.getSessionState(harness.session.toString())!;
+
+		assert.deepStrictEqual({
+			calls,
+			peerDirectory: state.chats.find(candidate => candidate.resource === peer.toString())?.workingDirectories,
+			otherDirectory: state.chats.find(candidate => candidate.resource === other.toString())?.workingDirectories,
+			continuations: harness.continuations.map(entry => entry.chat),
+			pending: harness.service.isPending(peer.toString()),
+		}, {
+			calls: [`${peer.toString()} -> ${worktree.toString()}`],
+			peerDirectory: [worktree.toString()],
+			otherDirectory: [otherFolder.toString()],
+			continuations: [peer.toString()],
+			pending: false,
+		});
+		assert.match(harness.continuations[0].message.text, /Only this chat now uses the worktree/);
+	});
+
 	test('workspace tool moves a default chat that records its own scratch folder, as one moved out of another session, with the session', async () => {
 		const destination = URI.file('/workspace/destination');
 		const hostCalls: { chat: string; directory: string; replaceSessionWorkspace: boolean }[] = [];

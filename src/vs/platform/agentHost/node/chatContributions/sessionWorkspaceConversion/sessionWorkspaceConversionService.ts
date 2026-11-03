@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../base/common/async.js';
-import { createAgentChatContext, isChatWorkspaceless } from '../../agentChatContext.js';
+import { createAgentChatContext, inheritedChatFolders, isChatWorkspaceless } from '../../agentChatContext.js';
 import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../../../base/common/event.js';
@@ -297,6 +297,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		this._onDidChangePending.fire(chat.toString());
 	}
 
+	/** The folders a chat works in: its own, else those it inherits from its session, as pinning would record them. */
+	private _chatFolders(chat: ProtocolURI, state: ISessionWithDefaultChat): readonly string[] | undefined {
+		return state.chats.find(candidate => candidate.resource === chat)?.workingDirectories
+			?? (state.workingDirectories && inheritedChatFolders(this._stateManager, state.workingDirectories, readSessionWorkspaceless(state._meta)));
+	}
+
 	/** The chat's own workspace-less decision, from its recorded folders. */
 	private _isChatWorkspaceless(owner: ProtocolURI, chat: URI): boolean {
 		return isChatWorkspaceless(this._stateManager, chat.toString(), this._sessionStateStore.peek(URI.parse(owner)), readSessionWorkspaceless(this._stateManager.getSessionState(owner)?._meta));
@@ -370,7 +376,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (this.isPending(key)) {
 			throw new Error('A workspace conversion is already pending for this session.');
 		}
-		const directories = state?.chats.find(candidate => candidate.resource === key)?.workingDirectories ?? state?.workingDirectories;
+		const directories = state && this._chatFolders(key, state);
 		if (chatOnly && !isolation && directories?.length === 1 && extUriBiasedIgnorePathCase.isEqual(workspaceFolder, URI.parse(directories[0]))) {
 			return false;
 		}
@@ -499,7 +505,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const assertWorkspace = (expected = pending.previousWorkingDirectories ?? [pending.previousWorkingDirectory ?? workspaceFolder]) => {
 			const state = this._stateManager.getSessionState(session.toString());
 			const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
-			const directories = summary?.workingDirectories ?? this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			const directories = state && this._chatFolders(chat.toString(), state);
 			if (!summary || state?.lifecycle !== SessionLifecycle.Ready
 				|| (state.status & SessionStatus.IsArchived) === SessionStatus.IsArchived
 				|| ((summary.status ?? 0) & SessionStatus.IsArchived) !== 0
