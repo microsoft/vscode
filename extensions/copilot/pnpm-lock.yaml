@@ -233,6 +233,9 @@ importers:
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
+      copyfiles:
+        specifier: ^2.4.1
+        version: 2.4.1
       csv-parse:
         specifier: ^6.0.0
         version: 6.2.1
@@ -293,6 +296,9 @@ importers:
       react-dom:
         specifier: 17.0.2
         version: 17.0.2(react@17.0.2)
+      rimraf:
+        specifier: ^6.0.1
+        version: 6.0.1
       run-script-os:
         specifier: ^1.1.6
         version: 1.1.6
