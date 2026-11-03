@@ -25,7 +25,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from 
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult, ICloudSandboxDraftPreparationService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryOptions, ICloudSandboxDiscoveryResult, ICloudSandboxDraftPreparationService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -78,7 +78,7 @@ import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -182,6 +182,7 @@ function reservedSession(): ICloudSandboxReservedSession {
 
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
+	readonly hasFocus?: boolean;
 	readonly draftModels?: readonly SessionModelInfo[];
 	readonly hostModels?: readonly SessionModelInfo[];
 	readonly initializeResult?: InitializeResult;
@@ -253,6 +254,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const draftRequests = new Map<string, IChatRequestModel>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
+	const discoveryTriggers: ICloudSandboxDiscoveryOptions['trigger'][] = [];
 	const errorNotifications: NotificationMessage[] = [];
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
@@ -266,6 +268,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		connected: false,
 		completeAuthentication: true,
 		hidden: false,
+		hasFocus: options?.hasFocus ?? true,
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
 		disposeSessionError: undefined as Error | undefined,
@@ -322,7 +325,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 		override registerChatSessionItemController(type: string, controller: IChatSessionItemController) {
 			controllers.set(type, controller);
-			initialRefreshes.push(controller.refresh(CancellationToken.None));
+			initialRefreshes.push(controller.refresh(CancellationToken.None, 'initial'));
 			return toDisposable(() => controllers.delete(type));
 		}
 		override readonly onDidChangeContentProviderSchemes = contentProviderSchemesChanged.event;
@@ -382,7 +385,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanged.event;
-		override readonly hasFocus = true;
+		override get hasFocus() { return state.hasFocus; }
 	}());
 	instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly onDidChangeSentiment = sentimentChanged.event;
@@ -402,9 +405,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			return options?.reserveSession ? options.reserveSession(request) : reservedSession();
 		}
 		override async connectSessionFeed() { calls.feedNegotiations++; return undefined; }
-		override async listSessions(_token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean }) {
+		override async listSessions(_token: CancellationToken, discoveryOptions?: ICloudSandboxDiscoveryOptions) {
 			calls.discovered++;
 			discoveryModes.push(discoveryOptions?.incremental === true);
+			discoveryTriggers.push(discoveryOptions?.trigger);
 			return options?.listSessions ? options.listSessions() : state.result;
 		}
 		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
@@ -594,7 +598,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust, preparation, allocations, reservationRequests,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, workspaceTrust, preparation, allocations, reservationRequests,
 		whenAllocationStarted: allocationStarted.p,
 		whenTaskDeleted: taskDeleted.p,
 		get taskDispatches() { return taskDispatches; },
@@ -643,8 +647,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			};
 		},
 		whenConnected: initialConnection.p,
-		refresh: async () => {
-			await contribution.refresh(CancellationToken.None);
+		refresh: async (reason: ChatSessionRefreshReason = 'manual') => {
+			await contribution.refresh(CancellationToken.None, reason);
 			await Promise.all(initialRefreshes);
 		},
 		items: () => [...controllers.values()].flatMap(controller => controller.items),
@@ -741,6 +745,95 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('labels initial and manual discovery without requiring window focus', async () => {
+		const h = createHarness(store, { hasFocus: false, sessionFeedEnabled: false });
+		await Promise.all(h.initialRefreshes);
+		await h.refresh();
+
+		assert.deepStrictEqual({
+			scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label),
+		}, { scans: 2, triggers: ['startup', 'manual'], items: [discovered.name] });
+	});
+
+	for (const sessionFeedEnabled of [false, true]) {
+		test(`automatic refresh reuses fresh discovery with the feed ${sessionFeedEnabled ? 'enabled' : 'disabled'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createHarness(store, { sessionFeedEnabled });
+			await Promise.all(h.initialRefreshes);
+			for (let i = 0; i < 10; i++) {
+				await timeout(3_000);
+				await h.refresh('automatic');
+			}
+			const afterAutomatic = { scans: h.calls.discovered, triggers: [...h.discoveryTriggers], items: h.items().map(item => item.label) };
+
+			h.state.result = { kind: 'complete', sessions: [{ ...discovered, name: 'Updated session' }] };
+			await h.refresh();
+
+			assert.deepStrictEqual({
+				afterAutomatic,
+				afterManual: { scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label) },
+			}, {
+				afterAutomatic: { scans: 1, triggers: ['startup'], items: [discovered.name] },
+				afterManual: { scans: 2, triggers: ['startup', 'manual'], items: ['Updated session'] },
+			});
+		}));
+	}
+
+	test('automatic refresh waits for initial discovery instead of starting another scan', async () => {
+		const started = new DeferredPromise<void>();
+		const initial = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const h = createHarness(store, {
+			listSessions: () => {
+				void started.complete();
+				return initial.p;
+			},
+		});
+		await started.p;
+		const refreshes = Promise.all([h.refresh('automatic'), h.refresh('automatic')]);
+		await initial.complete({ kind: 'complete', sessions: [discovered] });
+		await refreshes;
+
+		assert.deepStrictEqual({
+			scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label),
+		}, { scans: 1, triggers: ['startup'], items: [discovered.name] });
+	});
+
+	for (const hasSessions of [false, true]) {
+		test(`automatic discovery respects the ${hasSessions ? 'five-minute' : 'empty-inventory fifteen-minute'} interval`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: hasSessions ? [discovered] : [] };
+			const h = createHarness(store, { sessionFeedEnabled: false, listSessions: async () => result });
+			await Promise.all(h.initialRefreshes);
+
+			h.state.hasFocus = false;
+			await timeout((hasSessions ? 5 : 15) * 60_000 - 1);
+			h.state.hasFocus = true;
+			await h.refresh('automatic');
+			const beforeInterval = h.calls.discovered;
+
+			h.state.hasFocus = false;
+			await timeout(1);
+			result = hasSessions
+				? { kind: 'incremental', sessions: [], removedTaskIds: [discovered.taskId] }
+				: { kind: 'complete', sessions: [discovered] };
+			h.state.hasFocus = true;
+			await h.refresh('automatic');
+
+			assert.deepStrictEqual({
+				beforeInterval, scans: h.calls.discovered, modes: h.discoveryModes, triggers: h.discoveryTriggers, items: h.items().map(item => item.label),
+			}, {
+				beforeInterval: 1, scans: 2, modes: [false, hasSessions], triggers: ['startup', 'automatic'], items: hasSessions ? [] : [discovered.name],
+			});
+		}));
+	}
+
+	test('cancelled refreshes do not discover for any refresh reason', async () => {
+		const h = createHarness(store);
+		await Promise.all(h.initialRefreshes);
+		for (const reason of ['initial', 'automatic', 'manual'] as const) {
+			await h.contribution.refresh(CancellationToken.Cancelled, reason);
+		}
+		assert.strictEqual(h.calls.discovered, 1);
+	});
 
 	for (const enabled of [false, true]) {
 		test(`discovers editor sessions with the session feed ${enabled ? 'enabled' : 'disabled'}`, async () => {
