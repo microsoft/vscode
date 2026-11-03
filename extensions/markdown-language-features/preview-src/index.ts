@@ -88,8 +88,6 @@ function doAfterImagesLoaded(cb: () => void) {
 }
 
 onceDocumentLoaded(() => {
-	hideCspNonce();
-
 	// Load initial html
 	const htmlParser = new DOMParser();
 	const markDownHtml = htmlParser.parseFromString(
@@ -786,24 +784,6 @@ function updateScrollProgress() {
 	vscode.setState(state);
 }
 
-
-/**
- * Hides the CSP nonce from document content, which can read attributes through CSS selectors.
- * Browsers only hide nonce attributes for header-delivered policies, not for policies set
- * through a `<meta>` element. A `<meta>` policy stays in effect after the element is removed,
- * and scripts are checked against the nonce when they are prepared, so nothing needs it afterwards.
- * Must run after all parser-inserted scripts have been prepared and before any content is inserted.
- */
-function hideCspNonce(): void {
-	for (const meta of Array.from(document.head.querySelectorAll('meta[http-equiv]'))) {
-		if (meta.getAttribute('http-equiv')?.toLowerCase() === 'content-security-policy') {
-			meta.remove();
-		}
-	}
-	for (const script of Array.from(document.querySelectorAll('script[nonce]'))) {
-		script.removeAttribute('nonce');
-	}
-}
 
 /**
  * Re-creates the scripts in rendered content so that they run if the preview's CSP allows them.
