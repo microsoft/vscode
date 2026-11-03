@@ -790,6 +790,14 @@ export interface IAgentChatOwnerRef {
 	get(): URI;
 	/** The current owner's subagent chat format, read at use because this reference can predate default-chat registration. */
 	getSubagentChatUriFormat(): ChatUriFormat;
+	/**
+	 * Whether the chat is the default chat of its current owner, read at use;
+	 * `undefined` while the host records no default chat for that owner. Decided
+	 * by the host, never from where the chat stores: a chat keeps its storage when
+	 * it becomes another session's default chat. Read it through
+	 * {@link isAgentChatDefaultChat}.
+	 */
+	isDefaultChat?(): boolean | undefined;
 	/** Fires after the chat's owner changed. */
 	readonly onDidChange: Event<IAgentChatOwnerChange>;
 }
@@ -912,6 +920,17 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 		throw new Error(`Chat context resource must be the addressed chat or a session: ${context.resource.toString()} for ${resource.toString()}`);
 	}
 	return context;
+}
+
+/**
+ * Whether a chat is the default chat of its current owner: the host's
+ * {@link IAgentChatOwnerRef.isDefaultChat} when it answers, else (owner
+ * references the host did not create, or no default chat recorded yet) whether
+ * the chat stores in its owner, which holds for every chat a session was
+ * created with.
+ */
+export function isAgentChatDefaultChat(chat: { readonly resource: URI; readonly owner: IAgentChatOwnerRef }): boolean {
+	return chat.owner.isDefaultChat?.() ?? isEqual(chat.resource, chat.owner.get());
 }
 
 /**
