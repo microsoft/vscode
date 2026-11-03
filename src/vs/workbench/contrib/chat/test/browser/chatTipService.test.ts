@@ -251,11 +251,12 @@ suite('ChatTipService', () => {
 			enabledCommands: ['contextual.command'],
 		};
 		let currentTip = firstTip;
+		const dismissedTipIds: string[] = [];
 		const service = createService();
 		testDisposables.add(service.registerTipProvider({
 			onDidChange: Event.None,
 			provideTip: () => currentTip,
-			dismissTip: () => { },
+			dismissTip: id => dismissedTipIds.push(id),
 			navigateTip: () => currentTip = secondTip,
 		}));
 
@@ -263,6 +264,8 @@ suite('ChatTipService', () => {
 		assert.strictEqual(service.getWelcomeTip(contextKeyService), firstTip);
 		assert.strictEqual(service.navigateToNextTip(), secondTip);
 		commandExecutedEmitter.fire({ commandId: 'contextual.command', args: [] });
+		const dismissedAfterCommand = [...dismissedTipIds];
+		service.dismissTip();
 
 		const hiddenTip: IChatTip = { id: 'contextual.hidden', content: new MarkdownString('Hidden') };
 		const hiddenService = createService();
@@ -284,22 +287,30 @@ suite('ChatTipService', () => {
 		disabledService.getWelcomeTip(contextKeyService);
 		await disabledService.disableTips();
 
-		assert.deepStrictEqual(events.map(event => ({
-			eventName: event.eventName,
-			tipId: event.data.tipId,
-			action: event.data.action,
-			commandId: event.data.commandId ?? null,
-		})), [
-			{ eventName: 'chatTip', tipId: 'contextual.first', action: 'shown', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.first', action: 'navigateNext', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.second', action: 'shown', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.second', action: 'commandClicked', commandId: 'contextual.command' },
-			{ eventName: 'chatTip', tipId: 'contextual.second', action: 'dismissed', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'shown', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'hidden', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'shown', commandId: null },
-			{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'disabled', commandId: null },
-		]);
+		assert.deepStrictEqual({
+			dismissedAfterCommand,
+			dismissedTipIds,
+			events: events.map(event => ({
+				eventName: event.eventName,
+				tipId: event.data.tipId,
+				action: event.data.action,
+				commandId: event.data.commandId ?? null,
+			})),
+		}, {
+			dismissedAfterCommand: [],
+			dismissedTipIds: ['contextual.second'],
+			events: [
+				{ eventName: 'chatTip', tipId: 'contextual.first', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.first', action: 'navigateNext', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'commandClicked', commandId: 'contextual.command' },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'dismissed', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'hidden', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'disabled', commandId: null },
+			],
+		});
 	});
 
 	test('applies standard tip visibility gates to contextual provider tips', () => {
