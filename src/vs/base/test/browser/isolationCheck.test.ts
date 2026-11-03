@@ -59,6 +59,8 @@ suite('Isolation check', () => {
 			mainWindow.document.documentElement.scrollTop = top;
 		};
 		try {
+			// Start from the top, whatever an earlier suite left.
+			scroll(0);
 			const before = scrollDetector.snapshot();
 			scroll(120);
 			const scrolled = scrollDetector.check(before).length > 0;
