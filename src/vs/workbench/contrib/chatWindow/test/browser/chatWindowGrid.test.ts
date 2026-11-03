@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
@@ -275,6 +275,40 @@ suite('Chat window grid', () => {
 		grid.layout(1000, 800);
 
 		assert.deepStrictEqual([grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width], [400, 600]);
+	});
+
+	test('QA\'s terminals round trip: the height the user gave the terminals stays the same through every mode and back', () => {
+		// As in the window: the title row across the window shows while the chat view shows no title of its own, with gaps and outer insets.
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const terminalsPart = createPartWithEditors('terminals');
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), undefined, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		grid.layout(1200, 800);
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
+		// An earlier visit of each mode, with the terminals at other heights: the user's last height is what counts.
+		for (const [earlier, earlierHeight] of [[ChatWindowLayoutMode.Stacked, 286], [ChatWindowLayoutMode.EditorOnly, 265], [ChatWindowLayoutMode.SideBySide, 232]] as const) {
+			mode.set(earlier, undefined);
+			grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: earlierHeight });
+		}
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: 199 });
+		const heights: Record<string, number>[] = [];
+		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
+			mode.set(candidate, undefined);
+			heights.push({ [candidate]: height() });
+		}
+
+		assert.deepStrictEqual(heights, [
+			{ [ChatWindowLayoutMode.Stacked]: 199 },
+			{ [ChatWindowLayoutMode.SideBySide]: 199 },
+			{ [ChatWindowLayoutMode.ChatOnly]: 199 },
+			{ [ChatWindowLayoutMode.SideBySide]: 199 },
+			{ [ChatWindowLayoutMode.EditorOnly]: 199 },
+			{ [ChatWindowLayoutMode.SideBySide]: 199 },
+		]);
 	});
 
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {

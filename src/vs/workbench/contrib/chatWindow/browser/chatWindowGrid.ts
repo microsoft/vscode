@@ -140,7 +140,10 @@ function getShare(node: TopologyNode, orientation: Orientation): number {
 	}
 }
 
-/** A row or column of chrome as a cell: as tall (row) or wide (column) as it says, and no room while hidden. */
+/**
+ * A row or column of chrome as a cell: as tall (row) or wide (column) as it says. The grid shows and hides its cell as it
+ * says, with the other cells, so that the room of a hidden title row goes where the grid says, not to the terminals.
+ */
 class ChromeView implements IPartGridView {
 
 	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
@@ -151,13 +154,12 @@ class ChromeView implements IPartGridView {
 	constructor(private readonly _chrome: IChatWindowGridChrome, private readonly _orientation: 'row' | 'column') {
 		this._listener = autorun(reader => {
 			_chrome.size.read(reader);
-			_chrome.visible.read(reader);
 			this._onDidChange.fire(undefined);
 		});
 	}
 
 	get element(): HTMLElement { return this._chrome.element; }
-	private get _size(): number { return this._chrome.visible.get() ? this._chrome.size.get() : 0; }
+	private get _size(): number { return this._chrome.size.get(); }
 	get minimumWidth(): number { return this._orientation === 'column' ? this._size : 0; }
 	get maximumWidth(): number { return this._orientation === 'column' ? this._size : Number.POSITIVE_INFINITY; }
 	get minimumHeight(): number { return this._orientation === 'row' ? this._size : 0; }
@@ -275,6 +277,10 @@ export class ChatWindowGrid extends Disposable {
 		this._rememberSizes();
 		this._arrange(mode, this._dimension);
 		const grid = this._grid.value!;
+		// The terminals keep the height they have, or move with, as cells show and hide: a hidden cell, such as the title
+		// row, would otherwise give them its room.
+		const terminalsHeight = this._pendingTerminalsHeight ?? (grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined);
+		this._pendingTerminalsHeight = undefined;
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
 		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
 		if (this._titleRow) {
@@ -284,9 +290,8 @@ export class ChatWindowGrid extends Disposable {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
 		}
 		// Sized once the cells beside them show, which would otherwise take a share of their height.
-		if (this._pendingTerminalsHeight !== undefined) {
-			this._resizeTerminals(grid, this._pendingTerminalsHeight);
-			this._pendingTerminalsHeight = undefined;
+		if (terminalsHeight !== undefined && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height !== terminalsHeight) {
+			this._resizeTerminals(grid, terminalsHeight);
 		}
 		this._arranged = grid.describe();
 		this._sizesKey = getSizesKey(this._topologyKey!, mode);
@@ -359,6 +364,8 @@ export class ChatWindowGrid extends Disposable {
 		const width = Math.max(0, dimension.width - insets.left - insets.right);
 		const height = Math.max(0, dimension.height - insets.top - insets.bottom);
 		const root = this._serialize(topology, orientation === Orientation.HORIZONTAL ? width : height, orientation, remembered, { width, height });
+		// Applied once the cells of the arrangement show or hide, such as the title row, whose room would otherwise go to them.
+		this._pendingTerminalsHeight = terminals ? Math.min(height, this._terminalsHeight(remembered, height)) : undefined;
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
@@ -378,21 +385,18 @@ export class ChatWindowGrid extends Disposable {
 	}
 
 	/**
-	 * The height the terminals take in an arrangement: what they showed with in it, else what they last showed with, else
-	 * their share of `total`. Tall terminals give way first: last shown taller than their share, they take only their
-	 * least height in an arrangement they did not show in yet, so that the chat and the main part keep their heights.
+	 * The height the terminals take in an arrangement: the height the user last gave them, in whatever mode, else their
+	 * share of `total`. Tall terminals give way first: last shown taller than their share, they take only their least
+	 * height in an arrangement they did not show in yet, so that the chat and the main part keep their heights.
 	 */
 	private _terminalsHeight(remembered: Record<string, { readonly width: number; readonly height: number }>, total: number): number {
 		const own = remembered[ChatWindowGridCell.Terminals]?.height;
-		if (own !== undefined) {
-			return own;
-		}
 		const share = Math.round(total * TERMINALS_SHARE);
 		const last = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
 		if (last === undefined) {
-			return share;
+			return own ?? share;
 		}
-		return last > share ? Math.min(share, this._cells.terminals?.get()?.minimumHeight ?? 0) : last;
+		return own !== undefined || last <= share ? last : Math.min(share, this._cells.terminals?.get()?.minimumHeight ?? 0);
 	}
 
 	private _contentOf(id: string): PartGridCellContent {
