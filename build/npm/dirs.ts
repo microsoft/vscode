@@ -51,6 +51,7 @@ export const workspaceMembers = [
 	'extensions/vscode-colorize-perf-tests',
 	'extensions/vscode-test-resolver',
 	'test/automation',
+	'test/componentFixtures/playwright',
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
@@ -88,7 +89,6 @@ export const standaloneRoots = [
 	'build/npm/gyp',
 	'extensions/copilot/chat-lib',
 	'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
-	'test/componentFixtures/playwright',
 	'test/sanity',
 ];
 
