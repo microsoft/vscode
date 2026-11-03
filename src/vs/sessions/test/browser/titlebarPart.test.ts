@@ -425,6 +425,17 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
+	test('a fixed title shows in the title bar, and leaves the title of the window alone, such as that of the main window while the title bar is not in its own window yet', () => {
+		const { instantiationService } = createTitlebar();
+		const part = store.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create($('.part.titlebar'));
+		const documentTitle = mainWindow.document.title;
+
+		part.setTitle('Chat');
+
+		assert.deepStrictEqual({ shown: part.element.querySelector('.window-title-text')?.textContent, documentTitle: mainWindow.document.title }, { shown: 'Chat', documentTitle });
+	});
+
 	test('shows a session header in place of the title only while it hosts one; a title bar that is never asked to is as before', () => {
 		const { instantiationService } = createTitlebar();
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));

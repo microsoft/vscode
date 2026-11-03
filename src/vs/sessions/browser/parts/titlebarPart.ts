@@ -175,15 +175,13 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	/**
-	 * Shows a fixed title in the center of the title bar, in place of the command center, and uses it as the window
-	 * title. Meant for auxiliary windows that show one thing, such as a chat; `undefined` removes it.
+	 * Shows a fixed title in the center of the title bar, in place of the command center. Meant for auxiliary windows that
+	 * show one thing, such as a chat; `undefined` removes it. The title of the window is its owner's: a title bar may not be
+	 * in its window yet, such as one created into an editor before it shows, and would set the main window's title.
 	 */
 	setTitle(title: string | undefined): void {
 		this.fixedTitle = title;
 		this.renderFixedTitle();
-		if (title) {
-			getWindow(this.element).document.title = title;
-		}
 	}
 
 	/**
