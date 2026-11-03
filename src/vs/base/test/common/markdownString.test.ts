@@ -94,6 +94,14 @@ suite('MarkdownString', () => {
 		]);
 	});
 
+	test('appendLink escapes long backslash runs in linear time', function () {
+		const target = '\\'.repeat(200_000) + 'a';
+		const start = Date.now();
+		const value = new MarkdownString().appendLink(target, 'x').value;
+		assert.ok(Date.now() - start < 1000, 'escaping must not be quadratic');
+		assert.strictEqual(value, `[x](${target})`);
+	});
+
 	test('lift', () => {
 		const dto: IMarkdownString = {
 			value: 'hello',

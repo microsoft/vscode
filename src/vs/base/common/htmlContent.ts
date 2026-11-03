@@ -7,7 +7,6 @@ import { illegalArgument } from './errors.js';
 import { escapeIcons } from './iconLabels.js';
 import { matchesSomeScheme, Schemas } from './network.js';
 import { dirname, isEqual, resolvePath } from './resources.js';
-import { escapeRegExpCharacters } from './strings.js';
 import { URI, UriComponents } from './uri.js';
 
 export interface MarkdownStringTrustedOptions {
@@ -106,14 +105,16 @@ export class MarkdownString implements IMarkdownString {
 		// in `\\)` the first backslash escapes the second one, which leaves `)` unescaped.
 		// A trailing odd run of backslashes is completed as well, so that it cannot escape
 		// the delimiter that is appended after the value.
-		const r = new RegExp(`(\\\\*)(${escapeRegExpCharacters(ch)}|$)`, 'g');
-		return value.replace(r, (match, backslashes: string, delimiter: string) => {
-			const isEscaped = backslashes.length % 2 === 1;
-			if (delimiter) {
-				return isEscaped ? match : `${backslashes}\\${delimiter}`;
+		let result = '';
+		let backslashes = 0;
+		for (const c of value) {
+			if (c === ch && backslashes % 2 === 0) {
+				result += '\\';
 			}
-			return isEscaped ? `${match}\\` : match;
-		});
+			backslashes = c === '\\' ? backslashes + 1 : 0;
+			result += c;
+		}
+		return backslashes % 2 === 1 ? result + '\\' : result;
 	}
 }
 

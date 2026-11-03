@@ -359,7 +359,7 @@ class LinkOccurrence {
 	}
 }
 
-function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
+export function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
 
 	const label = link.tooltip
@@ -383,7 +383,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 		let isTrusted: MarkdownStringTrustedOptions | false = false;
 		if (/^command:/i.test(link.url.toString())) {
 			// Don't show complete command arguments in the native tooltip
-			const match = link.url.toString().match(/^command:([^?#]+)/);
+			const match = link.url.toString().match(/^command:([^?#]+)/i);
 			if (match) {
 				const commandId = match[1];
 				nativeLabel = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
