@@ -131,7 +131,7 @@ class LocalMcpAppCallTransport extends Disposable implements IMcpAppCallTranspor
 			throw new Error(`Tool not found on server: ${params.name}`);
 		}
 
-		const res = await tool.call(params.arguments || {}, params._meta ? { chatSessionResource: undefined, meta: params._meta } : undefined, token);
+		const res = await tool.call(params.arguments || {}, undefined, token, params._meta);
 		return {
 			content: res.content,
 			isError: res.isError,

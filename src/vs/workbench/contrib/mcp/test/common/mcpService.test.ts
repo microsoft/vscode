@@ -5,16 +5,16 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
+import { AsyncIterableObject, DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -32,11 +32,13 @@ import { ConfigurationResolverExpression } from '../../../../services/configurat
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpServer } from '../../common/mcpServer.js';
 import { McpService } from '../../common/mcpService.js';
-import { McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpSamplingService } from '../../common/mcpSamplingService.js';
+import { IMcpSamplingService, ISamplingResult, McpConnectionState, McpError, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
 
@@ -723,10 +725,10 @@ suite('Workbench - MCP - McpService', () => {
 			tracestate: 'app-state',
 		};
 		const originalMeta = structuredClone(meta);
-		await tool.call({ value: 42 }, { chatSessionResource: undefined, meta }, CancellationToken.None);
+		await tool.call({ value: 42 }, undefined, CancellationToken.None, meta);
 		await tool.callWithProgress({}, { report: () => { } }, {
-			chatSessionResource: undefined, chatRequestId: 'host-request', traceparent: 'host-trace', tracestate: 'host-state', meta,
-		}, CancellationToken.None);
+			chatSessionResource: undefined, chatRequestId: 'host-request', traceparent: 'host-trace', tracestate: 'host-state',
+		}, CancellationToken.None, meta);
 		await tool.call({}, undefined, CancellationToken.None);
 		const calls = transport.getSentMessages().filter((message): message is MCP.CallToolRequest => 'method' in message && message.method === 'tools/call');
 		assert.deepStrictEqual({
@@ -742,6 +744,70 @@ suite('Workbench - MCP - McpService', () => {
 				{ name: 'correlation_probe', arguments: {}, task: undefined, _meta: { progressToken: undefined } },
 			],
 			meta: originalMeta,
+		});
+	});
+
+	test('app request metadata does not change sampling policy outside chat', async () => {
+		const { mcpService, registry, instantiationService } = createMcpService();
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ILanguageModelsService, {
+			lookupLanguageModel: () => upcastPartial<ILanguageModelChatMetadata>({}),
+			sendChatRequest: async () => ({ stream: AsyncIterableObject.EMPTY, result: Promise.resolve(undefined) }),
+		});
+		const samplingService = store.add(instantiationService.createInstance(McpSamplingService));
+		const config = { allowedDuringChat: true, allowedOutsideChat: false, allowedModels: ['test-model'] };
+		const samplingConfig = sinon.stub(samplingService, 'getConfig').returns(config);
+		store.add(toDisposable(() => samplingConfig.restore()));
+		const samples: { isDuringToolCall: boolean; result: Promise<ISamplingResult> }[] = [];
+		instantiationService.stub(IMcpSamplingService, {
+			sample: opts => {
+				const result = samplingService.sample(opts);
+				samples.push({ isDuringToolCall: opts.isDuringToolCall, result });
+				return result;
+			},
+		});
+		const transport = store.add(new TestMcpMessageTransport());
+		registry.makeTestTransport = () => transport;
+		transport.setResponder('tools/list', message => ({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: (message as MCP.JSONRPCRequest).id,
+			result: { tools: [{ name: 'sampling_probe', inputSchema: { type: 'object' } }] },
+		}));
+		transport.setResponder('tools/call', message => {
+			transport.simulateReceiveMessage({
+				jsonrpc: MCP.JSONRPC_VERSION,
+				id: `sample-${samples.length}`,
+				method: 'sampling/createMessage',
+				params: { messages: [{ role: 'user', content: { type: 'text', text: 'probe' } }], maxTokens: 1 },
+			});
+			return {
+				jsonrpc: MCP.JSONRPC_VERSION,
+				id: (message as MCP.JSONRPCRequest).id,
+				result: { content: [] },
+			};
+		});
+		mcpService.updateCollectedServers();
+		const server = mcpService.servers.get()[0];
+		assert.ok(server instanceof McpServer);
+		const refresh = sinon.stub(server, 'awaitToolRefresh').resolves();
+		store.add(toDisposable(() => refresh.restore()));
+		await server.start();
+		const [tool] = await waitForState(server.tools, tools => tools.length > 0);
+		const results: PromiseSettledResult<ISamplingResult>[] = [];
+		for (const allowedOutsideChat of [false, true]) {
+			config.allowedOutsideChat = allowedOutsideChat;
+			config.allowedDuringChat = !allowedOutsideChat;
+			for (const meta of [undefined, {}, { 'com.example/correlation-id': 'correlation-1' }]) {
+				await tool.call({}, undefined, CancellationToken.None, meta);
+				results.push(...await Promise.allSettled([samples[samples.length - 1].result]));
+			}
+		}
+		assert.deepStrictEqual({
+			duringToolCall: samples.map(sample => sample.isDuringToolCall),
+			results: results.map(result => result.status === 'fulfilled' ? result.status : result.reason instanceof McpError ? result.reason.code : result.reason),
+		}, {
+			duringToolCall: [false, false, false, false, false, false],
+			results: [McpError.notAllowed().code, McpError.notAllowed().code, McpError.notAllowed().code, 'fulfilled', 'fulfilled', 'fulfilled'],
 		});
 	});
 

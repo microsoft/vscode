@@ -23,12 +23,12 @@ suite('McpToolCallUI', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('preserves local tool request metadata and app visibility checks', async () => {
-		const calls: { args: Record<string, unknown>; context: IMcpToolCallContext | undefined }[] = [];
+		const calls: { args: Record<string, unknown>; context: IMcpToolCallContext | undefined; meta: MCP.RequestMetaObject | undefined }[] = [];
 		const tool = upcastPartial<IMcpTool>({
 			definition: { name: 'correlation_probe', inputSchema: { type: 'object' } },
 			visibility: McpToolVisibility.App,
-			call: async (args, context) => {
-				calls.push({ args, context });
+			call: async (args, context, _token, meta) => {
+				calls.push({ args, context, meta });
 				return { content: [] };
 			},
 		});
@@ -54,11 +54,13 @@ suite('McpToolCallUI', () => {
 		}));
 		const meta = { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } };
 		await ui.callTool({ name: 'correlation_probe', arguments: { value: 42 }, _meta: meta }, CancellationToken.None);
+		await ui.callTool({ name: 'correlation_probe', _meta: {} }, CancellationToken.None);
 		await ui.callTool({ name: 'correlation_probe' }, CancellationToken.None);
 		await assert.rejects(ui.callTool({ name: 'model_only', _meta: meta }, CancellationToken.None), /Tool not found on server/);
 		assert.deepStrictEqual(calls, [
-			{ args: { value: 42 }, context: { chatSessionResource: undefined, meta } },
-			{ args: {}, context: undefined },
+			{ args: { value: 42 }, context: undefined, meta },
+			{ args: {}, context: undefined, meta: {} },
+			{ args: {}, context: undefined, meta: undefined },
 		]);
 	});
 

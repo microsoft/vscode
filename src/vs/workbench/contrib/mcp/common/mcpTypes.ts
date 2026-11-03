@@ -613,8 +613,6 @@ export interface IMcpPromptMessage extends MCP.PromptMessage { }
 export interface IMcpToolCallContext {
 	chatSessionResource: URI | undefined;
 	chatRequestId?: string;
-	/** Request metadata to forward to the MCP server; host-generated metadata takes precedence. */
-	meta?: MCP.RequestMetaObject;
 	/**
 	 * Optional W3C trace context `traceparent` value to forward to the MCP server
 	 * via `_meta.traceparent` on the JSON-RPC `tools/call` request (MCP SEP-414).
@@ -684,16 +682,16 @@ export interface IMcpTool {
 	readonly uiResourceUri?: string;
 
 	/**
-	 * Calls a tool
+	 * Calls a tool. Host-generated metadata takes precedence over requestMeta.
 	 * @throws {@link MpcResponseError} if the tool fails to execute
 	 * @throws {@link McpConnectionFailedError} if the connection to the server fails
 	 */
-	call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult>;
+	call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken, requestMeta?: MCP.RequestMetaObject): Promise<MCP.CallToolResult>;
 
 	/**
 	 * Identical to {@link call}, but reports progress.
 	 */
-	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult>;
+	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken, requestMeta?: MCP.RequestMetaObject): Promise<MCP.CallToolResult>;
 }
 
 export const enum McpServerTransportType {
