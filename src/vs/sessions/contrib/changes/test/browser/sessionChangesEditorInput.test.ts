@@ -32,7 +32,10 @@ import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiff
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
@@ -462,6 +465,14 @@ suite('SessionChangesEditorInput', () => {
 				override contextMatchesRules(): boolean { return true; }
 			});
 			instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+			// The editor shows the changes of its host's session: here the main window's.
+			const mainWindowSession = constObservable<IActiveSession | undefined>(undefined);
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = mainWindowSession;
+				override readonly mainWindowActiveSession = mainWindowSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			}());
+			instantiationService.stub(ISessionScope, { session: mainWindowSession });
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 				override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 				override readonly activeSessionResourceObs = activeSession;
@@ -476,6 +487,7 @@ suite('SessionChangesEditorInput', () => {
 				override getSessionResource(resource: URI): URI | undefined {
 					return URI.parse(JSON.parse(resource.query).sessionResource);
 				}
+				override getChatResource(): URI | undefined { return undefined; }
 			}());
 			instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 				override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
