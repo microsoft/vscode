@@ -25,6 +25,7 @@ import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
+import { applySingleGroupEditorStateInPlace } from './editorGroupStateInPlace.js';
 import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
 
 /**
@@ -202,6 +203,9 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	override async applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
+		if (state !== 'empty' && this.count === 1 && await applySingleGroupEditorStateInPlace(this.activeGroup, state, this._instantiationService)) {
+			return;
+		}
 		await super.applyState(state, options);
 		this._ensureSingleEditorGroup();
 	}
