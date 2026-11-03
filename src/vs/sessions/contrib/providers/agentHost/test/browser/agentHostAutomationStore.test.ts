@@ -460,6 +460,24 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('rebinding the bound connection keeps its catalogue subscription', () => {
+		class CountingConnection extends TestAutomationConnection {
+			subscriptions = 0;
+			override getSubscription(...args: Parameters<TestAutomationConnection['getSubscription']>) {
+				this.subscriptions++;
+				return super.getSubscription(...args);
+			}
+		}
+		const { store } = reconnectable();
+		const connection = disposables.add(new CountingConnection());
+		store.setConnection(connection);
+		store.setConnection(connection);
+		const rebound = connection.subscriptions;
+		store.clearConnection();
+		store.setConnection(connection);
+		assert.deepStrictEqual({ rebound, reconnected: connection.subscriptions }, { rebound: 1, reconnected: 2 });
+	});
+
 	test('customization choices are unsupported without the capability or a connection', async () => {
 		const activeClient = new TestActiveClientService();
 		const { store } = reconnectable(true, activeClient);
