@@ -364,7 +364,7 @@ suite('BaseLayoutController', () => {
 		harness.activeSessionObs.set(sessionA, undefined);
 		await timeout(0);
 
-		harness.emptyUntitledWithPathResources = [untitled];
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
 		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
 		harness.visibleEditorsList = [{}, {}];
 
@@ -380,6 +380,33 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
 	});
 
+	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: 'hello' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [untitled.toString(), regular.toString()]);
+	});
+
 	test('[B2] a state flush keeps an empty untitled editor bound to a file path open in the active session', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });
@@ -390,7 +417,7 @@ suite('BaseLayoutController', () => {
 		harness.activeSessionObs.set(sessionA, undefined);
 		await timeout(0);
 
-		harness.emptyUntitledWithPathResources = [untitled];
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
 		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true }))];
 		harness.visibleEditorsList = [{}];
 

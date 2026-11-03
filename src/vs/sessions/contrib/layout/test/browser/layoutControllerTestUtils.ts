@@ -285,8 +285,8 @@ export interface ITestLayoutHarness {
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
 	saveWorkingSetCalls: string[];
-	/** Resources of empty untitled editors bound to a file path; reverting one removes it from the active group. */
-	emptyUntitledWithPathResources: URI[];
+	/** Untitled editors bound to a file path and their text; reverting one removes it from the active group. */
+	untitledWithPath: { readonly resource: URI; readonly content: string }[];
 	revertedUntitledResources: URI[];
 	deleteWorkingSetCalls: string[];
 	workspaceFolders: { readonly uri: URI }[];
@@ -413,7 +413,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
-		emptyUntitledWithPathResources: [],
+		untitledWithPath: [],
 		revertedUntitledResources: [],
 		deleteWorkingSetCalls: [],
 		workspaceFolders: options.workspaceFolders ? [...options.workspaceFolders] : [],
@@ -852,12 +852,13 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	instaService.stub(IUntitledTextEditorService, new class extends mock<IUntitledTextEditorService>() {
 		override isUntitledWithAssociatedResource(resource: URI) {
-			return harness.emptyUntitledWithPathResources.some(r => isEqual(r, resource));
+			return harness.untitledWithPath.some(untitled => isEqual(untitled.resource, resource));
 		}
 		override get(resource: URI) {
+			const content = harness.untitledWithPath.find(untitled => isEqual(untitled.resource, resource))?.content ?? '';
 			return new class extends mock<IUntitledTextEditorModel>() {
 				override isResolved(): this is IResolvedUntitledTextEditorModel { return true; }
-				override get textEditorModel() { return new class extends mock<ITextModel>() { override getValueLength() { return 0; } }(); }
+				override get textEditorModel() { return new class extends mock<ITextModel>() { override getValueLength() { return content.length; } }(); }
 				override async revert() {
 					harness.revertedUntitledResources.push(resource);
 					harness.activeGroupEditors = harness.activeGroupEditors.filter(editor => !isEqual(editor.resource, resource));
