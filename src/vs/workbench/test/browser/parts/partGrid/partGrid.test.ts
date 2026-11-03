@@ -321,7 +321,7 @@ suite('Part Grid', () => {
 		const parts = await createParts();
 		const container = createContainer();
 		container.style.setProperty('--part-grid-card-border-width', '1px');
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
 		const chat = createPart(parts);
 		const main = createPart(parts);
 		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt')]);
@@ -342,7 +342,7 @@ suite('Part Grid', () => {
 
 	test('a cell that keeps no gap has no inset, and the cells beside it none towards it', () => {
 		const container = createContainer();
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
 		grid.addView('title', createView(), undefined, undefined, { keepsNoGap: true });
 		grid.addView('side', createView(), { edge: Direction.Down });
 		grid.addView('chat', createView(), { reference: 'side', direction: Direction.Right });
@@ -414,7 +414,7 @@ suite('Part Grid', () => {
 
 	test('a card whose frame is drawn only after it was laid out, as styles load later in an auxiliary window, keeps its content inside the frame', () => {
 		const container = createContainer();
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
 		const heights: number[] = [];
 		grid.addView('title', { ...createView(), layout: (width, height) => heights.push(height) });
 		grid.addView('other', createView(), { edge: Direction.Down });
@@ -475,6 +475,19 @@ suite('Part Grid', () => {
 			bTop: { reference: 'b', direction: Direction.Up },
 			onDragged: undefined,
 			outside: undefined
+		});
+	});
+
+	test('the edges of the window are those of the parts: below a title row across the top, and the room to the edges of the window counts', () => {
+		const container = { left: 0, top: 0, width: 400, height: 200 };
+		const cells = [{ id: 'a', element: boxAt(4, 33, 196, 163) }, { id: 'b', element: boxAt(200, 33, 196, 163) }];
+		const at = (x: number, y: number) => getPartGridDrop(x, y, container, cells);
+
+		assert.deepStrictEqual({ belowTitle: at(300, 40), inset: at(2, 100), aMiddle: at(100, 120)?.location, aTopFar: at(100, 60)?.location }, {
+			belowTitle: { location: { edge: Direction.Up }, indicator: { left: 4, top: 33, width: 392, height: 163 * 0.25 } },
+			inset: { location: { edge: Direction.Left }, indicator: { left: 4, top: 33, width: 392 * 0.25, height: 163 } },
+			aMiddle: { reference: 'a', direction: Direction.Down },
+			aTopFar: { reference: 'a', direction: Direction.Up }
 		});
 	});
 

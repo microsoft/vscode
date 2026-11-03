@@ -49,6 +49,15 @@ interface IRect {
 	readonly height: number;
 }
 
+function union(rects: readonly IRect[]): IRect {
+	const left = Math.min(...rects.map(rect => rect.left));
+	const top = Math.min(...rects.map(rect => rect.top));
+	const right = Math.max(...rects.map(rect => rect.left + rect.width));
+	const bottom = Math.max(...rects.map(rect => rect.top + rect.height));
+
+	return { left, top, width: right - left, height: bottom - top };
+}
+
 function contains(rect: IRect, x: number, y: number): boolean {
 	return x >= rect.left && x <= rect.left + rect.width && y >= rect.top && y <= rect.top + rect.height;
 }
@@ -66,29 +75,38 @@ function half(rect: IRect, direction: Direction, fraction = 0.5): IRect {
  * Where a drop at a point of the grid goes: to an edge of the window when
  * close to it, else beside the cell under the point, on its side nearest to
  * the point. A drop on the excluded cell (the dragged one) goes nowhere.
+ *
+ * The edges of the window are those of the parts (the cells): views beside
+ * them that span the window, such as a title row, stay at the edge, and the
+ * room between the parts and the edges of the window counts as the edge.
  */
 export function getPartGridDrop(x: number, y: number, container: IRect, cells: readonly IPartGridDropCell[], excludedCellId?: string): IPartGridDrop | undefined {
 	if (!contains(container, x, y)) {
 		return undefined;
 	}
 
+	const rects = cells.map(cell => {
+		const bounds = cell.element.getBoundingClientRect();
+		return { id: cell.id, rect: { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } };
+	}).filter(({ rect }) => rect.width > 0 && rect.height > 0);
+	const area = rects.length ? union(rects.map(({ rect }) => rect)) : container;
+
 	const windowEdges: [Direction, number][] = [
-		[Direction.Left, x - container.left],
-		[Direction.Right, container.left + container.width - x],
-		[Direction.Up, y - container.top],
-		[Direction.Down, container.top + container.height - y]
+		[Direction.Left, x - area.left],
+		[Direction.Right, area.left + area.width - x],
+		[Direction.Up, y - area.top],
+		[Direction.Down, area.top + area.height - y]
 	];
 	const [windowEdge, windowEdgeDistance] = windowEdges.reduce((nearest, edge) => edge[1] < nearest[1] ? edge : nearest);
 	if (windowEdgeDistance <= PART_GRID_WINDOW_EDGE_ZONE) {
-		return { location: { edge: windowEdge }, indicator: half(container, windowEdge, 0.25) };
+		return { location: { edge: windowEdge }, indicator: half(area, windowEdge, 0.25) };
 	}
 
-	for (const cell of cells) {
-		const bounds = cell.element.getBoundingClientRect();
-		const rect: IRect = { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height };
-		if (rect.width === 0 || rect.height === 0 || !contains(rect, x, y)) {
+	for (const { id, rect } of rects) {
+		if (!contains(rect, x, y)) {
 			continue;
 		}
+		const cell = { id };
 
 		if (cell.id === excludedCellId) {
 			return undefined;
