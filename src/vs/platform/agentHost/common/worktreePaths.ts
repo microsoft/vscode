@@ -10,12 +10,17 @@ import { URI } from '../../../base/common/uri.js';
 /** Branch-name prefix for worktree-isolated agent sessions. */
 export const AGENT_BRANCH_PREFIX = 'agents/';
 
+/** Whether a branch uses the legacy agent namespace without a preceding configured prefix. */
+export function isUnprefixedAgentWorktreeBranch(branch: string): boolean {
+	return branch.lastIndexOf(AGENT_BRANCH_PREFIX) === 0;
+}
+
 /**
  * Recognizes legacy unprefixed branches, or prefixed branches whose generated name matches the recorded worktree directory.
  * Legacy records lack a separate prefix, so prefixed branches must retain their creation-time directory name.
  */
 export function isAgentWorktreeBranch(branch: string, worktree: URI, repositoryRoot: URI): boolean {
-	if (branch.startsWith(AGENT_BRANCH_PREFIX)) {
+	if (isUnprefixedAgentWorktreeBranch(branch)) {
 		return true;
 	}
 	return isEqual(getRepositoryRootFromWorktree(worktree), repositoryRoot)

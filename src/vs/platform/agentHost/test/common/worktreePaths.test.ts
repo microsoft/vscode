@@ -14,7 +14,7 @@ suite('worktreePaths', () => {
 	test('recognizes prefixed branches from the original branch and worktree path without the current setting', () => {
 		const repository = URI.file('/src/repo');
 		const worktree = URI.file('/src/repo.worktrees/task');
-		const branches = ['agents/task', 'user/agents/task', 'team/user/agents/task', 'user-agents/task', 'agents/old-name'];
+		const branches = ['agents/task', 'user/agents/task', 'team/user/agents/task', 'user-agents/task', 'agents/team/agents/task', 'agents/old-name'];
 		assert.deepStrictEqual(branches.map(branch => isAgentWorktreeBranch(branch, worktree, repository)), branches.map(() => true));
 	});
 
@@ -22,9 +22,9 @@ suite('worktreePaths', () => {
 		const repository = URI.file('/src/repo');
 		const worktree = URI.file('/src/repo.worktrees/task');
 		assert.deepStrictEqual({
-			branches: ['main', 'task', 'agents-task', 'user/agents/other', 'user/agents/task-extra', 'user/agents/task/extra', 'user/agents/', ''].map(branch => isAgentWorktreeBranch(branch, worktree, repository)),
+			branches: ['main', 'task', 'agents-task', 'user/agents/other', 'user/agents/task-extra', 'user/agents/task/extra', 'user/agents/', '', 'agents/team/agents/other'].map(branch => isAgentWorktreeBranch(branch, worktree, repository)),
 			paths: ['/src/repo', '/src/repo.worktrees', '/src/repo.worktrees/other/task', '/src/other.worktrees/task', '/elsewhere/task'].map(path => isAgentWorktreeBranch('user/agents/task', URI.file(path), repository)),
-		}, { branches: Array(8).fill(false), paths: Array(5).fill(false) });
+		}, { branches: Array(9).fill(false), paths: Array(5).fill(false) });
 	});
 
 	test('recognizes prefixed branches in mapped remote URI spaces without crossing repositories', () => {

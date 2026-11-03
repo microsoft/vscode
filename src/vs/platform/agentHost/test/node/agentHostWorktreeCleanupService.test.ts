@@ -189,7 +189,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 
 	test('managed inventory and cleanup require an agent-managed branch even with force', async () => {
 		const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory();
-		for (const branch of ['feature/user-work', 'agents-other', 'main', '', 'user/agents/other', 'user/agents/recovered-extra', 'user/agents/recovered/extra']) {
+		for (const branch of ['feature/user-work', 'agents-other', 'main', '', 'user/agents/other', 'user/agents/recovered-extra', 'user/agents/recovered/extra', 'agents/team/agents/other']) {
 			head.branch = branch;
 			assert.deepStrictEqual(await cleanup.listManagedWorktrees([repository]), []);
 			for (const force of [false, true]) {
@@ -200,7 +200,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, { calls: [], pending: [] });
 	});
 
-	for (const prefix of ['user/', 'team/user/', 'user-']) {
+	for (const prefix of ['user/', 'team/user/', 'user-', 'agents/team/']) {
 		for (const force of [false, true]) {
 			test(`lists and removes a legacy ${prefix} prefixed worktree without session or prefix metadata (force=${force})`, async () => {
 				const branch = `${prefix}agents/recovered`;
@@ -214,6 +214,38 @@ suite('AgentHostWorktreeCleanupService', () => {
 					inventory: [{ repository: repository.toString(), worktree: managed.toString(), branch, cleanupStatus: { state: 'unknown' } }],
 					calls: [`remove:${managed.toString()}:commit:${branch}${force ? ':force' : ''}`],
 					forced: force ? [managed.toString()] : [], pending: [],
+				});
+			});
+		}
+	}
+
+	for (const prefix of ['user/', 'agents/team/']) {
+		for (const stage of ['unchanged', 'queued', 'final'] as const) {
+			test(`revalidates linked ${prefix} prefixed cleanup (${stage})`, async () => {
+				const branch = `${prefix}agents/recovered`;
+				const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory(branch);
+				const recorded = { repositoryRoot: repository, worktree: managed, branchName: branch };
+				worktree.sessions.set(SESSION.toString(), recorded);
+				await useWorktree(database, SESSION, recorded, true);
+				await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+				if (stage === 'queued') {
+					head.branch = `${prefix}agents/other`;
+				} else if (stage === 'final') {
+					worktree.removal = new DeferredPromise<void>();
+				}
+				const pass = cleanup.runPass();
+				if (stage === 'final') {
+					await worktree.removalStarted.p;
+					head.branch = `${prefix}agents/other`;
+					await worktree.removal!.complete();
+				}
+				await pass;
+				assert.deepStrictEqual({
+					calls: worktree.calls,
+					statuses: (await database.listPendingWorktreeRemovals()).map(removal => removal.lastAttempt),
+				}, {
+					calls: stage === 'queued' ? [] : [`remove:${sessionId}:commit:${branch}`],
+					statuses: stage === 'unchanged' ? [] : [{ state: 'failed', message: 'Only worktrees on agent-managed branches can be cleaned up.' }],
 				});
 			});
 		}
