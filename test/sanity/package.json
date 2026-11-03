@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-sanity-test",
   "version": "0.1.0",
+  "packageManager": "pnpm@12.16.0",
   "license": "MIT",
   "type": "module",
   "main": "./out/index.js",
@@ -14,7 +15,7 @@
   },
   "dependencies": {
     "minimist": "^1.2.8",
-    "mocha": "^12.0.3",
+    "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
     "node-fetch": "^3.3.2",
     "playwright": "^1.57.0"

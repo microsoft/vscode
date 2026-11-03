@@ -23,6 +23,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
@@ -53,8 +55,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { dynamicAutoTiersConfigurationProperties } from '../../common/dynamicAutoTiersConfiguration.js';
+import { LegacyDynamicAutoTiersConfigKey } from '../../common/copilotCliConfig.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
@@ -86,7 +87,6 @@ const syncTestConfigurationNode = {
 	id: 'testAgentHostProtocolClientSync',
 	type: 'object' as const,
 	properties: {
-		...dynamicAutoTiersConfigurationProperties,
 		[ArtifactIntegrationsSettingId]: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId],
 		[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 		[SYNC_SETTING_A]: {
@@ -193,8 +193,8 @@ function getDynamicAutoTiersUpdates(messages: readonly ProtocolTransportMessage[
 		}
 		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
 		const config = params?.action?.config;
-		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.DynamicAutoTiers)
-			? [config[CopilotCliConfigKey.DynamicAutoTiers]]
+		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, LegacyDynamicAutoTiersConfigKey)
+			? [config[LegacyDynamicAutoTiersConfigKey]]
 			: [];
 	});
 }
@@ -1943,6 +1943,37 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('sandbox certificate transport', () => {
+		for (const fails of [false, true]) {
+			test(`refresh forwards the exact chat and scope and propagates ${fails ? 'failure' : 'success'}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.refresh': true });
+				const refreshing = client.refreshSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+				const completion = fails ? assert.rejects(refreshing, /Check failed/) : refreshing;
+				await flushMicrotasks();
+				const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/refreshSandboxCertificate');
+				assert.ok(request);
+				transport.fireMessage(fails
+					? { jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'Check failed' } }
+					: { jsonrpc: '2.0', id: request.id, result: null });
+				await completion;
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRefreshSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+				}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+			});
+		}
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer refresh support from installation when refresh capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.refresh': capability });
+				await assert.rejects(client.refreshSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRefreshSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/refreshSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
 		test('rotation uses its own capability and forwards the exact chat and scope', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport, { 'vscode.sandboxCertificate.rotate': true });
@@ -3380,16 +3411,12 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards Dynamic Auto Tiers setting changes to a tunnel', async () => {
-		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
-		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
+	test('tells a tunnel to take Auto\'s tiers from the service, for hosts that still read the legacy key', async () => {
+		const { client, transport } = createClientForIdentity('tunnel:host');
 
 		await connectClient(client, transport);
-		await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, false);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
 
-		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true, false]);
+		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true]);
 	});
 
 	test('ignores configuration changes from layers excluded by global mirroring', async () => {
@@ -3401,8 +3428,6 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.MEMORY);
 
 		assert.deepStrictEqual(transport.sentMessages, []);
 	});
@@ -4284,6 +4309,108 @@ suite('AgentHostProtocolClient', () => {
 		await rejected;
 	});
 
+	suite('client proxy', () => {
+		function createProxyClient(calls: string[][], enabled = true) {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trust = createWorkspaceTrustServices();
+			const onDidChange = disposables.add(new Emitter<void>());
+			const clientProxy: IAgentHostClientProxyProvider = {
+				isEnabled: () => enabled,
+				onDidChange: onDidChange.event,
+				resolveProxy: async url => {
+					calls.push(['resolveProxy', url]);
+					return 'PROXY proxy.example:8080';
+				},
+				lookupKerberosAuthorization: async proxyUrl => {
+					calls.push(['lookupKerberosAuthorization', proxyUrl]);
+					if (proxyUrl.includes('failing')) {
+						throw new Error('secret failure detail');
+					}
+					return 'Negotiate ticket';
+				},
+			};
+			const client = disposables.add(new AgentHostProtocolClient('wsl-test', transport, { clientProxy }, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
+			return { client, transport, onDidChange };
+		}
+
+		async function sendRequest(transport: TestProtocolTransport, id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
+			transport.fireExtensionRequest(id, method, params);
+			await timeout(0);
+			const response = transport.sentMessages.at(-1) as { result?: unknown; error?: { message: string } };
+			return response.error ? response.error.message : response.result;
+		}
+
+		test('advertises the capability and serves proxy resolution and Kerberos lookups', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const initialize = transport.sentMessages[0] as JsonRpcRequest;
+			const results = [
+				await sendRequest(transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com/path' }),
+				await sendRequest(transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+				await sendRequest(transport, 53, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://failing.example:8080' }),
+			];
+			assert.deepStrictEqual({
+				advertised: (initialize.params as { _meta: Record<string, unknown> })._meta[AgentHostClientProxyCapabilityMetaKey],
+				calls,
+				results,
+			}, {
+				advertised: true,
+				calls: [
+					['resolveProxy', 'https://example.com/path'],
+					['lookupKerberosAuthorization', 'http://proxy.example:8080'],
+					['lookupKerberosAuthorization', 'http://failing.example:8080'],
+				],
+				results: [{ proxy: 'PROXY proxy.example:8080' }, { authorization: 'Negotiate ticket' }, 'Kerberos credential lookup failed'],
+			});
+		});
+
+		test('rejects Kerberos lookups for non-HTTP proxy URLs without invoking the provider', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const proxyUrls = ['socks5://proxy.example:1080', 'HTTP/proxy.example', 'http://', ''];
+			const errors: unknown[] = [];
+			for (const [index, proxyUrl] of proxyUrls.entries()) {
+				errors.push(await sendRequest(transport, 60 + index, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }));
+			}
+			assert.deepStrictEqual({ calls, errors }, { calls: [], errors: Array(proxyUrls.length).fill('Unsupported proxy URL') });
+		});
+
+		test('neither advertises nor serves proxy lookups when disabled or not supplied', async () => {
+			const calls: string[][] = [];
+			const disabled = createProxyClient(calls, false);
+			await connectClient(disabled.client, disabled.transport);
+			const ordinary = createClient();
+			await connectClient(ordinary.client, ordinary.transport);
+			const meta = (transport: TestProtocolTransport) => ((transport.sentMessages[0] as JsonRpcRequest).params as { _meta: Record<string, unknown> })._meta[AgentHostClientProxyCapabilityMetaKey];
+			assert.deepStrictEqual({
+				advertised: [meta(disabled.transport), meta(ordinary.transport)],
+				errors: [
+					await sendRequest(disabled.transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com' }),
+					await sendRequest(ordinary.transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+				],
+				calls,
+			}, {
+				advertised: [undefined, undefined],
+				errors: ['This client does not resolve proxies for this agent host', 'This client does not provide Kerberos credentials for this agent host'],
+				calls: [],
+			});
+		});
+
+		test('reports proxy changes only to hosts that confirm serving the client proxy', async () => {
+			const sentChanges = (transport: TestProtocolTransport) => transport.sentMessages.filter(message => (message as JsonRpcRequest).method === ClientProxyChangedExtensionMethod).length;
+			const confirmed = createProxyClient([]);
+			await connectClient(confirmed.client, confirmed.transport, { [AgentHostClientProxyCapabilityMetaKey]: true });
+			const unconfirmed = createProxyClient([]);
+			await connectClient(unconfirmed.client, unconfirmed.transport);
+
+			confirmed.onDidChange.fire();
+			unconfirmed.onDidChange.fire();
+
+			assert.deepStrictEqual({ confirmed: sentChanges(confirmed.transport), unconfirmed: sentChanges(unconfirmed.transport) }, { confirmed: 1, unconfirmed: 0 });
+		});
+	});
 	suite('reverse MCP authentication', () => {
 		const request = {
 			serverName: 'Docs',
@@ -5280,8 +5407,6 @@ suite('AgentHostProtocolClient', () => {
 				await connecting;
 				await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
 				fireConfigurationChange(configurationService, SYNC_SETTING_A);
-				await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
-				fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
 				await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
 				fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
 				await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
@@ -6503,14 +6628,11 @@ suite('AgentHostProtocolClient', () => {
 			return { transport, request };
 		}
 
-		test('re-forwards Dynamic Auto Tiers to a remote after reconnect', async () => {
-			const { client, transports, configurationService } = createFactoryClient();
-			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
+		test('re-forwards the legacy Dynamic Auto Tiers value to a remote after reconnect', async () => {
+			const { client, transports } = createFactoryClient();
 			await completeHandshake(transports[0], client.connect());
 
 			const { transport, request } = await beginRecovery(client, transports);
-			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, false);
-			fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
 			const whileDisconnected = getDynamicAutoTiersUpdates(transport.sentMessages);
 			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
 			transport.fireMessage({
@@ -6526,7 +6648,7 @@ suite('AgentHostProtocolClient', () => {
 			}, {
 				initialConnection: [true],
 				whileDisconnected: [],
-				reconnected: [false],
+				reconnected: [true],
 			});
 		});
 

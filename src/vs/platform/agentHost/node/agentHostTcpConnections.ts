@@ -13,7 +13,6 @@ import type { SubscribeParams, SubscribeResult } from '../common/state/protocol/
 import type { ChannelFlowControl } from '../common/state/protocol/common/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError, type JsonRpcNotification } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
-import { isAuthenticatedAgentHostTransport } from './agentHostTransportAuthentication.js';
 
 interface ITcpSocket {
 	readonly socket: Socket;
@@ -24,7 +23,7 @@ interface ITcpSocket {
 	draining: boolean;
 }
 
-/** Destination sockets owned by one authenticated transport, outside action replay and session state. */
+/** Destination sockets owned by one transport, outside action replay and session state. */
 export class AgentHostTcpConnections extends Disposable {
 	private readonly _connections = new Map<string, ITcpSocket>();
 	private readonly _writeBudget: AgentHostTcpBudget;
@@ -39,12 +38,7 @@ export class AgentHostTcpConnections extends Disposable {
 		this._writeBudget = new AgentHostTcpBudget(agentHostTcpMaxConnections, _budget);
 	}
 
-	get supported(): boolean { return isAuthenticatedAgentHostTransport(this._transport); }
-
 	async create(params: CreateTcpConnectionParams): Promise<null> {
-		if (!this.supported) {
-			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'TCP requires an authenticated owner of this host');
-		}
 		if (!params || typeof params.channel !== 'string' || !/^ahp-tcp:[^\s?#]+$/.test(params.channel) || params.channel.length > 256
 			|| typeof params.host !== 'string' || !params.host.length || params.host.length > 253 || /[\s/?#@]/.test(params.host)
 			|| !Number.isInteger(params.port) || params.port < 1 || params.port > 65535) {

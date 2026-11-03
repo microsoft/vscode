@@ -1151,6 +1151,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private _serverToolActionSequence = 0;
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void>; cancel(): void; isCurrent(): boolean }>();
+	/**
+	 * Sessions seen as workspace-less in this process. `set_workspace` stays loaded for
+	 * them after conversion, so the provider's tool list, and with it the prompt cache, is unchanged.
+	 */
+	private readonly _startedWorkspacelessSessions = new Set<string>();
 	private readonly _sessionResidency: AgentSessionResidency;
 
 	/**
@@ -1511,6 +1516,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._authService.moveChatCredentials(chat, previous, current);
 		}));
+		// Not on removal: an evicted idle session restores with the same tool list.
+		this._register(this._stateManager.onDidDeleteSession(session => this._startedWorkspacelessSessions.delete(session)));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
 				if (session === removed) {
@@ -2193,11 +2200,17 @@ export class AgentService extends Disposable implements IAgentService {
 	 * to this service so the group stays decoupled from the concrete host.
 	 */
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
-		const isWorkspaceless = (session: URI) => readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		return {
 			getCredentialSource: chat => this._getServerToolCredentialSource(chat),
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
-			isWorkspaceless,
+			startedWorkspaceless: session => {
+				const sessionKey = session.toString();
+				if (readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta)) {
+					this._startedWorkspacelessSessions.add(sessionKey);
+					return true;
+				}
+				return this._startedWorkspacelessSessions.has(sessionKey);
+			},
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true,
 			supportsChatWorkingDirectories: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories,
 			listSessions: () => this.listSessions(),
@@ -2415,6 +2428,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
+		const agent = this._providerService.getProvider(provider);
+		if (!agent?.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable for this provider.');
+		}
+		await agent.manageHostSandboxCertificate(operation);
+	}
+
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'installSandboxCertificate');
 	}
@@ -2427,7 +2448,11 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'removeSandboxCertificate');
 	}
 
-	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate'): Promise<void> {
+	async refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._runSandboxCertificateOperation(chat, scopeId, 'refreshSandboxCertificate');
+	}
+
+	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate' | 'refreshSandboxCertificate'): Promise<void> {
 		const owner = this._chatOwnership.getChatOwner(chat);
 		const provider = owner === undefined ? undefined : this._providerService.getProviderForChat(URI.parse(owner), chat);
 		if (!provider?.[operation]) {
@@ -7850,12 +7875,13 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * The chat a session that moves under another session takes along: its default chat, which must be its only one.
 	 * The host knows a session's default chat only once it has loaded the session, so it loads one it hasn't, held in
-	 * `leases` (C15).
+	 * `leases` (C15). Its data only when that chat records a backing of its own: otherwise it is restored in full, where
+	 * its agent recovers the backing and the host records it, so the nested chat can become a session again (#344917).
 	 */
 	private async _movedSessionChat(session: URI, leases: DisposableStore): Promise<URI> {
 		const sourceKey = session.toString();
 		this._assertChatMovesEnabled();
-		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable, leases, true);
+		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable, leases, await this._recordsDefaultChatBacking(session));
 		const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
 		if (defaultChat === undefined) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
@@ -8092,6 +8118,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (sessionMove) {
 			this._checkMovedSession(sourceKey, chat);
+			if (!await this._recordsDefaultChatBacking(session)) {
+				refuse(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} has no recorded conversation of its own to keep under another session.`);
+			}
 		} else {
 			this._checkMovedChat(sourceKey, chat);
 		}
@@ -15570,6 +15599,18 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _readDefaultChatProviderData(session: URI): Promise<string | undefined> {
 		return (await this._readDefaultChatBacking(session)).providerData;
+	}
+
+	/**
+	 * Whether the default chat of `session` records a backing of its own, which it keeps when its session moves under
+	 * another. Refuses the move when the session's chats can't be read, as loading it for the move does.
+	 */
+	private async _recordsDefaultChatBacking(session: URI): Promise<boolean> {
+		try {
+			return await this._readDefaultChatProviderData(session) !== undefined;
+		} catch (error) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${session.toString()} can't be opened: ${toErrorMessage(error)}`);
+		}
 	}
 
 	/**
