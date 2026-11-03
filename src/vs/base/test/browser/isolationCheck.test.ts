@@ -97,6 +97,9 @@ suite('Isolation check', () => {
 				stuck: false,
 				fakeTimers: false,
 				requests: 0,
+				/** Expires the pending `timeout`, as the real clock would. */
+				expireTimeout: () => { },
+				timeout: () => new Promise<void>(resolve => host.expireTimeout = resolve),
 				scheduleAtNextAnimationFrame: (runner: () => void) => { host.requests++; queued.push(runner); },
 				requestNativeAnimationFrame: (callback: () => void) => { host.requests++; native.push(callback); },
 				hasFakeTimers: () => host.fakeTimers,
@@ -174,6 +177,47 @@ suite('Isolation check', () => {
 			assert.deepStrictEqual({ withFakes, requestsWithFakes, afterFakes, requestsAfterFakes: host.requests, next: detector.check() }, {
 				withFakes: [], requestsWithFakes: 0, afterFakes: [], requestsAfterFakes: 2, next: [],
 			});
+		});
+
+		test('finalize reports a queue that got stuck in the last suite, once a native frame runs', async () => {
+			const host = createProbeHost();
+			const detector = createAnimationFrameQueueDetector(host);
+			detector.check();
+			host.stuck = true;
+			const finalized = detector.finalize!();
+			host.runFrame();
+			assert.deepStrictEqual({ findings: await finalized, again: await detector.finalize!() }, {
+				findings: ['scheduleAtNextAnimationFrame runners stopped running by the end of the last suite: a native frame ran but the runner scheduled at the end of this suite did not'],
+				again: [],
+			});
+		});
+
+		test('finalize reports nothing for a healthy queue, or when no native frame runs before the timeout', async () => {
+			const healthy = createProbeHost();
+			const healthyDetector = createAnimationFrameQueueDetector(healthy);
+			healthyDetector.check();
+			const healthyFindings = healthyDetector.finalize!();
+			healthy.runFrame();
+
+			const unpainted = createProbeHost();
+			unpainted.stuck = true;
+			const unpaintedDetector = createAnimationFrameQueueDetector(unpainted);
+			unpaintedDetector.check();
+			const unpaintedFindings = unpaintedDetector.finalize!();
+			unpainted.expireTimeout();
+
+			assert.deepStrictEqual({ healthy: await healthyFindings, unpainted: await unpaintedFindings }, { healthy: [], unpainted: [] });
+		});
+
+		test('finalize does not report a stuck queue again that a check already reported', async () => {
+			const host = createProbeHost();
+			const detector = createAnimationFrameQueueDetector(host);
+			detector.check();
+			host.stuck = true;
+			host.runFrame();
+			const reported = detector.check();
+			host.runFrame();
+			assert.deepStrictEqual({ reported, finalized: await detector.finalize!() }, { reported: [stuckFinding], finalized: [] });
 		});
 	});
 });

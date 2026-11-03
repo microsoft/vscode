@@ -418,10 +418,19 @@ function isObject(obj) {
  * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
  * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several windows end up in one file.
  */
-function writeIsolationFindings() {
+async function writeIsolationFindings() {
 	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
+	if (!reportPath) {
+		return;
+	}
+	try {
+		// Settles checks that only a later suite would have settled, see flushIsolationChecks in isolationCheck.ts.
+		await globalThis.__vscodeTestIsolationFlush?.();
+	} catch (error) {
+		console.error(`Failed to flush isolation checks: ${error}`);
+	}
 	const findings = globalThis.__vscodeTestIsolationFindings;
-	if (reportPath && findings?.length) {
+	if (findings?.length) {
 		try {
 			fs.appendFileSync(reportPath, findings.map(finding => JSON.stringify({ runner: 'electron', ...finding }) + '\n').join(''));
 		} catch (error) {
@@ -515,7 +524,7 @@ async function runTests(opts) {
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts);
-		writeIsolationFindings();
+		await writeIsolationFindings();
 		ipcRenderer.send('all done');
 	});
 

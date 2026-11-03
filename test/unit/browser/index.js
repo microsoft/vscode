@@ -323,7 +323,15 @@ async function writeIsolationFindings(page, browserType) {
 	if (!reportPath) {
 		return;
 	}
-	const findings = await page.evaluate(() => globalThis.__vscodeTestIsolationFindings ?? []);
+	const findings = await page.evaluate(async () => {
+		try {
+			// Settles checks that only a later suite would have settled, see flushIsolationChecks in isolationCheck.ts.
+			await globalThis.__vscodeTestIsolationFlush?.();
+		} catch (error) {
+			console.error(`Failed to flush isolation checks: ${error}`);
+		}
+		return globalThis.__vscodeTestIsolationFindings ?? [];
+	});
 	if (findings.length) {
 		try {
 			await fs.promises.appendFile(reportPath, findings.map(finding => JSON.stringify({ runner: browserType, ...finding }) + '\n').join(''));

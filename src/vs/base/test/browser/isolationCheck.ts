@@ -21,6 +21,11 @@ export interface IIsolationDetector<S = unknown> {
 	snapshot(): S;
 	/** Describes what the suite left behind compared to `before`, or what is wrong regardless of it. */
 	check(before: S): string[];
+	/**
+	 * For a detector that only knows the result of a check after the next one, as the animation frame probe: settles what
+	 * the last check left pending once all suites have run, since no later suite checks it. Its findings go to the last suite.
+	 */
+	finalize?(): Promise<string[]>;
 }
 
 export interface IIsolationFinding {
@@ -31,12 +36,32 @@ export interface IIsolationFinding {
 }
 
 const findingsKey = '__vscodeTestIsolationFindings';
+const flushKey = '__vscodeTestIsolationFlush';
 const maxDetails = 10;
 
 /** The findings of the checks installed by {@link installIsolationCheck}, shared with the test runner through the global object. */
 export function getIsolationFindings(): IIsolationFinding[] {
 	const global = globalThis as { [findingsKey]?: IIsolationFinding[] };
 	return global[findingsKey] ??= [];
+}
+
+/**
+ * Settles the checks that are still pending after the last suite, see {@link IIsolationDetector.finalize}. Test runners call
+ * it through the global object once all suites have run, before they read {@link getIsolationFindings}.
+ */
+export async function flushIsolationChecks(): Promise<void> {
+	await (globalThis as { [flushKey]?: () => Promise<void> })[flushKey]?.();
+}
+
+function pushFindings(kind: string, suite: { title: string; file?: string } | undefined, details: string[]): void {
+	if (details.length) {
+		getIsolationFindings().push({
+			kind,
+			suite: suite?.title ?? '',
+			file: suite?.file,
+			details: details.length > maxDetails ? [...details.slice(0, maxDetails), `... and ${details.length - maxDetails} more`] : details,
+		});
+	}
 }
 
 function describeElement(element: Element): string {
@@ -149,12 +174,17 @@ export interface IAnimationFrameQueueProbeHost {
 	requestNativeAnimationFrame(callback: () => void): void;
 	/** Whether fake time globals are installed, so the queue would request its frame from a fake. */
 	hasFakeTimers(): boolean;
+	/** Resolves after `ms`, on the real clock. */
+	timeout(ms: number): Promise<void>;
 }
 
 interface IAnimationFrameProbe {
 	scheduledRan: boolean;
 	nativeRan: boolean;
 }
+
+/** How long {@link IIsolationDetector.finalize} waits for a native frame: the hidden Electron test window paints about once a second. */
+const finalizeFrameTimeout = 1500;
 
 /**
  * A stuck animation frame queue in `dom.ts`. `scheduleAtNextAnimationFrame` requests one native frame per window and sets
@@ -164,7 +194,8 @@ interface IAnimationFrameProbe {
  * At the end of a suite this schedules a probe through `dom.ts` and then requests a native frame itself. Both frames run in
  * request order, so if the native frame ran by the end of the next suite but the probe did not, the queue was already stuck
  * when the probe was scheduled: the suite reporting it inherited it from an earlier suite. If no native frame runs, as in a
- * window that does not paint, the probe stays pending and reports nothing.
+ * window that does not paint, the probe stays pending and reports nothing. The probe of the last suite has no later
+ * check, so `finalize` waits for one more native frame and settles it.
  *
  * Not a default detector: the probe puts a runner in the `dom.ts` queue between suites, which could change when the runners
  * of the next suite run, so runners add it only for reporting runs.
@@ -172,31 +203,50 @@ interface IAnimationFrameProbe {
 export function createAnimationFrameQueueDetector(host: IAnimationFrameQueueProbeHost): IIsolationDetector<void> {
 	let pending: IAnimationFrameProbe | undefined;
 	let reportedStuck = false;
+
+	/** Settles the pending probe if its native frame ran. Returns whether it did, and what to report. */
+	const settle = (stuckFinding: string): { settled: boolean; findings: string[] } => {
+		if (!pending || !pending.nativeRan) {
+			return { settled: !pending, findings: [] };
+		}
+		const findings: string[] = [];
+		if (!pending.scheduledRan) {
+			if (!reportedStuck) {
+				reportedStuck = true;
+				findings.push(stuckFinding);
+			}
+		} else {
+			reportedStuck = false;
+		}
+		pending = undefined;
+		return { settled: true, findings };
+	};
+
 	return {
 		kind: 'animationFrame',
 		snapshot: () => undefined,
 		check: () => {
-			const findings: string[] = [];
-			if (pending && !pending.nativeRan) {
+			const { settled, findings } = settle('scheduleAtNextAnimationFrame runners stopped running before this suite started: a native frame ran but the runner scheduled at the end of the previous suite did not');
+			if (!settled) {
 				return findings;
-			}
-			if (pending && !pending.scheduledRan) {
-				if (!reportedStuck) {
-					reportedStuck = true;
-					findings.push('scheduleAtNextAnimationFrame runners stopped running before this suite started: a native frame ran but the runner scheduled at the end of the previous suite did not');
-				}
-			} else if (pending) {
-				reportedStuck = false;
 			}
 			if (host.hasFakeTimers()) {
 				// The queue would request its frame from the fake, which is what gets it stuck.
-				pending = undefined;
 				return findings;
 			}
 			const next: IAnimationFrameProbe = { scheduledRan: false, nativeRan: false };
 			host.scheduleAtNextAnimationFrame(() => next.scheduledRan = true);
 			host.requestNativeAnimationFrame(() => next.nativeRan = true);
 			pending = next;
+			return findings;
+		},
+		finalize: async () => {
+			if (pending && !pending.nativeRan) {
+				// Frames run in request order, so once this one runs, so has the probe's.
+				await Promise.race([new Promise<void>(resolve => host.requestNativeAnimationFrame(resolve)), host.timeout(finalizeFrameTimeout)]);
+			}
+			const { findings } = settle('scheduleAtNextAnimationFrame runners stopped running by the end of the last suite: a native frame ran but the runner scheduled at the end of this suite did not');
+			pending = undefined;
 			return findings;
 		},
 	};
@@ -206,6 +256,7 @@ export const animationFrameQueueDetector = createAnimationFrameQueueDetector({
 	scheduleAtNextAnimationFrame: runner => scheduleAtNextAnimationFrame(mainWindow, runner),
 	requestNativeAnimationFrame: callback => originalTimeGlobals.requestAnimationFrame.call(mainWindow, callback),
 	hasFakeTimers: () => getReplacedTimeGlobals().length > 0,
+	timeout: ms => new Promise(resolve => originalTimeGlobals.setTimeout.call(globalThis, resolve, ms)),
 });
 
 export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftoverDomDetector, focusDetector, hoverDetector, fakeTimersDetector];
@@ -217,6 +268,22 @@ export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftove
 export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIsolationDetector[] = defaultIsolationDetectors): void {
 	const snapshots = new WeakMap<Mocha.Suite, unknown[]>();
 	const checked = new WeakSet<Mocha.Suite>();
+	let lastChecked: Mocha.Suite | undefined;
+
+	(globalThis as { [flushKey]?: () => Promise<void> })[flushKey] = async () => {
+		for (const detector of detectors) {
+			if (!detector.finalize) {
+				continue;
+			}
+			let details: string[];
+			try {
+				details = await detector.finalize();
+			} catch (error) {
+				details = [`finalize failed: ${error}`];
+			}
+			pushFindings(detector.kind, lastChecked, details);
+		}
+	};
 
 	// Mocha emits 'suite' when a suite is added, before its definition runs, so this hook runs before the suite's own hooks.
 	root.on('suite', (suite: Mocha.Suite) => {
@@ -247,6 +314,7 @@ export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIs
 				if (!before) {
 					return;
 				}
+				lastChecked = suite;
 				detectors.forEach((detector, index) => {
 					let details: string[];
 					try {
@@ -254,14 +322,7 @@ export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIs
 					} catch (error) {
 						details = [`check failed: ${error}`];
 					}
-					if (details.length) {
-						getIsolationFindings().push({
-							kind: detector.kind,
-							suite: suite.title,
-							file: suite.file,
-							details: details.length > maxDetails ? [...details.slice(0, maxDetails), `... and ${details.length - maxDetails} more`] : details,
-						});
-					}
+					pushFindings(detector.kind, suite, details);
 				});
 			});
 		}
