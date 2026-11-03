@@ -8631,7 +8631,11 @@ suite('NotebookDiff Diff Service', () => {
 		} satisfies IMainCellDto;
 
 	}
-	type JupyterCell = { cell_type: string; source: string[]; [key: string]: unknown };
+	type JupyterCell = {
+		cell_type: string;
+		source: string[];
+		[key: string]: unknown;
+	};
 	type NotebookEdit = [start: number, deleteCount: number, ...cells: JupyterCell[]];
 	type MockNotebookCell = [
 		lines: string[],
@@ -8667,4 +8671,3 @@ suite('NotebookDiff Diff Service', () => {
 		];
 	}
 });
-
