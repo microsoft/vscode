@@ -174,7 +174,7 @@ export class RemotesWidget extends Disposable {
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
 			headerRowHeight: 31, // Includes the header's bottom border.
-			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 76 : row.entry.remote.hostAvailability ? 42 : 26,
+			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? row.entry.documentation ? 76 : 54 : row.entry.remote.hostAvailability ? 42 : 26,
 		}, columns, renderers, {
 			identityProvider: { getId: row => row.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
@@ -426,14 +426,17 @@ export class RemotesWidget extends Disposable {
 			&& `${remote.name} ${remote.detail} ${remoteKindLabels[remote.kind]}`.toLowerCase().includes(this.query));
 	}
 
-	private getEmptyEntry(kind: RemoteKind): IRemoteEmptyEntry {
+	private getEmptyEntry(kind: RemoteKind, hasRemotes = false): IRemoteEmptyEntry {
 		const id = `remote-empty-${kind}`;
 		if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
 			return {
 				type: 'empty', id,
-				label: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
+				label: hasRemotes
+					? localize('remotes.tunnels.signInToRefresh', "Sign in to refresh your tunnels.")
+					: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
 				action: { label: localize('remotes.tunnels.signIn', "Sign In"), enabled: !this.signingInToTunnels },
-				documentation: remoteSetup.tunnel.documentation,
+				// Setup guidance only helps while the group is empty; the group's info action still opens it.
+				...(hasRemotes ? {} : { documentation: remoteSetup.tunnel.documentation }),
 			};
 		}
 		if (this.failedKinds.includes(kind)) {
@@ -463,7 +466,7 @@ export class RemotesWidget extends Disposable {
 			});
 			if (!collapsed) {
 				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
-					entries.push(this.getEmptyEntry(kind));
+					entries.push(this.getEmptyEntry(kind, groupRemotes.length > 0));
 				}
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
@@ -624,7 +627,7 @@ export class RemotesWidget extends Disposable {
 				return [];
 			}
 			const empty = kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()
-				? this.getEmptyEntry(kind) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
+				? this.getEmptyEntry(kind, entries.length > 0) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],
