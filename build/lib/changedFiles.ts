@@ -38,10 +38,10 @@ const eslintFullCheckPaths = [
 	'extensions/copilot/.eslintplugin/',
 	// The plugin and parser versions. local/code-amd-node-module also reads package.json.
 	'package.json',
-	'package-lock.json',
+	'pnpm-lock.yaml',
 	// The versions of the packages that the Copilot rules in extensions/copilot/.eslintplugin/ import.
 	'extensions/copilot/package.json',
-	'extensions/copilot/package-lock.json',
+	'extensions/copilot/pnpm-lock.yaml',
 	// Read by local/code-translation-remind.
 	'build/lib/i18n.resources.json',
 	'build/filters.ts',
@@ -69,7 +69,8 @@ const typeAwareLintInputs = [
 	'src/vscode-dts/',
 	'extensions/tsconfig.base.json',
 	'extensions/package.json',
-	'extensions/package-lock.json',
+	// extensions/ is a member of the root pnpm workspace.
+	'pnpm-lock.yaml',
 ];
 
 /**
@@ -84,7 +85,7 @@ const hygieneFullCheckPaths = [
 	'build/stylelint.ts',
 	'build/lib/stylelint/',
 	// The TypeScript version that checks formatting.
-	'package-lock.json',
+	'pnpm-lock.yaml',
 	'build/lib/changedFiles.ts',
 ];
 

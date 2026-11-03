@@ -55,6 +55,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../telemetry/common/telemetryService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
@@ -65,10 +66,9 @@ import { CodexAgent } from '../../node/codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexProxyService.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
-import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
-import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
@@ -142,7 +142,7 @@ import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copil
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import { getCopilotAutoTier, getCopilotCustomAgents, getCopilotAgentSelectionName, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
-import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, getAdvertisedAutoModeTierSupport, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
@@ -1066,28 +1066,13 @@ class McpAuthChallengeCopilotClient extends TestCopilotClient {
 	}
 }
 
-class RecordingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: Array<{ eventName: string; data: unknown }> = [];
-	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
-	readonly experimentProperties: Record<string, string> = {};
-	readonly commonPropertyUpdates: Array<{ name: string; value: string | boolean | undefined }> = [];
-
-	override setExperimentProperty(name?: string, value?: string): void {
-		this.experimentProperties[name ?? ''] = value ?? '';
-	}
-
-	override setCommonProperty(name?: string, value?: string | boolean): void {
-		if (name) {
-			this.commonPropertyUpdates.push({ name, value });
-		}
-	}
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		this.events.push({ eventName: eventName ?? '', data });
-	}
-
-	override publicLogError2(eventName?: string, data?: unknown): void {
-		this.errorEvents.push({ eventName: eventName ?? '', data });
+class RecordingTelemetryService extends CapturingTelemetryService {
+	constructor() {
+		super({
+			telemetryLevel: TelemetryLevel.NONE,
+			captureErrors: true,
+			separateErrors: true,
+		});
 	}
 }
 
@@ -1381,6 +1366,18 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 				this._connections.delete(clientId);
 			}
 		});
+	}
+
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	notifySharedNetworkClientChanged(): void { }
+
+	readonly clientKerberosLookups: string[] = [];
+	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		this.clientKerberosLookups.push(proxyUrl);
+		return 'Negotiate client-ticket';
 	}
 
 	getConfigurationValue<T>(_key: string): T | undefined {
@@ -1822,6 +1819,14 @@ suite('CopilotAgent', () => {
 	const proxyEnvironmentKeys = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
 	const proxyEnvironmentKeyNames = new Set(proxyEnvironmentKeys.map(key => key.toLowerCase()));
 	const savedProxyEnvironment: NodeJS.ProcessEnv = {};
+
+	function registerAgentCleanup(agent: CopilotAgent, userHome: URI, workingDirectory: string): void {
+		afterTest(async () => {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			await fs.rm(workingDirectory, { recursive: true, force: true });
+			await disposeAgent(agent);
+		});
+	}
 	for (const [key, value] of Object.entries(process.env)) {
 		if (value !== undefined && proxyEnvironmentKeyNames.has(key.toLowerCase())) {
 			savedProxyEnvironment[key] = value;
@@ -1838,6 +1843,57 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	test('host sandbox certificate management starts the runtime without creating or resuming a chat', async () => {
+		const client = new TestCopilotClient([]);
+		const calls: string[] = [];
+		const params: Parameters<CopilotClient['rpc']['sandbox']['proxyCa']['getStatus']>[0][] = [];
+		const sandbox: CopilotClient['rpc']['sandbox'] = {
+			getHostSupport: async () => { assert.fail('Certificate installation must not enable sandboxing'); },
+			proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
+				override checkInstallationSupport = async () => { calls.push('support'); return true; };
+				override getStatus: CopilotClient['rpc']['sandbox']['proxyCa']['getStatus'] = async value => {
+					calls.push('status');
+					params.push(value);
+					return { state: 'notInstalled', canInstall: true };
+				};
+				override create: CopilotClient['rpc']['sandbox']['proxyCa']['create'] = async value => {
+					calls.push('create');
+					params.push(value);
+					return { certificatePath: '/runtime/proxy-ca.pem' };
+				};
+				override trust: CopilotClient['rpc']['sandbox']['proxyCa']['trust'] = async value => {
+					calls.push('trust');
+					params.push(value);
+					return { state: 'installed', canInstall: true };
+				};
+				override rotate: CopilotClient['rpc']['sandbox']['proxyCa']['rotate'] = async value => {
+					calls.push('rotate');
+					params.push(value);
+					return { state: 'installed', canInstall: true };
+				};
+				override remove: CopilotClient['rpc']['sandbox']['proxyCa']['remove'] = async () => {
+					calls.push('remove');
+					return { state: 'notInstalled', canInstall: true };
+				};
+			},
+		};
+		Object.assign(client.rpc, { sandbox });
+		client.createSession = async () => { assert.fail('Must not create a chat'); };
+		client.resumeSession = async () => { assert.fail('Must not resume a chat'); };
+		const agent = disposables.add(createTestAgent(disposables, { copilotClient: client }));
+		try {
+			for (const operation of ['install', 'rotate', 'remove'] as const) {
+				await agent.manageHostSandboxCertificate(operation);
+			}
+			assert.deepStrictEqual({ calls, params }, {
+				calls: ['support', 'status', 'create', 'trust', 'support', 'status', 'rotate', 'remove'],
+				params: [{}, {}, {}, {}, {}],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	test('rejected managed OTel paths are cleared in the captured Copilot child options', async () => {
@@ -3052,6 +3108,60 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(client.managedSettingsRequests.at(-1)?.gitHubToken, 'new-token');
 		} finally {
 			gate.complete(client.managedSettingsResolution);
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings retry eager config on the restarted client when a resolved proxy restarts it', async () => {
+		class DisposingConnectionClient extends TestCopilotClient {
+			readonly connection = new DeferredPromise<ManagedSettingsResolveResult>();
+
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				this.connection.error(new Error('Pending response rejected since connection got disposed'));
+				return super.stop();
+			}
+		}
+		const proxy = 'http://client-proxy.example:8080';
+		const proxyResolver = new TestProxyResolver();
+		const proxyResolved = new DeferredPromise<void>();
+		proxyResolver.resolvedProxy = proxy;
+		proxyResolver.resolveProxyGate = proxyResolved.p;
+		const client = new DisposingConnectionClient([]);
+		const firstQueryStarted = new DeferredPromise<void>();
+		const restricted: ManagedSettingsResolveResult = {
+			...client.managedSettingsResolution,
+			resolved: {
+				...client.managedSettingsResolution.resolved,
+				bypassPermissionsDisabled: true,
+				settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+			},
+		};
+		client.resolveManagedSettings = async () => {
+			if (!firstQueryStarted.isSettled) {
+				firstQueryStarted.complete();
+				return client.connection.p;
+			}
+			return restricted;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client, proxyResolver });
+		try {
+			const config = agent.resolveChatConfig({});
+			await firstQueryStarted.p;
+			proxyResolved.complete();
+			assert.deepStrictEqual({
+				availableApprovalModes: (await config).values.availableApprovalModes,
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+			}, {
+				availableApprovalModes: ['default'],
+				startCallCount: 2,
+				stopCallCount: 1,
+				httpsProxy: proxy,
+			});
+		} finally {
+			proxyResolved.complete();
+			client.connection.complete(client.managedSettingsResolution);
 			await disposeAgent(agent);
 		}
 	});
@@ -7231,6 +7341,113 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(agent.models.get().map(model => model.id), ['gpt-4o']);
 		});
 
+		test('applies the Auto tiers a scoped caller\'s own catalog offers, without a host token', async () => {
+			const { agent, launches } = setup(undefined, [], [], undefined, {
+				onClientCreated: (client, options) => {
+					if (options.gitHubToken) {
+						client.modelListResponses.push([{ id: 'auto', name: 'Auto' }, { id: 'gpt-4o', name: 'GPT-4o' }]);
+						client.autoTierMetadata = {
+							defaultTier: 'balance',
+							tiers: [
+								{ id: 'balance', displayName: 'Standard', description: '', type: 'auto', status: { enabled: true } },
+								{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
+							],
+						};
+					}
+				},
+			});
+			const session = AgentSession.uri('copilotcli', 'scoped-fusion-tier');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const max: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion-max' } };
+			try {
+				setAdvertisedAutoModeTiers(['balance']);
+				await agent.getModelsForCredentials(credentials);
+				await provisionSession(agent, { session, credentials, model: max, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+				await agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'balance' } }, context);
+
+				assert.deepStrictEqual({
+					launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
+					autoTiers: launches.map(launch => launch.runtime.setModelCalls.map(([, options]) => options?.autoTier)),
+					// The host-wide catalog offers only Balance, so only the caller's catalog accepts Max.
+					hostAccepts: getCopilotAutoTier(max),
+				}, {
+					launches: [{ kind: 'create', capi: { autoTier: 'hydrafusion-max' } }],
+					autoTiers: [['balance']],
+					hostAccepts: undefined,
+				});
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+				await disposeAgent(agent);
+			}
+		});
+
+		/** Holds every model discovery until the returned `discovery` completes, serving Auto tiers that accept `intelligence`. */
+		function setupHeldDiscovery() {
+			const discovery = new DeferredPromise<void>();
+			const discoveryRequested = new DeferredPromise<TestCopilotClient>();
+			const fixture = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					void discoveryRequested.complete(client);
+					client.modelListGate = discovery.p;
+					client.modelListResponses.push([{ id: 'auto', name: 'Auto' }]);
+					client.autoTierMetadata = {
+						defaultTier: 'balance',
+						tiers: [
+							{ id: 'balance', displayName: 'Standard', description: '', type: 'auto', status: { enabled: true } },
+							{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
+						],
+					};
+				},
+			});
+			afterTest(async () => {
+				discovery.complete();
+				await disposeAgent(fixture.agent);
+			});
+			return { ...fixture, discovery, discoveryRequested: discoveryRequested.p };
+		}
+
+		test('leaves an Auto tier requested before the host\'s model discovery completes to the runtime', async () => {
+			const { agent, launches, discoveryRequested } = setupHeldDiscovery();
+			const session = AgentSession.uri('copilotcli', 'host-tier-before-discovery');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			await agent.authenticate('https://api.github.com', 'host-token');
+			const client = await discoveryRequested;
+			await client.waitForCalls(() => client.modelListRequests.length > 0);
+			await provisionSession(agent, { session, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
+			// Discovery is still held, so this send settles only because the launch does not wait for it.
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, exactChatContext(session, chat, session));
+
+			assert.deepStrictEqual(launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })), [
+				{ kind: 'create', capi: { autoTier: 'intelligence' } },
+			]);
+		});
+
+		test('leaves an Auto tier requested during a scoped caller\'s model discovery to the runtime', async () => {
+			const { agent, launches } = setupHeldDiscovery();
+			const session = AgentSession.uri('copilotcli', 'scoped-tier-during-discovery');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const discovered = agent.getModelsForCredentials(credentials);
+			await provisionSession(agent, { session, credentials, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
+			// The caller's discovery is still held, so this send settles only because the launch does not wait for it.
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+
+			assert.deepStrictEqual({
+				launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
+				discoveryPending: await raceTimeout(discovered.then(() => false), 0) ?? true,
+			}, {
+				launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
+				discoveryPending: true,
+			});
+		});
+
 		for (const rotate of [false, true]) {
 			test(`prewarming uses the caller credential and ${rotate ? 'replaces a rotated sponsor' : 'keeps the runtime'} on first send`, async () => {
 				const { agent, clients, options, launches } = setup();
@@ -7265,6 +7482,31 @@ suite('CopilotAgent', () => {
 				});
 			});
 		}
+
+		test('drops an Auto tier once model discovery completes without Auto tiers', async () => {
+			const { agent, launches } = setup();
+			afterTest(() => disposeAgent(agent));
+			const directory = URI.file(process.cwd());
+			const intelligence: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
+			const hostSession = AgentSession.uri('copilotcli', 'host-discovered-without-tiers');
+			const hostChat = defaultChatUri(hostSession);
+			await agent.authenticate('https://api.github.com', 'host-token');
+			await agent.refreshModels();
+			await provisionSession(agent, { session: hostSession, model: intelligence, workingDirectories: [directory] });
+			await agent.chats.sendMessage(hostChat, 'first', [directory], undefined, 'first', undefined, exactChatContext(hostSession, hostChat, hostSession));
+			const scopedSession = AgentSession.uri('copilotcli', 'scoped-discovered-without-tiers');
+			const scopedChat = defaultChatUri(scopedSession);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			await agent.getModelsForCredentials(credentials);
+			await provisionSession(agent, { session: scopedSession, credentials, model: intelligence, workingDirectories: [directory] });
+			await agent.chats.sendMessage(scopedChat, 'first', [directory], undefined, 'first', undefined, { ...exactChatContext(scopedSession, scopedChat, scopedSession), credentials });
+
+			// Both catalogs are known to offer no Auto tiers, so the requested tier is not left to the runtime.
+			assert.deepStrictEqual(launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })), [
+				{ kind: 'create', capi: undefined },
+				{ kind: 'create', capi: undefined },
+			]);
+		});
 
 		test('prewarming does not borrow a host token when the caller credential is unavailable', async () => {
 			const { agent, options, launches } = setup();
@@ -9733,6 +9975,36 @@ suite('CopilotAgent', () => {
 			clock?.restore();
 			await disposeAgent(agent);
 		}
+	});
+
+	test('forgets the previous account\'s Auto tiers until the new account\'s catalog is published', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(async () => {
+			setAdvertisedAutoModeTiers(undefined);
+			await disposeAgent(agent);
+		});
+		const tiers = () => getAdvertisedAutoModeTierSupport().tiers;
+		await agent.authenticate('https://api.github.com', 'account-a');
+		await agent.refreshModels();
+		const accountA = tiers();
+
+		const gate = new DeferredPromise<void>();
+		client.modelListGate = gate.p;
+		client.autoTierMetadata = {
+			defaultTier: 'balance',
+			tiers: [{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } }],
+		};
+		await agent.authenticate('https://api.github.com', 'account-b');
+		const accountBPending = tiers();
+		gate.complete();
+		await agent.refreshModels();
+
+		assert.deepStrictEqual({ accountA, accountBPending, accountB: tiers() }, {
+			accountA: new Set(),
+			accountBPending: undefined,
+			accountB: new Set(['intelligence']),
+		});
 	});
 
 	test('coalesces concurrent refreshModels calls onto one models.list request', async () => {
@@ -13853,6 +14125,32 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('registers a runtime-scoped fallback Kerberos callback backed by clients sharing the network', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			try {
+				await agent.listChatsToMigrate();
+				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
+				const signal = new AbortController().signal;
+				assert.deepStrictEqual({
+					mode: callback?.mode,
+					scope: callback?.scope,
+					tokens: [
+						await callback?.callback({ spn: 'HTTP/proxy.example@EXAMPLE.COM' }, signal),
+						await callback?.callback({ spn: 'ldap/directory.example' }, signal),
+					],
+					lookups: proxyResolver.clientKerberosLookups,
+				}, {
+					mode: 'fallback',
+					scope: 'runtime',
+					tokens: ['client-ticket', undefined],
+					lookups: ['http://proxy.example'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
 			const client = new TestCopilotClient([]);
 			const kerberosSpn = 'HTTP/proxy.example';
@@ -14186,7 +14484,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('launches the runtime with DYNAMIC_AUTO_TIERS only while opted in, dropping advertised tiers when a restart turns it off', async () => {
+		test('always launches the runtime with DYNAMIC_AUTO_TIERS, keeping advertised tiers across restarts', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			client.autoTierMetadata = {
 				defaultTier: 'balance',
@@ -14202,72 +14500,22 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listChatsToMigrate();
-				const byDefault = hasFlag();
-
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: true });
-				await agent.listChatsToMigrate();
 				await agent.refreshModels();
-				const optedIn = { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() };
+				const initial = { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() };
 
-				// Hold the post-restart model refreshes so only the restarts themselves can drop the tiers.
+				// Hold the post-restart model refresh so only the restart itself could drop the tiers.
 				client.modelListGate = gate.p;
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await agent.listChatsToMigrate();
-				const unrelatedRestart = { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() };
-
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: false });
-				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
-					byDefault,
-					optedIn,
-					unrelatedRestart,
-					optedOut: { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() },
+					initial,
+					afterRestart: { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() },
 					stopCallCount: client.stopCallCount,
 				}, {
-					byDefault: false,
-					optedIn: { flag: true, acceptsHydraFusion: true },
-					unrelatedRestart: { flag: true, acceptsHydraFusion: true },
-					optedOut: { flag: false, acceptsHydraFusion: false },
-					stopCallCount: 3,
-				});
-			} finally {
-				gate.complete();
-				await disposeAgent(agent);
-				setAdvertisedAutoModeTiers(undefined);
-			}
-		});
-
-		test('keeps accepting HydraFusion Max without a restart when HydraFusion v2 is turned off, since dynamic Auto tiers keep v2 on', async () => {
-			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-			client.autoTierMetadata = {
-				defaultTier: 'balance',
-				tiers: [
-					{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
-					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
-					{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
-				],
-			};
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-			});
-			const accepted = () => ['hydrafusion', 'hydrafusion-max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
-			const gate = new DeferredPromise<void>();
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				await agent.refreshModels();
-				const withV2 = accepted();
-
-				// Hold any model refresh so only a restart could change what is accepted.
-				client.modelListGate = gate.p;
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionV2]: false });
-				await agent.listChatsToMigrate();
-
-				assert.deepStrictEqual({ withV2, withoutV2: accepted(), stopCallCount: client.stopCallCount }, {
-					withV2: ['hydrafusion', 'hydrafusion-max'],
-					withoutV2: ['hydrafusion', 'hydrafusion-max'],
-					stopCallCount: 0,
+					initial: { flag: true, acceptsHydraFusion: true },
+					afterRestart: { flag: true, acceptsHydraFusion: true },
+					stopCallCount: 1,
 				});
 			} finally {
 				gate.complete();
@@ -14311,109 +14559,35 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('publishes HydraFusion when enabled, HydraFusion Max only with v2, and restarts the runtime when disabled', async () => {
-			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: {
-					[CopilotCliConfigKey.HydraFusion]: true,
-				},
-			});
-			const publishedModels = () => agent.models.get().map(model => `${model.id}:${model.name}`);
-			afterTest(() => disposeAgent(agent));
-			await agent.authenticate('https://api.github.com', 'token');
-			await agent.listChatsToMigrate();
-			await agent.refreshModels();
-			const enabled = publishedModels();
-
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionV2]: true });
-			await agent.listChatsToMigrate();
-			await agent.refreshModels();
-			const v2 = publishedModels();
-
-			// v2 left on does not keep Max once HydraFusion itself is off.
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
-			await agent.listChatsToMigrate();
-			await agent.refreshModels();
-			assert.deepStrictEqual({
-				enabled,
-				v2,
-				disabledWithV2: publishedModels(),
-				stopCallCount: client.stopCallCount,
-			}, {
-				enabled: ['gpt-5:GPT-5', 'hydrafusion:HydraFusion'],
-				v2: ['gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-				disabledWithV2: ['gpt-5:GPT-5'],
-				stopCallCount: 2,
-			});
-		});
-
-		test('with DYNAMIC_AUTO_TIERS, publishes only the HydraFusion the runtime lists, and adds it back once a restart turns the flag off', async () => {
+		test('publishes only the HydraFusion models CAPI\'s tiers let the account run, and none once CAPI provides no tiers', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			client.autoTierMetadata = {
 				defaultTier: 'balance',
 				tiers: [
 					{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
 					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: false, message: 'Not available on your plan' } },
+					{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
 				],
 			};
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-			});
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			const publishedModels = () => agent.models.get().map(model => model.id);
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listChatsToMigrate();
 				await agent.refreshModels();
-				const dynamic = publishedModels();
+				const withProviderTiers = publishedModels();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: false });
-				await agent.listChatsToMigrate();
+				client.autoTierMetadata = undefined;
 				await agent.refreshModels();
 
-				assert.deepStrictEqual({ dynamic, legacy: publishedModels() }, {
-					dynamic: ['auto', 'gpt-5'],
-					legacy: ['auto', 'gpt-5', 'hydrafusion', 'hydrafusion-max'],
+				assert.deepStrictEqual({ withProviderTiers, withoutProviderTiers: publishedModels() }, {
+					withProviderTiers: ['auto', 'gpt-5', 'hydrafusion-max'],
+					withoutProviderTiers: ['auto', 'gpt-5'],
 				});
 			} finally {
 				await disposeAgent(agent);
 				setAdvertisedAutoModeTiers(undefined);
 			}
-		});
-
-		test('restarts the runtime when HydraFusion multi-root changes with v2 on', async () => {
-			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: {
-					[CopilotCliConfigKey.HydraFusion]: true,
-					[CopilotCliConfigKey.HydraFusionV2]: true,
-				},
-			});
-			const stopsAfter = async (config: Record<string, unknown>) => {
-				configurationService.updateRootConfig(config);
-				await agent.listChatsToMigrate();
-				return client.stopCallCount;
-			};
-			afterTest(() => disposeAgent(agent));
-			await agent.authenticate('https://api.github.com', 'token');
-			await agent.listChatsToMigrate();
-
-			assert.deepStrictEqual({
-				initial: client.stopCallCount,
-				multiRoot: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: true }),
-				backToV2: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: false }),
-				v1: await stopsAfter({ [CopilotCliConfigKey.HydraFusionV2]: false }),
-				// Without v2 the hint is inert, so toggling it must not restart.
-				v1MultiRoot: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: true }),
-			}, {
-				initial: 0,
-				multiRoot: 1,
-				backToV2: 2,
-				v1: 3,
-				v1MultiRoot: 3,
-			});
 		});
 
 		test('restarts the runtime only when the effective local memory store changes', async () => {
@@ -14425,17 +14599,17 @@ suite('CopilotAgent', () => {
 
 			configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
 			await agent.listChatsToMigrate();
-			const localWithoutMemory = client.stopCallCount;
+			const afterEnable = client.stopCallCount;
 
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.Memory]: true });
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
 			await agent.listChatsToMigrate();
 
 			assert.deepStrictEqual({
-				localWithoutMemory,
-				localWithMemory: client.stopCallCount,
+				afterEnable,
+				afterUnchanged: client.stopCallCount - afterEnable,
 			}, {
-				localWithoutMemory: 0,
-				localWithMemory: 1,
+				afterEnable: 1,
+				afterUnchanged: 0,
 			});
 		});
 
@@ -14492,10 +14666,7 @@ suite('CopilotAgent', () => {
 			const presented = async (models: { id: string; name: string }[], autoTierMetadata: CopilotAutoTierMetadata) => {
 				const client = new TestCopilotClient([], models);
 				client.autoTierMetadata = autoTierMetadata;
-				const { agent } = createTestAgentContext(disposables, {
-					copilotClient: client,
-					rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-				});
+				const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					await agent.listChatsToMigrate();
@@ -14539,10 +14710,7 @@ suite('CopilotAgent', () => {
 		test('advertises Fusion\'s inline chat tier only while the provider accepts it', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			client.autoTierMetadata = fusionTierMetadata();
-			const { agent } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-			});
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			const inlineChatTiers = () => agent.models.get().map(model => `${model.id}:${readAgentModelFusionInlineChatTier(model)}`);
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -14563,13 +14731,10 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('presents Auto as Fusion only with dynamic Auto tiers and CAPI\'s tiers, and otherwise offers Auto beside HydraFusion', async () => {
+		test('presents Auto as Fusion with CAPI\'s tiers, and otherwise offers Auto without tiers or HydraFusion', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			client.autoTierMetadata = fusionTierMetadata();
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-			});
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
 				return `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}:${tier.title}` : ''}`;
@@ -14583,24 +14748,10 @@ suite('CopilotAgent', () => {
 				// CAPI does not provide Auto's tiers.
 				client.autoTierMetadata = undefined;
 				await agent.refreshModels();
-				const withoutProviderTiers = published();
-
-				// Dynamic Auto tiers turn on the runtime's HydraFusion, so the fallback still offers it without its own setting.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
-				await agent.refreshModels();
-				const withoutProviderTiersOrHydraFusion = published();
-
-				client.autoTierMetadata = fusionTierMetadata();
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: false, [CopilotCliConfigKey.HydraFusion]: true });
-				await agent.listChatsToMigrate();
-				client.autoTierMetadata = undefined;
-				await agent.refreshModels();
-				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
+				assert.deepStrictEqual({ fusion, withoutProviderTiers: published() }, {
 					// HydraFusion's tiers the account can run are also models, so a chat on one keeps it.
-					fusion: ['auto:Copilot Fusion:fusion:efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					fusion: ['auto:Copilot Fusion:fusion:efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:Copilot Fusion High', 'hydrafusion-max:Copilot Fusion Max'],
+					withoutProviderTiers: ['auto:Auto', 'gpt-5:GPT-5'],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -14612,7 +14763,7 @@ suite('CopilotAgent', () => {
 			const tiers = async (fusion: boolean) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 				client.autoTierMetadata = fusion ? fusionTierMetadata() : undefined;
-				const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: fusion }, sessionDataService: disposables.add(new TestSessionDataService()) });
+				const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					await agent.listChatsToMigrate();
@@ -14621,7 +14772,7 @@ suite('CopilotAgent', () => {
 					disposables.add(session);
 					const launchPlan = (session as unknown as { readonly _launchPlan: CopilotSessionLaunchPlan })._launchPlan;
 					const tier = launchPlan.modelPolicyModels?.().find(model => model.id === 'auto')?.configSchema?.properties.tier;
-					return `${tier?.enum?.join('/')}:${tier?.enumLabels?.join('/')}`;
+					return tier && `${tier.enum?.join('/')}:${tier.enumLabels?.join('/')}`;
 				} finally {
 					await disposeAgent(agent);
 					setAdvertisedAutoModeTiers(undefined);
@@ -14629,76 +14780,48 @@ suite('CopilotAgent', () => {
 			};
 			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
 				fusion: 'efficiency/balance/intelligence/hydrafusion/hydrafusion-max:Efficiency/Balance/Intelligence/High/Max',
-				auto: 'efficiency/balance/intelligence:Efficiency/Balance/Intelligence',
+				auto: undefined,
 			});
 		});
 
-		test('reports the dynamic Auto tiers experiment trigger when Auto is published, in both arms, once the assignment context arrives', async () => {
-			const results: Record<string, { beforeContext: readonly string[]; afterContext: readonly string[] }> = {};
-			for (const dynamicAutoTiers of [true, false]) {
-				const telemetryService = new TestExperimentTriggerTelemetryService();
-				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-				const { agent, configurationService } = createTestAgentContext(disposables, {
-					copilotClient: client,
-					telemetryService,
-					rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: dynamicAutoTiers },
-				});
-				try {
-					await agent.authenticate('https://api.github.com', 'token');
-					await agent.refreshModels();
-					const beforeContext = [...telemetryService.triggers];
-					configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
-					await timeout(0);
-					results[dynamicAutoTiers ? 'dynamicAutoTiers' : 'builtInTiers'] = { beforeContext, afterContext: telemetryService.triggers };
-				} finally {
-					await disposeAgent(agent);
-				}
-			}
-			const treatment = `config.${AgentHostDynamicAutoTiersEnabledSettingId}`;
-			assert.deepStrictEqual(results, {
-				dynamicAutoTiers: { beforeContext: [], afterContext: [treatment] },
-				builtInTiers: { beforeContext: [], afterContext: [treatment] },
-			});
-		});
-
-		test('with dynamic Auto tiers, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
-			const published = async (rootConfig: Record<string, unknown>) => {
+		test('offers runtime-listed HydraFusion models only as Fusion tiers CAPI lets the account run, named as Copilot Fusion\'s effort levels', async () => {
+			const published = async (autoTierMetadata: CopilotAutoTierMetadata | undefined) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'hydrafusion', name: 'HydraFusion' }, { id: 'hydrafusion-max', name: 'HydraFusion Max' }]);
-				client.autoTierMetadata = fusionTierMetadata();
-				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, ...rootConfig } });
+				client.autoTierMetadata = autoTierMetadata;
+				const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					await agent.refreshModels();
-					return agent.models.get().map(model => model.id);
+					return agent.models.get().map(model => `${model.id}:${model.name}`);
 				} finally {
 					await disposeAgent(agent);
 					setAdvertisedAutoModeTiers(undefined);
 				}
 			};
 			assert.deepStrictEqual({
-				off: await published({}),
-				v1: await published({ [CopilotCliConfigKey.HydraFusion]: true }),
-				v2: await published({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
-				disabled: await published({ [CopilotCliConfigKey.HydraFusion]: false, [CopilotCliConfigKey.HydraFusionV2]: false }),
+				fusionAvailable: await published(fusionTierMetadata()),
+				fusionUnavailable: await published(fusionTierMetadata(false)),
+				withoutProviderTiers: await published(undefined),
 			}, {
-				off: ['auto', 'hydrafusion', 'hydrafusion-max'],
-				v1: ['auto', 'hydrafusion', 'hydrafusion-max'],
-				v2: ['auto', 'hydrafusion', 'hydrafusion-max'],
-				disabled: ['auto', 'hydrafusion', 'hydrafusion-max'],
+				fusionAvailable: ['auto:Copilot Fusion', 'hydrafusion:Copilot Fusion High', 'hydrafusion-max:Copilot Fusion Max'],
+				fusionUnavailable: ['auto:Copilot Fusion'],
+				withoutProviderTiers: ['auto:Auto'],
 			});
 		});
 
 		test('does not duplicate HydraFusion when the runtime advertises it', async () => {
 			const client = new TestCopilotClient([], [{ id: 'hydrafusion', name: 'HydraFusion' }]);
-			const { agent } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
-			});
-			afterTest(() => disposeAgent(agent));
-			await agent.authenticate('https://api.github.com', 'token');
-			await agent.refreshModels();
+			client.autoTierMetadata = fusionTierMetadata();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
 
-			assert.deepStrictEqual(agent.models.get().map(model => model.id), ['hydrafusion']);
+				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['hydrafusion', 'hydrafusion-max']);
+			} finally {
+				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers(undefined);
+			}
 		});
 
 		test('does not enable the rubber duck CLI feature when explicitly disabled', async () => {
@@ -15101,15 +15224,14 @@ suite('CopilotAgent', () => {
 
 		test('keeps the last-known catalog across a startup-config restart instead of publishing HydraFusion alone', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol' }]);
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
-			});
+			client.autoTierMetadata = fusionTierMetadata();
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 			const published: string[][] = [];
 			disposables.add(autorun(reader => {
 				published.push(agent.models.read(reader).map(model => model.id));
 			}));
 			afterTest(() => disposeAgent(agent));
+			afterTest(async () => setAdvertisedAutoModeTiers(undefined));
 			await agent.authenticate('https://api.github.com', 'token');
 			await agent.listChatsToMigrate();
 			await waitForState(agent.models, models => models.some(model => model.id === 'gpt-6.1-sol'));
@@ -15127,7 +15249,7 @@ suite('CopilotAgent', () => {
 			}, {
 				stopCount: 1,
 				publishedDuringRestart: [],
-				current: ['gpt-6.1-sol', 'hydrafusion'],
+				current: ['gpt-6.1-sol', 'hydrafusion', 'hydrafusion-max'],
 			});
 		});
 
@@ -15248,12 +15370,11 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					acceptsStaleTier: getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }),
-					acceptsBuiltInTier: getCopilotAutoTier({ id: 'auto', config: { tier: 'balance' } }),
+					// The replacement catalog has no provider tiers, so the stale catalog's must not be published.
+					advertisedTiers: getAdvertisedAutoModeTierSupport(),
 				}, {
 					models: ['replacement'],
-					acceptsStaleTier: undefined,
-					acceptsBuiltInTier: 'balance',
+					advertisedTiers: { tiers: new Set(), fusion: false },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -16489,41 +16610,7 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('publishes HydraFusion beside BYOK models only while signed in to GitHub', async () => {
-		const byokBridgeRegistry = new ByokLmBridgeRegistry();
-		const { agent } = createTestAgentContext(disposables, {
-			copilotClient: new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]),
-			byokBridgeRegistry,
-			rootConfig: {
-				[CopilotCliConfigKey.HydraFusion]: true,
-				[CopilotCliConfigKey.HydraFusionV2]: true,
-			},
-		});
-		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
-		disposables.add(byokBridgeRegistry.register('renderer', {
-			chat: async () => ({ output: [] }),
-			onDidChangeModels: modelSnapshots.event,
-		}));
-		const publishedModels = () => agent.models.get().map(model => model.id);
-
-		afterTest(() => disposeAgent(agent));
-		modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
-		await waitForState(agent.models, models => models.some(model => model.id === 'acme/model'));
-		const signedOut = publishedModels();
-		await agent.authenticate('https://api.github.com', 'token');
-		await agent.refreshModels();
-		const signedIn = publishedModels();
-		await agent.authenticate('https://api.github.com', '');
-		await agent.refreshModels();
-
-		assert.deepStrictEqual({ signedOut, signedIn, signedOutAgain: publishedModels() }, {
-			signedOut: ['acme/model'],
-			signedIn: ['gpt-5', 'hydrafusion', 'hydrafusion-max', 'acme/model'],
-			signedOutAgain: ['acme/model'],
-		});
-	});
-
-	test('with DYNAMIC_AUTO_TIERS, publishes only BYOK models while signed out, and only the runtime\'s catalog and the HydraFusion tiers it can run while signed in', async () => {
+	test('publishes only BYOK models while signed out, and the runtime\'s catalog and the HydraFusion tiers it can run beside them while signed in', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 		client.autoTierMetadata = {
@@ -16533,15 +16620,7 @@ suite('CopilotAgent', () => {
 				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
 			],
 		};
-		const { agent } = createTestAgentContext(disposables, {
-			copilotClient: client,
-			byokBridgeRegistry,
-			rootConfig: {
-				[CopilotCliConfigKey.DynamicAutoTiers]: true,
-				[CopilotCliConfigKey.HydraFusion]: true,
-				[CopilotCliConfigKey.HydraFusionV2]: true,
-			},
-		});
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client, byokBridgeRegistry });
 		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
@@ -16559,7 +16638,6 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', '');
 			await agent.refreshModels();
 
-			// HydraFusion is only an Auto tier here, never a row of its own.
 			assert.deepStrictEqual({ signedOut, signedIn, signedOutAgain: publishedModels() }, {
 				signedOut: ['acme/model'],
 				signedIn: ['auto', 'gpt-5', 'hydrafusion', 'acme/model'],
@@ -16763,7 +16841,7 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual(contextSize?.enumLabels, ['200K', '1M']);
 	});
 
-	test('configSchema offers the Auto routing profile by default only to the Auto model', async () => {
+	test('configSchema offers no Auto routing profile when the provider offers no Auto tiers', async () => {
 		const models: ITestCopilotModelInfo[] = [
 			{ id: 'auto', name: 'Auto' },
 			{ id: 'claude-sonnet', name: 'Claude Sonnet' },
@@ -16774,28 +16852,11 @@ suite('CopilotAgent', () => {
 		afterTest(() => disposeAgent(agent));
 		await agent.authenticate('https://api.github.com', 'token');
 		const published = await waitForState(agent.models, published => published.length === models.length);
-		const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
-		assert.deepStrictEqual(published.map(model => model.configSchema?.properties.autoTier), [
-			{ ...auto, default: undefined },
-			undefined,
-		]);
 
-		assert.deepStrictEqual({
-			auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels, enumDescriptions: auto?.enumDescriptions },
-			concrete,
-		}, {
-			auto: {
-				enum: ['efficiency', 'balance', 'intelligence'],
-				default: 'balance',
-				enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
-				enumDescriptions: [
-					'Optimizes for cost and speed, using more capable models only when needed.',
-					'Balances cost/speed and capability based on task complexity.',
-					'Optimizes for capability, using faster models only when the task allows it.',
-				],
-			},
-			concrete: undefined,
-		});
+		assert.deepStrictEqual(published.map(model => ({ id: model.id, tier: model.configSchema?.properties.tier, autoTier: model.configSchema?.properties.autoTier })), [
+			{ id: 'auto', tier: undefined, autoTier: undefined },
+			{ id: 'claude-sonnet', tier: undefined, autoTier: undefined },
+		]);
 	});
 
 	test('configSchema offers the provider Auto tiers from models.list in its order and default, naming and describing any it leaves unnamed or undescribed', async () => {
@@ -16812,7 +16873,7 @@ suite('CopilotAgent', () => {
 				{ id: 'ensemble', displayName: 'Ensemble', description: 'Unknown execution', type: 'ensemble', status: { enabled: true } },
 			],
 		};
-		const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true } });
+		const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: {} });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
@@ -16856,10 +16917,7 @@ suite('CopilotAgent', () => {
 			{ id: 'fast', displayName: 'Fast', description: '', type: 'auto', status: { enabled: true, pickerVisible: false } },
 		];
 		client.autoTierMetadata = { defaultTier: 'balance', tiers };
-		const { agent } = createTestAgentContext(disposables, {
-			copilotClient: client,
-			rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-		});
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
@@ -16903,7 +16961,7 @@ suite('CopilotAgent', () => {
 				{ id: 'staged', displayName: 'Staged', description: '', type: 'auto', status: { enabled: true, pickerVisible: false } as { enabled: boolean } },
 			],
 		};
-		const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true } });
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: {} });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
@@ -16931,7 +16989,7 @@ suite('CopilotAgent', () => {
 			defaultTier: 'balance',
 			tiers: [
 				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: false, message: 'Paused' } },
-				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
+				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: false, message: 'Not available on your plan' } },
 			],
 		};
 		const agent = createTestAgent(disposables, { copilotClient: client });
@@ -16947,7 +17005,7 @@ suite('CopilotAgent', () => {
 				accepted: ['balance', 'efficiency', 'intelligence', 'hydrafusion-max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
 			}, {
 				tierSchema: { enum: [], hasDefault: false },
-				unavailable: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }],
+				unavailable: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }, { id: 'hydrafusion-max', label: 'Max', enabled: false, message: 'Not available on your plan' }],
 				accepted: [undefined, undefined, undefined, undefined],
 			});
 		} finally {
@@ -16956,64 +17014,51 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('offers and accepts the provider\'s HydraFusion tiers only with dynamic Auto tiers, which turn HydraFusion v2 on', async () => {
-		const run = async (rootConfig: Record<string, unknown>) => {
-			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-			client.autoTierMetadata = {
-				defaultTier: 'hydrafusion-max',
-				tiers: [
-					{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
-					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
-					{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
-				],
-			};
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig });
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
-				const tier = published.find(model => model.id === 'auto')?.configSchema?.properties.tier;
-				return {
-					enum: tier?.enum,
-					default: tier?.default,
-					acceptsMax: getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion-max' } }) === 'hydrafusion-max',
-				};
-			} finally {
-				await disposeAgent(agent);
-				setAdvertisedAutoModeTiers(undefined);
-			}
+	test('offers and accepts the provider\'s HydraFusion tiers, including HydraFusion Max', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		client.autoTierMetadata = {
+			defaultTier: 'hydrafusion-max',
+			tiers: [
+				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
+			],
 		};
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+			const tier = published.find(model => model.id === 'auto')?.configSchema?.properties.tier;
 
-		assert.deepStrictEqual({
-			withoutDynamicAutoTiers: await run({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
-			withDynamicAutoTiers: await run({ [CopilotCliConfigKey.DynamicAutoTiers]: true }),
-		}, {
-			withoutDynamicAutoTiers: { enum: ['balance'], default: 'balance', acceptsMax: false },
-			withDynamicAutoTiers: { enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'hydrafusion-max', acceptsMax: true },
-		});
+			assert.deepStrictEqual({
+				enum: tier?.enum,
+				default: tier?.default,
+				accepted: ['hydrafusion', 'hydrafusion-max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
+			}, {
+				enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
+				default: 'hydrafusion-max',
+				accepted: ['hydrafusion', 'hydrafusion-max'],
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers(undefined);
+		}
 	});
 
-	test('offers Auto with its routing profiles when the runtime lists no models', async () => {
+	test('offers Auto without built-in tiers when the runtime lists no models and CAPI provides no tiers', async () => {
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([], []) });
 		afterTest(() => disposeAgent(agent));
 		await agent.authenticate('https://api.github.com', 'token');
 		const published = await waitForState(agent.models, published => published.length > 0);
-		const tier = published[0].configSchema?.properties.tier;
 
-		assert.deepStrictEqual({
-			models: published.map(model => ({ id: model.id, name: model.name })),
-			tier: { enum: tier?.enum, default: tier?.default },
-		}, {
-			models: [{ id: 'auto', name: 'Auto' }],
-			tier: { enum: ['efficiency', 'balance', 'intelligence'], default: 'balance' },
-		});
+		assert.deepStrictEqual(published.map(model => ({ id: model.id, name: model.name, configSchema: model.configSchema })), [
+			{ id: 'auto', name: 'Auto', configSchema: undefined },
+		]);
 	});
 
-	test('does not retry an empty refresh with only fallback Auto and HydraFusion and accepts a later catalog', async () => {
+	test('does not retry an empty refresh with only fallback Auto and accepts a later catalog', async () => {
 		const client = new TestCopilotClient([], []);
-		const { agent } = createTestAgentContext(disposables, {
-			copilotClient: client,
-			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
-		});
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 		let clock: ReturnType<typeof useFakeTimers> | undefined;
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
@@ -17032,9 +17077,9 @@ suite('CopilotAgent', () => {
 				models: agent.models.get().map(model => model.id),
 				requestCount: client.modelListRequests.length,
 			}, {
-				emptyCatalogModels: ['auto', 'hydrafusion'],
+				emptyCatalogModels: ['auto'],
 				requestsAfterEmptyRefresh: 2,
-				models: ['gpt-4o', 'hydrafusion'],
+				models: ['gpt-4o'],
 				requestCount: 3,
 			});
 		} finally {
@@ -17043,22 +17088,22 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('a runtime that lists no models accepts unlisted models beside HydraFusion, as an empty catalog does', async () => {
-		const { agent } = createTestAgentContext(disposables, {
-			copilotClient: new TestCopilotClient([], []),
-			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
-		});
-		afterTest(() => disposeAgent(agent));
-		await agent.authenticate('https://api.github.com', 'token');
-		await agent.refreshModels();
-		const validation = await (agent as unknown as { _validateModelSelection(model: ModelSelection): Promise<void> })
-			._validateModelSelection({ id: 'claude-haiku-4.5' })
-			.then(() => 'accepted', () => 'rejected');
+	test('a runtime that lists no models accepts unlisted models, as an empty catalog does', async () => {
+		const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([], []) });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const validation = await (agent as unknown as { _validateModelSelection(model: ModelSelection): Promise<void> })
+				._validateModelSelection({ id: 'claude-haiku-4.5' })
+				.then(() => 'accepted', () => 'rejected');
 
-		assert.deepStrictEqual({ models: agent.models.get().map(model => model.id), validation }, {
-			models: ['auto', 'hydrafusion'],
-			validation: 'accepted',
-		});
+			assert.deepStrictEqual({ models: agent.models.get().map(model => model.id), validation }, {
+				models: ['auto'],
+				validation: 'accepted',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	suite('contextSize to contextTier mapping', () => {
@@ -17269,21 +17314,18 @@ suite('CopilotAgent', () => {
 		}
 	}
 
-	for (const enabled of [false, true]) {
-		test(`agent-created sessions set experimental mode for HydraFusion=${enabled}`, async () => {
-			const { agent, instantiationService } = createTestAgentContext(disposables, {
-				environmentServiceRegistration: 'native',
-				sessionDataService: disposables.add(new TestSessionDataService()),
-				rootConfig: { [CopilotCliConfigKey.HydraFusion]: enabled },
-			});
-			afterTest(() => disposeAgent(agent));
-			const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
-			const session = disposables.add(createdSession.session);
-			await session.initializeSession();
-
-			assert.strictEqual(createdSession.createOptions()?.enableExperimentalMode, enabled ? true : undefined);
+	test('agent-created sessions always set experimental mode', async () => {
+		const { agent, instantiationService } = createTestAgentContext(disposables, {
+			environmentServiceRegistration: 'native',
+			sessionDataService: disposables.add(new TestSessionDataService()),
 		});
-	}
+		afterTest(() => disposeAgent(agent));
+		const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+		const session = disposables.add(createdSession.session);
+		await session.initializeSession();
+
+		assert.strictEqual(createdSession.createOptions()?.enableExperimentalMode, true);
+	});
 
 	test('agent-created sessions can resolve session-state paths via the injected Copilot home', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
@@ -17978,11 +18020,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 			configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
@@ -17999,11 +18037,7 @@ suite('CopilotAgent', () => {
 			const chat = defaultChatUri(session);
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 
@@ -18019,11 +18053,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 			assert.deepStrictEqual(await agent.listChatsToMigrate(), []);
@@ -18036,11 +18066,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			// No marker written: standalone SDK chats are not legacy extension-host sessions.
@@ -18054,11 +18080,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			// The GitHub Copilot app writes the same marker with `origin: 'other'`.
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
@@ -18727,11 +18749,7 @@ suite('CopilotAgent', () => {
 			})]);
 			// Migration stays off: external discovery must not depend on it.
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'external-cli', external: true, adoptable: false },
 			]);
@@ -18747,11 +18765,7 @@ suite('CopilotAgent', () => {
 				modifiedTime: new Date(),
 			})]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			// The GitHub Copilot app writes the same sidecar with `origin: 'other'`.
 			await writeExtensionHostMarker(userHome, 'other-origin', { origin: 'other' });
 
@@ -18779,11 +18793,7 @@ suite('CopilotAgent', () => {
 				sdkSession('rejected-external-log', workingDirectory, { clientName: 'other/client', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, logService });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await collectDiscoveredChats(agent);
 
 			assert.deepStrictEqual(
@@ -18805,11 +18815,7 @@ suite('CopilotAgent', () => {
 				sdkSession('missing-client', workingDirectory, { modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
 		});
 
@@ -18824,11 +18830,7 @@ suite('CopilotAgent', () => {
 				sdkSession('outside-boundary', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date(sevenDaysAgo - 1) }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, now: () => now });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'at-boundary', external: true, adoptable: false },
 			]);
@@ -18843,11 +18845,7 @@ suite('CopilotAgent', () => {
 				sdkSession('missing-repository-autopilot', workingDirectory, { clientName: 'github/autopilot', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'missing-repository-cli', external: true, adoptable: false },
 				{ id: 'missing-repository-autopilot', external: true, adoptable: false },
@@ -18862,11 +18860,7 @@ suite('CopilotAgent', () => {
 				sdkSession('repository-less', workingDirectory, { clientName: 'github/autopilot', repository: '', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'repository-less', external: true, adoptable: false },
 			]);
@@ -18884,11 +18878,7 @@ suite('CopilotAgent', () => {
 				sdkSession('cli-folder', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'app-chat', external: true, adoptable: false, workspaceless: true },
 				{ id: 'cli-folder', external: true, adoptable: false },
@@ -18907,11 +18897,7 @@ suite('CopilotAgent', () => {
 				userHome,
 				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
 			});
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'ehcli-discovery', external: false, adoptable: true },
 			]);
@@ -18929,11 +18915,7 @@ suite('CopilotAgent', () => {
 				userHome,
 				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
 			});
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'ehcli-archived', external: false, adoptable: true, archived: true },
 			]);
@@ -18997,11 +18979,7 @@ suite('CopilotAgent', () => {
 				sdkSession('workspaceless', undefined, { clientName: 'github/cli', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
 		});
 		/** Discovered chats with the working directory each one resolved to. */
@@ -19031,11 +19009,7 @@ suite('CopilotAgent', () => {
 				userHome,
 				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
 			});
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredWorkingDirectories(agent), [
 				{ id: 'marker-cwd', workingDirectory: URI.file(workingDirectory).fsPath },
 			]);
@@ -19109,11 +19083,7 @@ suite('CopilotAgent', () => {
 				sdkSession('healthy', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 				{ id: 'healthy', external: true, adoptable: false },
 			]);
@@ -19144,11 +19114,7 @@ suite('CopilotAgent', () => {
 					AgentSession.uri('copilotcli', 'known-b').toString(),
 				]);
 			});
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual({
 				discovered: await collectDiscoveredChats(agent),
 				filterCalls,
@@ -19174,11 +19140,7 @@ suite('CopilotAgent', () => {
 			const gitService = new CountingGitService();
 			const client = new TestCopilotClient([sdkSession('ehcli-skipped', workingDirectory)]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, gitService });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await writeExtensionHostMarker(userHome, 'ehcli-skipped');
 
 			assert.deepStrictEqual({
@@ -19215,11 +19177,7 @@ suite('CopilotAgent', () => {
 			db.dispose();
 			const client = new TestCopilotClient([sdkSession('bulk-metadata', workingDirectory)]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await collectDiscoveredChats(agent);
 
 			assert.deepStrictEqual(calls, ['getMetadataObject']);
@@ -21285,9 +21243,9 @@ suite('CopilotAgent', () => {
 			const context = exactChatContext(result.session, chat, result.session);
 			const materialized: IAgentMaterializeChatEvent[] = [];
 			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
-			// What each send reported: 'used', or the reason it discarded the early launch.
+			// What each send reported: 'used', the reason it discarded the early launch, or why it found none.
 			const prewarm: string[] = [];
-			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used') };
+			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used'), reportPrewarmSkipped: reason => prewarm.push(`skipped:${reason}`) };
 			return {
 				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
 				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
@@ -21308,6 +21266,54 @@ suite('CopilotAgent', () => {
 				afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 				sends: 1,
 			});
+		});
+
+		test('a prepared turn that claims the warm launch reports it once', async () => {
+			const h = await createWarmableAgent('warm-prepared-turn');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.prepareTurn!(h.chat, 'turn-1', [workingDirectory], h.sendContext);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a send without a warm launch reports why the draft has none', async () => {
+			const results: Record<string, string[]> = {};
+			for (const skipped of [undefined, 'disabled', 'customizationsPending'] as const) {
+				const h = await createWarmableAgent(`warm-skipped-${skipped ?? 'none'}`);
+				try {
+					if (skipped) {
+						h.agent.chats.noteWarmSkipped!(h.chat, h.context, skipped);
+					}
+					await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+					results[skipped ?? 'none'] = h.state().prewarm;
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, {
+				none: ['skipped:notRequested'],
+				disabled: ['skipped:disabled'],
+				customizationsPending: ['skipped:customizationsPending'],
+			});
+		});
+
+		test('a skip noted after warming does not hide the warm launch', async () => {
+			const h = await createWarmableAgent('warm-skip-after-warm');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				h.agent.chats.noteWarmSkipped!(h.chat, h.context, 'disabled');
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.state().prewarm, ['used']);
+			} finally {
+				await disposeAgent(h.agent);
+			}
 		});
 
 		test('a send that arrives during the warm launch waits for it and claims it', async () => {
@@ -21370,18 +21376,64 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
 		});
 
-		test('a model option change before the first send starts it cold instead of applying it live', async () => {
+		test('a model option change before the first send is applied live to the warm launch', async () => {
 			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
 			afterTest(() => disposeAgent(h.agent));
 			await h.agent.chats.warmChat!(h.chat, h.context);
-			const sdkSessionId = h.sdkSessionId();
 			await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
 			const afterModelChange = h.state();
 			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
-			assert.deepStrictEqual({ afterModelChange, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, setModel: h.sdkSessions.map(s => s.setModelCalls.length) } }, {
+			assert.deepStrictEqual({ afterModelChange, afterSend: { ...h.state(), setModel: h.sdkSessions.map(s => s.setModelCalls.length), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
 				afterModelChange: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
-				afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: ['modelChanged'], deleted: [sdkSessionId], live: true, setModel: [0, 0] },
+				afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true, setModel: [1], sends: [1] },
+			});
+		});
+
+		test('a retry after a claim cancelled past setModel reapplies the options the retry selects', async () => {
+			const h = await createWarmableAgent('warm-model-config-cancelled', undefined, { model: { id: 'claude-sonnet' } });
+			afterTest(() => disposeAgent(h.agent));
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			const warmSession = chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession;
+			// Cancels the first claim after its model options were applied, then behaves normally.
+			const updateClientTools = warmSession.updateClientTools;
+			warmSession.updateClientTools = async () => {
+				warmSession.updateClientTools = updateClientTools;
+				throw new CancellationError();
+			};
+			await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
+			const cancelled = await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext).then(() => false, error => isCancellationError(error));
+			await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-2', undefined, h.sendContext);
+
+			assert.deepStrictEqual({
+				cancelled,
+				prewarm: h.state().prewarm,
+				creates: h.state().creates,
+				appliedOptions: h.sdkSessions[0].setModelCalls.map(([, options]) => options?.reasoningEffort),
+				applied: warmSession.appliedModelSelection,
+			}, {
+				cancelled: true,
+				prewarm: ['used'],
+				creates: 1,
+				appliedOptions: ['high', undefined],
+				applied: { id: 'claude-sonnet' },
+			});
+		});
+
+		test('a model option change starts the first send cold when the launch set capability overrides that setModel drops', async () => {
+			const h = await createWarmableAgent('warm-model-config-override', undefined, {
+				model: { id: 'claude-sonnet' },
+				rootConfig: { [CopilotCliConfigKey.ModelCapabilityOverrides]: { 'claude-sonnet': { modelCapabilities: { supports: { vision: false } } } } },
+			});
+			afterTest(() => disposeAgent(h.agent));
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			const sdkSessionId = h.sdkSessionId();
+			await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
+			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+			assert.deepStrictEqual({ ...h.state(), deleted: h.client.deletedSessionIds, setModel: h.sdkSessions.map(s => s.setModelCalls.length) }, {
+				creates: 2, mcpLists: 1, materialized: 1, prewarm: ['modelChanged'], deleted: [sdkSessionId], live: true, setModel: [0, 0],
 			});
 		});
 
@@ -21399,7 +21451,7 @@ suite('CopilotAgent', () => {
 				launches: h.launchConfigs.map(config => ({ model: config.model, modelCapabilities: config.modelCapabilities })),
 				sends: h.sdkSessions.map(s => s.sendCalls),
 			}, {
-				prewarm: ['modelChanged'],
+				prewarm: ['modelSelected'],
 				launches: [{ model: undefined, modelCapabilities: undefined }, { model: 'claude-sonnet', modelCapabilities: { supports: { vision: false } } }],
 				sends: [0, 1],
 			});
@@ -21450,7 +21502,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({ afterTeardown, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, sdkSessionIds: h.sdkSessions.map(s => s.sessionId), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
 					afterTeardown: { live: false },
-					afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: [], live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
+					afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: ['skipped:released'], live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
 				});
 			});
 		}
@@ -22581,7 +22633,7 @@ suite('CopilotAgent', () => {
 				clientToken: undefined,
 				configToken: 'connector-session-token',
 				hasTokenProvider: false,
-				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 			});
 		});
 
@@ -24278,6 +24330,15 @@ suite('CopilotAgent', () => {
 
 	suite('chat create / fork / model+agent / restore round-trip', () => {
 
+		// A provider that advertises the classic Auto tiers, so the tier routing these tests check is accepted.
+		setup(() => setAdvertisedAutoModeTiers(autoModeTiers));
+		teardown(() => setAdvertisedAutoModeTiers(undefined));
+		// The same tiers served by a client whose catalog the agent publishes.
+		const classicAutoTierMetadata: TestCopilotClient['autoTierMetadata'] = {
+			defaultTier: 'balance',
+			tiers: autoModeTiers.map(id => ({ id, displayName: id, description: '', type: 'auto', status: { enabled: true } })),
+		};
+
 		/** Internal surface these chat-routing tests reach into to stub the SDK/agent-session seam. */
 		type ChatInternals = {
 			_chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }>;
@@ -25730,6 +25791,7 @@ suite('CopilotAgent', () => {
 		test('changeModel forwards and persists Auto routing preferences and resets', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = classicAutoTierMetadata;
 			const sdkSession = new MockCopilotSession();
 			client.createSession = async () => sdkSession as unknown as CopilotSession;
 			const { agent } = createTestAgentContext(disposables, {
@@ -25832,6 +25894,7 @@ suite('CopilotAgent', () => {
 		test('applies a provisional Auto routing preference on the first send without opting in', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = classicAutoTierMetadata;
 			const capiCalls: SessionConfig['capi'][] = [];
 			client.createSession = async config => {
 				capiCalls.push(config.capi);
@@ -25865,6 +25928,7 @@ suite('CopilotAgent', () => {
 			test(`explicit ${selectedTier} selected during Auto initialization wins after the captured send`, async () => {
 				const sessionDataService = disposables.add(new TestSessionDataService());
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+				client.autoTierMetadata = classicAutoTierMetadata;
 				const launchStarted = new DeferredPromise<void>();
 				const launchGate = new DeferredPromise<void>();
 				let initialTier: SessionConfig['capi'];
@@ -27264,6 +27328,10 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('config-driven session refresh', () => {
+
+		// A provider that advertises the classic Auto tiers, so the tier routing these tests check is accepted.
+		setup(() => setAdvertisedAutoModeTiers(autoModeTiers));
+		teardown(() => setAdvertisedAutoModeTiers(undefined));
 		test('discovered URI caches do not restart the SDK across greeting and browser tool toggles', async () => {
 			await fs.mkdir(join(process.cwd(), '.build'), { recursive: true });
 			const root = await fs.mkdtemp(join(process.cwd(), '.build', 'customization-uri-cache-'));
@@ -29918,11 +29986,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'Legacy title' });
 			// Metadata an older build wrote: adopted, but without the provenance marker.
@@ -29956,11 +30020,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 			await writeExtensionHostRequestDetails(userHome, sessionId, [
@@ -30029,11 +30089,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			const seed = sessionDataService.openDatabase(session);
 			await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
@@ -30058,11 +30114,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', archived: false });
 			// Populate the marker cache, as discovery does when it classifies the chat.
@@ -30090,11 +30142,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 			// Classify it as legacy while the marker is readable, then corrupt it.
@@ -30122,11 +30170,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId, {
 				origin: 'vscode',
@@ -30146,11 +30190,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 
@@ -30254,11 +30294,7 @@ suite('CopilotAgent', () => {
 				return origGetSessionMetadata(id);
 			};
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			// Marker contains only `origin: 'vscode'` (no workspacePath).
 			await writeExtensionHostMarker(userHome, sessionId);
@@ -30350,11 +30386,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', archived: true });
 
@@ -30378,11 +30410,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 			await writeExtensionHostRequestDetails(userHome, sessionId, [
@@ -30421,11 +30449,7 @@ suite('CopilotAgent', () => {
 			// No SDK `name`: the staged custom title is the adopted title (it beats the summary).
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'My Legacy Session' });
 
@@ -30462,11 +30486,7 @@ suite('CopilotAgent', () => {
 			// name must win over both the staged custom title and the summary.
 			const client = new TestCopilotClient([{ ...sdkSession(sessionId, workingDirectory), name: 'Telemetry analysis for Agents window' }]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'Staged VS Code Title' });
 
@@ -30491,11 +30511,7 @@ suite('CopilotAgent', () => {
 			// summary is the last title source when there is no custom title or name.
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 
@@ -30519,11 +30535,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
 
@@ -30915,11 +30927,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
-			afterTest(async () => {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
-				await fs.rm(workingDirectory, { recursive: true, force: true });
-				await disposeAgent(agent);
-			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			// Older VS Code markers predate the `origin` field but carry VS
 			// Code-specific properties; the EH `getSessionOrigin` heuristic

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, equals } from '../../../../../../base/common/arrays.js';
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { getErrorMessage } from '../../../../../../base/common/errors.js';
 import { createCommandUri, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -17,7 +18,7 @@ import { localize } from '../../../../../../nls.js';
 import { isAgentHostSandboxDisablingBlocked } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { readAgentSandboxCertificate } from '../../../../../../platform/agentHost/common/meta/agentSandboxCertificate.js';
 import { readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
@@ -66,9 +67,14 @@ export class AgentHostSandboxNotification extends Disposable {
 	private _certificateScope: string | undefined;
 	private _certificateInputUri: URI | undefined;
 	private _certificateCanInstall = false;
+	private _certificateCanRefresh = false;
+	private _certificateHasError = false;
+	private _certificateIsRemote = false;
 	private _certificateBusy = false;
+	private _certificateRefreshing = false;
 	private _certificateOperation: CertificateOperation | undefined;
 	private readonly _installCommandId = `_chat.installSandboxCertificate.${generateUuid()}`;
+	private readonly _refreshCommandId = `_chat.refreshSandboxCertificate.${generateUuid()}`;
 	private _reasons: readonly string[] | undefined;
 	private _localNetworkMessage: string | undefined;
 	private readonly _disableCommandId = `_chat.disableSandboxing.${generateUuid()}`;
@@ -115,6 +121,7 @@ export class AgentHostSandboxNotification extends Disposable {
 			}
 		}));
 		this._register(CommandsRegistry.registerCommand(this._installCommandId, () => this._runCertificateOperation('install')));
+		this._register(CommandsRegistry.registerCommand(this._refreshCommandId, () => this._refreshCertificate()));
 		this._register(CommandsRegistry.registerCommand(this._disableCommandId, async () => {
 			if (!this._canDisableSandboxing(this._subscription.value)) {
 				throw new Error(localize('agentHost.sandboxDisableUnavailable', "Sandboxing cannot be disabled in settings for this session. It may be required by your organization."));
@@ -143,6 +150,9 @@ export class AgentHostSandboxNotification extends Disposable {
 			}
 			if (connection?.rotateSandboxCertificate) {
 				connection.sandboxCertificateRotationSupported?.read(reader);
+			}
+			if (connection?.refreshSandboxCertificate) {
+				connection.sandboxCertificateRefreshSupported?.read(reader);
 			}
 			this._update(this._subscription.value);
 		}));
@@ -210,29 +220,42 @@ export class AgentHostSandboxNotification extends Disposable {
 		let scope: string | undefined;
 		let inputUri: URI | undefined;
 		let canInstall = false;
+		let canRefresh = false;
+		let hasError = false;
+		let isRemote = false;
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		if (state && !(state instanceof Error) && !this._chatEntitlementService.sentiment.hidden
 			&& widget?.visible && isEqual(widget.viewModel?.sessionResource, this._sessionResource)) {
 			const chat = getAgentHostBackendChat(this._sessionResource, state);
 			const certificate = chat !== undefined ? readAgentSandboxCertificate(state, chat) : undefined;
 			const resolution = this._connectionsService.resolveSessionResource(this._sessionResource);
-			if (certificate && ((certificate.state === 'notInstalled' && certificate.canInstall) || (this._certificateOperation !== undefined && certificate.state === 'installed')) && resolution
+			const supportsRefresh = resolution && !this._isLocalCertificateHost(resolution.connection)
+				&& !!resolution.connection.refreshSandboxCertificate && resolution.connection.sandboxCertificateRefreshSupported?.get() === true;
+			if (certificate && ((certificate.state === 'notInstalled' && certificate.canInstall) || (supportsRefresh && certificate.state === 'error')
+				|| this._certificateRefreshing || (this._certificateOperation !== undefined && certificate.state === 'installed')) && resolution
 				&& readAgentHostChatSandboxState(state, chat)?.enabled !== false) {
 				const key = JSON.stringify([resolution.connectionAuthority, certificate.scopeId]);
 				if (!this._dismissedCertificateScopes.has(key) || this._certificateBusy) {
 					scope = key;
 					inputUri = widget.input.inputUri;
-					canInstall = !!resolution.connection.installSandboxCertificate
+					isRemote = !this._isLocalCertificateHost(resolution.connection);
+					canRefresh = supportsRefresh === true;
+					hasError = certificate.state === 'error';
+					canInstall = !isRemote && !!resolution.connection.installSandboxCertificate
 						&& resolution.connection.sandboxCertificateInstallationSupported?.get() === true;
 				}
 			}
 		}
-		if (!force && this._certificateScope === scope && isEqual(this._certificateInputUri, inputUri) && this._certificateCanInstall === canInstall) {
+		if (!force && this._certificateScope === scope && isEqual(this._certificateInputUri, inputUri) && this._certificateCanInstall === canInstall
+			&& this._certificateCanRefresh === canRefresh && this._certificateHasError === hasError && this._certificateIsRemote === isRemote) {
 			return;
 		}
 		this._certificateScope = scope;
 		this._certificateInputUri = inputUri;
 		this._certificateCanInstall = canInstall;
+		this._certificateCanRefresh = canRefresh;
+		this._certificateHasError = hasError;
+		this._certificateIsRemote = isRemote;
 		if (!scope) {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
@@ -242,34 +265,52 @@ export class AgentHostSandboxNotification extends Disposable {
 			localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
 		);
 		const description = new MarkdownString();
-		description.appendMarkdown(this._certificateOperation === 'remove'
-			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
-			: this._certificateOperation === 'rotate'
-				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize({
-					key: 'agentHost.sandboxCertificateMissingDetail',
-					comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
-				}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
+		description.appendMarkdown(this._certificateRefreshing
+			? localize('agentHost.sandboxCertificateRefreshingDetail', "Checking certificate status on the remote agent host without changing trust.")
+			: hasError
+				? localize('agentHost.sandboxCertificateRefreshErrorDetail', "The remote agent host could not check certificate status. Select Refresh to try again.")
+				: this._certificateOperation === 'remove'
+					? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
+					: this._certificateOperation === 'rotate'
+						? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
+						: isRemote
+							? localize({
+								key: 'agentHost.sandboxCertificateMissingRemoteDetail',
+								comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+							}, "Install the sandbox certificate authority (CA) on remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value)
+							: localize({
+								key: 'agentHost.sandboxCertificateMissingDetail',
+								comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+							}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
 			severity: ChatInputNotificationSeverity.Info,
-			message: this._certificateOperation === 'remove'
-				? localize('agentHost.sandboxCertificateRemoving', "Removing sandbox certificate trust")
-				: this._certificateOperation === 'rotate'
-					? localize('agentHost.sandboxCertificateRotating', "Rotating sandbox certificate")
-					: this._certificateOperation === 'install'
-						? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
-						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed (optional)"),
+			message: this._certificateRefreshing
+				? localize('agentHost.sandboxCertificateRefreshing', "Checking sandbox certificate status")
+				: hasError
+					? localize('agentHost.sandboxCertificateStatusUnavailable', "Sandbox certificate status is unavailable")
+					: this._certificateOperation === 'remove'
+						? localize('agentHost.sandboxCertificateRemoving', "Removing sandbox certificate trust")
+						: this._certificateOperation === 'rotate'
+							? localize('agentHost.sandboxCertificateRotating', "Rotating sandbox certificate")
+							: this._certificateOperation === 'install'
+								? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
+								: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed (optional)"),
 			description,
-			actions: canInstall && !this._certificateBusy ? [{
+			actions: this._certificateBusy ? [] : canRefresh ? [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('agentHost.refreshSandboxCertificate', "Refresh"),
+				commandId: this._refreshCommandId,
+				keepOpen: true,
+			}] : canInstall ? [{
 				kind: ChatInputNotificationActionKind.Command,
 				label: localize('agentHost.installSandboxCertificate', "Install"),
 				tooltip: localize('agentHost.installSandboxCertificateTooltip', "Install the sandbox certificate on this chat's agent host"),
 				commandId: this._installCommandId,
 				keepOpen: true,
 			}] : [],
-			...(this._certificateOperation ? { progress: {} } : {}),
+			...(this._certificateOperation || this._certificateRefreshing ? { progress: {} } : {}),
 			dismissible: true,
 			onDismiss: () => {
 				this._dismissedCertificateScopes.add(scope);
@@ -278,6 +319,42 @@ export class AgentHostSandboxNotification extends Disposable {
 			autoDismissOnMessage: false,
 			sessionResources: [this._sessionResource],
 		});
+	}
+
+	private async _refreshCertificate(): Promise<void> {
+		if (this._certificateBusy) {
+			return;
+		}
+		this._certificateBusy = true;
+		try {
+			const state = this._subscription.value;
+			const chat = state && !(state instanceof Error) ? getAgentHostBackendChat(this._sessionResource, state) : undefined;
+			const certificate = state && !(state instanceof Error) && chat !== undefined ? readAgentSandboxCertificate(state, chat) : undefined;
+			const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
+			if (this._store.isDisposed || this._chatEntitlementService.sentiment.hidden || !chat || !certificate
+				|| !connection?.refreshSandboxCertificate || connection.sandboxCertificateRefreshSupported?.get() !== true
+				|| this._isLocalCertificateHost(connection) || !state || state instanceof Error
+				|| readAgentHostChatSandboxState(state, chat)?.enabled === false) {
+				throw new Error(localize('agentHost.sandboxCertificate.refreshUnavailable', "Certificate refresh is no longer available for this remote chat. Check the connection and try again."));
+			}
+			this._certificateRefreshing = true;
+			this._updateCertificate(state, true);
+			await connection.refreshSandboxCertificate(chat, certificate.scopeId);
+			if (!this._store.isDisposed && !this._chatEntitlementService.sentiment.hidden
+				&& this._connectionsService.resolveSessionResource(this._sessionResource)?.connection === connection) {
+				status(localize('agentHost.sandboxCertificate.refreshed', "Sandbox certificate status refreshed."));
+			}
+		} catch (error) {
+			if (!this._store.isDisposed) {
+				await this._dialogService.error(localize('agentHost.sandboxCertificate.refreshFailed', "Could not refresh sandbox certificate status"), getErrorMessage(error));
+			}
+		} finally {
+			this._certificateBusy = false;
+			this._certificateRefreshing = false;
+			if (!this._store.isDisposed) {
+				this._updateCertificate(this._subscription.value, true);
+			}
+		}
 	}
 
 	/** Confirms the host trust-store change, then revalidates the original chat and runtime before sending it. */
@@ -347,6 +424,10 @@ export class AgentHostSandboxNotification extends Disposable {
 		}
 	}
 
+	private _isLocalCertificateHost(connection: IAgentConnection): boolean {
+		return !isWeb && !this._environmentService.remoteAuthority && connection === this._agentHostService;
+	}
+
 	private _certificateTarget(operation: CertificateOperation) {
 		const state = this._subscription.value;
 		const chat = state && !(state instanceof Error) ? getAgentHostBackendChat(this._sessionResource, state) : undefined;
@@ -370,6 +451,9 @@ export class AgentHostSandboxNotification extends Disposable {
 				throw new Error(localize('agentHost.sandboxCertificate.rotationUnavailable', "Sandbox certificate rotation is no longer available for this chat. Make sure the certificate is installed and the host supports rotation."));
 			}
 			throw new Error(localize('agentHost.sandboxCertificate.unavailable', "Sandbox certificate installation is no longer available for this chat."));
+		}
+		if (operation === 'install' && !this._isLocalCertificateHost(resolution.connection)) {
+			throw new Error(localize('agentHost.sandboxCertificate.remoteInstallationUnavailable', "Install the sandbox certificate on the remote agent host. Open a local desktop window of VS Code on that computer and run Sandbox: Manage Trusted CA from the Command Palette."));
 		}
 		const connection = resolution.connection;
 		return {
