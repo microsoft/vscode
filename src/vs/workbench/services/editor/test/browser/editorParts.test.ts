@@ -11,6 +11,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -115,6 +117,30 @@ suite('Editor Parts', () => {
 
 		return focusable;
 	}
+
+	test('a part created with services and what it shows can still use their instantiation services while they dispose, as the part closes', async () => {
+		const { instantiationService } = await createServices();
+		// A real instantiation service, whose children are disposed with it, unlike those of the test one.
+		const workbenchInstantiationService = disposables.add(new InstantiationService(new ServiceCollection(), false, instantiationService));
+		const parts = await createEditorParts(workbenchInstantiationService, disposables);
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const part = parts.createEditorPart({ container, services: new ServiceCollection() });
+		const used: string[] = [];
+		const listener = part.onWillDispose(() => {
+			try {
+				parts.getScopedInstantiationService(part).invokeFunction(() => used.push('part'));
+				workbenchInstantiationService.invokeFunction(() => used.push('workbench'));
+			} catch (error) {
+				used.push(String(error));
+			}
+		});
+
+		part.close();
+		listener.dispose();
+
+		assert.deepStrictEqual(used, ['part', 'workbench']);
+	});
 
 	test('several parts in one window: an element resolves to the closest part containing it', async () => {
 		const { instantiationService, parts } = await createServices();

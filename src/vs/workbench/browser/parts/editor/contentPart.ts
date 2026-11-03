@@ -107,10 +107,28 @@ export class ContentPart extends EditorPart implements IContentPart {
 			return false; // do not close when editors could not be merged back
 		}
 
+		this.doClose();
+
+		return true;
+	}
+
+	forceClose(): void {
+		if (!this.close()) {
+			this.doClose(); // the editors that could not be merged back close with the part
+		}
+	}
+
+	private closed = false;
+
+	private doClose(): void {
+		if (this.closed) {
+			return;
+		}
+
+		this.closed = true;
+
 		this._onWillClose.fire();
 		this._onDidClose.fire();
 		this._onDidRelease.fire();
-
-		return true;
 	}
 }

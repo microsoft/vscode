@@ -627,6 +627,12 @@ export interface IContentPart extends IEditorPart {
 	 * @returns `false` if an editor could not be moved back.
 	 */
 	close(): boolean;
+
+	/**
+	 * Closes this part like {@link close}, and also when an editor could not be
+	 * moved back, such as when its window goes away: such editors close with it.
+	 */
+	forceClose(): void;
 }
 
 export interface IModalEditorPart extends IEditorPart {

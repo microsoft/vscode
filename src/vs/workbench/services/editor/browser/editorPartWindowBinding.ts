@@ -13,7 +13,8 @@ import { IEditorGroupsService, IContentPart } from '../common/editorGroupsServic
  * to an auxiliary window that the caller owns:
  * - closing the window is vetoed when an editor in one of the parts cannot be moved to the main part
  *   (the editor is revealed in its group so that the user can resolve it),
- * - once the window unloads, the parts are closed, which merges their editors into the main part.
+ * - once the window unloads, the parts are closed, which merges their editors into the main part; editors that
+ *   cannot move there close with the parts.
  *
  * The returned disposable removes the binding without closing the parts.
  */
@@ -38,7 +39,7 @@ export function bindEditorPartsToWindow(window: IAuxiliaryWindow, parts: readonl
 
 	store.add(Event.once(window.onUnload)(() => {
 		for (const part of parts) {
-			part.close();
+			part.forceClose(); // the window is gone: what cannot move back closes with it
 		}
 		store.dispose();
 	}));

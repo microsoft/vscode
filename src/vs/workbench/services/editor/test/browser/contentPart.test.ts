@@ -27,6 +27,7 @@ import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEdito
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../browser/editorPartWindowBinding.js';
+import { ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
 
 suite('Content Part', () => {
@@ -269,6 +270,16 @@ suite('Content Part', () => {
 		assert.deepStrictEqual({ announced: announced.length > 0 && announced.every(isMain => isMain), active: parts.activeGroup === parts.mainPart.activeGroup }, { announced: true, active: true });
 	});
 
+	test('a part its owner never closed is released when the workbench shuts down', async () => {
+		const onDidShutdown = disposables.add(new Emitter<void>());
+		const parts = await createServices({ configure: instantiationService => instantiationService.stub(ILifecycleService, new class extends mock<ILifecycleService>() { override readonly onDidShutdown = onDidShutdown.event; }()) });
+		const part = parts.createEditorPart({ container: createContainer() });
+
+		onDidShutdown.fire();
+
+		assert.strictEqual(parts.parts.includes(part as never), false);
+	});
+
 	test('its last group stays, also as closing all editors closes empty groups: its owner closes it', async () => {
 		const parts = await createServices();
 
@@ -388,6 +399,24 @@ suite('Content Part', () => {
 				movableListed: parts.parts.includes(movable as never),
 				pinnedListed: parts.parts.includes(pinned as never)
 			}, { vetoed: ['cannot move'], allowed: [], movableListed: false, pinnedListed: false });
+		});
+
+		test('a part whose editors cannot move back is still closed and released when its window unloads', async () => {
+			const parts = await createServices();
+			const { onUnload, window } = createWindow();
+
+			const part = parts.createEditorPart({ container: createContainer() });
+			const input = createInput('/content/stuck.txt');
+			input.setDirty();
+			input.canMove = () => 'cannot move';
+			await part.activeGroup.openEditor(input);
+			const groupIds = part.groups.map(group => group.id);
+			const refused = part.close(); // what the unload tries first
+
+			disposables.add(bindEditorPartsToWindow(window, [part], parts));
+			onUnload.fire();
+
+			assert.deepStrictEqual({ refused, listed: parts.parts.includes(part as never), groupsLeft: parts.groups.filter(group => groupIds.includes(group.id)).length }, { refused: false, listed: false, groupsLeft: 0 });
 		});
 	});
 });

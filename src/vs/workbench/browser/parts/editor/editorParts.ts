@@ -32,6 +32,7 @@ import { IStatusbarService } from '../../../services/statusbar/browser/statusbar
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 import { EditorPartModalVisibleContext } from '../../../common/contextkeys.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 function isInPartGrid(element: Element | null): boolean {
 	return !!element?.closest(`.${PART_GRID_CLASS}`);
@@ -83,7 +84,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -200,7 +202,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		const disposables = new DisposableStore();
 		const container = options.container as HTMLElement;
 
-		const instantiationService = options.services ? disposables.add(this.instantiationService.createChild(options.services)) : this.instantiationService;
+		// The instantiation service of the part's services is disposed after the part, as disposing it disposes the scoped
+		// instantiation services of the part and its groups, which the part and what it shows use while they dispose.
+		const servicesDisposables = new DisposableStore();
+		const instantiationService = options.services ? servicesDisposables.add(this.instantiationService.createChild(options.services)) : this.instantiationService;
 		const part = instantiationService.createInstance(ContentPart, getWindow(container).vscodeWindowId, this, options);
 		const registration = disposables.add(this.registerPart(part));
 		disposables.add(part);
@@ -212,6 +217,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		))));
 		this.mapPartToInstantiationService.set(part, scopedInstantiationService);
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
+		disposables.add(servicesDisposables);
+
+		// Release the part on shutdown, also when its owner did not close it
+		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		// Release the part once its owner closed it: it leaves the parts first,
 		// then its groups are announced as removed, as those of a closing
