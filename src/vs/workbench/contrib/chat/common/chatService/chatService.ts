@@ -2243,6 +2243,8 @@ export interface IChatService {
 	 * Removes a pending request from the session's queue.
 	 */
 	removePendingRequest(sessionResource: URI, requestId: string): void;
+	/** Correlates a remotely consumed queue entry with its actual request, without canceling its submission. */
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void;
 	/**
 	 * Sets the pending requests for a session, allowing for deletions/reordering.
 	 * Adding new requests should go through sendRequest with the queue option.

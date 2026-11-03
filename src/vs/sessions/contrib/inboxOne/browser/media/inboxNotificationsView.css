@@ -77,11 +77,6 @@
 	max-width: none;
 }
 
-.inbox-notifications-feedback {
-	flex: none;
-	align-self: flex-start;
-}
-
 .inbox-notifications-content {
 	position: relative;
 	display: flex;
@@ -525,6 +520,7 @@
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	gap: var(--vscode-spacing-size100);
+	margin-top: var(--vscode-spacing-size120);
 }
 
 .inbox-notifications-sort-buttons {

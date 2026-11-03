@@ -9,7 +9,7 @@ import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/c
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, CancellationError, ErrorNoTelemetry, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -2725,6 +2725,63 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void {
+		const deferred = this._queuedRequestDeferreds.get(pendingRequestId);
+		const model = this._sessionModels.get(sessionResource);
+		if (!deferred || !model) {
+			return;
+		}
+		this._queuedRequestDeferreds.delete(pendingRequestId);
+		const store = new DisposableStore();
+		let completion: DeferredPromise<void> | undefined;
+		const cancel = () => {
+			if (completion) {
+				completion.error(new CancellationError());
+			} else {
+				deferred.complete({ kind: 'rejected', reason: localize('chat.consumedRequestRemoved', "The consumed request was removed or its session was disposed.") });
+			}
+			store.dispose();
+		};
+		store.add(model.onDidDispose(cancel));
+		store.add(model.onDidChange(event => {
+			if (event.kind === 'removeRequest' && event.requestId === requestId) {
+				cancel();
+			}
+		}));
+		const observeRequest = (request: IChatRequestModel) => {
+			const response = request.response;
+			const agent = response?.agent;
+			if (!response || !agent) {
+				deferred.complete({ kind: 'rejected', reason: localize('chat.consumedRequestUnavailable', "The consumed request has no response or participant.") });
+				store.dispose();
+				return;
+			}
+			const responseComplete = completion = new DeferredPromise<void>();
+			const checkComplete = () => {
+				if (response.isComplete || response.isCanceled) {
+					responseComplete.complete();
+					store.dispose();
+				}
+			};
+			store.add(response.onDidChange(checkComplete));
+			deferred.complete({
+				kind: 'sent',
+				data: { agent, responseCreatedPromise: Promise.resolve(response), responseCompletePromise: responseComplete.p },
+			});
+			checkComplete();
+		};
+		const request = model.getRequests().find(request => request.id === requestId);
+		if (request) {
+			observeRequest(request);
+		} else {
+			store.add(Event.once(Event.filter(model.onDidChange, event => event.kind === 'addRequest' && event.request.id === requestId))(event => {
+				if (event.kind === 'addRequest') {
+					observeRequest(event.request);
+				}
+			}));
+		}
+	}
+
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (model) {
@@ -2738,7 +2795,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const existing = model.getPendingRequests();
+		const existing = model.getPendingRequests().slice();
 		const existingById = new Map(existing.map(request => [request.request.id, request]));
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };

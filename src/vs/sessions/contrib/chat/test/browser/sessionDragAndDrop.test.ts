@@ -128,83 +128,83 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 	}
 });
 
-			suite('Sessions - Inbox Composer Drop Priority', () => {
-				const store = ensureNoDisposablesAreLeakedInTestSuite();
+suite('Sessions - Inbox Composer Drop Priority', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-				for (const enterThroughBackground of [false, true]) {
-					for (const titleHeight of [0, 30]) {
-						test(`attaches an image without opening an editor (background: ${enterThroughBackground}, title height: ${titleHeight})`, async () => {
-							const services = workbenchInstantiationService(undefined, store);
-							const attachments: IChatRequestVariableEntry[] = [];
-							const image: IChatRequestVariableEntry = { kind: 'image', id: 'screenshot', name: 'Screenshot.png', value: new Uint8Array([1]), mimeType: 'image/png' };
-							services.stub(IExtensionService, new class extends mock<IExtensionService>() {
-								override readonly extensions = [upcastPartial<IExtensionDescription>({ enabledApiProposals: ['chatReferenceBinaryData'] })];
-							}());
-							services.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
-							services.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() {
-								override async resolveEditorAttachContext() { return image; }
-							}());
-							const container = $('.test-editor-part');
-							container.style.cssText = 'position:fixed;left:40px;top:40px;width:400px;height:300px;';
-							const group = $('.test-editor-group');
-							group.style.cssText = 'position:relative;width:100%;height:100%;';
-							const background = $('.test-inbox-content', undefined, 'Inbox');
-							background.style.height = '180px';
-							const input = $('.test-inbox-composer');
-							input.style.cssText = 'position:absolute;left:20px;bottom:20px;width:360px;height:80px;';
-							const inputContent = $('span', undefined, 'Input');
-							input.appendChild(inputContent);
-							group.append(background, input);
-							container.appendChild(group);
-							document.body.appendChild(container);
-							store.add(toDisposable(() => container.remove()));
+	for (const enterThroughBackground of [false, true]) {
+		for (const titleHeight of [0, 30]) {
+			test(`attaches an image without opening an editor (background: ${enterThroughBackground}, title height: ${titleHeight})`, async () => {
+				const services = workbenchInstantiationService(undefined, store);
+				const attachments: IChatRequestVariableEntry[] = [];
+				const image: IChatRequestVariableEntry = { kind: 'image', id: 'screenshot', name: 'Screenshot.png', value: new Uint8Array([1]), mimeType: 'image/png' };
+				services.stub(IExtensionService, new class extends mock<IExtensionService>() {
+					override readonly extensions = [upcastPartial<IExtensionDescription>({ enabledApiProposals: ['chatReferenceBinaryData'] })];
+				}());
+				services.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
+				services.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() {
+					override async resolveEditorAttachContext() { return image; }
+				}());
+				const container = $('.test-editor-part');
+				container.style.cssText = 'position:fixed;left:40px;top:40px;width:400px;height:300px;';
+				const group = $('.test-editor-group');
+				group.style.cssText = 'position:relative;width:100%;height:100%;';
+				const background = $('.test-inbox-content', undefined, 'Inbox');
+				background.style.height = '180px';
+				const input = $('.test-inbox-composer');
+				input.style.cssText = 'position:absolute;left:20px;bottom:20px;width:360px;height:80px;';
+				const inputContent = $('span', undefined, 'Input');
+				input.appendChild(inputContent);
+				group.append(background, input);
+				container.appendChild(group);
+				document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
 
-							const groupsView = upcastDeepPartial<IEditorGroupsView>({
-								partOptions: { allowDropIntoGroup: true, showTabs: titleHeight ? 'multiple' : 'none' },
-							});
-							const groupView = upcastPartial<IEditorGroupView>({
-								element: group, groupsView, isEmpty: false, titleHeight: { offset: titleHeight, total: titleHeight },
-							});
-							services.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-								override get groups() { return [groupView]; }
-							}());
-							store.add(services.createInstance(EditorDropTarget, groupsView, container, { supportsSplitting: false }));
-							const inputDnd = store.add(services.createInstance(ChatDragAndDrop,
-								() => undefined,
-								{ attachments, addAttachments: entries => attachments.push(...entries) },
-								{ overlayBackground: '', listForeground: '', listBackground: '' },
-							));
-							inputDnd.addOverlay(input, input);
+				const groupsView = upcastDeepPartial<IEditorGroupsView>({
+					partOptions: { allowDropIntoGroup: true, showTabs: titleHeight ? 'multiple' : 'none' },
+				});
+				const groupView = upcastPartial<IEditorGroupView>({
+					element: group, groupsView, isEmpty: false, titleHeight: { offset: titleHeight, total: titleHeight },
+				});
+				services.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+					override get groups() { return [groupView]; }
+				}());
+				store.add(services.createInstance(EditorDropTarget, groupsView, container, { supportsSplitting: false }));
+				const inputDnd = store.add(services.createInstance(ChatDragAndDrop,
+					() => undefined,
+					{ attachments, addAttachments: entries => attachments.push(...entries) },
+					{ overlayBackground: '', listForeground: '', listBackground: '' },
+				));
+				inputDnd.addOverlay(input, input);
 
-							const dataTransfer = new DataTransfer();
-							dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([URI.file('/Screenshot.png').toString()]));
-							dataTransfer.items.add(new File(['image'], 'Screenshot.png', { type: 'image/png' }));
-							const dispatch = (element: HTMLElement, type: string) => element.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
-							if (enterThroughBackground) {
-								dispatch(background, 'dragenter');
-								assert.ok(group.querySelector('#monaco-workbench-editor-drop-overlay'), 'editor placement is still available outside the input');
-							}
-							const bounds = input.getBoundingClientRect();
-							const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
-							const inputReceivesPointer = !!hit && input.contains(hit);
-							dispatch(inputContent, 'dragenter');
-							const editorOverlayIntercepted = !!group.querySelector('#monaco-workbench-editor-drop-overlay');
-							dispatch(inputContent, 'dragover');
-							dispatch(inputContent, 'drop');
-							await timeout(0);
-							dispatch(background, 'dragenter');
-							const backgroundReceivesPlacement = !!group.querySelector('#monaco-workbench-editor-drop-overlay');
-							dispatch(background, 'dragend');
-							assert.deepStrictEqual({
-								inputReceivesPointer, editorOverlayIntercepted, backgroundReceivesPlacement,
-								attachments: attachments.map(entry => ({ kind: entry.kind, name: entry.name })),
-								overlayRemoved: !group.querySelector('#monaco-workbench-editor-drop-overlay'),
-								draggedOver: container.classList.contains('dragged-over'),
-							}, {
-								inputReceivesPointer: true, editorOverlayIntercepted: false, backgroundReceivesPlacement: true,
-								attachments: [{ kind: 'image', name: 'Screenshot.png' }], overlayRemoved: true, draggedOver: false,
-							});
-						});
-					}
+				const dataTransfer = new DataTransfer();
+				dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([URI.file('/Screenshot.png').toString()]));
+				dataTransfer.items.add(new File(['image'], 'Screenshot.png', { type: 'image/png' }));
+				const dispatch = (element: HTMLElement, type: string) => element.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
+				if (enterThroughBackground) {
+					dispatch(background, 'dragenter');
+					assert.ok(group.querySelector('#monaco-workbench-editor-drop-overlay'), 'editor placement is still available outside the input');
 				}
+				const bounds = input.getBoundingClientRect();
+				const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+				const inputReceivesPointer = !!hit && input.contains(hit);
+				dispatch(inputContent, 'dragenter');
+				const editorOverlayIntercepted = !!group.querySelector('#monaco-workbench-editor-drop-overlay');
+				dispatch(inputContent, 'dragover');
+				dispatch(inputContent, 'drop');
+				await timeout(0);
+				dispatch(background, 'dragenter');
+				const backgroundReceivesPlacement = !!group.querySelector('#monaco-workbench-editor-drop-overlay');
+				dispatch(background, 'dragend');
+				assert.deepStrictEqual({
+					inputReceivesPointer, editorOverlayIntercepted, backgroundReceivesPlacement,
+					attachments: attachments.map(entry => ({ kind: entry.kind, name: entry.name })),
+					overlayRemoved: !group.querySelector('#monaco-workbench-editor-drop-overlay'),
+					draggedOver: container.classList.contains('dragged-over'),
+				}, {
+					inputReceivesPointer: true, editorOverlayIntercepted: false, backgroundReceivesPlacement: true,
+					attachments: [{ kind: 'image', name: 'Screenshot.png' }], overlayRemoved: true, draggedOver: false,
+				});
 			});
+		}
+	}
+});

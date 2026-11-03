@@ -671,8 +671,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
 					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge
-							: status === SessionStatus.Completed && session.isRead.read(reader) ? InboxTab.Done : InboxTab.ReadyForYou;
+						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou;
 				const lead = notifications[0];
 				const title = this.getRowActionTitle(tab, lead, sessionTitle);
 				const chatResource = lead?.chatResource ?? lead?.needsInputPart?.chatResource;
@@ -1644,7 +1643,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		// Use provider state rather than a resident chat model, so loading/unloading history
 		// does not change the id or resurrect a dismissed notification.
-		if (status === SessionStatus.Completed && !session.isRead.read(reader) && itemsById.size === sizeBeforePullRequests) {
+		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
 			const turnId = session.lastTurnEnd.read(reader)?.getTime() ?? updatedAt;
 			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {

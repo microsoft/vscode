@@ -2882,6 +2882,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
+		disposables.add(chatSub.onWillApplyAction(envelope => {
+			const action = envelope.action;
+			if (!envelope.rejectionReason && action.type === ActionType.ChatTurnStarted && action.queuedMessageId) {
+				// Claim the submission before queue reconciliation treats its disappearance as cancellation.
+				this._chatService.consumePendingRequest(sessionResource, action.queuedMessageId, action.turnId);
+			}
+		}));
 		void this._acquireOrWaitForSession(sessionResource, disposables).then(model => {
 			if (!model || disposables.isDisposed) {
 				return;

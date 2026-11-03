@@ -288,6 +288,12 @@ suite('InboxNotificationsService', () => {
 				description: '',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
+			{
+				kind: InboxNotificationKind.Completed,
+				priority: InboxNotificationPriority.Later,
+				description: '',
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+			},
 		]);
 	});
 
@@ -376,7 +382,7 @@ suite('InboxNotificationsService', () => {
 		assert.notStrictEqual(active[0].id, firstId);
 	});
 
-	test('completed ids survive chat-model residency and unrelated metadata changes, and read cards leave the inbox', () => {
+	test('completed ids survive chat-model residency, metadata changes, and reading the session', () => {
 		const session = createSession({ id: 'stable-completion', status: SessionStatus.Completed, updatedAt: 200, lastTurnEnd: 100 });
 		const chatResource = session.mainChat.get().resource;
 		const chatService = new TestChatService();
@@ -390,8 +396,9 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(400), undefined);
 		assert.strictEqual(fixture.service.notifications.get().length, 1);
+		const nextId = fixture.service.notifications.get()[0].id;
 		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
-		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.id), [nextId]);
 	});
 
 	test('loads completed history only on detail request and releases the reference afterward', async () => {
@@ -1976,7 +1983,7 @@ suite('InboxNotificationsService', () => {
 		gitHubService.setReviewThreads('owner', 'repo', 43, [human, {
 			...human, id: 'lookalike', comments: [comment(3, 'not-copilot-reviewer')],
 		}]);
-		const ignored = fixture.service.notifications.get().length;
+		const ignored = fixture.service.notifications.get().filter(item => item.kind === InboxNotificationKind.ReviewComments).length;
 		const reviewer = { ...human, id: 'reviewer', comments: [comment(4, 'Copilot-Pull-Request-Reviewer')] };
 		gitHubService.setReviewThreads('owner', 'repo', 43, [human, reviewer]);
 		const item = fixture.service.notifications.get()[0];
@@ -2286,7 +2293,7 @@ suite('InboxNotificationsService', () => {
 		]);
 	});
 
-	test('workflow rows distinguish completion reads from actionable asks and preserve hold across reloads', () => {
+	test('workflow rows remain ready after reading and preserve hold across reloads', () => {
 		const completed = createSession({ id: 'completed-row', status: SessionStatus.Completed, updatedAt: 100 });
 		const pending = createSession({ id: 'pending-row', status: SessionStatus.NeedsInput, updatedAt: 200 });
 		const working = createSession({ id: 'working-row', status: SessionStatus.InProgress, updatedAt: 300 });
@@ -2305,7 +2312,7 @@ suite('InboxNotificationsService', () => {
 		restored.service.setSessionOnHold(held, false);
 		assert.deepStrictEqual({ initial, opened, held: held.tab, stillHeld, resumed: restored.service.sessionRows.get().find(row => row.id === held.id)!.tab }, {
 			initial: { 'working-row': InboxTab.Working, 'pending-row': InboxTab.ReadyForYou, 'completed-row': InboxTab.ReadyForYou },
-			opened: { 'working-row': InboxTab.Working, 'pending-row': InboxTab.ReadyForYou, 'completed-row': InboxTab.Done },
+			opened: { 'working-row': InboxTab.Working, 'pending-row': InboxTab.ReadyForYou, 'completed-row': InboxTab.ReadyForYou },
 			held: InboxTab.OnHold, stillHeld: InboxTab.OnHold, resumed: InboxTab.ReadyForYou,
 		});
 	});
@@ -2372,6 +2379,36 @@ suite('InboxNotificationsService', () => {
 		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), undefined);
 		assert.deepStrictEqual({ dismissed, done, newWork: fixture.service.sessionRows.get()[0].tab }, {
 			dismissed: InboxTab.ReadyForYou, done: InboxTab.Done, newWork: InboxTab.ReadyForYou,
+		});
+	});
+
+	test('read sessions require explicit Done and return to Ready for you after another response', () => {
+		const session = createSession({ id: 'read-completion', status: SessionStatus.Completed, updatedAt: 100, lastTurnEnd: 100, isRead: true });
+		const fixture = createFixture([session]);
+		const snapshot = () => {
+			const row = fixture.service.sessionRows.get()[0];
+			return { tab: row.tab, notifications: row.notifications.map(item => item.id), count: fixture.service.attentionCount.get() };
+		};
+		const initial = snapshot();
+		const row = fixture.service.sessionRows.get()[0];
+		(session.isRead as ISettableObservable<boolean>).set(false, undefined);
+		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		const opened = snapshot();
+		fixture.service.markSessionDone(row);
+		const done = snapshot();
+		const restored = createFixture([session], fixture.storageService).service.sessionRows.get()[0].tab;
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		const working = snapshot().tab;
+		transaction(tx => {
+			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
+			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), tx);
+		});
+		assert.deepStrictEqual({ initial, opened, done, restored, working, next: snapshot() }, {
+			initial: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:100'], count: 1 },
+			opened: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:100'], count: 1 },
+			done: { tab: InboxTab.Done, notifications: ['read-completion:completed:100'], count: 0 },
+			restored: InboxTab.Done, working: InboxTab.Working,
+			next: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:200'], count: 1 },
 		});
 	});
 
@@ -2563,11 +2600,11 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.dismissedNotifications.get().map(item => item.id), [dismissedId]);
 	});
 
-	test('retains the supplied completed snapshot after marking read removes its source', () => {
+	test('retains the supplied completed snapshot after archiving removes its source', () => {
 		const options = { id: 'read-before-dismiss', status: SessionStatus.Completed, updatedAt: 100 };
 		const fixture = createFixture([createSession(options)]);
 		const item = fixture.service.notifications.get()[0];
-		fixture.setSessions([createSession({ ...options, isRead: true })]);
+		fixture.setSessions([createSession({ ...options, isArchived: true })]);
 		const active = fixture.service.notifications.get().length;
 		fixture.service.dismissNotification(item.id, item);
 		assert.deepStrictEqual({ active, completed: fixture.service.dismissedNotifications.get().map(snapshot => snapshot.id) }, {

@@ -16,6 +16,7 @@ import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/brows
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { disposableTimeout, raceCancellation, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -731,7 +732,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.createDetailSash();
 
 		const tabs = header.appendChild($('.inbox-notifications-tabs', { role: 'tablist', 'aria-label': localize('inbox.tabs', "Session workflow") }));
-		const toolbar = this.listPaneElement.appendChild($('.inbox-notifications-toolbar'));
+		const toolbar = header.appendChild($('.inbox-notifications-toolbar'));
 		const tabValues = [InboxTab.ReadyForYou, InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done];
 		const tabButtons = tabValues.map(tab => {
 			const button = this._register(new Button(tabs, { ...inboxButtonStyles, secondary: true, small: true }));
@@ -844,8 +845,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.updateToolbarLoadingSpinner();
 		}));
 
-		const feedback = this.listPaneElement.appendChild($('.inbox-notifications-feedback'));
-		const usefulFeedbackButton = this._register(new Button(feedback, {
+		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
 			...inboxButtonStyles,
 			secondary: true,
 			small: true,
@@ -877,7 +877,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.listPaneElement.appendChild(this.deferredUpdatesBanner);
 
 		this.listPaneElement.appendChild(this.scrollableElement.getDomNode());
-		this.listPaneElement.appendChild(feedback);
 		const list = this.listElement;
 		list.id = `${this.inboxViewInstanceId}-list`;
 		list.setAttribute('role', 'tabpanel');
@@ -946,7 +945,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.updateToolbarLoadingSpinner();
 		}
 		const newNotificationCount = this.countNewNotifications(this.renderedItems, items);
-		const orderChanged = this.renderedItems.length !== items.length || this.renderedItems.some((item, index) => item.id !== items[index]?.id);
+		const orderChanged = !equals(this.renderedItems, items, (a, b) => a.id === b.id);
 		if (!force && this.isReading() && (orderChanged || this.isInlineInputFocused())) {
 			this.deferredItems = items;
 			this.deferredNewNotificationsCount = newNotificationCount;
@@ -987,7 +986,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private updateDeferredUpdatesBanner(): void {
-		if (!this.deferredItems) {
+		if (!this.deferredItems || equals(this.renderedItems, this.deferredItems, (a, b) => a.id === b.id)) {
 			this.deferredUpdatesBanner.classList.add('hidden');
 			this.deferredUpdatesBannerLabel.textContent = '';
 			this.announcedDeferredNewNotificationsCount = 0;
@@ -997,7 +996,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 		this.deferredUpdatesBanner.classList.remove('hidden');
 		const message = this.deferredNewNotificationsCount === 0
-			? localize('inboxNotifications.deferred.changed', "Inbox updates are ready. Your reading position is preserved.")
+			? localize('inboxNotifications.deferred.changed', "The session list has changed. Refresh the list when you're ready.")
 			: this.deferredNewNotificationsCount === 1
 				? localize('inboxNotifications.deferred.single', "1 new notification arrived while you were reading.")
 				: localize('inboxNotifications.deferred.multiple', "{0} new notifications arrived while you were reading.", this.deferredNewNotificationsCount);
@@ -2779,7 +2778,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (outcome.error) {
 			this.notificationService.error(outcome.error);
 		} else if (!outcome.canceled) {
-			await Promise.all(completed.map(item => this.markDone(item, undefined)));
+			for (const item of completed) {
+				this.inboxNotificationsService.dismissNotification(item.id, item);
+			}
 		}
 	}
 
@@ -2818,11 +2819,12 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	 * and rebuilding the detail content while the user is reading or scrolling it.
 	 */
 	private detailSignature(item: IInboxNotificationItem): string {
+		const row = this.getRow(item.id);
 		const part = item.needsInputPart;
 		const partKey = part
 			? `${part.kind}:${part.requestId}:${part.kind === 'questionCarousel' ? part.resolveId ?? '' : part.kind === 'toolConfirmation' ? part.toolCallId : ''}`
 			: '';
-		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}|${safeStringify(this.getRow(item.id)?.notifications)}`;
+		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}|${safeStringify([row?.workTitle, row?.sessionTitle, row?.pullRequestStates, row?.notifications])}`;
 	}
 
 	private renderDetail(item: IInboxNotificationItem | undefined): void {
