@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../base/common/observable.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { ISessionsService } from './sessionsService.js';
 
@@ -29,6 +31,20 @@ export class ActiveSessionScope implements ISessionScope {
 		// The main window keeps its session while a chat window has focus.
 		this.session = sessionsService.mainWindowActiveSession;
 	}
+}
+
+/** The session `window` acts on: that of its own scope, which its parts take. */
+export function getChatWindowSession(accessor: ServicesAccessor, window: IChatWindow): IActiveSession | undefined {
+	return accessor.get(IEditorGroupsService).getScopedInstantiationService(window.mainPart).invokeFunction(scoped => scoped.get(ISessionScope)).session.get();
+}
+
+/**
+ * The session the window with focus acts on: that of the chat window with focus, which is the active session only once
+ * focus moved into its session, else the active session.
+ */
+export function getFocusedWindowSession(accessor: ServicesAccessor): IActiveSession | undefined {
+	const window = accessor.get(IChatWindowService).activeWindow;
+	return window ? getChatWindowSession(accessor, window) : accessor.get(ISessionsService).activeSession.get();
 }
 
 registerSingleton(ISessionScope, ActiveSessionScope, InstantiationType.Delayed);

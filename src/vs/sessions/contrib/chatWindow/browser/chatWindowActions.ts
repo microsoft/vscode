@@ -27,7 +27,7 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IsQuickChatSessionContext, SessionActivityBarLayoutActionsContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getChatWindowSession } from '../../../services/sessions/browser/sessionScope.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
@@ -230,12 +230,9 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	},
 }];
 
-/**
- * Opens `entry` in the main part of `window`, which shows. The session is the active one, which the session of a chat
- * window is while the window has focus.
- */
+/** Opens `entry` in the main part of `window`, which shows, for the session of the window. */
 async function openTabEntry(accessor: ServicesAccessor, entry: IChatWindowTabEntry, window: IChatWindow): Promise<void> {
-	const session = accessor.get(ISessionsService).activeSession.get();
+	const session = getChatWindowSession(accessor, window);
 	window.showEditor();
 	await entry.open(accessor, session, window.mainPart.activeGroup);
 }

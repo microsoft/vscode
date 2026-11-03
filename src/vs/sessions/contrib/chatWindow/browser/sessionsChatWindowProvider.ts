@@ -216,6 +216,14 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		this.setSession(windowSession);
 		// Closing the window stops showing its session there at once, such as before the chat shows in the main window again.
 		store.add(window.onDidClose(() => this._releaseSession()));
+		// Its session is the active session while the window has focus, wherever in the window focus is, such as in its
+		// title row or its main part, outside the view of its session: what acts on the active session acts on it.
+		store.add(this._hostService.onDidChangeActiveWindow(windowId => {
+			const session = this._session.get();
+			if (windowId === window.windowId && session) {
+				this._sessionsService.setActive(session, true);
+			}
+		}));
 
 		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
 		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));

@@ -23,6 +23,7 @@ import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IContentPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
@@ -114,9 +115,13 @@ suite('Sessions chat window provider', () => {
 				events.push(`close ${session.sessionId}`);
 				windowSessions.set(windowSessions.get().filter(candidate => candidate !== session), undefined);
 			}
-			override setActive(session: IActiveSession | undefined) { events.push(`active ${session?.sessionId}`); }
+			override setActive(session: IActiveSession | undefined, preserveFocus?: boolean) { events.push(`active ${session?.sessionId}${preserveFocus ? ' preserving focus' : ''}`); }
 		}());
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		const onDidChangeActiveWindow = store.add(new Emitter<number>());
+		instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+			override readonly onDidChangeActiveWindow = onDidChangeActiveWindow.event;
+		}());
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override getProvider() { return undefined; }
 		}());
@@ -143,6 +148,7 @@ suite('Sessions chat window provider', () => {
 		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
 		const window = new class extends mock<IChatWindow>() {
+			override readonly windowId = 42;
 			override readonly mainPart = new class extends mock<IContentPart>() {
 				override readonly groups = [];
 				override readonly onDidAddGroup = Event.None;
@@ -152,7 +158,7 @@ suite('Sessions chat window provider', () => {
 			override readonly onDidClose = Event.None;
 		}();
 		const windowInstantiationService = store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))])));
-		return { provider, events, window, windowInstantiationService, onDidChangeSessions, sentiment, configuration };
+		return { provider, events, window, windowInstantiationService, onDidChangeSessions, sentiment, configuration, onDidChangeActiveWindow };
 	}
 
 	test('a chat window shows a chat, or the main chat of a session, as a session of its own window once its window exists, acts on that session, binds its keys and those of its changes on the window, and stops showing it as it closes', async () => {
@@ -179,6 +185,20 @@ suite('Sessions chat window provider', () => {
 			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'] },
 			events: ['show session /second', 'active session', 'close session'],
 		});
+	});
+
+	test('the session of a chat window becomes the active session as its window gains focus, wherever in the window, without moving focus', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const { provider, events, window, windowInstantiationService, onDidChangeActiveWindow } = createProvider(store, [session]);
+
+		const content = (await provider.resolveContent(session.resource))!;
+		store.add(content.bind!(window, windowInstantiationService));
+		onDidChangeActiveWindow.fire(1);
+		onDidChangeActiveWindow.fire(window.windowId);
+		content.dispose();
+
+		assert.deepStrictEqual(events, ['show session /main', 'active session preserving focus', 'close session']);
 	});
 
 	test('a chat window restores while its chat is there, and forgets the chats of removed sessions; it restores only while enabled and AI features show', async () => {

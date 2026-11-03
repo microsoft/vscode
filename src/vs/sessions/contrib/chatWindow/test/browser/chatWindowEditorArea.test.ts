@@ -12,6 +12,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
 import { IEditorPane } from '../../../../../workbench/common/editor.js';
@@ -20,10 +21,11 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
@@ -67,8 +69,15 @@ suite('Chat window editor area', () => {
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override get activeWindow() { return activeWindow; }
 		}());
+		// The window acts on the session of its own scope, whichever session is active.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('active', session);
+			override readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+		}());
+		const windowScope = disposables.add(instantiationService.createChild(new ServiceCollection([ISessionScope, new class extends mock<ISessionScope>() {
+			override readonly session = constObservable(session);
+		}()])));
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getScopedInstantiationService() { return windowScope; }
 		}());
 		return instantiationService;
 	}

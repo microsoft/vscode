@@ -22,7 +22,7 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } f
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { getFocusedWindowSession } from '../../services/sessions/browser/sessionScope.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
@@ -58,10 +58,10 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
-		const sessionsService = accessor.get(ISessionsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		return instantiationService.invokeFunction(openSessionInVSCode, sessionsService.activeSession.get());
+		// The session of the window it is invoked from, such as from the title row of a chat window.
+		return instantiationService.invokeFunction(openSessionInVSCode, instantiationService.invokeFunction(getFocusedWindowSession));
 	}
 }
 
