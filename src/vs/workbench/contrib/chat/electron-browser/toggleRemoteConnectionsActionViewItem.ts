@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, IRemoteTunnelAccessState, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
+import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
 
 export interface IRemoteConnectionsActionViewItemOptions {
 	/** Adds a separate menu entry after the connection methods, e.g. to manage remote environments. */
@@ -138,30 +138,39 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getListOptions(): IActionListOptions {
-		if (this._sharing.gitHubEnvironmentsAvailability === 'policyDisabled') {
-			const label = localize('remoteConnections.viewSetting', "View Setting");
-			return {
-				minWidth: 300,
-				maxWidth: 320,
-				wrapDetails: true,
-				footerText: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
-				footerAction: toAction({
-					id: 'remoteConnections.viewSetting',
-					label,
-					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
-					run: async () => {
-						this._dropdown.hide();
-						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
-					},
-				}),
-				widgetClassName: 'remote-connections-picker',
-				hideDefaultKeybindingTooltip: true,
-			};
+		const options: IActionListOptions = {
+			minWidth: 300,
+			maxWidth: 320,
+			wrapDetails: true,
+			...this._getNameHeader(),
+			widgetClassName: 'remote-connections-picker',
+			hideDefaultKeybindingTooltip: true,
+		};
+		if (this._sharing.gitHubEnvironmentsAvailability !== 'policyDisabled') {
+			return options;
 		}
+		const label = localize('remoteConnections.viewSetting', "View Setting");
+		return {
+			...options,
+			footerText: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+			footerAction: toAction({
+				id: 'remoteConnections.viewSetting',
+				label,
+				tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+				run: async () => {
+					this._dropdown.hide();
+					await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
+				},
+			}),
+		};
+	}
+
+	/** Shows the name this computer is shared under above the connection methods, linked to rename it. */
+	private _getNameHeader(): Pick<IActionListOptions, 'headerIcon' | 'headerText' | 'headerAction'> {
 		const state = this._sharing.getState();
 		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
 		const name = this._sharing.name;
-		const footerText = name
+		const headerText = name
 			? state.isSharing
 				? usesGitHubEnvironment
 					? localize('remoteConnections.registeredEnvironment', "Registered as GitHub environment: {0}", name)
@@ -173,19 +182,15 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				? localize('remoteConnections.nameUnavailable', "Remote name unavailable.")
 				: localize('remoteConnections.loadingName', "Loading remote name...");
 		return {
-			minWidth: 300,
-			maxWidth: 320,
-			wrapDetails: true,
-			footerText,
-			footerAction: name ? toAction({
+			headerIcon: Codicon.deviceDesktop,
+			headerText,
+			headerAction: name ? toAction({
 				id: 'remoteConnections.rename',
 				label: name,
 				tooltip: localize('remoteConnections.rename', "Rename Remote Environment"),
 				enabled: this.isEnabled() && !state.isConnecting,
 				run: () => this._rename(usesGitHubEnvironment),
 			}) : undefined,
-			widgetClassName: 'remote-connections-picker',
-			hideDefaultKeybindingTooltip: true,
 		};
 	}
 
@@ -201,21 +206,15 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const environments = this._sharing.gitHubEnvironmentsAvailability;
 		const active = this._sharing.activeMethod;
 		const methods: IActionWidgetDropdownAction[] = [
-			toAction({
-				id: 'remoteConnections.off',
-				label: localize('remoteConnections.off', "Off"),
-				checked: active === 'off',
-				run: () => this._selectConnectionMethod('off'),
-			}),
 			{
 				...toAction({
-					id: 'remoteConnections.devTunnel',
-					label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
-					checked: active === 'devTunnel',
-					run: () => this._selectConnectionMethod('devTunnel'),
+					id: 'remoteConnections.off',
+					label: localize('remoteConnections.off', "Off"),
+					checked: active === 'off',
+					run: () => this._selectConnectionMethod('off'),
 				}),
-				labelIcon: Codicon.radioTower,
-				detail: getDevTunnelsDetail(),
+				labelIcon: Codicon.circleSlash,
+				detail: getOffDetail(),
 			},
 		];
 		if (environments !== 'unavailable') {
@@ -232,6 +231,16 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				badge: localize('remoteConnections.preview', "Preview"),
 			});
 		}
+		methods.push({
+			...toAction({
+				id: 'remoteConnections.devTunnel',
+				label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
+				checked: active === 'devTunnel',
+				run: () => this._selectConnectionMethod('devTunnel'),
+			}),
+			labelIcon: Codicon.radioTower,
+			detail: getDevTunnelsDetail(),
+		});
 		const management = this._options.getManagementAction?.();
 		if (management) {
 			// Uncategorized entries sort last, so the connection methods need their own category to stay first.

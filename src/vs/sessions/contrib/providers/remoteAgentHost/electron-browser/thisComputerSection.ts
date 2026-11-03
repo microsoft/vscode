@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
-import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from '../../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
+import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from '../../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 function getMethodLabel(method: Exclude<RemoteConnectionsMethod, 'off'>): string {
@@ -126,10 +126,11 @@ export class ThisComputerSection extends Disposable {
 		const active = this.sharing.activeMethod;
 		const shown = this.pendingMethod ?? active;
 		const availability = this.sharing.gitHubEnvironmentsAvailability;
-		const methods: RemoteConnectionsMethod[] = ['off', 'devTunnel'];
+		const methods: RemoteConnectionsMethod[] = ['off'];
 		if (availability !== 'unavailable' || shown === 'githubEnvironment') {
 			methods.push('githubEnvironment');
 		}
+		methods.push('devTunnel');
 		const itemsKey = `${methods.join(',')}:${availability}`;
 		if (itemsKey !== this.itemsKey) {
 			this.itemsKey = itemsKey;
@@ -158,7 +159,7 @@ export class ThisComputerSection extends Disposable {
 	private getItem(method: RemoteConnectionsMethod, availability: GitHubEnvironmentsAvailability): IRadioOptionItem {
 		switch (method) {
 			case 'off':
-				return { text: localize('thisComputer.methodOff', "Off"), tooltip: localize('thisComputer.methodOffTooltip', "Other clients cannot connect to this computer.") };
+				return { text: localize('thisComputer.methodOff', "Off"), tooltip: getOffDetail() };
 			case 'devTunnel':
 				return { text: getMethodLabel(method), tooltip: getDevTunnelsDetail() };
 			case 'githubEnvironment':

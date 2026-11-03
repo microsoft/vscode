@@ -40,7 +40,7 @@ import { Menus } from '../../../../../browser/menus.js';
 import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
 import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../browser/remotesModel.js';
 import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../chat/common/constants.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
@@ -200,6 +200,7 @@ suite('RemotesEditor', () => {
 	test('This Computer shows how this computer is shared and turns on the chosen connection method', async () => {
 		const { editor, container, input, instantiation, tunnel, configuration } = createEditor();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
 		const commands: string[] = [];
 		instantiation.stub(ICommandService, {
 			executeCommand: async (id: string) => {
@@ -218,13 +219,40 @@ suite('RemotesEditor', () => {
 			status: section.querySelector('.remotes-this-computer-status')?.textContent,
 		});
 		const before = read();
-		options()[1].click();
+		options()[2].click();
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: read(), commands, accessible: editor.getAccessibilityContent().split('\n\n')[0] }, {
-			before: { name: 'my-workstation', options: ['Off (selected)', 'Dev Tunnels', 'GitHub Environments (Preview)'], status: 'Remote connections are off.' },
-			after: { name: 'my-workstation', options: ['Off', 'Dev Tunnels (selected)', 'GitHub Environments (Preview)'], status: 'Remote connections are on via Dev Tunnels.' },
+			before: { name: 'my-workstation', options: ['Off (selected)', 'GitHub Environments (Preview)', 'Dev Tunnels'], status: 'Remote connections are off.' },
+			after: { name: 'my-workstation', options: ['Off', 'GitHub Environments (Preview)', 'Dev Tunnels (selected)'], status: 'Remote connections are on via Dev Tunnels.' },
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
 			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other clients access agents and folders on this computer.',
+		});
+	});
+
+	test('shows This Computer only while its experimental setting is enabled', async () => {
+		const { editor, container, input, configuration } = createEditor();
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		const read = () => ({
+			hidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')?.hidden,
+			sections: container.querySelectorAll('.remotes-this-computer').length,
+			accessible: editor.getAccessibilityContent().startsWith('This Computer'),
+		});
+		const setEnabled = async (enabled: boolean) => {
+			await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER, affectedKeys: new Set([REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]),
+				change: { keys: [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING], overrides: [] },
+				affectsConfiguration: key => key === REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING,
+			});
+		};
+		const initial = read();
+		await setEnabled(true);
+		const enabled = read();
+		await setEnabled(false);
+		assert.deepStrictEqual({ initial, enabled, disabled: read() }, {
+			initial: { hidden: true, sections: 0, accessible: false },
+			enabled: { hidden: false, sections: 1, accessible: true },
+			disabled: { hidden: true, sections: 0, accessible: false },
 		});
 	});
 

@@ -26,7 +26,7 @@ import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
 import { ThisComputerSection } from './thisComputerSection.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../chat/common/constants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
 
@@ -55,7 +55,7 @@ export class RemotesEditor extends EditorPane {
 	) {
 		super(RemotesEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)) {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING) || event.affectsConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING)) {
 				this.updateWidget();
 			}
 		}));
@@ -115,10 +115,16 @@ export class RemotesEditor extends EditorPane {
 			return;
 		}
 		if (!this.widget.value) {
-			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer);
 			const channel = this.sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL);
 			const model = this.widgetInstantiationService.createInstance(RemotesModel, token => channel.call<readonly IDiscoveredDevContainer[]>('listDevContainers', undefined, token));
 			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.tableContainer, model, OS);
+		}
+		const showThisComputer = !!this.configurationService.getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		this.thisComputerContainer.hidden = !showThisComputer;
+		if (!showThisComputer) {
+			this.thisComputer.clear();
+		} else if (!this.thisComputer.value) {
+			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer);
 		}
 		this.widget.value.setVisible(this.isVisible());
 		this.widget.value.layout();

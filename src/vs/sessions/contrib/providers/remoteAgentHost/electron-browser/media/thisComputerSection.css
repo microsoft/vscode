@@ -77,7 +77,9 @@
 	white-space: nowrap;
 }
 
-.remotes-this-computer .monaco-custom-radio > .monaco-button:not(:last-child) {
+/* Keep the short Off and Dev Tunnels labels whole; the GitHub Environments label between them ellipsizes when narrow. */
+.remotes-this-computer .monaco-custom-radio > .monaco-button:first-child,
+.remotes-this-computer .monaco-custom-radio > .monaco-button:last-child {
 	flex-shrink: 0;
 }
 

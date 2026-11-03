@@ -37,6 +37,10 @@ export type RemoteConnectionsMethod = 'off' | 'devTunnel' | 'githubEnvironment';
 /** Whether GitHub Environments can be chosen, is shown disabled by organization policy, or is not offered. */
 export type GitHubEnvironmentsAvailability = 'enabled' | 'policyDisabled' | 'unavailable';
 
+export function getOffDetail(): string {
+	return localize('remoteConnections.off.detail', "Only this machine can access its workspaces and agents.");
+}
+
 export function getDevTunnelsDetail(): string {
 	return localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents.");
 }
