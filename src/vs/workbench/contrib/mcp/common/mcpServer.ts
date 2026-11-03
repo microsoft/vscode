@@ -1385,7 +1385,10 @@ export class McpTool implements IMcpTool {
 				}));
 			}
 
-			const meta: Record<string, unknown> = { progressToken };
+			const meta: MCP.RequestMetaObject = { ...context?.meta };
+			if (progressToken) {
+				meta.progressToken = progressToken;
+			}
 			if (context?.chatSessionResource) {
 				meta['vscode.conversationId'] = chatSessionResourceToId(context.chatSessionResource);
 			}

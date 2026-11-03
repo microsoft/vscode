@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -33,6 +34,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
+import { McpServer } from '../../common/mcpServer.js';
 import { McpService } from '../../common/mcpService.js';
 import { McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
@@ -687,6 +689,59 @@ suite('Workbench - MCP - McpService', () => {
 				connected: false,
 				connectionState: McpConnectionState.Kind.Stopped,
 			});
+		});
+	});
+
+	test('tool calls preserve request metadata with host-generated metadata taking precedence', async () => {
+		const { mcpService, registry } = createMcpService();
+		const transport = store.add(new TestMcpMessageTransport());
+		registry.makeTestTransport = () => transport;
+		transport.setResponder('tools/list', message => ({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: (message as MCP.JSONRPCRequest).id,
+			result: { tools: [{ name: 'correlation_probe', inputSchema: { type: 'object' } }] },
+		}));
+		transport.setResponder('tools/call', message => ({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: (message as MCP.JSONRPCRequest).id,
+			result: { content: [] },
+		}));
+		mcpService.updateCollectedServers();
+		const server = mcpService.servers.get()[0];
+		assert.ok(server instanceof McpServer);
+		const refresh = sinon.stub(server, 'awaitToolRefresh').resolves();
+		store.add(toDisposable(() => refresh.restore()));
+		await server.start();
+		const [tool] = await waitForState(server.tools, tools => tools.length > 0);
+		const meta = {
+			'com.example/correlation-id': 'correlation-1',
+			'com.example/context': { enabled: false, value: null },
+			progressToken: 'app-progress',
+			'vscode.conversationId': 'app-conversation',
+			'vscode.requestId': 'app-request',
+			traceparent: 'app-trace',
+			tracestate: 'app-state',
+		};
+		const originalMeta = structuredClone(meta);
+		await tool.call({ value: 42 }, { chatSessionResource: undefined, meta }, CancellationToken.None);
+		await tool.callWithProgress({}, { report: () => { } }, {
+			chatSessionResource: undefined, chatRequestId: 'host-request', traceparent: 'host-trace', tracestate: 'host-state', meta,
+		}, CancellationToken.None);
+		await tool.call({}, undefined, CancellationToken.None);
+		const calls = transport.getSentMessages().filter((message): message is MCP.CallToolRequest => 'method' in message && message.method === 'tools/call');
+		assert.deepStrictEqual({
+			params: calls.map(call => ({
+				...call.params,
+				_meta: { ...call.params._meta, progressToken: typeof call.params._meta?.progressToken === 'string' && call.params._meta.progressToken !== 'app-progress' ? 'host-progress' : call.params._meta?.progressToken },
+			})),
+			meta,
+		}, {
+			params: [
+				{ name: 'correlation_probe', arguments: { value: 42 }, task: undefined, _meta: meta },
+				{ name: 'correlation_probe', arguments: {}, task: undefined, _meta: { ...meta, progressToken: 'host-progress', 'vscode.requestId': 'host-request', traceparent: 'host-trace', tracestate: 'host-state' } },
+				{ name: 'correlation_probe', arguments: {}, task: undefined, _meta: { progressToken: undefined } },
+			],
+			meta: originalMeta,
 		});
 	});
 

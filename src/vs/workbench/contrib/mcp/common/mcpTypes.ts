@@ -613,6 +613,8 @@ export interface IMcpPromptMessage extends MCP.PromptMessage { }
 export interface IMcpToolCallContext {
 	chatSessionResource: URI | undefined;
 	chatRequestId?: string;
+	/** Request metadata to forward to the MCP server; host-generated metadata takes precedence. */
+	meta?: MCP.RequestMetaObject;
 	/**
 	 * Optional W3C trace context `traceparent` value to forward to the MCP server
 	 * via `_meta.traceparent` on the JSON-RPC `tools/call` request (MCP SEP-414).
