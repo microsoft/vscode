@@ -102,13 +102,23 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 						change.rangeOffset <= data.rangeOffset
 						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.text.length
 					);
-					const preservedRange = replacement && this.findReferenceRangeInReplacement(model, e.changes, replacement, data);
+
+					const touchesReference = e.changes.some(change =>
+						change.rangeOffset < data.rangeOffset + data.text.length
+						&& change.rangeOffset + change.rangeLength > data.rangeOffset
+					);
+
+					const preservedRange = replacement
+						? this.findReferenceRangeInReplacement(model, e.changes, replacement, data)
+						: !touchesReference
+							? this.findReferenceRangeForNonOverlappingEdit(model, e.changes, data)
+							: undefined;
 					if (preservedRange) {
 						didChange = true;
 						return { ...ref, range: preservedRange };
 					}
 
-					if (!replacement) {
+					if (!replacement && touchesReference) {
 						this.widget.inputEditor.executeEdits(this.id, [{
 							range: newRange,
 							text: '',
@@ -169,6 +179,25 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const precedingChangesDelta = changes.reduce((delta, change) =>
 			change.rangeOffset < replacement.rangeOffset ? delta + change.text.length - change.rangeLength : delta, 0);
 		const startOffset = replacement.rangeOffset + precedingChangesDelta + closestMatchOffset;
+		const range = Range.fromPositions(
+			model.getPositionAt(startOffset),
+			model.getPositionAt(startOffset + data.text.length)
+		);
+		return model.getValueInRange(range) === data.text ? range : undefined;
+	}
+
+	private findReferenceRangeForNonOverlappingEdit(
+		model: ITextModel,
+		changes: readonly IModelContentChange[],
+		data: { text: string; rangeOffset: number }
+	): Range | undefined {
+		if (!data.text) {
+			return undefined;
+		}
+
+		const precedingChangesDelta = changes.reduce((delta, change) =>
+			change.rangeOffset < data.rangeOffset ? delta + change.text.length - change.rangeLength : delta, 0);
+		const startOffset = data.rangeOffset + precedingChangesDelta;
 		const range = Range.fromPositions(
 			model.getPositionAt(startOffset),
 			model.getPositionAt(startOffset + data.text.length)

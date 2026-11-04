@@ -20,7 +20,7 @@ import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatTreeItem, IChatResponseIdentity } from '../chat.js';
 import { getChatRequestText } from '../chatRequestText.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
@@ -86,7 +86,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		messages.push(localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' ')));
 	}
 	if (authenticationServers.length > 0) {
-		messages.push(localize('toolAuthenticationHint', "MCP authentication required for {0}. Use the Authenticate button in the tool call.", authenticationServers.join(', ')));
+		messages.push(localize('toolAuthenticationHint', "MCP authentication required for {0}. Use the tool call buttons to authenticate, cancel, or disable the server for this session.", authenticationServers.join(', ')));
 	}
 
 	return messages.join(' ');
@@ -95,6 +95,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
 	constructor(
+		private readonly _getResponseIdentity: () => IChatResponseIdentity | undefined = () => undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -119,7 +120,10 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		if (isResponseVM(element)) {
-			return this._getLabelWithInfo(element);
+			// Name who answers a chat answered by another agent than its session type serves.
+			const identity = this._getResponseIdentity();
+			const label = this._getLabelWithInfo(element);
+			return identity ? localize('chatResponseFromIdentity', "{0}: {1}", identity.label, label) : label;
 		}
 
 		return '';
@@ -142,7 +146,16 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			}
 		}
-		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;
+		const responseText = element.response.toString();
+		let tableCount = 0;
+		let codeBlockCount = 0;
+		for (const token of marked.lexer(responseText)) {
+			if (token.type === 'table') {
+				tableCount++;
+			} else if (token.type === 'code') {
+				codeBlockCount++;
+			}
+		}
 		let tableCountHint = '';
 		switch (tableCount) {
 			case 0:
@@ -176,22 +189,21 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 			elicitationHint += title + ' ' + message;
 		}
 
-		const codeBlockCount = marked.lexer(element.response.toString()).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
 				label = accessibleViewHint
-					? localize('noCodeBlocksHint', "{0}{1}{2}{3}{4} {5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString(), accessibleViewHint)
-					: localize('noCodeBlocks', "{0}{1}{2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString());
+					? localize('noCodeBlocksHint', "{0}{1}{2}{3}{4} {5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, responseText, accessibleViewHint)
+					: localize('noCodeBlocks', "{0}{1}{2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, responseText);
 				break;
 			case 1:
 				label = accessibleViewHint
-					? localize('singleCodeBlockHint', "{0}{1}{2}1 code block: {3} {4}{5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString(), accessibleViewHint)
-					: localize('singleCodeBlock', "{0}{1}1 code block: {2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString());
+					? localize('singleCodeBlockHint', "{0}{1}{2}1 code block: {3} {4}{5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, responseText, accessibleViewHint)
+					: localize('singleCodeBlock', "{0}{1}1 code block: {2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, responseText);
 				break;
 			default:
 				label = accessibleViewHint
-					? localize('multiCodeBlockHint', "{0}{1}{2}{3} code blocks: {4}{5} {6}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, codeBlockCount, element.response.toString(), accessibleViewHint)
-					: localize('multiCodeBlock', "{0}{1}{2} code blocks: {3} {4}", fileTreeCountHint, elicitationHint, codeBlockCount, tableCountHint, element.response.toString());
+					? localize('multiCodeBlockHint', "{0}{1}{2}{3} code blocks: {4}{5} {6}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, codeBlockCount, responseText, accessibleViewHint)
+					: localize('multiCodeBlock', "{0}{1}{2} code blocks: {3} {4}", fileTreeCountHint, elicitationHint, codeBlockCount, tableCountHint, responseText);
 				break;
 		}
 		return label;

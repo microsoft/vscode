@@ -20,7 +20,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatC
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidgetService, unwrapChatContextMenuActionContext } from '../chat.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -104,10 +104,11 @@ export class NewChatAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
-		const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
+		const actionContext = unwrapChatContextMenuActionContext(args[0]);
+		const executeCommandContext = isNewEditSessionActionContext(actionContext) ? actionContext : undefined;
 
 		// Context from toolbar or lastFocusedWidget
-		const context = getEditingSessionContext(accessor, args);
+		const context = getEditingSessionContext(accessor, [actionContext, ...args.slice(1)]);
 		await runNewChatAction(accessor, context, executeCommandContext);
 	}
 }
@@ -313,7 +314,7 @@ export function registerNewChatActions() {
 			const requestText = currentWidget?.viewModel?.model.checkpoint?.message.text;
 
 			// if the input has the same text that we just restored, clear it.
-			if (currentWidget?.inputEditor.getValue() === requestText) {
+			if (currentWidget?.getInput() === requestText) {
 				currentWidget?.input.setValue('', false);
 			}
 

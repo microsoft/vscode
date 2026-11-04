@@ -71,7 +71,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 			onDidChangeSessionConfig: onDidChangeSessionConfigEmitter.event,
 			onDidChangeSessions: onDidChangeSessionsEmitter.event,
 			getSessions: () => [session],
-			getSessionConfig: (_sessionId: string) => sessionProvider.config,
+			getSessionOwnConfig: (_sessionId: string) => sessionProvider.config,
 			replaceSessionConfig: async (sessionId: string, values: Record<string, unknown>) => {
 				replaceCalls.push({ sessionId, values });
 				if (sessionProvider.config) {

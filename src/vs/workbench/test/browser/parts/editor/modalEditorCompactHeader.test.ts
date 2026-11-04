@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IModalEditorOptions, IModalEditorOptionsProvider, isModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+import { canMoveModalEditorToEditorArea, IModalEditorOptions, IModalEditorOptionsProvider, isModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 
 const MODAL_HEADER_HEIGHT = 33; // matches fallback in modalEditorPart.ts
 
@@ -77,6 +77,17 @@ suite('Modal Editor Compact Header', () => {
 		// Switching back to a non-compact editor clears the class
 		applyCompactHeaderClass(modalElement, new TestEditor({ compactHeader: false }));
 		assert.strictEqual(modalElement.classList.contains('compact-header'), false);
+	});
+
+	test('moving to an editor area defaults to enabled and supports opt out', () => {
+		assert.deepStrictEqual([
+			canMoveModalEditorToEditorArea(undefined),
+			canMoveModalEditorToEditorArea({}),
+			canMoveModalEditorToEditorArea(new TestEditor(undefined)),
+			canMoveModalEditorToEditorArea(new TestEditor({})),
+			canMoveModalEditorToEditorArea(new TestEditor({ canMoveToEditorArea: true })),
+			canMoveModalEditorToEditorArea(new TestEditor({ canMoveToEditorArea: false })),
+		], [true, true, true, true, true, false]);
 	});
 
 	test('header height prefers measured offsetHeight over fallback constant', () => {

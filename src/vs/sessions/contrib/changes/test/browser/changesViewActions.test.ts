@@ -4,43 +4,84 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derivedObservableWithCache, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { hasKey } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetDropdownAction } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { Context, ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOptionsService.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { ICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { setActiveSessionContextKeys } from '../../../../services/sessions/common/sessionContextKeys.js';
+import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
+import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../codeReview/browser/codeReview.contributions.js';
+
+// Awaited while this file loads so that the contribution's permanent registrations are in place before
+// any suite runs instead of being registered by this suite.
+const { changesViewWhen } = await import('../../browser/changes.contribution.js');
+
+function contextWith(values: Record<string, unknown>): Context {
+	const context = new Context(1, null);
+	for (const [key, value] of Object.entries(values)) {
+		context.setValue(key, value);
+	}
+	return context;
+}
+
+function getToggledExpression(toggled: ContextKeyExpression | ICommandActionToggleInfo | undefined): ContextKeyExpression | undefined {
+	return toggled && hasKey(toggled, { condition: true }) ? toggled.condition : toggled;
+}
+
+/** The Changes editor's own actions, which a chat window shows in the editor's header row rather than in its tab row. */
+const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'];
 
 suite('Changes View Actions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	let changesViewWhen: ContextKeyExpression | undefined;
-
-	suiteSetup(async () => {
-		({ changesViewWhen } = await import('../../browser/changes.contribution.js'));
-	});
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Changes view is available for new and created workspace sessions', () => {
 		assert.ok(changesViewWhen);
@@ -70,8 +111,10 @@ suite('Changes View Actions', () => {
 				return undefined;
 			}
 		});
+
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));
@@ -80,6 +123,76 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	suite('Open Changes', () => {
+		const workspaceResource = URI.file('/workspace/file.ts');
+		const originalSnapshot = URI.parse('readonly-content:/before/file.ts');
+		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
+		const sessionResource = URI.parse('test-session:/session');
+		const otherSessionResource = URI.parse('test-session:/other');
+
+		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
+			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
+			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
+			});
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionChangesObs = constObservable([{
+					uri: workspaceResource,
+					originalUri: originalSnapshot,
+					modifiedUri: modifiedSnapshot,
+					insertions: 1,
+					deletions: 1,
+				}]);
+				override getSessionChanges() {
+					return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([{ uri: workspaceResource, originalUri: URI.parse('readonly-content:/other/before.ts'), modifiedUri: URI.parse('readonly-content:/other/after.ts'), insertions: 1, deletions: 1 }]) });
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const input = args[0] as {
+						readonly original?: { readonly resource?: URI };
+						readonly modified?: { readonly resource?: URI };
+					};
+					opened.push({
+						original: input.original?.resource?.toString(),
+						modified: input.modified?.resource?.toString(),
+					});
+					return undefined;
+				}
+			});
+
+			await instantiationService.invokeFunction(accessor =>
+				CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(accessor, sessionArg, 'ref', workspaceResource));
+			return opened;
+		}
+
+		test('resolves a workspace resource to its snapshot-backed diff', async () => {
+			assert.deepStrictEqual(await openChanges(sessionResource, []), [{
+				original: originalSnapshot.toString(),
+				modified: modifiedSnapshot.toString(),
+			}]);
+		});
+
+		test('opens the changes of a visible non-active session', async () => {
+			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource });
+			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
+				original: 'readonly-content:/other/before.ts',
+				modified: 'readonly-content:/other/after.ts',
+			}]);
+		});
+
+		test('does nothing for a session that is not shown instead of using the active session', async () => {
+			assert.deepStrictEqual(await openChanges(URI.parse('test-session:/gone'), []), []);
+		});
 	});
 
 	test('Create PR button actions unlock Ship it without drafts or updates', () => {
@@ -110,38 +223,443 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('primary header actions gate themselves to the single-pane Changes editor', () => {
+	test('waits for the active chat folder before rendering its Changes actions', () => {
+		const folder = URI.file('/repo.worktrees/feature');
+		const workspace = observableValue<ISessionWorkspace | undefined>('activeChatWorkspace', undefined);
+		const chat = upcastPartial<IChat>({ workspace });
+		const session = upcastPartial<IActiveSession>({
+			isCreated: constObservable(true),
+			isQuickChat: constObservable(false),
+			activeChat: constObservable(chat),
+		});
+		const mounted = (uri: URI) => [upcastPartial<IWorkspaceFolder>({ uri })];
+
+		const pending = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		workspace.set(upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionFolder>({ workingDirectory: folder })],
+		}), undefined);
+		const wrongFolder = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		const ready = isChangesActionsWorkspaceReady(session, mounted(folder), undefined);
+		workspace.set(undefined, undefined);
+		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, [], undefined);
+
+		assert.deepStrictEqual({ pending, wrongFolder, ready, quickChat }, {
+			pending: false,
+			wrongFolder: false,
+			ready: true,
+			quickChat: true,
+		});
+	});
+
+	test('desktop header consolidates change stats into the picker while the mobile header keeps its action', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'chatEditing.versionsPicker' || item.command.id === 'workbench.changesView.action.viewChanges');
+		const picker = items.find(item => item.command.id === 'chatEditing.versionsPicker');
+		assert.ok(picker?.when);
+		const context = new Context(1, null);
+		context.setValue(DesktopLayoutContext.key, true);
+		context.setValue(ActiveEditorContext.key, SessionChangesEditor.ID);
+		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, false);
+		const visibleWhileCatalogueLoads = picker.when.evaluate(context);
+		context.setValue(ActiveEditorContext.key, undefined);
+		const hiddenWithoutEditor = !picker.when.evaluate(context);
+		context.setValue(DesktopChangesEditorTransitionContext.key, true);
+		const visibleWhileEditorIsRestored = picker.when.evaluate(context);
+		context.setValue(DesktopChangesEditorTransitionContext.key, false);
+		context.setValue(ActiveEditorContext.key, 'workbench.editors.textEditor');
+		const hiddenForOtherEditor = !picker.when.evaluate(context);
+		const mobileHeaderHasDiffStatsAction = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesFileHeaderRightToolbar)
+			.filter(isIMenuItem)
+			.some(item => item.command.id === 'workbench.changesView.action.viewChanges');
 
-		assert.deepStrictEqual(items.map(item => {
-			const when = item.when?.serialize() ?? '';
-			return {
-				id: item.command.id,
-				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
-			};
-		}), [
-			{
+		assert.deepStrictEqual({
+			desktopHeader: items.map(item => {
+				const when = item.when?.serialize() ?? '';
+				return {
+					id: item.command.id,
+					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+					hasTransitionGate: when.includes(DesktopChangesEditorTransitionContext.key),
+					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
+				};
+			}),
+			visibleWhileCatalogueLoads,
+			hiddenWithoutEditor,
+			visibleWhileEditorIsRestored,
+			hiddenForOtherEditor,
+			mobileHeaderHasDiffStatsAction,
+		}, {
+			desktopHeader: [{
 				id: 'chatEditing.versionsPicker',
 				hasActiveEditorGate: true,
-				hasSinglePaneConfigGate: true,
-			},
-			{
-				id: 'workbench.changesView.action.viewChanges',
-				hasActiveEditorGate: true,
-				hasSinglePaneConfigGate: true,
-			},
-		]);
+				hasTransitionGate: true,
+				hasDesktopLayoutGate: true,
+			}],
+			visibleWhileCatalogueLoads: true,
+			hiddenWithoutEditor: true,
+			visibleWhileEditorIsRestored: true,
+			hiddenForOtherEditor: true,
+			mobileHeaderHasDiffStatsAction: true,
+		});
 	});
 
-	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('keeps the picker enabled while its next catalogue loads, including after remounting', () => {
+		const isEnabled = observableValue('picker.changesetEnabled', true);
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			label: 'Branch Changes',
+			isEnabled,
+			isDefault: constObservable(true),
+		});
+		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('picker.changesets', [changeset]);
+		const loading = observableValue('picker.loading', false);
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', changeset);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = changesets;
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const actionWidgetService = new class extends mock<IActionWidgetService>() { }();
+		const telemetryService = new class extends mock<ITelemetryService>() { }();
+		const labelObs = derivedObservableWithCache<{ label: string; isNonDefault: boolean } | undefined>(disposables, (reader, lastValue) => {
+			const changeset = selected.read(reader);
+			if (!changeset && loading.read(reader)) {
+				return lastValue;
+			}
+			return changeset ? { label: changeset.label, isNonDefault: false } : undefined;
+		});
+		const renderPicker = () => {
+			const container = document.createElement('div');
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
+			return container;
+		};
+		const snapshot = (container: HTMLElement) => ({
+			label: container.querySelector('.action-label')?.textContent,
+			disabled: container.classList.contains('disabled'),
+			ariaDisabled: container.querySelector('.action-label')?.getAttribute('aria-disabled'),
+		});
+
+		const first = renderPicker();
+		const before = snapshot(first);
+		loading.set(true, undefined);
+		isEnabled.set(false, undefined);
+		selected.set(undefined, undefined);
+		const pending = snapshot(first);
+		const remounted = snapshot(renderPicker());
+		changesets.set([], undefined);
+		loading.set(false, undefined);
+		const empty = snapshot(first);
+
+		assert.deepStrictEqual({ before, pending, remounted, empty }, {
+			before: { label: 'Branch Changes', disabled: false, ariaDisabled: 'false' },
+			pending: { label: 'Branch Changes', disabled: false, ariaDisabled: 'false' },
+			remounted: { label: 'Branch Changes', disabled: false, ariaDisabled: 'false' },
+			empty: { label: 'Versions', disabled: true, ariaDisabled: 'true' },
+		});
+	});
+
+	test('marks the picker label when the selected changeset is not the default', () => {
+		const createChangeset = (id: string, label: string, isDefault: IObservable<boolean>) => upcastPartial<ISessionChangeset>({
+			id,
+			label,
+			isEnabled: constObservable(true),
+			isDefault,
+		});
+		const sessionIsDefault = observableValue('picker.sessionIsDefault', true);
+		const branchIsDefault = observableValue('picker.branchIsDefault', false);
+		const sessionChangeset = createChangeset('session', 'Session Changes', sessionIsDefault);
+		const branchChangeset = createChangeset('branch', 'Branch Changes', branchIsDefault);
+		const matchingLabelChangeset = createChangeset('matching-label', 'Session Changes', constObservable(false));
+		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('picker.changesets', [sessionChangeset, branchChangeset]);
+		const loading = observableValue('picker.loading', false);
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', sessionChangeset);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = changesets;
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		const snapshot = () => {
+			const label = container.querySelector('.changes-picker-label');
+			return {
+				label: label?.textContent,
+				nonDefault: label?.classList.contains('non-default'),
+				ariaLabel: container.querySelector<HTMLElement>('.action-label')?.ariaLabel,
+			};
+		};
+
+		const defaultSelected = snapshot();
+		selected.set(branchChangeset, undefined);
+		const nonDefaultSelected = snapshot();
+		transaction(tx => {
+			sessionIsDefault.set(false, tx);
+			branchIsDefault.set(true, tx);
+		});
+		const changedDefault = snapshot();
+		transaction(tx => {
+			sessionIsDefault.set(true, tx);
+			branchIsDefault.set(false, tx);
+		});
+		changesets.set([sessionChangeset, branchChangeset, matchingLabelChangeset], undefined);
+		selected.set(matchingLabelChangeset, undefined);
+		const matchingLabelSelected = snapshot();
+		selected.set(branchChangeset, undefined);
+		transaction(tx => {
+			loading.set(true, tx);
+			selected.set(undefined, tx);
+		});
+		const loadingCatalogue = snapshot();
+		transaction(tx => {
+			changesets.set([branchChangeset], tx);
+			loading.set(false, tx);
+			selected.set(branchChangeset, tx);
+		});
+		const onlyEnabledFallback = snapshot();
+
+		assert.deepStrictEqual({ defaultSelected, nonDefaultSelected, changedDefault, matchingLabelSelected, loadingCatalogue, onlyEnabledFallback }, {
+			defaultSelected: { label: 'Session Changes', nonDefault: false, ariaLabel: 'Session Changes' },
+			nonDefaultSelected: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Branch Changes' },
+			changedDefault: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Branch Changes' },
+			matchingLabelSelected: { label: 'Session Changes', nonDefault: true, ariaLabel: 'Session Changes' },
+			loadingCatalogue: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Branch Changes' },
+			onlyEnabledFallback: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Branch Changes' },
+		});
+	});
+
+	test('uses the branch description in the picker tooltip while preserving its accessible label', () => {
+		const createChangeset = (id: string, label: string, description?: string) => upcastPartial<ISessionChangeset>({
+			id,
+			label,
+			description,
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const branch = createChangeset('branch', 'Branch', 'feature -> main');
+		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release');
+		const withoutDescription = createChangeset('branch', 'Branch');
+		const emptyDescription = createChangeset('branch', 'Branch', '');
+		const session = createChangeset('session', 'Session', 'Session description');
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
+		const loading = observableValue('picker.loading', false);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([branch]);
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		const picker = disposables.add(new class extends ChangesPickerActionItem {
+			override getTooltip(): string {
+				return super.getTooltip();
+			}
+		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
+		picker.render(container);
+		const snapshot = () => ({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			tooltip: picker.getTooltip(),
+			ariaLabel: container.querySelector<HTMLElement>('.action-label')?.ariaLabel,
+		});
+
+		const initial = snapshot();
+		selected.set(updatedBranch, undefined);
+		const updated = snapshot();
+		transaction(tx => {
+			loading.set(true, tx);
+			selected.set(undefined, tx);
+		});
+		const loadingCatalogue = snapshot();
+		transaction(tx => {
+			loading.set(false, tx);
+			selected.set(withoutDescription, tx);
+		});
+		const missing = snapshot();
+		selected.set(emptyDescription, undefined);
+		const empty = snapshot();
+		selected.set(session, undefined);
+		const otherChangeset = snapshot();
+		selected.set(undefined, undefined);
+		const noChangeset = snapshot();
+
+		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, empty, otherChangeset, noChangeset }, {
+			initial: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
+			updated: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+			loadingCatalogue: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+			missing: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			empty: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			otherChangeset: { label: 'Session', tooltip: 'Session', ariaLabel: 'Session' },
+			noChangeset: { label: 'Versions', tooltip: 'Versions', ariaLabel: 'Versions' },
+		});
+	});
+
+	test('renders the changes summary with the shared stats widget and updates it in place', async () => {
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			label: 'Branch',
+			description: 'feature -> main',
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const summary = observableValue<ISessionChangesSummary | undefined>('picker.summary', { files: 2, additions: 5, deletions: 1 });
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([changeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesSummaryObs = summary;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
+		const container = document.createElement('div');
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+
+		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
+		const snapshot = () => ({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			ariaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+			summaryVisible: summaryElement?.style.display !== 'none',
+			summary: [...summaryElement?.children ?? []].map(child => child.textContent),
+			summaryTags: [...summaryElement?.children ?? []].map(child => child.tagName),
+			sameSummaryElement: container.querySelector('.changes-picker-summary') === summaryElement,
+		});
+
+		const initial = snapshot();
+		summary.set({ files: 1, additions: 7, deletions: 3 }, undefined);
+		await timeout(0);
+		const updated = snapshot();
+		summary.set(undefined, undefined);
+		await timeout(0);
+		const empty = snapshot();
+
+		assert.deepStrictEqual({ initial, updated, empty }, {
+			initial: { label: 'Branch', ariaLabel: 'Branch: feature -> main, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			updated: { label: 'Branch', ariaLabel: 'Branch: feature -> main, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			empty: { label: 'Branch', ariaLabel: 'Branch: feature -> main', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+		});
+	});
+
+	test('shows the data of an explicit session scope and selects changesets in that session', async () => {
+		const createChangeset = (id: string, label: string) => upcastPartial<ISessionChangeset>({ id, label, isEnabled: constObservable(true), isDefault: constObservable(true) });
+		const activeChangeset = createChangeset('active', 'Active Changes');
+		const otherChangeset = createChangeset('other', 'Other Changes');
+		const otherSession = upcastPartial<IActiveSession>({});
+		const otherResource = URI.parse('test-session:/other');
+		const selections: [string | undefined, IActiveSession | undefined][] = [];
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([activeChangeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(activeChangeset);
+			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 1, additions: 1, deletions: 1 });
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/active'));
+			override setChangesetId(id: string | undefined, session?: IActiveSession): void { selections.push([id, session]); }
+		}();
+		const scope: IChangesSessionScope = {
+			session: constObservable(otherSession),
+			changes: upcastPartial<IChangesSessionObservables>({
+				changesetsObs: constObservable([otherChangeset]),
+				changesetsLoadingObs: constObservable(false),
+				changesetObs: constObservable(otherChangeset),
+				changesSummaryObs: constObservable<ISessionChangesSummary | undefined>({ files: 4, additions: 9, deletions: 2 }),
+				resourceObs: constObservable(otherResource),
+			}),
+		};
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs));
+		const container = document.createElement('div');
+		let items: readonly IActionWidgetDropdownAction[] = [];
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show(_user: string, _supportsPreview: boolean, listItems: readonly IActionListItem<unknown>[]): void {
+				items = listItems.flatMap(item => item.item ? [item.item as IActionWidgetDropdownAction] : []);
+			}
+			override hide(): void { }
+		}();
+		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }()));
+		picker.render(container);
+		picker.show();
+		await items[0].run();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			summary: [...container.querySelector('.changes-picker-summary')?.children ?? []].map(child => child.textContent),
+			items: items.map(item => item.label),
+			selections,
+		}, {
+			label: 'Other Changes',
+			summary: ['4 Files', '+9', '-2'],
+			items: ['Other Changes'],
+			selections: [['other', otherSession]],
+		});
+	});
+
+	test('re-created pickers take over the shared summary so its counters keep animating', () => {
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			label: 'Branch Changes',
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([changeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
+		const renderPicker = () => {
+			const container = document.createElement('div');
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
+			picker.render(container);
+			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
+		};
+
+		const first = renderPicker();
+		first.picker.dispose();
+		const recreated = renderPicker();
+		const concurrent = renderPicker();
+
+		assert.deepStrictEqual({
+			recreatedTakesOver: recreated.summary === first.summary,
+			concurrentGetsOwn: !!concurrent.summary && concurrent.summary !== recreated.summary,
+			concurrentSummary: [...concurrent.summary?.children ?? []].map(child => child.textContent),
+		}, {
+			recreatedTakesOver: true,
+			concurrentGetsOwn: true,
+			concurrentSummary: ['2 Files', '+5', '-1'],
+		});
+
+		recreated.picker.dispose();
+		concurrent.picker.dispose();
+	});
+
+	test('collapse all diffs is contributed to the More Actions menu of the Changes editor header', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the More Actions menu of the Changes editor header');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -149,7 +667,7 @@ suite('Changes View Actions', () => {
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			group: 'secondary/1_diff',
@@ -157,17 +675,97 @@ suite('Changes View Actions', () => {
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
 	});
 
-	test('expand all diffs is contributed to the editor header layout overflow menu', () => {
+	test('Toggle Files of the changed files list of the Changes editor is a primary action of its header, with the workbench\'s command', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID)!;
+		const visible = (values: Record<string, unknown>) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[MultiDiffEditorFileListAvailableContext.key]: true,
+				...values,
+			})) {
+				context.setValue(key, value);
+			}
+			return item.when?.evaluate(context) ?? true;
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			changesEditor: visible({}),
+			editorAreaHidden: visible({ [MainEditorAreaVisibleContext.key]: false }),
+			withoutFileList: visible({ [MultiDiffEditorFileListAvailableContext.key]: false }),
+			otherEditor: visible({ [ActiveEditorContext.key]: 'workbench.editors.textEditor' }),
+			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			tabRowItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).filter(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID).length,
+		}, { group: 'navigation', changesEditor: true, editorAreaHidden: false, withoutFileList: false, otherEditor: false, icon: Codicon.listFlat.id, tabRowItems: 0 });
+	});
+
+	test('Changes editor header shows Run Code Review, the More Actions menu of its diff actions, then Toggle Files only where its host enables the list, and its tab row none of them', () => {
+		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
+		const getLabels = (menuId: MenuId, contextKeyService: ContextKeyService) => menuService.getMenuActions(menuId, contextKeyService)
+			.map(([group, actions]) => [group, actions.map(action => action.label)] as const);
+		let withFileListContext: ContextKeyService | undefined;
+		const render = (fileListAvailable: boolean) => {
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			if (fileListAvailable) {
+				withFileListContext = contextKeyService;
+			}
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[AuxiliaryBarVisibleContext.key]: true,
+				[SessionIsCreatedContext.key]: true,
+				[SessionHasChangesContext.key]: true,
+				[SessionWorkspaceIsVirtualContext.key]: false,
+				[MultiDiffEditorFileListAvailableContext.key]: fileListAvailable,
+			})) {
+				contextKeyService.createKey(key, value);
+			}
+			// The header renders the groups of its secondary menu that start with `secondary/` in its More Actions menu, then
+			// its layout menu behind a separator.
+			const secondary = getLabels(Menus.SessionsEditorHeaderSecondary, contextKeyService);
+			const layout = getLabels(Menus.SessionsEditorHeaderLayout, contextKeyService).flatMap(([, labels]) => labels);
+			return {
+				headerRow: [
+					...secondary.filter(([group]) => !group.startsWith('secondary/')).flatMap(([, labels]) => labels),
+					'More Actions',
+					...(layout.length ? ['|', ...layout] : []),
+				],
+				moreActions: secondary.filter(([group]) => group.startsWith('secondary/')),
+				tabRow: getLabels(Menus.SessionsEditorTitle, contextKeyService),
+			};
+		};
+		const diffActions = ['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Diff View']] as const;
+		// With its own files list, such as in a chat window: how the list shows and where, not the side pane's Files View
+		const withFileList = render(true);
+		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
+		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
+			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
+		});
+	});
+
+	test('expand all diffs is contributed to the More Actions menu of the Changes editor header', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the More Actions menu of the Changes editor header');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -175,7 +773,7 @@ suite('Changes View Actions', () => {
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
@@ -184,7 +782,7 @@ suite('Changes View Actions', () => {
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasEditorAreaVisibleGate: true,
 			hasAllCollapsedGate: true,
 		});
@@ -194,39 +792,43 @@ suite('Changes View Actions', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionsDiffEditorView);
-		const singlePane = getSubmenu(Menus.SessionsEditorTitle);
-		const classic = getSubmenu(MenuId.EditorTitle);
+		const desktop = getSubmenu(Menus.SessionsEditorTitle);
+		const mobile = getSubmenu(MenuId.EditorTitle);
 
-		assert.ok(singlePane);
-		assert.ok(classic);
-		const singlePaneWhen = singlePane.when?.serialize() ?? '';
-		const classicWhen = classic.when?.serialize() ?? '';
+		assert.ok(desktop);
+		assert.ok(mobile);
+		const desktopWhen = desktop.when?.serialize() ?? '';
+		const mobileWhen = mobile.when?.serialize() ?? '';
 		assert.deepStrictEqual({
-			singlePaneTitle: typeof singlePane.title === 'string' ? singlePane.title : singlePane.title.value,
-			singlePaneGroup: singlePane.group,
-			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
-			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
-			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
-			singlePaneHasLayoutGate: singlePaneWhen.includes(SinglePaneLayoutEnabledContext.key),
-			classicTitle: typeof classic.title === 'string' ? classic.title : classic.title.value,
-			classicHasSessionsGate: classicWhen.includes(IsSessionsWindowContext.key),
-			classicHasTextDiffGate: classicWhen.includes(TextCompareEditorActiveContext.key),
-			classicHasChangesGate: classicWhen.includes(SessionChangesEditor.ID),
-			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
-			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
+			desktopTitle: typeof desktop.title === 'string' ? desktop.title : desktop.title.value,
+			desktopGroup: desktop.group,
+			desktopOrder: desktop.order,
+			desktopInEditorHeader: getSubmenu(Menus.SessionsEditorHeaderSecondary)?.group,
+			desktopHasTextDiffGate: desktopWhen.includes(TextCompareEditorActiveContext.key),
+			desktopHasChangesGate: desktopWhen.includes(SessionChangesEditor.ID),
+			desktopHasMultiDiffGate: desktopWhen.includes(MultiDiffEditor.ID),
+			desktopHasLayoutGate: desktopWhen.includes(DesktopLayoutContext.key),
+			mobileTitle: typeof mobile.title === 'string' ? mobile.title : mobile.title.value,
+			mobileHasSessionsGate: mobileWhen.includes(IsSessionsWindowContext.key),
+			mobileHasTextDiffGate: mobileWhen.includes(TextCompareEditorActiveContext.key),
+			mobileHasChangesGate: mobileWhen.includes(SessionChangesEditor.ID),
+			mobileHasMultiDiffGate: mobileWhen.includes(MultiDiffEditor.ID),
+			mobileHasLayoutGate: mobileWhen.includes(DesktopLayoutContext.key),
 		}, {
-			singlePaneTitle: 'Diff View',
-			singlePaneGroup: '1_diff',
-			singlePaneHasTextDiffGate: true,
-			singlePaneHasChangesGate: true,
-			singlePaneHasMultiDiffGate: true,
-			singlePaneHasLayoutGate: true,
-			classicTitle: 'Diff View',
-			classicHasSessionsGate: true,
-			classicHasTextDiffGate: true,
-			classicHasChangesGate: true,
-			classicHasMultiDiffGate: true,
-			classicHasLayoutGate: true,
+			desktopTitle: 'Diff View',
+			desktopGroup: '1_diff',
+			desktopOrder: 30,
+			desktopInEditorHeader: 'secondary/1_diff',
+			desktopHasTextDiffGate: true,
+			desktopHasChangesGate: true,
+			desktopHasMultiDiffGate: true,
+			desktopHasLayoutGate: true,
+			mobileTitle: 'Diff View',
+			mobileHasSessionsGate: true,
+			mobileHasTextDiffGate: true,
+			mobileHasChangesGate: true,
+			mobileHasMultiDiffGate: true,
+			mobileHasLayoutGate: true,
 		});
 	});
 
@@ -254,6 +856,185 @@ suite('Changes View Actions', () => {
 				{ id: 'diffEditor.viewMode.inlineTemporary', title: 'Inline (Temporary)', group: '1_view', order: 4 },
 			],
 			selectedMode: 'sideBySide',
+		});
+	});
+
+	test('the Changes editor shows the same title and header actions, in the same places and order, in the editor area of a chat window as in the main window, and none while its editor area is hidden', () => {
+		const context = (values: Record<string, unknown>) => {
+			const result = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[SessionIsCreatedContext.key]: true,
+				[SessionHasChangesContext.key]: true,
+				...values,
+			})) {
+				result.setValue(key, value);
+			}
+			return result;
+		};
+		// The menus of the editor parts of both windows: the tab row's actions and "…", and the header row.
+		const menus = { tabRow: Menus.SessionsEditorTitle, headerPrimary: Menus.SessionsEditorHeaderPrimary, headerSecondary: Menus.SessionsEditorHeaderSecondary, headerLayout: Menus.SessionsEditorHeaderLayout };
+		const shown = (values: Record<string, unknown>) => Object.fromEntries([false, true].map(allCollapsed => [allCollapsed ? 'allCollapsed' : 'expanded', Object.fromEntries(Object.entries(menus).map(([name, menu]) => [name, MenuRegistry.getMenuItems(menu)
+			.filter(item => item.when?.evaluate(context({ ...values, multiDiffEditorAllCollapsed: allCollapsed })) ?? true)
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => `${item.group ?? ''}:${isIMenuItem(item) ? item.command.id : typeof item.title === 'string' ? item.title : item.title.value}`)]))]));
+		const main = shown({ [IsAuxiliaryWindowContext.key]: false, [MainEditorAreaVisibleContext.key]: true });
+		// A chat window's editor area is in an auxiliary window, and binds whether it is visible in its own context, as the main window does.
+		const chatWindow = shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: true });
+		const hidden = shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: false });
+
+		// Its own diff actions show in the header row above its diffs, not in the tab row.
+		const ownActions = (state: typeof main) => Object.fromEntries(Object.entries(state).map(([key, lists]) => [key, [...(lists as Record<string, string[]>).tabRow, ...(lists as Record<string, string[]>).headerSecondary].filter(entry => CHANGES_EDITOR_OWN_ACTIONS.includes(entry.slice(entry.indexOf(':') + 1)))]));
+		assert.deepStrictEqual({
+			chatWindow,
+			mainShowsRunCodeReview: main.expanded.headerSecondary.some(entry => entry.endsWith(':sessions.codeReview.run')),
+			ownActionsInTheHeaderRow: ownActions(chatWindow),
+			hiddenShowsNoOwnActions: Object.values(ownActions(hidden)).every(list => list.length === 0),
+		}, {
+			chatWindow: main,
+			mainShowsRunCodeReview: true,
+			ownActionsInTheHeaderRow: {
+				expanded: ['secondary/1_diff:workbench.action.agentSessions.collapseAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
+				allCollapsed: ['secondary/1_diff:workbench.action.agentSessions.expandAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
+			},
+			hiddenShowsNoOwnActions: true,
+		});
+	});
+
+	test('Word Wrap uses independent actions for code and multi-diff editors, both in the editor title overflow menu on desktop', () => {
+		const actionIds = [
+			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
+			'workbench.action.agentSessions.toggleEditorWordWrap',
+		];
+		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.includes(item.command.id));
+		const createContext = (editorWordWrap: string, diffEditorWordWrap: string, effectiveWordWrap: boolean) => {
+			const context = new Context(1, null);
+			context.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, editorWordWrap);
+			context.setValue(`config.${SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING}`, diffEditorWordWrap);
+			context.setValue('config.editor.wordWrap', effectiveWordWrap ? 'on' : 'off');
+			return context;
+		};
+		const editorOnContext = createContext('on', 'off', false);
+		const diffEditorOnContext = createContext('off', 'on', false);
+		const inheritedOnContext = createContext('inherit', 'inherit', true);
+		const inheritedOffContext = createContext('inherit', 'inherit', false);
+		const summarize = (items: ReturnType<typeof getItems>) => items.map(item => {
+			const when = item.when?.serialize() ?? '';
+			const toggled = getToggledExpression(item.command.toggled);
+			return {
+				id: item.command.id,
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				hasSessionsGate: when.includes(IsSessionsWindowContext.key),
+				hasTextDiffGate: when.includes(TextCompareEditorActiveContext.key),
+				hasChangesGate: when.includes(SessionChangesEditor.ID),
+				hasMultiDiffGate: when.includes(MultiDiffEditor.ID),
+				hasTextEditorGate: when.includes(TEXT_FILE_EDITOR_ID),
+				hasLayoutGate: when.includes(DesktopLayoutContext.key),
+				checkedWhenEditorOn: toggled?.evaluate(editorOnContext),
+				checkedWhenDiffEditorOn: toggled?.evaluate(diffEditorOnContext),
+				checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
+				checkedWhenInheritedOff: toggled?.evaluate(inheritedOffContext),
+			};
+		}).sort((a, b) => a.id.localeCompare(b.id));
+
+		const diffEditorItem = (group: string, order: number, hasChangesGate = true, hasMultiDiffGate = true) => ({
+			id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
+			title: 'Word Wrap',
+			group,
+			order,
+			hasSessionsGate: true,
+			hasTextDiffGate: false,
+			hasChangesGate,
+			hasMultiDiffGate,
+			hasTextEditorGate: false,
+			hasLayoutGate: true,
+			checkedWhenEditorOn: false,
+			checkedWhenDiffEditorOn: true,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		});
+		const textEditorItem = {
+			id: 'workbench.action.agentSessions.toggleEditorWordWrap',
+			title: 'Word Wrap',
+			group: '1_diff',
+			order: 20,
+			hasSessionsGate: true,
+			hasTextDiffGate: false,
+			hasChangesGate: false,
+			hasMultiDiffGate: false,
+			hasTextEditorGate: true,
+			hasLayoutGate: true,
+			checkedWhenEditorOn: true,
+			checkedWhenDiffEditorOn: false,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		};
+		assert.deepStrictEqual({
+			desktopHeaderLayout: summarize(getItems(Menus.SessionsEditorHeaderLayout)),
+			desktopHeader: summarize(getItems(Menus.SessionsEditorHeaderSecondary)),
+			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
+			mobile: summarize(getItems(MenuId.EditorTitle)),
+		}, {
+			desktopHeaderLayout: [],
+			desktopHeader: [diffEditorItem('secondary/1_diff', 20, true, false)],
+			desktopEditorTitle: [diffEditorItem('1_diff', 20, false, true), textEditorItem],
+			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
+		});
+	});
+
+	test('Word Wrap actions update their respective editor settings', async () => {
+		const updates: Array<{ target: 'editor' | 'diffEditor'; wordWrap: SessionsWordWrap }> = [];
+		const requestedGroupIds: number[] = [];
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(ICodeEditorService, new class extends mock<ICodeEditorService>() {
+			override getFocusedCodeEditor() { return null; }
+			override getActiveCodeEditor() { return null; }
+		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			'editor.wordWrap': 'off',
+		}));
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return undefined; }
+		});
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroup(groupId: number): IEditorGroup | undefined {
+				requestedGroupIds.push(groupId);
+				return new class extends mock<IEditorGroup>() {
+					override get activeEditorPane() { return undefined; }
+				};
+			}
+		});
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly editorWordWrap = observableValue<SessionsWordWrap>('test', 'off');
+			override readonly diffEditorWordWrap = observableValue<SessionsWordWrap>('test', 'off');
+			override async setEditorWordWrap(wordWrap: SessionsWordWrap): Promise<void> {
+				updates.push({ target: 'editor', wordWrap });
+			}
+			override async setDiffEditorWordWrap(wordWrap: SessionsWordWrap): Promise<void> {
+				updates.push({ target: 'diffEditor', wordWrap });
+			}
+		});
+
+		// Editor title menus pass the active editor's resource before the editor context.
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleEditorWordWrap')!.handler(accessor, URI.file('/repo/a.ts'), { groupId: 17 }));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleDiffEditorWordWrap')!.handler(accessor));
+
+		assert.deepStrictEqual({
+			updates,
+			requestedGroupIds,
+		}, {
+			updates: [
+				{ target: 'editor', wordWrap: 'on' },
+				{ target: 'diffEditor', wordWrap: 'on' },
+			],
+			requestedGroupIds: [17],
 		});
 	});
 
@@ -295,24 +1076,21 @@ suite('Changes View Actions', () => {
 			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasSharedPrecondition: !!item.command.precondition,
 		}, {
 			title: 'Open Multi Diff Editor Layout Debug State',
 			category: 'Developer',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasSharedPrecondition: false,
 		});
 	});
 
-	function getChangesAccessibilityHelp(singlePane: boolean): string {
+	function getChangesAccessibilityHelp(): string {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { });
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = singlePane;
-		});
 		const provider = new SessionsChangesAccessibilityHelp().getProvider(instantiationService);
 
 		const content = provider.provideContent();
@@ -320,89 +1098,249 @@ suite('Changes View Actions', () => {
 		return content;
 	}
 
-	test('Changes accessibility help describes the single-pane diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
+	test('Changes accessibility help describes the desktop diff action', () => {
+		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Diff View in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('Changes accessibility help describes the classic diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
+	test('Changes accessibility help describes Word Wrap', () => {
+		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode toggles are moved to the editor header layout overflow for non-text single-file diffs', () => {
-		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+	test('Changes accessibility help describes Files View and its selection state', () => {
+		const content = getChangesAccessibilityHelp();
+		assert.deepStrictEqual({
+			hasMenuLocation: content.includes('Use Files View in the More Actions menu of the Changes editor\'s header row or of the editor title area'),
+			hasSelectionState: content.includes('Files View shows both options and marks the active one as selected'),
+		}, {
+			hasMenuLocation: true,
+			hasSelectionState: true,
+		});
+	});
+
+	test('Changes accessibility help describes the header actions and the final Files View group', () => {
+		const content = getChangesAccessibilityHelp();
+		assert.deepStrictEqual({
+			hasToolbarLocation: content.includes('Run Code Review and the diff actions of the Changes editor are on the right of its header row'),
+			hasToggleFiles: content.includes('Toggle Files follows a separator at the end of the row'),
+			hasFilesViewGroup: content.includes('Files View submenu in the final group'),
+		}, {
+			hasToolbarLocation: true,
+			hasToggleFiles: true,
+			hasFilesViewGroup: true,
+		});
+	});
+
+	test('Files View is in its own final group of the More Actions menus of the Changes editor header and of the tab row', () => {
+		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
+		const getGroupItems = (menuId: MenuId, group: string) => MenuRegistry.getMenuItems(menuId)
+			.filter(item => item.group === group)
+			.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id);
+		assert.deepStrictEqual({
+			lastHeaderGroup: getGroups(Menus.SessionsEditorHeaderSecondary).at(-1),
+			headerFilesViewGroupItems: getGroupItems(Menus.SessionsEditorHeaderSecondary, 'secondary/z_filesView'),
+			lastOverflowGroup: getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation').at(-1),
+			filesViewGroupItems: getGroupItems(Menus.SessionsEditorTitle, 'z_filesView'),
+		}, {
+			lastHeaderGroup: 'secondary/z_filesView',
+			headerFilesViewGroupItems: [Menus.ChangesFilesView.id],
+			lastOverflowGroup: 'z_filesView',
+			filesViewGroupItems: [Menus.ChangesFilesView.id],
+		});
+	});
+
+	test('Files View submenu of the editor title overflow shows for single-file diffs, and for the Changes editor in its header', () => {
+		const submenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.ChangesFilesView);
+		assert.ok(submenu);
+
+		const isVisible = (overrides: Record<string, string | boolean>) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[DesktopDiffEditorInputActiveContext.key]: true,
+				[DesktopLayoutContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsTopRightEditorGroupContext.key]: true,
+				[AuxiliaryBarVisibleContext.key]: true,
+				...overrides,
+			})) {
+				context.setValue(key, value);
+			}
+			return submenu.when?.evaluate(context) ?? true;
+		};
+		const getDirectViewModeItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
+			.map(item => item.command.id);
+
+		assert.deepStrictEqual({
+			title: typeof submenu.title === 'string' ? submenu.title : submenu.title.value,
+			group: submenu.group,
+			order: submenu.order,
+			visibleInListMode: isVisible({ [ChangesContextKeys.ViewMode.key]: ChangesViewMode.List }),
+			visibleInTreeMode: isVisible({ [ChangesContextKeys.ViewMode.key]: ChangesViewMode.Tree }),
+			visibleForChangesEditor: isVisible({ [DesktopDiffEditorInputActiveContext.key]: false, [ActiveEditorContext.key]: SessionChangesEditor.ID }),
+			visibleForUnrelatedEditor: isVisible({ [DesktopDiffEditorInputActiveContext.key]: false }),
+			visibleOutsideSessions: isVisible({ [IsSessionsWindowContext.key]: false }),
+			visibleInMobileLayout: isVisible({ [DesktopLayoutContext.key]: false }),
+			visibleInAuxiliaryWindow: isVisible({ [IsAuxiliaryWindowContext.key]: true }),
+			visibleInOtherGroup: isVisible({ [IsTopRightEditorGroupContext.key]: false }),
+			visibleWithoutChangesPane: isVisible({ [AuxiliaryBarVisibleContext.key]: false }),
+			headerLayoutItems: getDirectViewModeItems(Menus.SessionsEditorHeaderLayout),
+			editorTitleItems: getDirectViewModeItems(Menus.SessionsEditorTitle),
+			visibleInChangesEditorHeader: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+				.filter(isISubmenuItem)
+				.find(item => item.submenu === Menus.ChangesFilesView)
+				?.when?.evaluate(contextWith({ [IsSessionsWindowContext.key]: true, [ActiveEditorContext.key]: SessionChangesEditor.ID, [DesktopLayoutContext.key]: true, [IsAuxiliaryWindowContext.key]: false, [IsTopRightEditorGroupContext.key]: true, [AuxiliaryBarVisibleContext.key]: true })),
+		}, {
+			title: 'Files View',
+			group: 'z_filesView',
+			order: 20,
+			visibleInListMode: true,
+			visibleInTreeMode: true,
+			visibleForChangesEditor: false,
+			visibleForUnrelatedEditor: false,
+			visibleOutsideSessions: false,
+			visibleInMobileLayout: false,
+			// As in the editor area of a chat window; the Agents window's editor windows do not show the menu.
+			visibleInAuxiliaryWindow: true,
+			visibleInOtherGroup: false,
+			visibleWithoutChangesPane: false,
+			headerLayoutItems: [],
+			editorTitleItems: [],
+			visibleInChangesEditorHeader: true,
+		});
+	});
+
+	test('Files View shows both modes and selects only the active mode', () => {
+		const items = MenuRegistry.getMenuItems(Menus.ChangesFilesView)
+			.filter(isIMenuItem)
 			.map(item => {
-				const when = item.when?.serialize() ?? '';
-				const context = new Context(1, null);
-				context.setValue(IsSessionsWindowContext.key, true);
-				context.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
-				context.setValue(SinglePaneLayoutEnabledContext.key, true);
-				context.setValue(IsAuxiliaryWindowContext.key, false);
-				context.setValue(IsTopRightEditorGroupContext.key, true);
-				context.setValue(AuxiliaryBarVisibleContext.key, true);
-				context.setValue(
-					ChangesContextKeys.ViewMode.key,
-					item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
-				);
+				const getState = (mode: ChangesViewMode) => {
+					const context = new Context(1, null);
+					context.setValue(ChangesContextKeys.ViewMode.key, mode);
+					return {
+						visible: item.when?.evaluate(context) ?? true,
+						selected: getToggledExpression(item.command.toggled)?.evaluate(context) ?? false,
+					};
+				};
 				return {
 					id: item.command.id,
 					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 					group: item.group,
 					order: item.order,
 					icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-					hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-					hasDiffEditorInputGate: when.includes(SinglePaneDiffEditorInputActiveContext.key),
-					hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
-					hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
-					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-					hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
-					matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
+					inListMode: getState(ChangesViewMode.List),
+					inTreeMode: getState(ChangesViewMode.Tree),
 				};
 			})
 			.sort((a, b) => a.id.localeCompare(b.id));
 
-		const expectedItems = (group: string) => [{
+		assert.deepStrictEqual(items, [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
 			title: 'View as List',
-			group,
-			order: 20,
+			group: '1_viewMode',
+			order: 1,
 			icon: Codicon.listFlat.id,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasDiffEditorInputGate: true,
-			hasSinglePaneConfigGate: true,
-			hasAuxBarVisibleGate: true,
-			hasEditorAreaVisibleGate: false,
-			hasViewModeGate: true,
-			matchesSingleFileDiffContext: true,
+			inListMode: { visible: true, selected: true },
+			inTreeMode: { visible: true, selected: false },
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
-			group,
-			order: 20,
+			group: '1_viewMode',
+			order: 2,
 			icon: Codicon.listTree.id,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasDiffEditorInputGate: true,
-			hasSinglePaneConfigGate: true,
-			hasAuxBarVisibleGate: true,
-			hasEditorAreaVisibleGate: false,
-			hasViewModeGate: true,
-			matchesSingleFileDiffContext: true,
-		}];
+			inListMode: { visible: true, selected: false },
+			inTreeMode: { visible: true, selected: true },
+		}]);
+	});
+
+	test('Files View & Position is in the editor title overflow for multi diff editors with a file list', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu.id === MultiDiffEditorFilesViewAndPositionMenu.id);
+		const matches = (activeEditor: string, fileListAvailable: boolean) => {
+			const context = new Context(1, null);
+			context.setValue(IsSessionsWindowContext.key, true);
+			context.setValue(DesktopLayoutContext.key, true);
+			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsTopRightEditorGroupContext.key, true);
+			context.setValue(MainEditorAreaVisibleContext.key, true);
+			context.setValue(ActiveEditorContext.key, activeEditor);
+			context.setValue(`config.${multiDiffEditorExperimentalFileListSetting}`, true);
+			context.setValue(MultiDiffEditorFileListAvailableContext.key, fileListAvailable);
+			return items.map(item => item.when?.evaluate(context) ?? true);
+		};
 
 		assert.deepStrictEqual({
-			headerLayout: getItems(Menus.SessionsEditorHeaderLayout),
-			editorTitleOverflow: getItems(Menus.SessionsEditorTitle),
+			items: items.map(item => ({ title: typeof item.title === 'string' ? item.title : item.title.value, group: item.group, order: item.order })),
+			multiDiffEditorWithFileList: matches(MultiDiffEditor.ID, true),
+			multiDiffEditorWithoutFileList: matches(MultiDiffEditor.ID, false),
+			changesEditor: matches(SessionChangesEditor.ID, true),
 		}, {
-			headerLayout: expectedItems('secondary/2_viewMode'),
-			editorTitleOverflow: [],
+			items: [{ title: 'Files View & Position', group: '2_viewMode', order: 10 }],
+			multiDiffEditorWithFileList: [true],
+			multiDiffEditorWithoutFileList: [false],
+			changesEditor: [false],
 		});
 	});
 
-	test('Create Pull Request anchor is visible for created sessions but hidden for custom views', () => {
+	test('Create Pull Request anchor shows in the title bar of each window for the session it shows, by the keys of that window: in a chat window for its session, and not in an editor window, which shows none', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem).find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID)!;
+		// The main window's context: its session is not created yet, and it shows a custom view.
+		const mainContextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		IsSessionsWindowContext.bindTo(mainContextKeyService).set(true);
+		DesktopLayoutContext.bindTo(mainContextKeyService).set(true);
+		SessionIsCreatedContext.bindTo(mainContextKeyService).set(false);
+		const customView = CustomViewVisibleContext.bindTo(mainContextKeyService);
+		customView.set(true);
+		// A chat window's context, an auxiliary window's, which binds the keys of the created session it shows.
+		const chatWindowContextKeyService = disposables.add(mainContextKeyService.createScoped(document.createElement('div')));
+		IsAuxiliaryWindowContext.bindTo(chatWindowContextKeyService).set(true);
+		// As the chat window's provider binds them for the session it shows.
+		CustomViewVisibleContext.bindTo(chatWindowContextKeyService).set(false);
+		setActiveSessionContextKeys(createTestActiveSession('chat'), chatWindowContextKeyService, undefined);
+		// An editor window's title bar, an auxiliary window's, which binds no session.
+		const editorWindowContextKeyService = disposables.add(mainContextKeyService.createScoped(document.createElement('div')));
+		IsAuxiliaryWindowContext.bindTo(editorWindowContextKeyService).set(true);
+		setActiveSessionContextKeys(undefined, editorWindowContextKeyService, undefined);
+		const visible = () => [mainContextKeyService, chatWindowContextKeyService, editorWindowContextKeyService].map(contextKeyService => contextKeyService.contextMatchesRules(item.when));
+		const whileMainShowsCustomView = visible();
+		customView.set(false);
+		SessionIsCreatedContext.bindTo(mainContextKeyService).set(true);
+
+		assert.deepStrictEqual({ whileMainShowsCustomView, mainCreated: visible() }, {
+			whileMainShowsCustomView: [false, true, false],
+			mainCreated: [true, true, false],
+		});
+	});
+
+	test('collapse and expand all diffs act on the Changes editor whose title they are invoked from, such as in a chat window, else on the active one', async () => {
+		const calls: string[] = [];
+		// A Changes editor, as the actions check, that records what they do to it.
+		const pane = (name: string) => upcastPartial<IVisibleEditorPane>(Object.assign(Object.create(SessionChangesEditor.prototype) as SessionChangesEditor, {
+			collapseAllDiffs: () => { calls.push(`collapse:${name}`); },
+			expandAllDiffs: () => { calls.push(`expand:${name}`); },
+		}));
+		const invoking = pane('invoking');
+		const active = pane('active');
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroup(id: number) { return id === 7 ? upcastPartial<IEditorGroup>({ activeEditorPane: invoking }) : undefined; }
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return active; }
+		});
+		for (const id of ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs']) {
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, URI.parse('changes:/session'), { groupId: 7 }));
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		}
+
+		assert.deepStrictEqual(calls, ['collapse:invoking', 'collapse:active', 'expand:invoking', 'expand:active']);
+	});
+
+	test('Create Pull Request anchor stays mounted while session changes resolve but is hidden for custom views', () => {
 		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
@@ -416,10 +1354,9 @@ suite('Changes View Actions', () => {
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(IsAuxiliaryWindowContext.key, false);
 		context.setValue(CustomViewVisibleContext.key, false);
-		context.setValue(SinglePaneLayoutEnabledContext.key, true);
+		context.setValue(DesktopLayoutContext.key, true);
 		context.setValue(SessionIsCreatedContext.key, true);
-		context.setValue(SessionHasChangesContext.key, true);
-		const visibleForSession = item.when?.evaluate(context) ?? false;
+		const visibleWhileChangesResolve = item.when?.evaluate(context) ?? false;
 		context.setValue(CustomViewVisibleContext.key, true);
 		assert.deepStrictEqual({
 			editorTitleItem,
@@ -427,21 +1364,20 @@ suite('Changes View Actions', () => {
 			order: item.order,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
-			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
-			hasChangesGate: when.includes(SessionHasChangesContext.key),
-			visibleForSession,
+			visibleWhileChangesResolve,
 			visibleForCustomView: item.when?.evaluate(context) ?? false,
 		}, {
 			editorTitleItem: undefined,
 			group: 'navigation',
 			order: 5,
 			hasSessionsWindowGate: true,
-			hasAuxiliaryWindowGate: true,
-			hasSinglePaneLayoutGate: true,
+			// Each window binds the keys of the session it shows, an editor window's title bar none.
+			hasAuxiliaryWindowGate: false,
+			hasDesktopLayoutGate: true,
 			hasCreatedSessionGate: true,
-			hasChangesGate: true,
-			visibleForSession: true,
+			visibleWhileChangesResolve: true,
 			visibleForCustomView: false,
 		});
 	});

@@ -6,7 +6,7 @@
 import '../../../../platform/update/common/update.config.contribution.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -14,18 +14,23 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
+import { OutdatedBuildReminderContribution } from './outdatedBuildReminder.js';
+import { WorkbenchUnattendedRestartParticipants } from './unattendedRestartParticipants.js';
+import { UnattendedRestartExperimentTriggerContribution } from './unattendedRestartExperimentTrigger.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
-import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
+import { PostUpdateReleaseNotesSource, ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ReleaseNotesAccessibilityHelp } from './releaseNotesAccessibilityHelp.js';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -35,8 +40,16 @@ workbench.registerWorkbenchContribution(SwitchProductQualityContribution, Lifecy
 workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WorkbenchUnattendedRestartParticipants.ID, WorkbenchUnattendedRestartParticipants, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(UnattendedRestartExperimentTriggerContribution.ID, UnattendedRestartExperimentTriggerContribution, WorkbenchPhase.AfterRestored);
+
+if (!isWeb) {
+	registerWorkbenchContribution2(OutdatedBuildReminderContribution.ID, OutdatedBuildReminderContribution, WorkbenchPhase.Eventually);
+}
 
 // Release notes
+
+AccessibleViewRegistry.register(new ReleaseNotesAccessibilityHelp());
 
 export class ShowReleaseNotesAction extends Action2 {
 
@@ -59,14 +72,14 @@ export class ShowReleaseNotesAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, version?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, version?: string, source?: symbol): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 		const targetVersion = version ?? productService.version;
 
 		try {
-			await showReleaseNotesInEditor(instantiationService, targetVersion, false);
+			await showReleaseNotesInEditor(instantiationService, targetVersion, false, source === PostUpdateReleaseNotesSource ? 'postUpdateWidget' : 'command');
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));

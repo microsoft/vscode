@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ICommonProperties } from '../../../telemetry/common/telemetry.js';
-import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostInternalTelemetrySink, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostInternalTelemetrySink, multiplexProperties, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 
 /** The enhanced/restricted iKey (`copilot_v0_restricted_copilot_event`). */
 const GH_ENHANCED_IKEY = '3fdd7f28-937a-48c8-9a21-ba337db23bd1';
@@ -47,12 +48,41 @@ class TestInternalSink implements IAgentHostInternalTelemetrySink {
 	}
 }
 
+suite('AgentHost restricted telemetry chunking', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const key of ['messageText', 'prompt']) {
+		for (const length of [0, 100, 8192, 8193, 20000]) {
+			test(`always compresses ${key} of length ${length}`, async () => {
+				const value = 'x'.repeat(length);
+				const properties = await multiplexProperties({ [key]: value });
+				assert.deepStrictEqual(properties, {
+					[key]: value.slice(0, 8192),
+					[`${key}Chunk`]: zlib.gzipSync(Buffer.from(value, 'utf8')).toString('base64'),
+				});
+			});
+		}
+	}
+
+	test('preserves Unicode across the raw prefix boundary', async () => {
+		const messageText = 'x'.repeat(8191) + '\u{1F600}\u4F60\u597D';
+		const properties = await multiplexProperties({ messageText });
+		assert.deepStrictEqual({
+			prefix: properties.messageText,
+			reconstructed: zlib.gunzipSync(Buffer.from(properties.messageTextChunk!, 'base64')).toString('utf8'),
+		}, {
+			prefix: messageText.slice(0, 8192),
+			reconstructed: messageText,
+		});
+	});
+});
+
 suite('AgentHostRestrictedTelemetrySender', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const commonProperties = {} as ICommonProperties;
 
-	function createSender(logService = new NullLogService()): { sender: AgentHostRestrictedTelemetrySender; posts: ICapturedPost[]; envelopes: ICapturedEnvelope[] } {
+	function createSender(logService = new NullLogService(), properties: ICommonProperties = commonProperties): { sender: AgentHostRestrictedTelemetrySender; posts: ICapturedPost[]; envelopes: ICapturedEnvelope[] } {
 		const posts: ICapturedPost[] = [];
 		const envelopes: ICapturedEnvelope[] = [];
 		const fetchFn = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -61,8 +91,35 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 			envelopes.push(envelope);
 			return { ok: true, status: 200 } as Response;
 		}) as typeof globalThis.fetch;
-		const sender = new AgentHostRestrictedTelemetrySender(commonProperties, logService, 'https://default.example/telemetry', undefined, fetchFn);
+		const sender = new AgentHostRestrictedTelemetrySender(properties, logService, 'https://default.example/telemetry', undefined, fetchFn);
 		return { sender, posts, envelopes };
+	}
+
+	for (const { version, expected } of [
+		{ version: '1.136.2', expected: 'vscode-agent-host/1.136.2' },
+		{ version: '1.137.0-insider', expected: 'vscode-agent-host/1.137.0-insider' },
+		{ version: undefined, expected: undefined },
+	]) {
+		test(`formats editor_version for standard and enhanced GH telemetry (${version ?? 'missing version'})`, () => {
+			const { sender, envelopes } = createSender(undefined, { version });
+			sender.setRestrictedTelemetryEnabled(true);
+
+			sender.sendGHTelemetryEvent('agentHost.userMessageSent');
+			sender.sendEnhancedGHTelemetryEvent('engine.messages');
+			sender.sendEnhancedGHTelemetryEventForContext({
+				restrictedTelemetryEnabled: true,
+				trackingId: 'session-account-tid',
+				telemetryEndpoint: 'https://session-account.example/telemetry',
+				isInternal: false,
+				userName: 'session-account',
+				isVscodeTeamMember: false,
+			}, 'engine.messages');
+
+			assert.deepStrictEqual(
+				envelopes.map(envelope => envelope.data.baseData.properties.editor_version),
+				[expected, expected, expected],
+			);
+		});
 	}
 
 	test('enhanced GH telemetry is dropped until the token opts in (rt=1), then routes to the enhanced iKey', () => {

@@ -15,26 +15,17 @@ import { IActionListDelegate, IActionListItem } from '../../../../../../platform
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IChatModeService, IChatModes, ChatMode, CustomChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -169,6 +160,61 @@ suite('ScopedModePickerModelCache', () => {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('distinguishes duplicate labels visibly and accessibly without changing selection IDs', () => {
+		const custom = ['VS Code', 'Plugin: review-tools', 'VS Code'].map((source, index) => new CustomChatMode({
+			id: `client-agent:/${index}`, uri: URI.parse(`client-agent:/${index}`),
+			name: index === 2 ? 'Other' : 'Reviewer',
+			source: { storage: PromptsStorage.local, label: source },
+			agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+		}));
+		const modes = upcastPartial<IChatModes & IDisposable>({
+			onDidChange: Event.None, builtin: [ChatMode.Agent], custom,
+			findModeById: id => custom.find(mode => mode.id === id),
+			waitForPendingUpdates: async () => { }, dispose: () => { },
+		});
+		const model = store.add(new ModePickerModel(
+			upcastPartial<IChatSessionsService>({ getCustomAgentTargetForSessionType: () => Target.Undefined }),
+			upcastPartial<IChatModeService>({ createModes: () => modes }),
+		));
+		model.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session') }), custom[0].id);
+		let rows: { label: string | undefined; source: string | undefined; aria: string | null | undefined }[] = [];
+		const picker = store.add(new ModePicker(
+			model, observableValue<IActiveSession | undefined>('session', undefined),
+			upcastPartial<IActionWidgetService>({
+				isVisible: false, hide: () => { },
+				show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibilityProvider) => {
+					rows = items.filter(item => item.label === 'Reviewer' || item.label === 'Other').map(item => {
+						const aria = accessibilityProvider?.getAriaLabel?.(item);
+						return {
+							label: item.label,
+							source: typeof item.description === 'string' ? item.description : undefined,
+							aria: typeof aria === 'string' || aria === null || aria === undefined ? aria : aria.get(),
+						};
+					});
+					const selected = items.find(item => item.description === 'Plugin: review-tools');
+					assert.ok(selected?.item);
+					delegate.onSelect(selected.item);
+				},
+			}),
+			upcastPartial<ICommandService>({}), new TestTelemetryService(),
+			upcastPartial<IChatService>({}), new MockChatSessionsService(),
+		));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		picker.showPicker();
+		assert.deepStrictEqual({ rows, selected: model.selectedMode.id }, {
+			rows: [
+				{ label: 'Reviewer', source: 'VS Code', aria: 'Reviewer, VS Code' },
+				{ label: 'Reviewer', source: 'Plugin: review-tools', aria: 'Reviewer, Plugin: review-tools' },
+				{ label: 'Other', source: undefined, aria: 'Other' },
+			],
+			selected: custom[1].id,
+		});
+	});
+
 	test('reports chat.modeChange for the scoped active chat', () => {
 		const telemetryService = new TestTelemetryService();
 		const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
@@ -214,11 +260,14 @@ suite('ModePicker', () => {
 		}();
 		const scopedSession = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly activeChat = observableValue<IChat>('activeChat', activeChat);
+			override readonly sessionType = 'agent-host-claude';
 		}());
 
 		let selectCustomAgent: (() => void) | undefined;
 		let hidePicker: (() => void) | undefined;
 		const requestedChatResources: string[] = [];
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([{ type: 'agent-host-claude', agentHostProviderId: 'claude', name: 'Claude', displayName: 'Claude', description: '' }]);
 		const picker = store.add(new ModePicker(
 			model,
 			scopedSession,
@@ -255,6 +304,7 @@ suite('ModePicker', () => {
 					}();
 				}
 			}(),
+			chatSessionsService,
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -266,9 +316,11 @@ suite('ModePicker', () => {
 			trigger.focus = () => focusCalls++;
 		}
 		trigger?.click();
+		const expandedWhileOpen = trigger?.getAttribute('aria-expanded');
 		assert.ok(hidePicker);
 		hidePicker();
 		const pointerFocusCalls = focusCalls;
+		const expandedAfterHide = trigger?.getAttribute('aria-expanded');
 
 		trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 		assert.ok(hidePicker);
@@ -284,10 +336,13 @@ suite('ModePicker', () => {
 			requestedChatResources,
 			pointerFocusCalls,
 			keyboardFocusCalls,
+			expandedWhileOpen,
+			expandedAfterHide,
 		}, {
 			events: [{
 				name: 'chat.modeChange',
 				data: {
+					provider: 'claude',
 					fromMode: 'agent',
 					mode: String(hash(customAgent.name.get())),
 					requestCount: 3,
@@ -301,6 +356,8 @@ suite('ModePicker', () => {
 			requestedChatResources: [chatResource.toString()],
 			pointerFocusCalls: 1,
 			keyboardFocusCalls: 2,
+			expandedWhileOpen: 'true',
+			expandedAfterHide: 'false',
 		});
 	});
 });

@@ -449,21 +449,23 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	setActiveDictation(activeDictation);
 	try {
 		await service.start(window, surface);
-		if (_active === activeDictation && isRecording(service)) {
-			const durationLimit = window.setTimeout(() => {
-				logService.info(`${LOG_PREFIX} stopping after maximum duration`);
-				status(localize('chatStt.maximumDurationReached', "Dictation stopped after 20 minutes."));
-				void stopDictation();
-			}, MAX_DICTATION_DURATION_MS);
-			disposables.add(toDisposable(() => window.clearTimeout(durationLimit)));
-		}
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
-		if (_active === activeDictation) {
-			setActiveDictation(undefined);
-		}
-		disposables.dispose();
 	}
+	if (_active !== activeDictation) {
+		return;
+	}
+	if (!isRecording(service)) {
+		setActiveDictation(undefined);
+		disposables.dispose();
+		return;
+	}
+	const durationLimit = window.setTimeout(() => {
+		logService.info(`${LOG_PREFIX} stopping after maximum duration`);
+		status(localize('chatStt.maximumDurationReached', "Dictation stopped after 20 minutes."));
+		void stopDictation();
+	}, MAX_DICTATION_DURATION_MS);
+	disposables.add(toDisposable(() => window.clearTimeout(durationLimit)));
 }
 
 /** Stop the active dictation and apply the final transcript. */

@@ -29,6 +29,8 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'monaco-modal-editor-block', type: BrowserOverlayType.Dialog },
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
+	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
+	{ className: 'part-grid-motion', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
@@ -38,7 +40,6 @@ const HIT_TEST_EXCLUDED_CLASSES = [
 	// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
 	// so hit-testing must skip them to find the overlay actually painted underneath.
 	'context-view-block',
-	'context-view-pointerBlock',
 
 	// Webview overlay elements exist in their own DOM structure and are positioned dynamically,
 	// so they interfere with hit-testing because they are not descendants of the tracked overlay.

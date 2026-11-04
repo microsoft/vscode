@@ -49,6 +49,8 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		let notificationNode: HTMLElement;
 		if (notification.presentation === 'workspaceTransition') {
 			notificationNode = this._renderWorkspaceTransition(notification);
+		} else if (notification.presentation === 'workflow') {
+			notificationNode = this._renderWorkflow(notification, renderer);
 		} else if (notification.collapsible) {
 			const firstLineBreak = notification.content.value.indexOf('\n');
 			const detailsValue = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
@@ -69,6 +71,22 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 			this.domNode = notificationNode;
 			this.inlineTimingContainer = undefined;
 		}
+	}
+
+	private _renderWorkflow(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer): HTMLElement {
+		const firstLineBreak = notification.content.value.indexOf('\n');
+		const title = firstLineBreak === -1 ? notification.content.value : notification.content.value.slice(0, firstLineBreak);
+		const body = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
+		const owner = dom.$('.chat-system-notification-workflow');
+		const renderedTitle = this._register(renderer.render({ ...notification.content, value: title }));
+		renderedTitle.element.classList.add('chat-system-notification-workflow-title');
+		owner.appendChild(renderedTitle.element);
+		if (body) {
+			const renderedBody = this._register(renderer.render({ ...notification.content, value: body }));
+			renderedBody.element.classList.add('chat-system-notification-workflow-body');
+			owner.appendChild(renderedBody.element);
+		}
+		return owner;
 	}
 
 	private _renderWorkspaceTransition(notification: IChatSystemNotificationPart): HTMLElement {

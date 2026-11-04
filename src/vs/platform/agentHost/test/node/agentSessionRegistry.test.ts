@@ -4,18 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { TestAgentHostDatabaseBase, testRegistrationGeneration, disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
 
-class TestAgentHostDatabase implements IAgentHostDatabase {
+class TestAgentHostDatabase extends TestAgentHostDatabaseBase implements IAgentHostDatabase {
+	/** Test double: sessions are stored as addressed. */
+
+	async getRegistrationGeneration(): Promise<number> {
+		return testRegistrationGeneration(this.sessions.values());
+	}
+
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
 	readonly agentMergeEnabled = new Set<string>();
+	readonly provisionalSessions = new Set<string>();
 	backfilled = false;
-	private readonly _providerBackfilled = new Set<string>();
-	private readonly _tombstones = new Set<string>();
+
 	private _writeFailures = 0;
 	private _readFailures = 0;
 	listCalls = 0;
@@ -31,7 +43,7 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._throwWriteFailure();
-		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
 			return false;
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -45,6 +57,7 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this.sessions.set(session, { ...next, modifiedTime: Math.max(existing?.modifiedTime ?? modifiedTime, modifiedTime) });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
+			this._hiddenSessions.delete(session);
 		}
 		return true;
 	}
@@ -58,6 +71,23 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._throwWriteFailure();
 		this._tombstones.add(session);
 		this.sessions.delete(session);
+	}
+
+	override async hideSession(session: string, provider: string): Promise<void> {
+		this._throwWriteFailure();
+		this.sessions.delete(session);
+		this._tombstones.delete(session);
+		this._hiddenSessions.set(session, provider);
+	}
+
+	override async isSessionHidden(session: string): Promise<boolean> {
+		this._throwReadFailure();
+		return this._hiddenSessions.has(session);
+	}
+
+	override async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
+		this._throwReadFailure();
+		return [...this._hiddenSessions].map(([session, provider]) => ({ session, provider }));
 	}
 
 	async updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
@@ -130,9 +160,56 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._providerBackfilled.add(provider);
 	}
 
+	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
+		this._throwReadFailure();
+		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<void> {
+		this._throwWriteFailure();
+		this._sessionsV2Backfilled.add(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		this._throwWriteFailure();
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+	}
+
+	async excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<'excluded'> {
+		this._throwWriteFailure();
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+		this.sessions.delete(exclusion.session);
+		return 'excluded';
+	}
+
+	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
+		this._throwReadFailure();
+		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
+	}
+
+	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		this._throwReadFailure();
+		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
+	}
+
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		this._throwReadFailure();
+		return [...this._sessionsV2Exclusions.values()];
+	}
+
+	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
+		this._throwWriteFailure();
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		this._throwReadFailure();
 		return this._tombstones.has(session);
+	}
+
+	override async isSessionSuppressed(session: string): Promise<boolean> {
+		this._throwReadFailure();
+		return this._tombstones.has(session) || this._hiddenSessions.has(session);
 	}
 
 	async markSessionTombstoned(session: string): Promise<void> {
@@ -143,6 +220,37 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async clearSessionTombstone(session: string): Promise<void> {
 		this._throwWriteFailure();
 		this._tombstones.delete(session);
+		this._hiddenSessions.delete(session);
+	}
+
+	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		if (registerOptions.discoveryBackingSession !== undefined
+			&& (this._tombstones.has(registerOptions.discoveryBackingSession)
+				|| this._hiddenSessions.has(registerOptions.discoveryBackingSession)
+				|| registerOptions.discoveryBackingSession !== session && this.sessions.has(registerOptions.discoveryBackingSession)
+				|| [...this._sessionsV2Exclusions.values()].some(exclusion =>
+					(exclusion.session === session && exclusion.provider !== sessionOptions.provider
+						|| registerOptions.discoveryBackingSession !== session && exclusion.session === registerOptions.discoveryBackingSession)
+					&& (exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal')))) {
+			return false;
+		}
+		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
+		if (registerOptions.provisional) {
+			this.provisionalSessions.add(session);
+		}
+		return registered;
+	}
+
+	unregisterRuntimeSession(session: string): Promise<void> {
+		return this.unregisterSessionV2(session);
+	}
+
+	updateRuntimeSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
+		return this.updateSessionV2External(updates);
+	}
+
+	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+		return [...this.sessions.keys()];
 	}
 
 	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
@@ -159,8 +267,77 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		return [...this.agentMergeEnabled];
 	}
 
-	async close(): Promise<void> { }
-	dispose(): void { }
+	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		this._throwWriteFailure();
+		if (provisional) {
+			this.provisionalSessions.add(session);
+		} else {
+			this.provisionalSessions.delete(session);
+		}
+	}
+
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		this._throwReadFailure();
+		return [...this.provisionalSessions];
+	}
+
+	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		const existing = this.sessions.get(session);
+		if (existing && existing.provider !== sessionOptions.provider && sessionOptions.source === 'discovery') {
+			return false;
+		}
+		const registered = await this.registerSession(session, sessionOptions, registerOptions);
+		if (registered) {
+			this._sessionsV2Exclusions.delete(`${sessionOptions.provider}:${session}`);
+		}
+		return registered;
+	}
+
+	unregisterSessionV2(session: string): Promise<void> {
+		return this.unregisterSession(session);
+	}
+
+	updateSessionV2External(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
+		return this.updateSessionExternal(updates);
+	}
+
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined> {
+		this.sessions.set(session, legacy);
+		return legacy;
+	}
+
+	getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this.getSession(session);
+	}
+
+	listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return this.listSessions();
+	}
+
+	isSessionV2RegistryEmpty(): Promise<boolean> {
+		return this.isSessionRegistryEmpty();
+	}
+
+	async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> { return undefined; }
+	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> { return []; }
+	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> { return []; }
+	async markSessionV2PayloadDirty(): Promise<number | undefined> { return undefined; }
+	async getSessionV2PayloadDirty(): Promise<number | undefined> { return undefined; }
+	async markAllSessionsV2PayloadsDirty(): Promise<void> { }
+	async markSessionsV2PayloadsDirty(): Promise<void> { }
+	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
+	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
+
+	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: false, provisional: this.provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+
+	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
+	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
+	async markSessionChatCatalogLegacyMirrored(_session: string, _expectedRevision: number): Promise<boolean> { return false; }
+	async recordSessionChatCatalogLegacyMirrorPayload(_session: string, _expectedRevision: number, _payload: string): Promise<boolean> { return false; }
 
 	private _throwWriteFailure(): void {
 		if (this._writeFailures > 0) {
@@ -191,6 +368,8 @@ suite('AgentSessionRegistry', () => {
 		disposables.clear();
 		await database.close();
 	});
+	// The fake databases stand for durable ones that outlive a simulated host restart, so they are released here.
+	teardown(() => disposeTestSessionStateDatabases());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createRegistry(): AgentSessionRegistry {
@@ -219,6 +398,114 @@ suite('AgentSessionRegistry', () => {
 			listCalls: 1,
 			updates: [],
 		});
+	});
+
+	test('compatibility keys include legacy-only identities without changing current listing', async () => {
+		await database.registerSession(a.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registry = createRegistry();
+
+		assert.deepStrictEqual({
+			current: [...await registry.listSessionKeys()],
+			compatible: [...await registry.listRuntimeCompatibleSessionKeys()],
+			listed: await registry.list(),
+		}, {
+			current: [],
+			compatible: [a.toString()],
+			listed: [],
+		});
+	});
+
+	test('discovery preserves registered identities and defaults unknown backing IDs to standard URIs', async () => {
+		const registry = createRegistry();
+		const legacy = AgentSession.uri('claude', 'legacy');
+		const standard = AgentSession.uri('ahp-session', 'standard');
+		const opaque = URI.parse('ahp-session://tenant/opaque');
+		await database.registerSession(legacy.toString(), { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await registry.register(standard, { provider: 'claude', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+		await registry.register(opaque, { provider: 'claude', startTime: 3, source: 'explicit' }, { checkTombstone: false });
+		const candidates = [
+			AgentSession.uri('claude', 'legacy'),
+			AgentSession.uri('claude', 'standard'),
+			AgentSession.uri('claude', 'opaque'),
+			AgentSession.uri('claude', 'new'),
+		];
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('claude', candidates);
+
+		assert.deepStrictEqual([...resolved].map(([candidate, resolution]) => resolution.status === 'resolved'
+			? [candidate, resolution.session.toString(), resolution.existing, resolution.registered]
+			: [candidate, resolution.status, resolution.message]), [
+			['claude:/legacy', 'claude:/legacy', true, true],
+			['claude:/standard', 'ahp-session:/standard', true, true],
+			['claude:/opaque', 'ahp-session:/opaque', false, false],
+			['claude:/new', 'ahp-session:/new', false, false],
+		]);
+	});
+
+	test('discovery isolates two registered identities for one provider backing', async () => {
+		const registry = createRegistry();
+		const legacy = AgentSession.uri('claude', 'duplicate');
+		const standard = AgentSession.uri('ahp-session', 'duplicate');
+		await registry.register(legacy, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await registry.register(standard, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('claude', [legacy]);
+
+		assert.deepStrictEqual([...resolved.values()].map(resolution => resolution.status === 'conflict' ? {
+			status: resolution.status,
+			sessions: resolution.sessions.map(session => session.toString()),
+			message: resolution.message,
+		} : resolution), [{
+			status: 'conflict',
+			sessions: [legacy.toString(), standard.toString()],
+			message: `Conflicting session identities for provider claude backing duplicate: ${legacy.toString()}, ${standard.toString()}`,
+		}]);
+	});
+
+	test('discovery preserves the identity of an excluded registration without treating it as registered', async () => {
+		const registry = createRegistry();
+		const legacy = AgentSession.uri('claude', 'excluded');
+		await database.registerSessionV2(legacy.toString(), { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await database.excludeSessionV2(
+			{ provider: 'claude', session: legacy.toString(), reason: 'providerAbsent', fingerprint: 'test' },
+			{
+				identity: { session: legacy.toString(), provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+				catalog: undefined,
+			},
+		);
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('claude', [legacy]);
+
+		assert.deepStrictEqual([...resolved.values()].map(resolution => resolution.status === 'resolved' ? {
+			session: resolution.session.toString(),
+			existing: resolution.existing,
+			registered: resolution.registered,
+		} : resolution), [{
+			session: legacy.toString(),
+			existing: true,
+			registered: false,
+		}]);
+	});
+
+	test('discovery sees exclusion-only standard identity ownership across providers', async () => {
+		const registry = createRegistry();
+		const standard = AgentSession.uri('ahp-session', 'cross-provider-exclusion');
+		await registry.markSessionsV2Excluded({
+			provider: 'claude',
+			session: standard.toString(),
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('codex', [AgentSession.uri('codex', 'cross-provider-exclusion')]);
+
+		assert.deepStrictEqual([...resolved.values()].map(resolution => resolution.status === 'conflict' ? {
+			status: resolution.status,
+			message: resolution.message,
+		} : resolution), [{
+			status: 'conflict',
+			message: 'Session identity for provider codex backing cross-provider-exclusion is owned by claude',
+		}]);
 	});
 
 	test('list migrates entries and returns the computed list without rereading', async () => {
@@ -302,6 +589,28 @@ suite('AgentSessionRegistry', () => {
 		assert.deepStrictEqual((await list(registry)).map(s => s.session.toString()), [b.toString()]);
 	});
 
+	test('normal registration and unregister mirror the legacy registry', async () => {
+		const registry = createRegistry();
+		await registerExplicit(registry, a, 'copilot', 100);
+
+		assert.deepStrictEqual({
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+		}, {
+			legacy: { session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 100, external: false, source: 'explicit' },
+			current: { session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 100, external: false, source: 'explicit' },
+		});
+
+		await registry.unregister(a);
+		assert.deepStrictEqual({
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+		}, {
+			legacy: undefined,
+			current: undefined,
+		});
+	});
+
 	test('register preserves startTime and advances modifiedTime monotonically', async () => {
 		const registry = createRegistry();
 		await registry.register(a, { provider: 'copilot', startTime: 100, modifiedTime: 150, source: 'explicit' }, { checkTombstone: false });
@@ -383,6 +692,95 @@ suite('AgentSessionRegistry', () => {
 		})), [{ external: false, source: 'explicit', startTime: 100 }]);
 	});
 
+	test('external session adoption is durable, idempotent, and protected from rediscovery', async () => {
+		const registry = createRegistry();
+		const adopted: string[] = [];
+		disposables.add(registry.onDidAdoptSession(session => adopted.push(session.toString())));
+		await registerDiscovered(registry, a, 'copilot', 100);
+		await registry.adoptExternalSession(a);
+		await registry.adoptExternalSession(a);
+
+		const restartedRegistry = createRegistry();
+		await registerRestored(restartedRegistry, a, 'copilot', 200);
+		await registerDiscovered(restartedRegistry, a, 'copilot', 300);
+		const expected = { session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 300, external: false, source: 'explicit' };
+		assert.deepStrictEqual({
+			adopted,
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+		}, { adopted: [a.toString()], legacy: expected, current: expected });
+	});
+
+	test('external session adoption survives closing and reopening the database', async () => {
+		const directory = join(tmpdir(), `vscode-external-adoption-${generateUuid()}`);
+		const databasePath = join(directory, 'agent-host.db');
+		await database.close();
+		database = new AgentHostDatabase(databasePath);
+		try {
+			const registry = createRegistry();
+			await registerDiscovered(registry, a, 'copilot', 100);
+			await registry.adoptExternalSession(a);
+			await database.close();
+			database = new AgentHostDatabase(databasePath);
+			const restarted = createRegistry();
+			await registerDiscovered(restarted, a, 'copilot', 200);
+			assert.deepStrictEqual(await database.getSessionV2Registration(a.toString()), {
+				session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 200, external: false, source: 'explicit',
+			});
+		} finally {
+			await database.close();
+			await Promises.rm(directory);
+		}
+	}).timeout(60_000); // Real disk I/O can stall on loaded Windows CI agents.
+
+	test('external session adoption does not revive a session deleted during registration', async () => {
+		class DeletingDatabase extends AgentHostDatabase {
+			override async registerRuntimeSession(session: string, options: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+				if (options.source === 'explicit') {
+					await this.tombstoneAndUnregisterSession(session);
+				}
+				return super.registerRuntimeSession(session, options, registerOptions);
+			}
+		}
+		await database.close();
+		database = new DeletingDatabase(':memory:');
+		const registry = createRegistry();
+		const adopted: string[] = [];
+		disposables.add(registry.onDidAdoptSession(session => adopted.push(session.toString())));
+		await registerDiscovered(registry, a, 'copilot', 100);
+
+		await registry.adoptExternalSession(a);
+		assert.deepStrictEqual({
+			adopted,
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+			rediscovered: await registerDiscovered(registry, a, 'copilot', 200),
+		}, { adopted: [], legacy: undefined, current: undefined, rediscovered: false });
+	});
+
+	test('external session adoption only announces successful persistence', async () => {
+		await database.close();
+		const failingDatabase = new TestAgentHostDatabase();
+		database = failingDatabase;
+		const registry = createRegistry();
+		const adopted: string[] = [];
+		disposables.add(registry.onDidAdoptSession(session => adopted.push(session.toString())));
+		await registerDiscovered(registry, a, 'copilot', 100);
+		failingDatabase.failNextWrite();
+
+		await assert.rejects(registry.adoptExternalSession(a), /write failed/);
+		assert.deepStrictEqual({
+			adopted,
+			external: (await registry.get(a))?.external,
+		}, { adopted: [], external: true });
+
+		await registry.adoptExternalSession(a);
+		assert.deepStrictEqual({
+			adopted,
+			external: (await registry.get(a))?.external,
+		}, { adopted: [a.toString()], external: false });
+	});
+
 	test('backfill marker gates the one-time provider seed', async () => {
 		const registry = createRegistry();
 		assert.strictEqual(await registry.isBackfilled(), false);
@@ -420,6 +818,35 @@ suite('AgentSessionRegistry', () => {
 			{ copilot: await second.isProviderBackfilled('copilot'), claude: await second.isProviderBackfilled('claude') },
 			{ copilot: true, claude: false },
 		);
+	});
+
+	test('projection-versioned backfill markers are independent from legacy markers', async () => {
+		const registry = createRegistry();
+		await registry.markBackfilled();
+		await registry.markProviderBackfilled('copilot');
+
+		assert.deepStrictEqual({
+			legacyGlobal: await registry.isBackfilled(),
+			legacyProvider: await registry.isProviderBackfilled('copilot'),
+			currentV4: await registry.isSessionsV2Backfilled('copilot', 4),
+			currentV5: await registry.isSessionsV2Backfilled('copilot', 5),
+		}, {
+			legacyGlobal: true,
+			legacyProvider: true,
+			currentV4: false,
+			currentV5: false,
+		});
+
+		await registry.markSessionsV2Backfilled('copilot', 5);
+		assert.deepStrictEqual({
+			currentV4: await registry.isSessionsV2Backfilled('copilot', 4),
+			currentV5: await registry.isSessionsV2Backfilled('copilot', 5),
+			claudeV5: await registry.isSessionsV2Backfilled('claude', 5),
+		}, {
+			currentV4: false,
+			currentV5: true,
+			claudeV5: false,
+		});
 	});
 
 	test('register persistence failure can be retried', async () => {
@@ -533,6 +960,27 @@ suite('AgentSessionRegistry', () => {
 		assert.strictEqual(await registry.isTombstoned(a), false);
 	});
 
+	test('current-v2 exclusions are exposed and eligible registration clears them', async () => {
+		const registry = createRegistry();
+		await registry.markSessionsV2Excluded({
+			provider: 'copilot',
+			session: a.toString(),
+			reason: 'providerAbsent',
+			fingerprint: 'enumeration-v1',
+		});
+
+		assert.deepStrictEqual({
+			single: await registry.getSessionsV2Exclusion('copilot', a),
+			list: await registry.listSessionsV2Exclusions('copilot'),
+		}, {
+			single: { provider: 'copilot', session: a.toString(), reason: 'providerAbsent', fingerprint: 'enumeration-v1' },
+			list: [{ provider: 'copilot', session: a.toString(), reason: 'providerAbsent', fingerprint: 'enumeration-v1' }],
+		});
+
+		await registerDiscovered(registry, a, 'copilot', 100);
+		assert.strictEqual(await registry.getSessionsV2Exclusion('copilot', a), undefined);
+	});
+
 	test('discovery declines to register (or resurrect) a tombstoned session', async () => {
 		const registry = createRegistry();
 		await registerExplicit(registry, a, 'copilot', 100);
@@ -545,6 +993,48 @@ suite('AgentSessionRegistry', () => {
 		assert.strictEqual(registered, false);
 		assert.deepStrictEqual(await list(registry), []);
 		assert.strictEqual(await registry.isTombstoned(a), true, 'the tombstone must remain in place');
+	});
+
+	test('hidden sessions stay suppressed through discovery and are only tombstoned at teardown', async () => {
+		const registry = createRegistry();
+		await registerExplicit(registry, a, 'copilot', 100);
+		await registry.hide(a, 'copilot');
+		const second = createRegistry();
+		const snapshot = async () => ({
+			hidden: await second.isHidden(a),
+			tombstoned: await second.isTombstoned(a),
+			suppressed: await second.isSuppressed(a),
+			sessions: (await second.listHidden()).map(({ session, provider }) => ({ session: session.toString(), provider })),
+			listed: await list(second),
+		});
+		const discovered = await registerDiscovered(second, a, 'copilot', 200);
+		const discoveredViaBacking = await second.registerDiscovered(AgentSession.uri('ahp-session', 'a'), a, { provider: 'copilot', startTime: 200, source: 'discovery' });
+		const legacyDiscovered = await database.registerSession(a.toString(), { provider: 'copilot', startTime: 200, source: 'discovery' }, { checkTombstone: true });
+		const v2Discovered = await database.registerSessionV2(a.toString(), { provider: 'copilot', startTime: 200, source: 'discovery' }, { checkTombstone: true });
+		const hidden = await snapshot();
+		await second.tombstone(a);
+		const retombstoned = await snapshot();
+		await second.clearTombstone(a);
+		const cleared = await snapshot();
+		const expectedHidden = { hidden: true, tombstoned: false, suppressed: true, sessions: [{ session: a.toString(), provider: 'copilot' }], listed: [] };
+		assert.deepStrictEqual({ discovered, discoveredViaBacking, legacyDiscovered, v2Discovered, hidden, retombstoned, cleared }, {
+			discovered: false, discoveredViaBacking: false, legacyDiscovered: false, v2Discovered: false,
+			hidden: expectedHidden, retombstoned: { ...expectedHidden, tombstoned: true },
+			cleared: { hidden: false, tombstoned: false, suppressed: false, sessions: [], listed: [] },
+		});
+	});
+
+	test('explicit registration clears the hidden marker as well as the tombstone', async () => {
+		const registry = createRegistry();
+		await registry.hide(a, 'copilot');
+		await registerExplicit(registry, a, 'copilot', 100);
+		assert.deepStrictEqual({
+			hidden: await registry.isHidden(a),
+			tombstoned: await registry.isTombstoned(a),
+			suppressed: await registry.isSuppressed(a),
+			sessions: await registry.listHidden(),
+			listed: (await list(registry)).map(entry => entry.session.toString()),
+		}, { hidden: false, tombstoned: false, suppressed: false, sessions: [], listed: [a.toString()] });
 	});
 
 	test('discovery registers a session that is not tombstoned', async () => {

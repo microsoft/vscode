@@ -90,6 +90,12 @@ export interface PullRequestSearchItem {
 	headRefName?: string;
 	baseRefName?: string;
 	body: string;
+	closingIssuesReferences?: {
+		nodes: readonly {
+			readonly url: string;
+			readonly title: string;
+		}[];
+	};
 }
 
 export type PullRequestState = 'open' | 'closed' | 'merged' | 'draft';
@@ -304,6 +310,12 @@ export async function makeSearchGraphQLRequest(
 							name
 						}
 						body
+						closingIssuesReferences(first: 100) {
+							nodes {
+								url
+								title
+							}
+						}
 					}
 				}
 				pageInfo {
@@ -373,6 +385,12 @@ export async function getPullRequestFromGlobalId(
 						name
 					}
 					body
+					closingIssuesReferences(first: 100) {
+						nodes {
+							url
+							title
+						}
+					}
 				}
 			}
 		}

@@ -64,11 +64,11 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 				if (!ownerId) {
 					return true; // no owning session known
 				}
-				const owningSession = this._resolveOwningSession(ownerId) ?? tracked?.session;
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, ownerId)?.session ?? tracked?.session;
 				if (!owningSession) {
 					return true; // owning chat/session no longer known; don't hide it
 				}
-				const activeSession = context.activeSessionId ? this._resolveOwningSession(context.activeSessionId) : this._sessionsService.activeSession.read(undefined);
+				const activeSession = context.activeSessionId ? resolveBrowserOwnerSession(this._sessionManagementService, context.activeSessionId)?.session : this._sessionsService.activeSession.read(undefined);
 				return activeSession?.sessionId === owningSession.sessionId;
 			},
 			onDidChange: onDidChangeActiveSession.event,
@@ -80,7 +80,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 				if (owner.type !== 'agent') {
 					return true; // no owning session known; open in the active session
 				}
-				const owningSession = this._resolveOwningSession(owner.sessionId);
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session;
 				if (!owningSession) {
 					return true; // owning chat/session no longer known; open in the active session
 				}
@@ -106,24 +106,6 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 				}
 			}
 		}));
-	}
-
-	/**
-	 * Resolves a browser view owner id (the *chat* resource string the
-	 * browser tools stamp onto `IBrowserViewOwner.sessionId`) to the
-	 * `ISession` that owns it. A session's browsers can be opened from any
-	 * of its chats (main, peer, or subagent), so this looks up the owning
-	 * session across all chats rather than comparing against the session's
-	 * own resource directly.
-	 */
-	private _resolveOwningSession(ownerId: string): ISession | undefined {
-		let resource: URI;
-		try {
-			resource = URI.parse(ownerId);
-		} catch {
-			return undefined;
-		}
-		return this._sessionManagementService.getSessionForChatResource(resource)?.session ?? this._sessionManagementService.getSession(resource);
 	}
 
 	private _attachLifecycle(input: BrowserEditorInput): void {
@@ -161,4 +143,21 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			this._trackedInputs.deleteAndDispose(input.id);
 		}));
 	}
+}
+
+/**
+ * Resolves a browser view owner id (the *chat* resource string the browser
+ * tools stamp onto `IBrowserViewOwner.sessionId`) to that resource and the
+ * `ISession` that owns it. A session's browsers can be opened from any of its
+ * chats (main, peer, or subagent), so this looks up the owning session across
+ * all chats rather than comparing against the session's own resource directly.
+ */
+export function resolveBrowserOwnerSession(sessionsManagementService: ISessionsManagementService, ownerId: string): { readonly resource: URI; readonly session: ISession | undefined } | undefined {
+	let resource: URI;
+	try {
+		resource = URI.parse(ownerId);
+	} catch {
+		return undefined;
+	}
+	return { resource, session: sessionsManagementService.getSessionForChatResource(resource)?.session ?? sessionsManagementService.getSession(resource) };
 }

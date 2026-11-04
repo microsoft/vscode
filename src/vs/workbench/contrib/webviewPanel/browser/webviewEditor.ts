@@ -16,7 +16,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../common/editor.js';
+import { IEditorOpenContext, IEditorPaneSelection } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
 import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
@@ -24,6 +24,7 @@ import { WebviewInput } from './webviewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { Part } from '../../../browser/part.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { isHTMLElement } from '../../../../base/browser/dom.js';
 
@@ -74,6 +75,10 @@ export class WebviewEditor extends EditorPane {
 		return this._scopedContextKeyService.value;
 	}
 
+	getSelection(): IEditorPaneSelection | undefined {
+		return this.input instanceof WebviewInput ? this.input.getSelection() : undefined;
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		const element = document.createElement('div');
 		this._element = element;
@@ -94,6 +99,9 @@ export class WebviewEditor extends EditorPane {
 
 	public override layout(dimension: DOM.Dimension): void {
 		this.setEditorVisible(dimension.width > 0 && dimension.height > 0);
+		if (this.webview && this._visible) {
+			this.setWebviewAnchorElement(this.webview);
+		}
 	}
 
 	public override focus(): void {
@@ -134,8 +142,9 @@ export class WebviewEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	public override async setInput(input: EditorInput, options: IEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	public override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (this.input && input.matches(this.input)) {
+			await this.applyNavigationOptions(options, token);
 			return;
 		}
 
@@ -158,6 +167,18 @@ export class WebviewEditor extends EditorPane {
 				this.claimWebview(input);
 			}
 		}
+		await this.applyNavigationOptions(options, token);
+	}
+
+	public override setOptions(options: IEditorOptions | undefined): void {
+		super.setOptions(options);
+		void this.applyNavigationOptions(options, CancellationToken.None);
+	}
+
+	private async applyNavigationOptions(options: IEditorOptions | undefined, token: CancellationToken): Promise<void> {
+		if (options && this.input instanceof WebviewInput) {
+			await this.input.applyOptions(options, token);
+		}
 	}
 
 	private claimWebview(input: WebviewInput): void {
@@ -171,7 +192,8 @@ export class WebviewEditor extends EditorPane {
 		// Check if this editor is inside a modal editor
 		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
-		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+		const editorPart = this._editorGroupsService.getPart(this.group);
+		this._clippingContainer = isModal ? undefined : (editorPart instanceof Part ? editorPart.getContainer() : undefined) ?? this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 
 		this._webviewVisibleDisposables.clear();
 

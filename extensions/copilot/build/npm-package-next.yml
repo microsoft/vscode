@@ -43,6 +43,8 @@ extends:
             parameters:
               NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
 
+          - template: build/azure-pipelines/common/install-pnpm.yml@self
+
           - download: vscode
             artifact: copilot_vsix
             displayName: 📥 Download Copilot VSIX
@@ -67,7 +69,8 @@ extends:
             displayName: 📋 Sync version from extension
             workingDirectory: extensions/copilot
 
-          - bash: npm ci && npm run extract-chat-lib && rm -rf node_modules
+          # extensions/copilot and chat-lib are separate pnpm install roots with their own lockfiles.
+          - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib && rm -rf node_modules
             displayName: 📂 Extract chat-lib
             workingDirectory: extensions/copilot
             env:
@@ -86,11 +89,11 @@ extends:
             displayName: 📋 Sync chat-lib version
             workingDirectory: extensions/copilot/chat-lib
 
-          - script: npm ci
+          - script: pnpm install --frozen-lockfile
             displayName: 📦 Install chat-lib dependencies
             workingDirectory: extensions/copilot/chat-lib
 
-          - script: npm run build
+          - script: pnpm run build
             displayName: 🔨 Build chat-lib
             workingDirectory: extensions/copilot/chat-lib
         testPlatforms:

@@ -1,6 +1,6 @@
 jobs:
   - job: macOSUniversal
-    displayName: macOS (UNIVERSAL)
+    displayName: macOS (UNIVERSAL) - Sign
     timeoutInMinutes: 240
     variables:
       VSCODE_ARCH: universal
@@ -24,10 +24,9 @@ jobs:
     steps:
       - template: ../common/checkout.yml@self
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ../common/setup-node.yml@self
+        parameters:
+          os: macOS
 
       - template: ../distro/download-distro.yml@self
 
@@ -65,23 +64,25 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/install-pnpm.yml@self
+
       - script: |
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         workingDirectory: build
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
 
-      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_client_darwin_x64_archive=macOS (X64)" "--producer=unsigned_vscode_client_darwin_arm64_archive=macOS (ARM64)" unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
+      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_client_darwin_x64_archive=macOS (X64) - Compile" "--producer=unsigned_vscode_client_darwin_arm64_archive=macOS (ARM64) - Compile" unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Wait for x64 and arm64 artifacts

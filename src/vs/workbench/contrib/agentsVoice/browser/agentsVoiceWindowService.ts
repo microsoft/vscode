@@ -213,7 +213,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode
-					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (state === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
@@ -267,9 +267,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}));
 
 		// Poll for session updates
-		this.agentSessionsService.model.resolve(undefined);
+		this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
-			this.agentSessionsService.model.resolve(undefined);
+			this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		}, 3000));
 
 

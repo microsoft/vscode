@@ -1,0 +1,26 @@
+steps:
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "macos-developer-certificate,macos-developer-certificate-key"
+
+  - script: |
+      set -e
+      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+      export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+      DEBUG=electron-osx-sign* node build/darwin/sign.ts $(agent.builddirectory)
+    displayName: Set Hardened Entitlements
+
+  - script: |
+      set -e
+      export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+      node build/darwin/sign-server.ts $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+      node build/darwin/sign-server.ts $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+    displayName: Sign server binaries

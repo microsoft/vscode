@@ -37,6 +37,7 @@ export interface IAgentHostFilterEntry {
 	readonly providerIds: readonly string[];
 	/** Display name for the entry. */
 	readonly label: string;
+	readonly description?: string;
 	/** Whether this entry collapses several providers declaring the same group. */
 	readonly grouped: boolean;
 	/**
@@ -55,6 +56,8 @@ export interface IAgentHostFilterEntry {
 	 * control over nothing.
 	 */
 	readonly connectable: boolean;
+	/** Provider for new sessions in this group, independent of its existing environments. */
+	readonly sessionCreationProviderId?: string;
 }
 
 export const IAgentHostFilterService = createDecorator<IAgentHostFilterService>('agentHostFilterService');
@@ -62,8 +65,8 @@ export const IAgentHostFilterService = createDecorator<IAgentHostFilterService>(
 /**
  * Tracks the currently selected agent host used to scope the sessions list
  * and other workbench surfaces. The selection is always the {@link
- * IAgentHostFilterEntry.id} of a known entry, or `undefined` when no hosts
- * are known.
+ * IAgentHostFilterEntry.id} of a known entry. An offline selected host may
+ * remain the session scope while absent from the picker.
  */
 export interface IAgentHostFilterService {
 	readonly _serviceBrand: undefined;
@@ -85,7 +88,7 @@ export interface IAgentHostFilterService {
 	 */
 	readonly selectedHost: IAgentHostFilterEntry | undefined;
 
-	/** All known entries the user can switch between. */
+	/** Entries available in the picker; the selected session scope may be absent while offline. */
 	readonly hosts: readonly IAgentHostFilterEntry[];
 
 	/**
@@ -106,21 +109,21 @@ export interface IAgentHostFilterService {
 	 * fresh connect attempt. No-op if the entry is unknown. A grouped entry
 	 * fans out to every member.
 	 */
-	reconnect(hostId: string): void;
+	reconnect(hostId: string): Promise<void>;
 
 	/**
 	 * Tear down the active connection for the given entry without forgetting
 	 * it. No-op if the entry is unknown or already disconnected. A grouped
 	 * entry fans out to every member.
 	 */
-	disconnect(hostId: string): void;
+	disconnect(hostId: string): Promise<void>;
 
 	/**
 	 * Trigger every registered discovery handler and resolve once they
 	 * have all settled. {@link isDiscovering} is `true` for the duration
 	 * of the call. No-op when no handlers are registered.
 	 */
-	rediscover(): Promise<void>;
+	rediscover(): Promise<boolean>;
 
 	/**
 	 * Register a callback invoked when {@link rediscover} runs. Used by

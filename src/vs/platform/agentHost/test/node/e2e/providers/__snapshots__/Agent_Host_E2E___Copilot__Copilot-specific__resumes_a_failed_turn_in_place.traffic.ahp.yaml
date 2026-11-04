@@ -30,14 +30,20 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
+          type: chat/changesetsChanged
+      - channel: ${chat_0}
+        action:
           type: chat/error
           turnId: ${turn_0}
           part:
             kind: error
             error:
               errorType: query
-              message: 'Execution failed: CAPIError: 400 Injected recoverable E2E failure.'
+              message: 'Execution failed: 400 Injected recoverable E2E failure.'
             resumable: true
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
   - clientToServer:
       - channel: ${chat_0}
         action:
@@ -63,3 +69,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

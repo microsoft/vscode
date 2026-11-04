@@ -30,14 +30,14 @@ import { env, LogOutputChannel } from 'vscode';
  * Checks if the current VS Code installation is a Windows user or system setup.
  * Returns false for archive, portable, or non-Windows installations.
  */
-function isWindowsUserOrSystemSetup(): boolean {
+async function isWindowsUserOrSystemSetup(): Promise<boolean> {
 	if (process.platform !== 'win32') {
 		return false;
 	}
 
 	try {
 		const productJsonPath = path.join(env.appRoot, 'product.json');
-		const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
+		const productJson = JSON.parse(await fs.promises.readFile(productJsonPath, 'utf8'));
 		const target = productJson.target as string | undefined;
 
 		// Target is 'user' or 'system' for Inno Setup installations.
@@ -61,7 +61,7 @@ interface SourceAskpassPaths {
  * Computes a SHA-256 hash of the combined contents of all askpass-related files.
  * This hash is used to create content-addressed directories.
  */
-function computeContentHash(sourcePaths: SourceAskpassPaths): string {
+async function computeContentHash(sourcePaths: SourceAskpassPaths): Promise<string> {
 	const hash = crypto.createHash('sha256');
 
 	// Hash all source files in a deterministic order
@@ -74,7 +74,7 @@ function computeContentHash(sourcePaths: SourceAskpassPaths): string {
 	];
 
 	for (const file of files) {
-		const content = fs.readFileSync(file);
+		const content = await fs.promises.readFile(file);
 		hash.update(content);
 		// Include filename in hash to ensure different files with same content produce different hash
 		hash.update(path.basename(file));
@@ -226,7 +226,7 @@ export async function ensureAskpassScripts(
 	};
 
 	// Compute content hash
-	const contentHash = computeContentHash(sourcePaths);
+	const contentHash = await computeContentHash(sourcePaths);
 	logger.trace(`[askpassManager] Content hash: ${contentHash}`);
 
 	// Create content-addressed directory
@@ -293,7 +293,7 @@ export async function getAskpassPaths(
 	logger: LogOutputChannel
 ): Promise<AskpassPaths> {
 	// Try content-addressed paths on Windows user/system setups
-	if (storagePath && isWindowsUserOrSystemSetup()) {
+	if (storagePath && await isWindowsUserOrSystemSetup()) {
 		try {
 			return await ensureAskpassScripts(sourceDir, storagePath, logger);
 		} catch (err) {

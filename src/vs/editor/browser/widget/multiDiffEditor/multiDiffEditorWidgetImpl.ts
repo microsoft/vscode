@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
+import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -44,6 +45,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public readonly scrollTop;
 	public readonly scrollLeft;
 	public readonly layoutDebugState: IObservable<IMultiDiffEditorLayoutDebugState>;
+
+	/** Diff items whose content intersects the viewport, in document order. */
+	public readonly visibleDiffItems: IObservable<readonly DocumentDiffItemViewModel[]>;
 
 	private readonly _viewItemsInfo;
 
@@ -94,13 +98,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		let viewItemsInfo!: IObservable<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>;
 		let viewItems!: IObservable<readonly VirtualizedViewItem[]>;
+		// What the scroll view renders is disposed after it: disposing it otherwise makes the scroll view render once more,
+		// such as its templates as their bindings dispose, which would create templates while the widget disposes.
+		const renderedItemsStore = new DisposableStore();
 		this._scrollView = this._register(new CompressedVirtualizedScrollView(
 			this._element,
 			this._dimension,
 			this._spaceBetweenPx,
 			context => {
 				const sourceItems = derived(this, reader => this._viewModel.read(reader)?.items.read(reader) ?? []);
-				const manager = this._register(new VirtualizedItemManager<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>(sourceItems, context, {
+				const manager = renderedItemsStore.add(new VirtualizedItemManager<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>(sourceItems, context, {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
 					getUnboundSize: item => derived(item, reader => {
@@ -153,7 +160,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						transaction(tx => adaptedItem.setViewState(data, tx));
 					}
 					return adaptedItem;
-				}).recomputeInitiallyAndOnChange(this._store);
+				}).recomputeInitiallyAndOnChange(renderedItemsStore);
 				viewItemsInfo = derived<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>(this, reader => {
 					const items = adaptedItems.read(reader);
 					const map = new Map(items.map(item => [item.viewModel, item]));
@@ -168,6 +175,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return derived(this, reader => [...viewItems.read(reader), paddingBottomItem.read(reader)]);
 			},
 		));
+		this._register(renderedItemsStore);
 		this._viewItemsInfo = viewItemsInfo;
 		this._viewItems = viewItems;
 		this.scrollTop = this._scrollView.scrollTop;
@@ -201,7 +209,15 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				items: items.map((item, index) => item.getLayoutDebugState(reader, layout.items[index])),
 			};
 		});
-		this._elements = h(`div.monaco-component.multiDiffEditor.${this._variantConfiguration.className}`, {}, [
+		this.visibleDiffItems = derivedOpts<readonly DocumentDiffItemViewModel[]>({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+			const layout = this._scrollView.layout.read(reader);
+			// Layout items are index-aligned with the view items (the trailing padding item is not a view item).
+			return this._viewItems.read(reader)
+				.filter((_item, index) => layout.items[index]?.visibility === 'visible')
+				.map(item => item.viewModel);
+		});
+		const variantClassNames = this._variantConfiguration.classNames.map(className => `.${className}`).join('');
+		this._elements = h(`div.monaco-component.multiDiffEditor${variantClassNames}`, {}, [
 			this._scrollView.domNode,
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);
@@ -333,18 +349,34 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
 		this._pendingScrollState = scrollState;
+		this._hasAppliedPendingScrollState = false;
+		this._lastPendingScrollDimensions = undefined;
 		this._applyPendingScrollState();
 	}
 
 	/**
-	 * Applies a restored scroll offset once the scrollable dimensions can
-	 * accommodate it; retries on subsequent dimension updates until it sticks (so
-	 * a fresh/reloaded widget whose content height is not yet known does not clamp
-	 * the offset to 0). Consumed once it lands.
+	 * Retries a restored scroll offset as dimensions change until it lands.
+	 * Navigation away from the clamped offset with unchanged dimensions cancels restoration.
 	 */
 	private _applyPendingScrollState(): void {
 		const pending = this._pendingScrollState;
 		if (!pending) {
+			return;
+		}
+		const dimensions = this._scrollView.scrollDimensions.get();
+		const current = this._scrollView.getScrollPosition();
+		const expectedTop = pending.top === undefined ? current.scrollTop : Math.min(Math.max(0, pending.top), Math.max(0, dimensions.scrollHeight - dimensions.height));
+		const expectedLeft = pending.left === undefined ? current.scrollLeft : Math.min(Math.max(0, pending.left), Math.max(0, dimensions.scrollWidth - dimensions.width));
+		const previousDimensions = this._lastPendingScrollDimensions;
+		const dimensionsChanged = !previousDimensions
+			|| previousDimensions.width !== dimensions.width
+			|| previousDimensions.height !== dimensions.height
+			|| previousDimensions.scrollWidth !== dimensions.scrollWidth
+			|| previousDimensions.scrollHeight !== dimensions.scrollHeight;
+		if (this._hasAppliedPendingScrollState && !dimensionsChanged && (current.scrollTop !== expectedTop || current.scrollLeft !== expectedLeft)) {
+			this._pendingScrollState = undefined;
+			this._hasAppliedPendingScrollState = false;
+			this._lastPendingScrollDimensions = undefined;
 			return;
 		}
 		this._scrollView.setScrollPosition({ scrollLeft: pending.left, scrollTop: pending.top });
@@ -353,6 +385,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		const leftLanded = pending.left === undefined || applied.scrollLeft >= pending.left;
 		if (topLanded && leftLanded) {
 			this._pendingScrollState = undefined;
+			this._hasAppliedPendingScrollState = false;
+			this._lastPendingScrollDimensions = undefined;
+		} else {
+			this._hasAppliedPendingScrollState = true;
+			this._lastPendingScrollDimensions = dimensions;
 		}
 		this._logger.log('applied pending scroll state', {
 			requested: pending,
@@ -375,6 +412,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._lastDocStates = undefined;
 		this._lastActiveDiffItemKey = undefined;
 		this._pendingScrollState = undefined;
+		this._hasAppliedPendingScrollState = false;
+		this._lastPendingScrollDimensions = undefined;
 	}
 
 	/**
@@ -471,6 +510,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	/** A restored scroll offset waiting for the scrollable dimensions to be known. */
 	private _pendingScrollState: { top?: number; left?: number } | undefined;
+	private _hasAppliedPendingScrollState = false;
+	private _lastPendingScrollDimensions: { readonly width: number; readonly height: number; readonly scrollWidth: number; readonly scrollHeight: number } | undefined;
 
 	public setViewState(viewState: IMultiDiffEditorViewState, tx?: ITransaction): void {
 		if (this._logger.isEnabled) {

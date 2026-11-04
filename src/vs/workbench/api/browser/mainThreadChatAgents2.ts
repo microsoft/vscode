@@ -891,6 +891,7 @@ namespace ChatNotebookEdit {
 			kind: 'notebookEdit',
 			uri: URI.revive(part.uri),
 			done: part.done,
+			autoTier: part.autoTier,
 			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
 		};
 	}

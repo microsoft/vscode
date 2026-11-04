@@ -5,6 +5,8 @@
 
 .monaco-switch {
 	position: relative;
+	/* Lets the thumb size itself from the track's inner height with `cqh`. */
+	container-type: size;
 	flex: 0 0 auto;
 	width: var(--vscode-spacing-size280);
 	height: var(--vscode-spacing-size160);
@@ -31,19 +33,26 @@
 	outline-offset: var(--vscode-spacing-size20);
 }
 
+/* The thumb fills the track's inner height and is inset by its own transparent border,
+ * so every gap around it is made of borders. Borders snap to whole device pixels, so
+ * the gaps stay equal at any display scale or zoom, where fixed offsets round unevenly.
+ * Style the thumb with `background-color`, as `background` would reset the clip. */
 .monaco-switch-thumb {
 	position: absolute;
-	top: var(--vscode-strokeThickness);
-	left: var(--vscode-strokeThickness);
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
+	top: 0;
+	bottom: 0;
+	left: 0;
+	box-sizing: border-box;
+	width: 100cqh;
+	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-button-foreground);
-	transition: transform 120ms ease;
+	background-color: var(--vscode-button-foreground);
+	background-clip: padding-box;
+	transition: left 120ms ease;
 }
 
 .monaco-switch.checked .monaco-switch-thumb {
-	transform: translateX(var(--vscode-spacing-size120));
+	left: calc(100% - 100cqh);
 }
 
 /* The workbench marks high contrast with `.hc-black` / `.hc-light`; `.vscode-high-contrast`

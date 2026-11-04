@@ -3,48 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Repository } from '../../../../../platform/github/common/core/repositories.js';
+import { RepositorySearchItem } from '../../../../../platform/github/common/core/search.js';
 import { IGitHubRepository } from '../../common/types.js';
-import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
+import { GitHubApiClient } from '../githubApiClient.js';
 
-interface IGitHubRepoResponse {
-	readonly name: string;
-	readonly full_name: string;
-	readonly owner: { readonly login: string };
-	readonly default_branch: string;
-	readonly private: boolean;
-	readonly description: string | null;
+export class GitHubRepositoryFetcher {
+	constructor(private readonly client: GitHubApiClient) { }
+
+	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
+		return this.client.withClient(async (client, signal) => {
+			if (query.trim()) {
+				const [user, organizations] = await Promise.all([
+					client.users.getAuthenticated(signal),
+					client.organizations.listForAuthenticatedUser(signal, { query: { per_page: 100 } }),
+				]);
+				const scope = [`user:${user.login}`, ...organizations.map(organization => `org:${organization.login}`)].join(' ');
+				const response = await client.search.repositories(`${query.trim()} in:name fork:true ${scope}`, signal, {
+					query: { sort: 'updated', per_page: 100 },
+				});
+				return response.items.map(toGitHubRepository);
+			}
+			const repositories = await client.repositories.listForAuthenticatedUser(signal, {
+				query: { per_page: 100, sort: 'updated', affiliation: 'owner,collaborator,organization_member' },
+			});
+			return repositories.map(toGitHubRepository);
+		}, token);
+	}
 }
 
-/**
- * Stateless fetcher for GitHub repository data.
- * All methods return raw typed data with no caching or state.
- */
-export class GitHubRepositoryFetcher {
-
-	constructor(
-		private readonly _apiClient: GitHubApiClient,
-	) { }
-
-	async getRepository(owner: string, repo: string, etag?: string): Promise<IGitHubApiResponse<IGitHubRepository>> {
-		const response = await this._apiClient.request<IGitHubRepoResponse>(
-			'GET',
-			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-			'githubApi.getRepository',
-			{ etag }
-		);
-
-		return {
-			...response,
-			data: response.data
-				? {
-					owner: response.data.owner.login,
-					name: response.data.name,
-					fullName: response.data.full_name,
-					defaultBranch: response.data.default_branch,
-					isPrivate: response.data.private,
-					description: response.data.description ?? '',
-				}
-				: undefined
-		};
-	}
+function toGitHubRepository(repository: Repository | RepositorySearchItem): IGitHubRepository {
+	return {
+		owner: repository.owner?.login ?? repository.full_name.split('/')[0],
+		name: repository.name,
+		fullName: repository.full_name,
+		defaultBranch: repository.default_branch,
+		isPrivate: repository.private,
+		description: repository.description ?? '',
+	};
 }

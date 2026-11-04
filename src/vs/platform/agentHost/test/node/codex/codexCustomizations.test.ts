@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
@@ -14,8 +13,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationLoadStatus, CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills } from '../../../node/codex/codexCustomizations.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { SkillMetadata } from '../../../node/codex/protocol/generated/v2/SkillMetadata.js';
@@ -24,13 +24,10 @@ import type { SkillsListResponse } from '../../../node/codex/protocol/generated/
 
 suite('codexCustomizations', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const skill = (name: string, scope: SkillScope, path: string, enabled = true): SkillMetadata =>
-		({ name, description: `${name} desc`, path, scope, enabled });
+		({ name, description: `${name} desc`, path, scope, enabled, pluginId: null });
 
 	const skillsResponse = (...entries: { cwd: string; skills: SkillMetadata[] }[]): SkillsListResponse =>
 		({ data: entries.map(e => ({ cwd: e.cwd, skills: e.skills, errors: [] })) });
@@ -39,8 +36,7 @@ suite('codexCustomizations', () => {
 		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', async: false, timeoutSec: 5n, statusMessage: null, additionalContextLimit: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
 
 	test('discovers workspace agents without client-pushed local customizations', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		const agentsDirectory = URI.joinPath(workspace, '.github', 'agents');
 		const agent = URI.joinPath(agentsDirectory, 'reviewer.agent.md');
@@ -72,8 +68,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('discovers every workspace root with primary-root name precedence', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const primaryWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 		const secondaryWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/secondary' });
 		const primaryDirectory = URI.joinPath(primaryWorkspace, '.github', 'agents');
@@ -112,8 +107,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('discovers GitHub workspace skills and preserves invocation metadata', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		const directory = URI.joinPath(workspace, '.github', 'skills');
 		const skillUri = URI.joinPath(directory, 'website', 'SKILL.md');
@@ -152,8 +146,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('discovers workspace skills across roots with primary-root name precedence', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 		const secondary = URI.from({ scheme: Schemas.inMemory, path: '/secondary' });
 		const primarySkill = URI.joinPath(primary, '.github', 'skills', 'shared', 'SKILL.md');
@@ -227,8 +220,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('ignores missing and non-directory workspace skill roots', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		await fileService.writeFile(URI.joinPath(workspace, '.github', 'skills'), VSBuffer.fromString('Not a directory.'));
 
@@ -236,8 +228,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('surfaces each workspace root AGENTS.md as an always-on rule', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		await fileService.createFolder(workspace);
 		await Promise.all([
@@ -306,6 +297,131 @@ suite('codexCustomizations', () => {
 
 	test('empty / undefined skills responses yield no containers', () => {
 		assert.deepStrictEqual([codexSkillsToContainers(undefined), codexSkillsToContainers(skillsResponse()), codexSkillsToContainers(skillsResponse({ cwd: '/x', skills: [] }))], [[], [], []]);
+	});
+
+	for (const directory of ['.agents', '.codex']) {
+		test(`surfaces ${directory} skill validation errors without advertising the skill as enabled`, () => {
+			const skillUri = URI.file(`/repo/${directory}/skills/dreaming/SKILL.md`).toString();
+			const error = { path: `/repo/${directory}/skills/dreaming/SKILL.md`, message: 'missing field `description`' };
+			const containers = codexSkillsToContainers({
+				data: [
+					{ cwd: '/repo', skills: [], errors: [error] },
+					{ cwd: '/repo/nested', skills: [], errors: [error] },
+				]
+			});
+
+			assert.deepStrictEqual(containers.map(container => ({
+				contents: container.contents,
+				enabled: container.enabled,
+				writable: container.writable,
+				load: container.load,
+				children: container.children?.map(child => ({ name: child.name, uri: child.uri, enabled: child.type === CustomizationType.Skill ? child.enabled : undefined })),
+			})), [{
+				contents: CustomizationType.Skill,
+				enabled: false,
+				writable: false,
+				load: { kind: CustomizationLoadStatus.Error, message: error.message },
+				children: [{ name: 'dreaming', uri: skillUri, enabled: false }],
+			}]);
+		});
+	}
+
+	test('groups repeated skill validation diagnostics into one container', () => {
+		const message = 'missing field `description`';
+		const names = Array.from({ length: 100 }, (_value, index) => `skill-${index.toString().padStart(3, '0')}`);
+		const errors = names.map(name => ({ path: `/repo/.codex/skills/${name}/SKILL.md`, message }));
+		const containers = codexSkillsToContainers({
+			data: [
+				{ cwd: '/repo', skills: [], errors: [...errors].reverse() },
+				{ cwd: '/repo/nested', skills: [], errors },
+			]
+		});
+
+		assert.deepStrictEqual({
+			containerCount: containers.length,
+			name: containers[0].name,
+			load: containers[0].load,
+			disabledAndReadOnly: containers.every(container => !container.enabled && !container.writable),
+			children: containers.flatMap(container => container.children ?? []),
+		}, {
+			containerCount: 1,
+			name: 'Invalid Skills',
+			load: { kind: CustomizationLoadStatus.Error, message },
+			disabledAndReadOnly: true,
+			children: errors.map((error, index) => {
+				const uri = URI.file(error.path).toString();
+				return { type: CustomizationType.Skill, id: uri, uri, name: names[index], enabled: false };
+			}),
+		});
+	});
+
+	test('separates distinct skill diagnostics into deterministic containers', () => {
+		const errors = [
+			{ path: '/repo/.codex/skills/zulu/SKILL.md', message: 'missing field `description`' },
+			{ path: '/repo/.agents/skills/bravo/SKILL.md', message: 'missing field `name`' },
+			{ path: '/repo/.agents/skills/alpha/SKILL.md', message: 'missing field `description`' },
+		];
+		const containers = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors }] });
+
+		assert.deepStrictEqual({
+			distinctContainerIds: new Set(containers.map(container => container.id)).size,
+			groups: containers.map(container => ({ load: container.load, names: container.children?.map(child => child.name) })),
+		}, {
+			distinctContainerIds: 2,
+			groups: [
+				{ load: { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' }, names: ['alpha', 'zulu'] },
+				{ load: { kind: CustomizationLoadStatus.Error, message: 'missing field `name`' }, names: ['bravo'] },
+			],
+		});
+		assert.deepStrictEqual(codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors: [...errors].reverse() }] }), containers);
+	});
+
+	test('preserves a diagnostic container when one of its skills is repaired', () => {
+		const repairedSkill = skill('alpha', 'repo', '/repo/.agents/skills/alpha/SKILL.md');
+		const remainingSkill = skill('bravo', 'repo', '/repo/.codex/skills/bravo/SKILL.md');
+		const errors = [repairedSkill, remainingSkill].map(entry => ({ path: entry.path, message: 'missing field `description`' }));
+		const [failed] = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors }] });
+		const [loaded, remaining] = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [repairedSkill], errors }] });
+
+		assert.deepStrictEqual({
+			retainsContainerIdentity: remaining.id === failed.id,
+			retainsRepairedSkillIdentity: loaded.children?.[0].id === failed.children?.[0].id,
+			remainingSkillUris: remaining.children?.map(child => child.uri),
+			load: remaining.load,
+		}, {
+			retainsContainerIdentity: true,
+			retainsRepairedSkillIdentity: true,
+			remainingSkillUris: [URI.file(remainingSkill.path).toString()],
+			load: { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' },
+		});
+	});
+
+	test('prefers a successfully loaded skill over an error from another cwd', () => {
+		const loadedSkill = skill('dreaming', 'repo', '/repo/.codex/skills/dreaming/SKILL.md');
+		const containers = codexSkillsToContainers({
+			data: [
+				{ cwd: '/repo/nested', skills: [], errors: [{ path: loadedSkill.path, message: 'missing field `description`' }] },
+				{ cwd: '/repo', skills: [loadedSkill], errors: [] },
+			]
+		});
+
+		assert.deepStrictEqual(containers, codexSkillsToContainers(skillsResponse({ cwd: '/repo', skills: [loadedSkill] })));
+	});
+
+	test('preserves skill identity when a validation error is fixed', () => {
+		const loadedSkill = skill('dreaming', 'repo', '/repo/.codex/skills/dreaming/SKILL.md');
+		const [failed] = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors: [{ path: loadedSkill.path, message: 'missing field `description`' }] }] });
+		const [loaded] = codexSkillsToContainers(skillsResponse({ cwd: '/repo', skills: [loadedSkill] }));
+
+		assert.deepStrictEqual({
+			retainsSkillIdentity: failed.children?.[0].id === loaded.children?.[0].id,
+			enabled: loaded.enabled,
+			load: loaded.load,
+		}, {
+			retainsSkillIdentity: true,
+			enabled: true,
+			load: { kind: CustomizationLoadStatus.Loaded },
+		});
 	});
 
 	test('hooks project into a single container, de-duped by key and ordered by displayOrder', () => {

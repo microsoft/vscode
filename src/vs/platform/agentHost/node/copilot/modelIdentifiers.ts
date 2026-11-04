@@ -13,7 +13,10 @@ export function isGpt56Model(modelId: string | undefined): boolean {
 	return modelId !== undefined && GPT_56_MODEL_IDS.has(modelId.toLowerCase());
 }
 
+/** The synthetic "Auto" entry, which routes each turn instead of naming a model. */
+export const AUTO_MODEL_ID = 'auto';
+
 /** Whether this is the synthetic "Auto" entry, which routes each turn instead of naming a model. */
 export function isAutoModel(modelId: string | undefined): boolean {
-	return modelId === 'auto';
+	return modelId === AUTO_MODEL_ID;
 }

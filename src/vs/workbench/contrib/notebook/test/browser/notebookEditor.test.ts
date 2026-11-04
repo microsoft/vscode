@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import * as DOM from '../../../../../base/browser/dom.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
@@ -12,7 +14,55 @@ import { CellKind } from '../../common/notebookCommon.js';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
 import { ListViewInfoAccessor } from '../../browser/view/notebookCellList.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { NotebookEditor } from '../../browser/notebookEditor.js';
+import { NotebookEditorWidget } from '../../browser/notebookEditorWidget.js';
+import { INotebookEditorService } from '../../browser/services/notebookEditorService.js';
+import { INotebookService } from '../../common/notebookService.js';
+
+suite('NotebookEditor focus', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('includes detached cell popups without including unrelated elements', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { });
+		instantiationService.stub(INotebookEditorService, new class extends mock<INotebookEditorService>() { });
+		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() { });
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() { });
+		instantiationService.stub(IPreferencesService, new class extends mock<IPreferencesService>() { });
+		const pane = disposables.add(instantiationService.createInstance(NotebookEditor, instantiationService.get(IEditorGroupsService).activeGroup));
+		const container = DOM.append(document.body, DOM.$('.notebook-pane-focus-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const notebookRoot = DOM.append(container, DOM.$('.notebook-root'));
+		const input = DOM.append(notebookRoot, DOM.$('textarea'));
+		const overflowHost = DOM.append(container, DOM.$('.notebook-overflow-widget-container'));
+		const popup = DOM.append(overflowHost, DOM.$('.monaco-hover', { tabindex: '0', role: 'tooltip' }));
+		const outside = DOM.append(container, DOM.$('button'));
+
+		const focusStates = [pane.hasFocus()];
+		const widget = new class extends mock<NotebookEditorWidget>() {
+			override getDomNode() { return notebookRoot; }
+			override getOverflowContainerDomNode() { return overflowHost; }
+		};
+		sinon.stub(pane, 'getControl').returns(widget);
+		input.focus();
+		focusStates.push(pane.hasFocus());
+		popup.focus();
+		assert.strictEqual(document.activeElement, popup);
+		focusStates.push(pane.hasFocus());
+		outside.focus();
+		focusStates.push(pane.hasFocus());
+
+		assert.deepStrictEqual(focusStates, [false, true, true, false]);
+	});
+});
 
 suite('ListViewInfoAccessor', () => {
 	let disposables: DisposableStore;

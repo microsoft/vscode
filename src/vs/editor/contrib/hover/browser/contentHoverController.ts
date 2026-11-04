@@ -24,6 +24,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
 import { isModifierKey, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { isHTMLElement } from '../../../../base/browser/dom.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -154,7 +155,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!this._contentWidget || !this._contentWidget.getDomNode().isConnected) {
 			return false;
 		}
-		return isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);
+		return this._contentWidget.containsNode(mouseEvent.event.target)
+			|| isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);
 	}
 
 	private _onEditorMouseUp(): void {
@@ -172,6 +174,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this._cancelScheduler();
+		const relatedTarget = mouseEvent.event.browserEvent.relatedTarget;
+		if (isHTMLElement(relatedTarget) && this._contentWidget?.containsNode(relatedTarget)) {
+			return;
+		}
 		const shouldKeepHoverWidgetVisible = this._shouldKeepHoverWidgetVisible(mouseEvent);
 		if (shouldKeepHoverWidgetVisible) {
 			return;
@@ -317,6 +323,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
+		this._contentWidget?.hide();
+	}
+
+	/** Cancels pending and visible hover work when its editor is hidden. */
+	public cancel(): void {
+		this._cancelScheduler();
 		this._contentWidget?.hide();
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { sanitizeHtml, sanitizeSurvivingStalePolicy } from '../../browser/domSanitize.js';
+import { convertTagToPlaintext, sanitizeHtml, sanitizeSurvivingStalePolicy } from '../../browser/domSanitize.js';
 import { Schemas } from '../../common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -144,6 +144,74 @@ suite('DomSanitize', () => {
 			allowRelativeMediaPaths: true,
 		});
 		assert.strictEqual(result.toString(), '<img src="path/img.png">');
+	});
+
+	test('supports additional media source validation', () => {
+		const html = '<img src="https://example.com/collect?secret=value" alt="remote"><img src="data:image/png;base64,AA==" alt="data">';
+		const mediaSourceIsAllowed = (source: string) => source.startsWith('data:');
+
+		assert.deepStrictEqual({
+			withoutPlaintextReplacement: sanitizeHtml(html, {
+				allowedMediaProtocols: { override: [Schemas.http, Schemas.https, Schemas.data] },
+				mediaSourceIsAllowed,
+			}).toString(),
+			withPlaintextReplacement: sanitizeHtml(html, {
+				allowedMediaProtocols: { override: [Schemas.http, Schemas.https, Schemas.data] },
+				mediaSourceIsAllowed,
+				replaceWithPlaintext: true,
+			}).toString(),
+		}, {
+			withoutPlaintextReplacement: '<img alt="remote"><img src="data:image/png;base64,AA==" alt="data">',
+			withPlaintextReplacement: '&lt;img src="https://example.com/collect?secret=value" alt="remote"&gt;<img src="data:image/png;base64,AA==" alt="data">',
+		});
+	});
+
+	test('applies additional media source validation to poster attributes', () => {
+		const html = '<video poster="https://example.invalid/poster.png"></video>';
+		const result = sanitizeHtml(html, {
+			allowedTags: { override: ['video'] },
+			allowedAttributes: { override: ['poster'] },
+			allowedMediaProtocols: { override: [Schemas.https] },
+			mediaSourceIsAllowed: () => false,
+			replaceWithPlaintext: true,
+		});
+
+		assert.strictEqual(result.toString(), '&lt;video poster="https://example.invalid/poster.png"&gt;&lt;/video&gt;');
+	});
+
+	test('applies media source validation to non-anchor href attributes', () => {
+		const sanitize = (href: string) => {
+			const html = sanitizeHtml(`<svg><linearGradient href="${href}"></linearGradient></svg>`, {
+				allowedTags: { override: ['svg', 'lineargradient'] },
+				allowedAttributes: { override: ['href'] },
+				allowedMediaProtocols: { override: [Schemas.https] },
+				mediaSourceIsAllowed: () => false,
+				replaceWithPlaintext: true,
+			}).toString();
+			return new DOMParser().parseFromString(html, 'text/html');
+		};
+
+		assert.deepStrictEqual({
+			external: sanitize('https://example.invalid/gradient.svg#paint').querySelector('[href]') !== null,
+			localFragment: sanitize('#paint').querySelector('[href="#paint"]') !== null,
+		}, {
+			external: false,
+			localFragment: true,
+		});
+	});
+
+	test('plaintext replacements remain in the source document', () => {
+		const sourceDocument = new DOMParser().parseFromString('<div><span>content</span></div>', 'text/html');
+		const node = sourceDocument.body.firstElementChild!;
+		const replacement = convertTagToPlaintext(node);
+
+		assert.deepStrictEqual({
+			ownerDocument: replacement?.ownerDocument === sourceDocument,
+			textContent: replacement?.textContent,
+		}, {
+			ownerDocument: true,
+			textContent: '<div>content</div>',
+		});
 	});
 
 	test('Supports dynamic attribute sanitization', () => {

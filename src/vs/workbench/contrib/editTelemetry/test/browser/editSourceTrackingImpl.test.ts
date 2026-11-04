@@ -6,14 +6,19 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { createTextBuffer } from '../../../../../editor/common/model/textModel.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { ModelService } from '../../../../../editor/common/services/modelService.js';
 import { EditSources, EditSuggestionId, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -44,6 +49,7 @@ suite('Edit Source Tracking Windows', () => {
 		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'beta', chatEdit('request-2')));
 		await timeout(1500);
 		context.branch.set('feature', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual(context.details.map(event => ({
 			trigger: event.trigger,
@@ -86,6 +92,7 @@ suite('Edit Source Tracking Windows', () => {
 		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'beta', chatEdit('request-2')));
 		await timeout(1500);
 		context.headHash.set('hash-2', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual(context.details.map(event => ({
 			trigger: event.trigger,
@@ -111,6 +118,7 @@ suite('Edit Source Tracking Windows', () => {
 		}
 		await timeout(10);
 		context.headHash.set('hash-2', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual({
 			count: context.details.length,
@@ -125,6 +133,122 @@ suite('Edit Source Tracking Windows', () => {
 		});
 
 		context.disposables.dispose();
+	}));
+
+	test('Chat.applyEdits reports generated and retained characters by Auto tier', () => runWithFakedTimers({}, async () => {
+		const context = setup();
+		try {
+			await timeout(10);
+			const edits = [
+				{ text: 'aaaaaa', autoTier: 'efficiency' },
+				{ text: 'bbb', autoTier: 'efficiency' },
+				{ text: 'ccccc', autoTier: 'balance' },
+				{ text: 'dddd', autoTier: 'intelligence' },
+				{ text: 'ee', autoTier: 'fast' },
+				{ text: 'fff', autoTier: undefined },
+				{ text: 'hh', autoTier: undefined, modelId: 'copilot/gpt-5' },
+			];
+			for (const [index, edit] of edits.entries()) {
+				context.document.applyEdit(StringEditWithReason.replace(
+					OffsetRange.emptyAt(context.document.value.get().value.length),
+					edit.text,
+					EditSources.chatApplyEdits({
+						modelId: edit.modelId ?? 'copilot/auto',
+						autoTier: edit.autoTier,
+						sessionId: 'session',
+						requestId: `request-${index}`,
+						languageId: 'typescript',
+						mode: 'agent',
+						extensionId: { extensionId: 'github.copilot-chat', version: '1.0.0' },
+						codeBlockSuggestionId: undefined,
+					}),
+				));
+				await timeout(1500);
+			}
+			for (const text of ['aaa', 'ccccc']) {
+				context.document.applyEdit(StringEditWithReason.replace(context.document.findRange(text), '', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+			}
+			context.document.dispose();
+			await timeout(10);
+
+			assert.deepStrictEqual(context.allDetails.filter(event => event.mode === 'longterm' && event.sourceKey.startsWith('source:Chat.applyEdits')).map(event => ({
+				sourceKey: event.sourceKey,
+				sourceKeyCleaned: event.sourceKeyCleaned,
+				modelId: event.modelId,
+				autoTier: event.autoTier,
+				modifiedCount: event.modifiedCount,
+				deltaModifiedCount: event.deltaModifiedCount,
+				totalModifiedCount: event.totalModifiedCount,
+			})), [
+				{ autoTier: 'efficiency', modifiedCount: 6, deltaModifiedCount: 9 },
+				{ autoTier: 'balance', modifiedCount: 0, deltaModifiedCount: 5 },
+				{ autoTier: 'intelligence', modifiedCount: 4, deltaModifiedCount: 4 },
+				{ autoTier: 'fast', modifiedCount: 2, deltaModifiedCount: 2 },
+				{ autoTier: undefined, modifiedCount: 3, deltaModifiedCount: 3 },
+				{ autoTier: undefined, modifiedCount: 2, deltaModifiedCount: 2, modelId: 'copilot|gpt-5' },
+			].map(entry => ({
+				...entry,
+				modelId: entry.modelId ?? 'copilot|auto',
+				sourceKey: `source:Chat.applyEdits-$modelId:${entry.modelId ?? 'copilot|auto'}${entry.autoTier ? `-$autoTier:${entry.autoTier}` : ''}-$extensionId:github.copilot-chat-$extensionVersion:1.0.0`,
+				sourceKeyCleaned: 'source:Chat.applyEdits',
+				totalModifiedCount: 17,
+			})));
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
+	test('Chat.applyEdits reports HydraFusion models as separate rows after applying the source cap', () => runWithFakedTimers({}, async () => {
+		const context = setup();
+		try {
+			await timeout(10);
+			const models = Array.from({ length: 16 }, (_, index) => `model-${index}`);
+			const fusionModels = ['hydrafusion', 'hydrafusion-max'];
+			let index = 0;
+			for (const modelId of models) {
+				for (const fusionModel of fusionModels) {
+					context.document.applyEdit(StringEditWithReason.replace(
+						OffsetRange.emptyAt(context.document.value.get().value.length),
+						'x',
+						EditSources.chatApplyEdits({
+							modelId,
+							fusionModel,
+							sessionId: 'session',
+							requestId: `request-${index++}`,
+							languageId: 'typescript',
+							mode: 'agent',
+							extensionId: undefined,
+							codeBlockSuggestionId: undefined,
+							origin: 'agentHost',
+							harness: 'copilotcli',
+						}),
+					));
+					await timeout(1500);
+				}
+			}
+			context.document.dispose();
+			await timeout(10);
+
+			const rows = context.allDetails.filter(event => event.mode === 'longterm' && event.sourceKey.startsWith('source:Chat.applyEdits'));
+			assert.deepStrictEqual({
+				count: rows.length,
+				sample: rows.filter(event => event.modelId === 'model-0').map(event => ({
+					sourceKey: event.sourceKey,
+					sourceKeyCleaned: event.sourceKeyCleaned,
+					fusionModel: event.fusionModel,
+				})).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey)),
+			}, {
+				count: models.length * fusionModels.length,
+				sample: fusionModels.map(fusionModel => ({
+					sourceKey: `source:Chat.applyEdits-$modelId:model-0-$fusionModel:${fusionModel}-$harness:copilotcli-$origin:agentHost`,
+					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+					fusionModel,
+				})),
+			});
+		} finally {
+			context.disposables.dispose();
+		}
 	}));
 
 	test('starts after first visibility and keeps only the long-term tracker while hidden', () => runWithFakedTimers({}, async () => {
@@ -197,7 +321,7 @@ suite('Edit Source Tracking Windows', () => {
 				sourceKey: event.sourceKey,
 				sourceKeyCleaned: event.sourceKeyCleaned,
 				origin: event.origin,
-				harness: event.harness,
+				provider: event.provider,
 				modelId: event.modelId,
 				conversationId: event.conversationId,
 				requestId: event.requestId,
@@ -221,7 +345,7 @@ suite('Edit Source Tracking Windows', () => {
 					sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					origin: 'agentHost',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 					modelId: 'gpt-5',
 					conversationId: 'session-1',
 					requestId: 'turn-1',
@@ -234,7 +358,7 @@ suite('Edit Source Tracking Windows', () => {
 					sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					origin: 'agentHost',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 					modelId: 'gpt-5',
 					conversationId: 'session-1',
 					requestId: 'turn-1',
@@ -266,6 +390,307 @@ suite('Edit Source Tracking Windows', () => {
 		context.disposables.dispose();
 	}));
 
+	for (const scenario of ['separated hunks', 'user revert', 'later disjoint edits'] as const) {
+		test(`counts only changed characters in both focus windows: ${scenario}`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			const initial = Array.from({ length: 120 }, (_, i) => `const value${i + 1} = "old";`).join('\n');
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, initial);
+			try {
+				await timeout(10);
+				const userText = '// user note\n';
+				context.document.applyEdit(StringEditWithReason.replace(
+					OffsetRange.emptyAt(initial.indexOf('const value50')),
+					userText,
+					EditSources.cursor({ kind: 'type' }),
+				));
+				await timeout(10);
+
+				const before = context.document.value.get().value;
+				const after = before
+					.replace('value10 = "old"', `value10 = "${'A'.repeat(100)}"`)
+					.replace('value100 = "old"', `value100 = "${'Z'.repeat(100)}"`);
+				context.document.applyEdit(diskReloadEdit(before, after));
+				await timeout(10);
+				correlation.resolve(EditSources.agentHostChatApplyEdits({
+					modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+				}));
+
+				if (scenario === 'user revert') {
+					context.document.applyEdit(StringEditWithReason.replace(
+						context.document.findRange('A'.repeat(100)), 'old', EditSources.cursor({ kind: 'type' }),
+					));
+				} else if (scenario === 'later disjoint edits') {
+					const next = after
+						.replace('value30 = "old"', `value30 = "${'B'.repeat(100)}"`)
+						.replace('value85 = "old"', `value85 = "${'Y'.repeat(100)}"`);
+					context.document.applyEdit(diskReloadEdit(after, next));
+				}
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+
+				const inserted = scenario === 'later disjoint edits' ? 400 : 200;
+				const retained = scenario === 'user revert' ? 100 : inserted;
+				const userRetained = userText.length + (scenario === 'user revert' ? 3 : 0);
+				assert.deepStrictEqual({
+					details: context.allDetails.filter(event => event.mode !== 'longterm').map(event => ({
+						mode: event.mode,
+						source: event.sourceKey.startsWith('source:Chat.applyEdits') ? 'agent' : 'user',
+						inserted: event.deltaModifiedCount,
+						retained: event.modifiedCount,
+					})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`)),
+					stats: context.allStats.filter(event => event.mode !== 'longterm').map(event => ({
+						mode: event.mode,
+						agent: event.agentHostModifiedCount,
+						external: event.externalModifiedCount,
+						total: event.totalModifiedCharacters,
+					})).sort((a, b) => a.mode.localeCompare(b.mode)),
+				}, {
+					details: ['10minFocusWindow', '20minFocusWindow'].flatMap(mode => [
+						{ mode, source: 'agent', inserted, retained },
+						{ mode, source: 'user', inserted: userRetained, retained: userRetained },
+					]),
+					stats: ['10minFocusWindow', '20minFocusWindow'].map(mode => ({
+						mode, agent: retained, external: 0, total: retained + userRetained,
+					})),
+				});
+			} finally {
+				context.disposables.dispose();
+			}
+		}));
+	}
+
+	test('preserves user attribution between suppressed longterm reload hunks', () => runWithFakedTimers({}, async () => {
+		const correlation = new TestExternalEditCorrelation();
+		const committedTotals: number[] = [];
+		const context = setup(undefined, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => ({
+				flushToken: 'flush-1',
+				agentModifiedCount: 6,
+				commit: async total => { committedTotals.push(total); },
+			}),
+		}, false, 'aaa\nmiddle\nzzz');
+		try {
+			await timeout(10);
+			context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), '// user\n', EditSources.cursor({ kind: 'type' })));
+			await timeout(10);
+			const before = context.document.value.get().value;
+			context.document.applyEdit(diskReloadEdit(before, before.replace('aaa', 'AAA').replace('zzz', 'ZZZ')));
+			await timeout(10);
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			context.headHash.set('hash-2', undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				details: context.details.map(event => ({
+					source: event.sourceKey,
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+					total: event.totalModifiedCount,
+				})),
+				stats: context.stats.map(event => ({
+					agent: event.agentHostModifiedCount,
+					external: event.externalModifiedCount,
+					total: event.totalModifiedCharacters,
+				})),
+				committedTotals,
+			}, {
+				details: [{ source: 'source:cursor-kind:type', inserted: 8, retained: 8, total: 14 }],
+				stats: [{ agent: 6, external: 0, total: 14 }],
+				committedTotals: [14],
+			});
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
+	for (const isCoarse of [false, true]) {
+		test(`reports coarse diff usage in both focus windows and resets the counter (${isCoarse})`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'model', sessionId: 'session', requestId: 'turn', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, 'aaa\nmiddle\nzzz', async (before, after) => ({
+				...await computeStringDiffWithMetadata(before, after, { maxComputationTimeMs: 500 }, 'advanced'),
+				isCoarse,
+			}));
+			try {
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('aaa\nmiddle\nzzz', 'AAA\nmiddle\nZZZ'));
+				await timeout(10);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), 'user', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+				const details = context.allDetails.filter(e => e.mode !== 'longterm').map(e => e.coarseDiffCount);
+				const stats = context.allStats.filter(e => e.mode !== 'longterm').map(e => e.coarseDiffCount);
+				visible.set(true, undefined);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(8), 'later', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					details, stats,
+					nextStats: context.allStats.filter(e => e.mode !== 'longterm').slice(2).map(e => e.coarseDiffCount),
+				}, {
+					details: Array(4).fill(isCoarse ? 1 : 0),
+					stats: Array(2).fill(isCoarse ? 1 : 0),
+					nextStats: [0, 0],
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
+	for (const hostCount of [undefined, 0, 2]) {
+		test(`combines longterm coarse counts without treating older hosts as precise (${hostCount})`, () => runWithFakedTimers({}, async () => {
+			const context = setup(undefined, {
+				createCorrelation: () => new TestExternalEditCorrelation(),
+				prepareFlush: async () => ({
+					flushToken: 'flush', agentModifiedCount: 3, coarseDiffCount: hostCount,
+					commit: async () => { },
+				}),
+			}, false, 'hello', async (before, after) => ({
+				...await computeStringDiffWithMetadata(before, after, { maxComputationTimeMs: 500 }, 'advanced'),
+				isCoarse: true,
+			}));
+			try {
+				await timeout(10);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(0), 'user', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('userhello', 'userworld'));
+				await timeout(10);
+				context.headHash.set('next', undefined);
+				await timeout(10);
+				assert.deepStrictEqual({
+					details: context.allDetails.filter(e => e.mode === 'longterm').map(e => e.coarseDiffCount),
+					stats: context.stats.map(e => e.coarseDiffCount),
+				}, {
+					details: [hostCount === undefined ? undefined : hostCount + 1, hostCount === undefined ? undefined : hostCount + 1],
+					stats: [hostCount === undefined ? undefined : hostCount + 1],
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
+	for (const boundary of ['hidden', 'closed', 'hash', 'branch', '10hours', '10minFocusWindow', '20minFocusWindow'] as const) {
+		test(`drains pending reload and user edits at the ${boundary} boundary without including later edits`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const diffStarted = new DeferredPromise<void>();
+			const releaseDiff = new DeferredPromise<void>();
+			let firstDiff = true;
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => ({
+					flushToken: 'flush-boundary',
+					agentModifiedCount: 6,
+					commit: async () => { },
+				}),
+			}, false, 'aaa\nmiddle\nzzz', async (original, modified) => {
+				if (firstDiff) {
+					firstDiff = false;
+					diffStarted.complete();
+					await releaseDiff.p;
+				}
+				return computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+			});
+			try {
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('aaa\nmiddle\nzzz', 'AAA\nmiddle\nZZZ'));
+				await diffStarted.p;
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), 'U1', EditSources.cursor({ kind: 'type' })));
+
+				if (boundary === 'hidden') {
+					visible.set(false, undefined);
+				} else if (boundary === 'closed') {
+					context.document.dispose();
+				} else if (boundary === 'hash') {
+					context.headHash.set('hash-2', undefined);
+				} else if (boundary === 'branch') {
+					context.branch.set('feature', undefined);
+				} else if (boundary === '10hours') {
+					await timeout(10 * 60 * 60 * 1000);
+				} else {
+					context.fireFocusTimer(boundary === '10minFocusWindow' ? 10 * 60 * 1000 : 20 * 60 * 1000);
+				}
+				if (boundary !== 'closed') {
+					if (boundary === 'hidden') {
+						visible.set(true, undefined);
+					}
+					context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(6), 'LATER', EditSources.cursor({ kind: 'type' })));
+				}
+				releaseDiff.complete();
+				await timeout(10);
+
+				const modes = boundary === 'hash' || boundary === 'branch' || boundary === '10hours'
+					? ['longterm']
+					: boundary === 'closed'
+						? ['10minFocusWindow', '20minFocusWindow', 'longterm']
+						: boundary === 'hidden'
+							? ['10minFocusWindow', '20minFocusWindow']
+							: [boundary];
+				const relevantDetails = () => context.allDetails.filter(event => modes.includes(event.mode));
+				const outgoing = relevantDetails().map(event => ({
+					mode: event.mode,
+					source: event.sourceKey.startsWith('source:Chat.applyEdits') ? 'agent' : 'user',
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+				})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`));
+				const expectedOutgoing = modes.flatMap(mode => [
+					...(mode === 'longterm' ? [] : [{ mode, source: 'agent', inserted: 6, retained: 6 }]),
+					{ mode, source: 'user', inserted: 2, retained: 2 },
+				]);
+
+				const previousCount = relevantDetails().length;
+				if (boundary !== 'closed') {
+					if (modes[0] === 'longterm') {
+						context.headHash.set('hash-3', undefined);
+					} else {
+						visible.set(false, undefined);
+					}
+					await timeout(10);
+				}
+				const next = relevantDetails().slice(previousCount).map(event => ({
+					mode: event.mode,
+					source: event.sourceKey,
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+				})).sort((a, b) => a.mode.localeCompare(b.mode));
+				assert.deepStrictEqual({ outgoing, next }, {
+					outgoing: expectedOutgoing,
+					next: boundary === 'closed' ? [] : modes.map(mode => ({
+						mode, source: 'source:cursor-kind:type', inserted: 5, retained: 5,
+					})),
+				});
+			} finally {
+				releaseDiff.complete();
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
 	test('drains a late Agent Host marker before focus-window emission', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', true);
 		const correlation = new TestExternalEditCorrelation(true);
@@ -293,13 +718,81 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual(context.allDetails.map(event => ({
 			mode: event.mode,
-			harness: event.harness,
+			provider: event.provider,
 			requestId: event.requestId,
 		})).sort((a, b) => a.mode.localeCompare(b.mode)), [
-			{ mode: '10minFocusWindow', harness: 'claude', requestId: 'turn-late' },
-			{ mode: '20minFocusWindow', harness: 'claude', requestId: 'turn-late' },
+			{ mode: '10minFocusWindow', provider: 'claude', requestId: 'turn-late' },
+			{ mode: '20minFocusWindow', provider: 'claude', requestId: 'turn-late' },
 		]);
 
+		context.disposables.dispose();
+	}));
+
+	test('caps known chat scopes and preserves legacy unknown-chat grouping in both focus windows', () => runWithFakedTimers({}, async () => {
+		const visible = observableValue('visible', true);
+		const sources = new Map<string, TextModelEditSource>();
+		const correlation: IExternalEditCorrelation = {
+			onDidSuppress: Event.None,
+			onDidInvalidate: Event.None,
+			register: (_before, after) => after,
+			isSuppressed: id => sources.has(id),
+			getResolution: id => sources.has(id) ? { id, source: sources.get(id) } : undefined,
+			release: () => { },
+		};
+		const context = setup(visible, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => undefined,
+		});
+		await timeout(10);
+		const chatSessionIds = [...Array.from({ length: 12 }, (_, i) => `hashed-chat-${i + 1}`), undefined, undefined];
+		let content = 'hello';
+		for (const [index, chatSessionId] of chatSessionIds.entries()) {
+			const newText = 'x'.repeat(index + 1);
+			content += newText;
+			sources.set(content, EditSources.agentHostChatApplyEdits({
+				modelId: 'model',
+				sessionId: chatSessionId !== undefined ? 'session-1' : `session-${index}`,
+				chatSessionId,
+				agentSessionId: chatSessionId !== undefined ? 'owner-session' : undefined,
+				requestId: `turn-${index}`,
+				harness: 'copilotcli',
+			}));
+			context.document.applyEdit(StringEditWithReason.replace(
+				OffsetRange.emptyAt(context.document.value.get().value.length),
+				newText,
+				EditSources.reloadFromDisk(),
+			));
+			await timeout(1500);
+		}
+		visible.set(false, undefined);
+		await timeout(10);
+
+		const project = (mode: string) => context.allDetails
+			.filter(event => event.mode === mode)
+			.sort((a, b) => a.modifiedCount - b.modifiedCount)
+			.map(event => ({
+				sourceKey: event.sourceKey,
+				conversationId: event.conversationId,
+				chatSessionId: event.chatSessionId,
+				agentSessionId: event.agentSessionId,
+				hasChatSessionId: Object.hasOwn(event, 'chatSessionId'),
+				modifiedCount: event.modifiedCount,
+				deltaModifiedCount: event.deltaModifiedCount,
+			}));
+		// The legacy group retains 13 + 14 characters, so the top ten exclude the three smallest known chats.
+		const expected = chatSessionIds.slice(3, -1).map((chatSessionId, index) => ({
+			sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
+			conversationId: chatSessionId !== undefined ? 'session-1' : 'session-12',
+			chatSessionId,
+			agentSessionId: chatSessionId !== undefined ? 'owner-session' : undefined,
+			hasChatSessionId: chatSessionId !== undefined,
+			modifiedCount: chatSessionId !== undefined ? index + 4 : 27,
+			deltaModifiedCount: chatSessionId !== undefined ? index + 4 : 27,
+		}));
+		assert.deepStrictEqual({
+			short: project('10minFocusWindow'),
+			long: project('20minFocusWindow'),
+		}, { short: expected, long: expected });
 		context.disposables.dispose();
 	}));
 
@@ -342,6 +835,44 @@ suite('Edit Source Tracking Windows', () => {
 			],
 		});
 
+		context.disposables.dispose();
+	}));
+
+	test('separates known owners with no chat provenance in both focus windows', () => runWithFakedTimers({}, async () => {
+		const visible = observableValue('visible', true);
+		const sources = new Map<string, TextModelEditSource>();
+		const correlation: IExternalEditCorrelation = {
+			onDidSuppress: Event.None,
+			onDidInvalidate: Event.None,
+			register: (_before, after) => after,
+			isSuppressed: id => sources.has(id),
+			getResolution: id => sources.has(id) ? { id, source: sources.get(id) } : undefined,
+			release: () => { },
+		};
+		const context = setup(visible, { createCorrelation: () => correlation, prepareFlush: async () => undefined });
+		await timeout(10);
+		let content = 'hello';
+		for (const [index, agentSessionId] of ['owner-one', 'owner-two'].entries()) {
+			const newText = 'x'.repeat(index + 1);
+			content += newText;
+			sources.set(content, EditSources.agentHostChatApplyEdits({
+				modelId: 'model', sessionId: 'same-legacy-value', agentSessionId, requestId: 'same-request', harness: 'copilotcli',
+			}));
+			context.document.applyEdit(StringEditWithReason.replace(
+				OffsetRange.emptyAt(context.document.value.get().value.length), newText, EditSources.reloadFromDisk(),
+			));
+			await timeout(1500);
+		}
+		visible.set(false, undefined);
+		await timeout(10);
+		const project = (mode: string) => context.allDetails.filter(event => event.mode === mode)
+			.sort((a, b) => a.modifiedCount - b.modifiedCount)
+			.map(event => ({ agentSessionId: event.agentSessionId, chatSessionId: event.chatSessionId, modifiedCount: event.modifiedCount, deltaModifiedCount: event.deltaModifiedCount }));
+		const expected = [
+			{ agentSessionId: 'owner-one', chatSessionId: undefined, modifiedCount: 1, deltaModifiedCount: 1 },
+			{ agentSessionId: 'owner-two', chatSessionId: undefined, modifiedCount: 2, deltaModifiedCount: 2 },
+		];
+		assert.deepStrictEqual({ short: project('10minFocusWindow'), long: project('20minFocusWindow') }, { short: expected, long: expected });
 		context.disposables.dispose();
 	}));
 
@@ -848,6 +1379,8 @@ function setup(
 	visible: ISettableObservable<boolean> = observableValue('visible', true),
 	markerService?: IAgentHostEditMarkerService,
 	dirty = false,
+	initialValue = 'hello',
+	computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
 ) {
 	const disposables = new DisposableStore();
 	const headHash = observableValue('headHash', 'hash-1');
@@ -859,13 +1392,18 @@ function setup(
 	} satisfies IScmRepoAdapter;
 	const details: Array<{ sourceKey: string; trigger: string; requestId: string | undefined; statsUuid: string; modifiedCount: number; deltaModifiedCount: number; totalModifiedCount: number }> = [];
 	const allDetails: Array<{
+		coarseDiffCount?: number;
 		mode: string;
 		sourceKey: string;
 		sourceKeyCleaned: string;
 		origin: string | undefined;
-		harness: string | undefined;
+		provider: string | undefined;
 		modelId: string | undefined;
+		autoTier?: string;
+		fusionModel?: string;
 		conversationId: string | undefined;
+		chatSessionId?: string;
+		agentSessionId?: string;
 		requestId: string | undefined;
 		statsUuid: string;
 		modifiedCount: number;
@@ -873,6 +1411,7 @@ function setup(
 		totalModifiedCount: number;
 	}> = [];
 	const stats: Array<{
+		coarseDiffCount?: number;
 		statsUuid: string;
 		otherAIModifiedCount: number;
 		agentHostModifiedCount: number;
@@ -901,7 +1440,7 @@ function setup(
 			}
 		},
 	});
-	instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
+	instantiationService.stubInstance(DiffService, { computeDiff });
 	instantiationService.stubInstance(ScmAdapter, { getRepo: () => repo });
 	instantiationService.stubInstance(UriVisibilityProvider, { isVisible: (_uri, reader) => visible.read(reader) });
 	instantiationService.stub(IRandomService, {
@@ -909,13 +1448,19 @@ function setup(
 		generateUuid: () => `stats-${++uuid}`,
 		generatePrefixedUuid: namespace => `${namespace}-${++uuid}`,
 	});
+	const focusTimers = new Map<number, Set<() => void>>();
 	instantiationService.stub(IUserAttentionService, {
 		_serviceBrand: undefined,
 		isVsCodeFocused: constObservable(true),
 		isUserActive: constObservable(true),
 		hasUserAttention: constObservable(true),
 		totalFocusTimeMs: 0,
-		fireAfterGivenFocusTimePassed: () => Disposable.None,
+		fireAfterGivenFocusTimePassed: (duration, callback) => {
+			const callbacks = focusTimers.get(duration) ?? new Set();
+			focusTimers.set(duration, callbacks);
+			callbacks.add(callback);
+			return { dispose: () => { callbacks.delete(callback); } };
+		},
 	});
 	instantiationService.stub(ITextFileService, { isDirty: () => dirty });
 	instantiationService.stub(IAiEditTelemetryService, {
@@ -931,11 +1476,33 @@ function setup(
 	const impl = disposables.add(new EditSourceTrackingImpl(constObservable(true), annotatedDocuments, markerService, instantiationService));
 	const document = disposables.add(workspace.createDocument({
 		uri: URI.file('C:\\repo\\file.ts'),
-		initialValue: 'hello',
+		initialValue,
 		languageId: 'typescript',
 	}));
 
-	return { disposables, document, details, stats, allDetails, allStats, headHash, branch, impl };
+	return {
+		disposables, document, details, stats, allDetails, allStats, headHash, branch, impl, fireFocusTimer: (duration: number) => {
+			for (const callback of Array.from(focusTimers.get(duration) ?? [])) {
+				callback();
+			}
+		}
+	};
+}
+
+function diskReloadEdit(before: string, after: string): StringEditWithReason {
+	const store = new DisposableStore();
+	try {
+		const model = store.add(createTextModel(before));
+		const buffer = createTextBuffer(after, DefaultEndOfLine.LF);
+		store.add(buffer.disposable);
+		const replacements = ModelService._computeEdits(model, buffer.textBuffer).map(edit => StringReplacement.replace(new OffsetRange(
+			model.getOffsetAt({ lineNumber: edit.range.startLineNumber, column: edit.range.startColumn }),
+			model.getOffsetAt({ lineNumber: edit.range.endLineNumber, column: edit.range.endColumn }),
+		), edit.text ?? ''));
+		return new StringEditWithReason(replacements, EditSources.reloadFromDisk());
+	} finally {
+		store.dispose();
+	}
 }
 
 function chatEdit(requestId: string) {

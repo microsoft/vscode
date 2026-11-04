@@ -10,13 +10,28 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ExternalSessionBanner, getExternalSessionVisibilityConfirmation } from '../../browser/externalSessionBanner.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/externalSessionBanner/' }, {
+	Codex: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderBannerInChat(context, undefined, 'codex'),
+	}),
+	Copilot: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderBannerInChat(context, undefined, 'copilot'),
+	}),
+	Claude: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderBannerInChat(context, undefined, 'claude'),
+	}),
 	InChat: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderBannerInChat(context),
@@ -31,7 +46,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/externalSessionBanner/
 	}),
 });
 
-function renderBannerInChat({ container, disposableStore, theme }: ComponentFixtureContext, initialMode?: ChatExternalSessionsMode): void {
+function renderBannerInChat({ container, disposableStore, theme }: ComponentFixtureContext, initialMode?: ChatExternalSessionsMode, sessionType?: string): void {
 	container.style.width = '900px';
 	container.style.height = '540px';
 
@@ -39,6 +54,9 @@ function renderBannerInChat({ container, disposableStore, theme }: ComponentFixt
 		colorTheme: theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			registration.defineInstance(IConfigurationService, new TestConfigurationService({
+				[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: sessionType !== undefined,
+			}));
 			registration.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly nameShort = 'Code - OSS';
 			});
@@ -53,6 +71,7 @@ function renderBannerInChat({ container, disposableStore, theme }: ComponentFixt
 	));
 	banner.setSession(new class extends mock<ISession>() {
 		override readonly resource = URI.parse('test://external-session');
+		override readonly sessionType = sessionType ?? 'copilot';
 		override readonly isExternal = constObservable(true);
 		override readonly updatedAt = constObservable(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000));
 	});

@@ -1,0 +1,49 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-promote?chat=${uuid_0}" and relationship "independent", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://copilotcli/e2e-server-tools-move-promote?chat=${uuid_0}
+            relationship: independent
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-promote?chat=${uuid_0}" and relationship "independent", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://copilotcli/e2e-server-tools-move-promote?chat=${uuid_0}
+                relationship: independent
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Nested session moved to its own session (agent-host-session://ahp-session/${uuid_1}).
+    response:
+      content: moved
+      stopReason: end_turn

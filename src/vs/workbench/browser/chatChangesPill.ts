@@ -8,19 +8,15 @@ import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionVi
 import { Button } from '../../base/browser/ui/button/button.js';
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
-import { autorun, derived, IObservable } from '../../base/common/observable.js';
+import { autorun, IObservable } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
-import { AnimatedCounterWidget } from './animatedCounterWidget.js';
+import { ChangesStatsWidget, getChangesStatsFilesLabel, IChangesStats } from './changesStatsWidget.js';
 import { ChatPillActionViewItemBase } from './chatPills.js';
 
 /** The file and line counts a changes pill reports. */
-export interface IChatChangesStats {
-	readonly files: number;
-	readonly insertions: number;
-	readonly deletions: number;
-}
+export type IChatChangesStats = IChangesStats;
 
 export const EMPTY_CHAT_CHANGES_STATS: IChatChangesStats = { files: 0, insertions: 0, deletions: 0 };
 
@@ -35,8 +31,6 @@ export function chatChangesStatsEqual(a: IChatChangesStats, b: IChatChangesStats
  */
 export class ChatChangesPillActionViewItem extends ChatPillActionViewItemBase {
 
-	private _filesLabel: HTMLElement | undefined;
-
 	protected override get itemModifierClass(): string { return 'chat-changes-pill'; }
 	protected override get buttonModifierClass(): string { return 'chat-changes-pill-button'; }
 
@@ -50,41 +44,23 @@ export class ChatChangesPillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override renderContent(button: Button): void {
-		this._filesLabel = $('span.chat-pill-label');
 		reset(
 			button.element,
 			$(`span.chat-pill-icon${ThemeIcon.asCSSSelector(Codicon.diffMultiple)}`, { 'aria-hidden': 'true' }),
-			this._filesLabel,
 		);
 
-		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, button.element, {
-			prefix: '+',
-			direction: 'topToBottom',
-			cssClassName: 'chat-pill-added',
-			count: derived(this, reader => this._statsObs.read(reader).insertions),
-		}));
-		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, button.element, {
-			prefix: '-',
-			direction: 'bottomToTop',
-			cssClassName: 'chat-pill-removed',
-			count: derived(this, reader => this._statsObs.read(reader).deletions),
-		}));
+		this._register(this._instantiationService.createInstance(ChangesStatsWidget, button.element, this._statsObs, true));
+		button.setTitle(this._action.tooltip || this._action.label);
 
 		this._register(autorun(reader => {
-			this._updateLabel(this._statsObs.read(reader));
+			this._statsObs.read(reader);
+			this.updateAriaLabel();
 		}));
 	}
 
-	private _updateLabel(stats: IChatChangesStats): void {
-		if (!this.button || !this._filesLabel) {
-			return;
-		}
+	protected override getAriaLabel(): string {
+		const stats = this._statsObs.get();
 		const { files, insertions, deletions } = stats;
-		const filesLabel = files === 1
-			? localize('chatChangesPill.file', "{0} File", files)
-			: localize('chatChangesPill.files', "{0} Files", files);
-		this._filesLabel.textContent = filesLabel;
-		this.button.setTitle(this._action.tooltip || this._action.label);
-		this.button.element.setAttribute('aria-label', localize('chatChangesPill.ariaLabel', "{0}: {1}, +{2}, -{3}", this._action.label, filesLabel, insertions, deletions));
+		return localize('chatChangesPill.ariaLabel', "{0}: {1}, +{2}, -{3}", this._action.label, getChangesStatsFilesLabel(files), insertions, deletions);
 	}
 }

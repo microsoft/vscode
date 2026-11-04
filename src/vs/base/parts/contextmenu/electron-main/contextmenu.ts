@@ -20,6 +20,8 @@ export function registerContextMenuListener(): void {
 				// It turns out that the menu gets GC'ed if not referenced anymore
 				// As such we drag it into this scope so that it is not being GC'ed
 				if (menu) {
+					// Complete the one-shot click listener even when no item was selected.
+					event.sender.send(onClickChannel, -1);
 					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
 				}
 			}

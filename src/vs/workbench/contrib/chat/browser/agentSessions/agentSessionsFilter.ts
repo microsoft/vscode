@@ -226,12 +226,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			// Default: Local + all registered contributions
 			providers = [{ id: AgentSessionProviders.Local, label: resolveLabel(AgentSessionProviders.Local) }];
 			for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
-				if (providers.find(p => p.id === contribution.type)) {
+				const id = contribution.sessionListGroup ?? contribution.type;
+				if (providers.find(p => p.id === id)) {
 					continue; // already added
 				}
 				providers.push({
-					id: contribution.type,
-					label: resolveLabel(contribution.type)
+					id,
+					label: resolveLabel(id)
 				});
 			}
 		}
@@ -268,7 +269,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const states: { id: AgentSessionStatus; label: string }[] = [
 			{ id: AgentSessionStatus.Completed, label: localize('agentSessionStatus.completed', "Completed") },
 			{ id: AgentSessionStatus.InProgress, label: localize('agentSessionStatus.inProgress', "In Progress") },
-			{ id: AgentSessionStatus.NeedsInput, label: localize('agentSessionStatus.needsInput', "Input Needed") },
+			{ id: AgentSessionStatus.NeedsInput, label: localize('agentSessionStatus.needsInput', "Attention Needed") },
 			{ id: AgentSessionStatus.Failed, label: localize('agentSessionStatus.failed', "Failed") },
 		];
 
@@ -385,7 +386,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return overrideExclude;
 		}
 
-		if (this.options.allowedProviders && !this.options.allowedProviders.includes(session.providerType as AgentSessionProviders)) {
+		const providerFilter = this.chatSessionsService.getChatSessionContribution(session.providerType)?.sessionListGroup ?? session.providerType;
+		if (this.options.allowedProviders && !this.options.allowedProviders.includes(providerFilter as AgentSessionProviders)) {
 			return true;
 		}
 
@@ -393,7 +395,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return true;
 		}
 
-		if (this.excludes.providers.includes(session.providerType)) {
+		if (this.excludes.providers.includes(providerFilter)) {
 			return true;
 		}
 

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import * as crypto from '../../../../util/common/crypto';
+import { describe, expect, test } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isHiddenModelN, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
-	return { family, model } as unknown as IChatEndpoint;
+	return { family, model, name: model } as unknown as IChatEndpoint;
 }
 
 describe('OpenAI prompt model classification', () => {
@@ -50,19 +49,13 @@ describe('OpenAI prompt model classification', () => {
 	});
 });
 
-describe('Hidden model N capabilities', () => {
-	afterEach(() => vi.restoreAllMocks());
-
-	test.each([true, false, undefined])('shares GPT-5.6 capability gates with verbosity enabled: %s', responsesApiVerbosityEnabled => {
-		const family = 'hidden-model-n-test';
-		const originalHash = crypto.getCachedSha256Hash;
-		vi.spyOn(crypto, 'getCachedSha256Hash').mockImplementation(value => value === family
-			? 'a5665bddcc9b4005649f48ba7925b9437ccb321f5b670f026ed5a349c7561499'
-			: originalHash(value));
-		const model = fakeModel(family);
+describe('GPT-6 family capabilities', () => {
+	test.each(['gpt-6', 'gpt-6-preview', 'gpt-6-codex', 'gpt-6.1', 'gpt-6.1-mini', 'gpt-6-astra'])('enables capabilities for %s and aliased endpoints', family => {
+		const model = fakeModel(family, 'preview-model');
 
 		expect({
-			isHidden: isHiddenModelN(model),
+			isGpt6: isGpt6Family(model),
+			isGpt6ByFamily: isGpt6Family(family),
 			isGpt56: isGpt56(model),
 			applyPatch: modelSupportsApplyPatch(model),
 			applyPatchExclusively: modelCanUseApplyPatchExclusively(model),
@@ -72,9 +65,14 @@ describe('Hidden model N capabilities', () => {
 			cacheBreakpoints: modelSupportCacheBreakPoints(model),
 			toolSearch: modelSupportsToolSearch(model),
 			toolSearchByFamily: modelSupportsToolSearch(family),
-			verbosity: getVerbosityForModelSync(model, responsesApiVerbosityEnabled),
+			replaceString: modelSupportsReplaceString(model),
+			multiReplaceString: modelSupportsMultiReplaceString(model),
+			replaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+			contextEditing: modelSupportsContextEditing(model),
+			verbosity: [true, false, undefined].map(enabled => getVerbosityForModelSync(model, enabled)),
 		}).toEqual({
-			isHidden: true,
+			isGpt6: true,
+			isGpt6ByFamily: true,
 			isGpt56: false,
 			applyPatch: true,
 			applyPatchExclusively: true,
@@ -84,7 +82,40 @@ describe('Hidden model N capabilities', () => {
 			cacheBreakpoints: true,
 			toolSearch: true,
 			toolSearchByFamily: true,
-			verbosity: responsesApiVerbosityEnabled ? 'low' : undefined,
+			replaceString: false,
+			multiReplaceString: false,
+			replaceStringExclusively: false,
+			contextEditing: false,
+			verbosity: ['low', undefined, undefined],
+		});
+	});
+
+	test.each(['gpt-5.6', 'gpt-7', 'GPT-6', 'custom-gpt-6', 'unknown', ''])('does not classify %s as a GPT-6 family based on the model id', family => {
+		expect([
+			isGpt6Family(family),
+			isGpt6Family(fakeModel(family, 'gpt-6')),
+		]).toEqual([false, false]);
+	});
+});
+
+describe('VSC Model F edit tool capabilities', () => {
+	test('uses replace-string tools exclusively when identified by family', () => {
+		const model = fakeModel('vscModelF-preview', 'opaque-model-id');
+
+		expect({
+			supportsApplyPatch: modelSupportsApplyPatch(model),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+			supportsSimplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
+			supportsReplaceString: modelSupportsReplaceString(model),
+			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
+			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+		}).toEqual({
+			supportsApplyPatch: false,
+			canUseApplyPatchExclusively: false,
+			supportsSimplifiedApplyPatchInstructions: false,
+			supportsReplaceString: true,
+			supportsMultiReplaceString: true,
+			canUseReplaceStringExclusively: true,
 		});
 	});
 });
@@ -185,6 +216,27 @@ describe('Kimi edit tool capabilities', () => {
 				canUseApplyPatchExclusively: false,
 			},
 		});
+	});
+});
+
+describe('modelSupportsThinkingContentInHistory', () => {
+	test.each([
+		{ family: 'kimi-k3', id: 'deployment', expected: true },
+		{ family: 'moonshotai/Kimi-K3', id: 'deployment', expected: true },
+		{ family: 'unknown', id: 'kimi-k3-preview', expected: true },
+		{ family: 'unknown', id: 'moonshotai/Kimi-K3:latest', expected: true },
+		{ family: 'k3', id: 'deployment', expected: true },
+		{ family: 'unknown', id: 'k3-256k', expected: true },
+		{ family: 'unknown', id: 'moonshotai/k3', expected: true },
+		{ family: 'kimi-k2.6', id: 'deployment', expected: false },
+		{ family: 'kimi-k2.7-code', id: 'deployment', expected: false },
+		{ family: 'kimi-k30', id: 'deployment', expected: false },
+		{ family: 'k30', id: 'deployment', expected: false },
+		{ family: 'not-k3', id: 'deployment', expected: false },
+		{ family: 'claude-haiku-4-5', id: 'deployment', expected: false },
+		{ family: 'unknown', id: 'deployment', expected: false },
+	])('uses the preserved-thinking default for $family / $id: $expected', ({ family, id, expected }) => {
+		expect(modelSupportsThinkingContentInHistory(fakeModel(family, id))).toBe(expected);
 	});
 });
 

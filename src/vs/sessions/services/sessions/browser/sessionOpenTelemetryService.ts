@@ -17,7 +17,7 @@ import { getSessionsTelemetryProviderId, SessionsTelemetryProviderId } from '../
 
 export const SESSION_OPEN_TIMEOUT_MS = 60_000;
 
-export type SessionOpenSource = 'sessionsList' | 'navigation' | 'link' | 'notification' | 'automation' | 'chat' | 'voice' | 'fork' | 'fallback' | 'unknown';
+export type SessionOpenSource = 'sessionsList' | 'navigation' | 'link' | 'notification' | 'inbox' | 'automation' | 'chat' | 'voice' | 'fork' | 'fallback' | 'unknown';
 export type SessionOpenOutcome = 'success' | 'cancelled' | 'failure' | 'timeout';
 
 export interface ISessionOpenTelemetryAttempt {
