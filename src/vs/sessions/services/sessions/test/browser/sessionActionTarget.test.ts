@@ -33,7 +33,7 @@ suite('sessionActionTarget', () => {
 		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: focusedChatWindowSession ? upcastPartial<IChatWindow>({}) : undefined }));
 		const windowScope = upcastPartial<ISessionScope>({ session: constObservable(focusedChatWindowSession) });
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
-			getScopedInstantiationService: () => upcastPartial<IInstantiationService>({ invokeFunction: <R>(fn: (accessor: ServicesAccessor) => R) => fn(upcastPartial<ServicesAccessor>({ get: <T>() => windowScope as T })) }),
+			getScopedInstantiationService: () => upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(upcastPartial<ServicesAccessor>({ get: <T>() => windowScope as T }))) as IInstantiationService['invokeFunction'] }),
 		}));
 		instantiationService.stub(ISessionsService, { activeSession: constObservable(active), mainWindowActiveSession: constObservable<IActiveSession | undefined>(undefined), windowSessions: constObservable(windows), visibleSessions: constObservable(visible) });
 		return instantiationService.invokeFunction(accessor => resolveSessionActionTarget(accessor, arg));
