@@ -26,6 +26,7 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	private readonly currentStore = this._register(disposableObservableValue<AgentHostAutomationStore | undefined>(this, undefined));
 	private readonly connectionBinding = this._register(new DisposableStore());
+	private boundConnection: IAgentHostAutomationConnection | undefined;
 	private readonly runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly configurationChanged;
 	private readonly connectionState = observableValue<AutomationConnectionState>(this, 'disconnected');
@@ -66,9 +67,17 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		this.configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
 	}
 
-	/** Rebinds to the connection and exposes a projection only while compatible Automation support is available. */
+	/**
+	 * Rebinds to the connection and exposes a projection only while compatible
+	 * Automation support is available. Rebinding to the connection that is
+	 * already bound keeps the existing projection and catalogue subscription.
+	 */
 	setConnection(connection: IAgentHostAutomationConnection): void {
+		if (connection === this.boundConnection) {
+			return;
+		}
 		this.clearConnection();
+		this.boundConnection = connection;
 		this.connectionBinding.add(autorun(reader => {
 			this.configurationChanged.read(reader);
 			const enabled = this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
@@ -99,6 +108,7 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	/** Disposes client-side projections and observations without changing host definitions or runs. */
 	clearConnection(): void {
+		this.boundConnection = undefined;
 		this.connectionBinding.clear();
 		transaction(tx => {
 			this.currentStore.set(undefined, tx);

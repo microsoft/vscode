@@ -43,6 +43,10 @@ export interface ITestSessionSpec {
 	readonly workspaceFolders?: readonly [string, ...string[]];
 	/** A GitHub repository, as `owner/name`, that the workspace's first folder reports through its Git metadata. */
 	readonly repository?: string;
+	/** The current branch of the workspace's first folder. */
+	readonly branch?: string;
+	/** A pull request of {@link repository}. */
+	readonly pullRequest?: { readonly number: number; readonly title: string };
 	readonly isQuickChat?: boolean;
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
@@ -100,12 +104,22 @@ export function getTestChatResource(sessionId: string, chatId: string): URI {
 	return URI.parse(`vscode-session://session/${sessionId}/chat/${chatId}`);
 }
 
-export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label], repository?: string): ISessionWorkspace {
+export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label], repository?: string, git: Pick<ITestSessionSpec, 'branch' | 'pullRequest'> = {}): ISessionWorkspace {
 	const [owner, repo] = repository?.split('/') ?? [];
+	if (git.pullRequest && !repository) {
+		throw new Error(`Pull request #${git.pullRequest.number} needs the repository it belongs to.`);
+	}
+	const pullRequests = git.pullRequest && [{ owner, repo, number: git.pullRequest.number, uri: URI.parse(`https://github.com/${repository}/pull/${git.pullRequest.number}`), title: git.pullRequest.title }];
 	const folders = folderLabels.map((folderLabel, index) => {
 		const root = URI.file(`/home/user/projects/${folderLabel}`);
-		const gitRepository = repository && index === 0
-			? { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ owner, repo }) }
+		const gitRepository = (repository || git.branch) && index === 0
+			? {
+				uri: root,
+				workTreeUri: undefined,
+				...(git.branch ? { branchName: git.branch } : {}),
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(repository ? { owner, repo, ...(pullRequests ? { pullRequests } : {}) } : undefined),
+			}
 			: undefined;
 		return { root, workingDirectory: root, name: folderLabel, description: undefined, gitRepository };
 	});
@@ -173,7 +187,7 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 		application,
 		icon: Codicon.account,
 		createdAt,
-		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders, spec.repository) : undefined),
+		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders, spec.repository, spec) : undefined),
 		isQuickChat: constObservable(spec.isQuickChat ?? false),
 		isExternal: constObservable(spec.isExternal ?? false),
 		title,

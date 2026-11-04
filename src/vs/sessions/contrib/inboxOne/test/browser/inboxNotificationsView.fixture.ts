@@ -119,6 +119,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	};
 	const model = upcastPartial<IChatModel>({
 		onDidChange: Event.None,
+		onDidDispose: Event.None,
 		getRequests: () => [upcastPartial<IChatRequestModel>({
 			id: 'request',
 			response: upcastPartial<IChatResponseModel>({ onDidChange: Event.None, response: upcastPartial<IChatResponseModel['response']>({ value: [command] }) }),
@@ -220,6 +221,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	const service = new class extends mock<IInboxNotificationsService>() {
 		override readonly notifications = notifications;
 		override readonly sessionRows = rows;
+		override readonly attentionCount = rows.map(rows => rows.filter(row => row.tab === InboxTab.ReadyForYou).length);
 		override setSessionOnHold(row: IInboxSessionRow, hold: boolean): void {
 			rows.set(rows.get().map(candidate => candidate.id === row.id ? { ...candidate, tab: hold ? InboxTab.OnHold : InboxTab.ReadyForYou } : candidate), undefined);
 		}

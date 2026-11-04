@@ -1,0 +1,74 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The sashes in the gaps between the cells of a grid show the three-dot
+ * gripper of the workbench: the center dot is the pseudo-element and box
+ * shadows draw the outer dots, `--part-grid-gap` apart. All three hide while
+ * the hover/drag highlight shows the active resize target.
+ */
+.monaco-sash.part-grid-gap-sash::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-modernSash-gripForeground);
+	color: var(--vscode-modernSash-gripForeground);
+	opacity: var(--sash-grip-opacity, 1);
+	pointer-events: none;
+	transform: translate(-50%, -50%);
+}
+
+.monaco-sash.part-grid-gap-sash.disabled::after {
+	content: none;
+}
+
+.monaco-sash.part-grid-gap-sash.vertical::after {
+	box-shadow: 0 calc(-1 * var(--part-grid-gap, 0px)) currentColor, 0 var(--part-grid-gap, 0px) currentColor;
+}
+
+.monaco-sash.part-grid-gap-sash.horizontal::after {
+	box-shadow: calc(-1 * var(--part-grid-gap, 0px)) 0 currentColor, var(--part-grid-gap, 0px) 0 currentColor;
+}
+
+.monaco-sash.part-grid-gap-sash:is(.hover, .active)::after {
+	opacity: 0;
+}
+
+.monaco-enable-motion .monaco-sash.part-grid-gap-sash::after {
+	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
+}
+
+@media (forced-colors: active) {
+
+	.monaco-sash.part-grid-gap-sash::after {
+		background: CanvasText;
+		color: CanvasText;
+		opacity: var(--sash-grip-opacity, 1);
+	}
+}
+
+/*
+ * Each cell of a part grid shows its content in a card, inset by its share
+ * of the gap to the cells beside it. The owner of the grid draws the card
+ * through the `--part-grid-card-*` variables; by default it is invisible.
+ */
+.part-grid-cell {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.part-grid-cell > .part-grid-card {
+	position: absolute;
+	box-sizing: border-box;
+	overflow: hidden;
+	background: var(--part-grid-card-background, transparent);
+	border: var(--part-grid-card-border-width, 0) solid var(--part-grid-card-border-color, transparent);
+	border-radius: var(--part-grid-card-radius, 0);
+}

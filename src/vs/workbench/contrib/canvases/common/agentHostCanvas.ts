@@ -24,6 +24,8 @@ export class AgentHostCanvas implements ICanvas {
 	readonly title: string;
 	readonly status: string | undefined;
 	readonly source: URI | undefined;
+	readonly extensionId: string | undefined;
+	readonly canvasId: string | undefined;
 
 	constructor(
 		resource: URI,
@@ -32,6 +34,8 @@ export class AgentHostCanvas implements ICanvas {
 	) {
 		this.resource = resource;
 		this.instanceId = canvas?.instanceId;
+		this.extensionId = canvas?.extensionId;
+		this.canvasId = canvas?.canvasId;
 		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
 		this.status = canvas?.status;
 		if (canvas?.url !== undefined) {

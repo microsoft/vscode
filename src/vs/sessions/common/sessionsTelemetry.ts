@@ -10,6 +10,7 @@ import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common
 import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../workbench/common/sessionArtifactOpenTelemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
 import { ISession, SessionArtifactKind } from '../services/sessions/common/session.js';
 
@@ -126,26 +127,8 @@ export function logSessionsListCompactViewState(telemetryService: ITelemetryServ
 	telemetryService.publicLog2<SessionsListCompactViewStateEvent, SessionsListCompactViewStateClassification>('vscodeAgents.sessionsList/compactViewState', { enabled });
 }
 
-type SessionArtifactOpenEvent = {
-	agentSessionId: string;
-	itemCategory: 'artifact' | 'reference';
-	itemKind: SessionArtifactKind;
-};
-
-type SessionArtifactOpenClassification = {
-	owner: 'benibenj';
-	comment: 'Tracks when a user opens a recorded artifact or reference from an Agents window session.';
-	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate opens for the same session without exposing provider or resource details.' };
-	itemCategory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the opened item was recorded as an artifact or a reference.' };
-	itemKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of the opened item: pullRequest, issue, commit, website, file, or resource.' };
-};
-
-export function logSessionArtifactOpen(telemetryService: ITelemetryService, sessionId: string, kind: SessionArtifactKind, isArtifact: boolean): void {
-	telemetryService.publicLog2<SessionArtifactOpenEvent, SessionArtifactOpenClassification>('agents/sessionArtifactOpen', {
-		agentSessionId: hashSessionIdForTelemetry(sessionId),
-		itemCategory: isArtifact ? 'artifact' : 'reference',
-		itemKind: kind,
-	});
+export function logSessionArtifactOpen(telemetryService: ITelemetryService, sessionId: string, kind: SessionArtifactKind, isArtifact: boolean, source: SessionArtifactOpenSource = 'recorded'): void {
+	reportSessionArtifactOpen(telemetryService, { surface: 'agentsWindow', agentSessionId: hashSessionIdForTelemetry(sessionId), kind, isArtifact, source });
 }
 
 // --- Titlebar button interactions ---

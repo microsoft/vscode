@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -22,7 +22,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatPetAchievementsWidget } from './chatPetAchievementsWidget.js';
 import { ChatPetAchievementsEditorInput, ChatPetCustomizationTab, IChatPetCustomizationEditorOptions } from './chatPetAchievementsEditorInput.js';
-import { IChatPetService } from './chatPetService.js';
+import { ChatPetAppearanceTarget, IChatPetService } from './chatPetService.js';
 import { ChatPetColorsWidget } from './chatPetColorsWidget.js';
 
 export const ChatPetAchievementsContextKeys = {
@@ -38,6 +38,8 @@ export class ChatPetAchievementsEditor extends EditorPane {
 	private container: HTMLElement | undefined;
 	private readonly widget = this._register(new MutableDisposable<ChatPetAchievementsWidget | ChatPetColorsWidget>());
 	private readonly tabs = new Map<ChatPetCustomizationTab, { readonly tab: HTMLElement; readonly panel: HTMLElement }>();
+	/** The windows that hat and color changes apply to. Shared by both tabs, and reset to both windows when the page opens. */
+	private readonly appearanceTarget = observableValue<ChatPetAppearanceTarget>(this, 'both');
 	private activeTab: ChatPetCustomizationTab = 'achievements';
 	private tabBar: HTMLElement | undefined;
 	private dimension: DOM.Dimension | undefined;
@@ -133,6 +135,7 @@ export class ChatPetAchievementsEditor extends EditorPane {
 			await this.group.closeEditor(input);
 			return;
 		}
+		this.appearanceTarget.set('both', undefined);
 		this.showTab(options?.tab ?? 'achievements');
 		if (this.dimension) {
 			this.layout(this.dimension);
@@ -164,8 +167,8 @@ export class ChatPetAchievementsEditor extends EditorPane {
 				DOM.clearNode(previousPanel);
 			}
 			this.widget.value = tab === 'color'
-				? this.instantiationService.createInstance(ChatPetColorsWidget, panel, () => this.close())
-				: this.instantiationService.createInstance(ChatPetAchievementsWidget, panel, () => this.close());
+				? this.instantiationService.createInstance(ChatPetColorsWidget, panel, () => this.close(), this.appearanceTarget)
+				: this.instantiationService.createInstance(ChatPetAchievementsWidget, panel, () => this.close(), this.appearanceTarget);
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}

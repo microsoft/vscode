@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
+import { derived, IObservable, ITransaction, observableFromEvent, observableValue, runOnChange, subtransaction, transaction, waitForState } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,7 +19,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
-import { EditorCloseContext, EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput } from '../../../../workbench/common/editor.js';
+import { EditorCloseContext, EditorInputCapabilities, GroupIdentifier, IEditorPane, IUntypedEditorInput } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -47,6 +49,11 @@ export interface IWindowCanvasPresentation {
 	readonly content: IWindowCanvas;
 }
 
+export interface IWindowCanvasOpenRequest {
+	readonly id: string;
+	readonly source: 'explicit' | 'history';
+}
+
 export const IWindowCanvasService = createDecorator<IWindowCanvasService>('windowCanvasService');
 
 /** Native canvases belong to the window, not to an agent, session, or chat. */
@@ -54,8 +61,15 @@ export interface IWindowCanvasService {
 	readonly _serviceBrand: undefined;
 	readonly canvases: IObservable<readonly IWindowCanvasDescriptor[]>;
 	readonly activeCanvasId: IObservable<string | undefined>;
+	/** Foreground navigation intent; background restoration does not publish a request. */
+	readonly navigationRequest: IObservable<IWindowCanvasOpenRequest | undefined>;
+	/** The committed canvas destination, independent of which editor remains visible beside a session. */
+	readonly activeCanvasOpen: IObservable<IWindowCanvasOpenRequest | undefined>;
 	registerCanvas(descriptor: IWindowCanvasDescriptor): IDisposable;
-	openCanvas(id: string): Promise<void>;
+	openCanvas(id: string, options?: { readonly source?: 'history' }): Promise<void>;
+	cancelPendingOpen(): void;
+	/** Leave canvas navigation without closing its tab or disposing its retained content. */
+	deactivateCanvas(tx?: ITransaction): void;
 	closeCanvas(id: string): Promise<void>;
 	getPresentation(input: WindowCanvasInput): IWindowCanvasPresentation;
 	openNewSession(): Promise<void> | undefined;
@@ -106,6 +120,14 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 	private readonly _canvases = observableValue<readonly IWindowCanvasDescriptor[]>(this, []);
 	readonly canvases = this._canvases;
 	readonly activeCanvasId: IObservable<string | undefined>;
+	private readonly _navigationRequest = observableValue<IWindowCanvasOpenRequest | undefined>(this, undefined);
+	readonly navigationRequest = this._navigationRequest;
+	private readonly _activeCanvasOpen = observableValue<IWindowCanvasOpenRequest | undefined>(this, undefined);
+	readonly activeCanvasOpen = this._activeCanvasOpen;
+	private openVersion = 0;
+	private readonly pendingOpen = this._register(new MutableDisposable<IDisposable>());
+	private restoringFocus = false;
+	private readonly openingInputs = new Map<WindowCanvasInput, number>();
 	private readonly restoredIds: Set<string>;
 	private workingSets: ICanvasWorkingSets | undefined;
 
@@ -127,6 +149,26 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 			return !customViewService.activeCustomView.read(reader) && input instanceof WindowCanvasInput
 				? input.descriptor.id : undefined;
 		});
+		const trackActiveCanvas = () => {
+			const input = editorService.activeEditor;
+			if (this.restoringFocus || this.workingSets?.state.get().restoring || input instanceof WindowCanvasInput && this.openingInputs.has(input)) {
+				return;
+			}
+			if (input instanceof WindowCanvasInput && this.descriptors.has(input.descriptor.id) && !customViewService.activeCustomView.get()) {
+				if (this._activeCanvasOpen.get()?.id !== input.descriptor.id) {
+					const request: IWindowCanvasOpenRequest = { id: input.descriptor.id, source: 'explicit' };
+					this.cancelPendingOpen();
+					transaction(tx => {
+						this._navigationRequest.set(request, tx);
+						this._activeCanvasOpen.set(request, tx);
+					});
+				}
+			} else {
+				this.deactivateCanvas();
+			}
+		};
+		this._register(editorService.onDidActiveEditorChange(trackActiveCanvas));
+		this._register(editorGroupsService.mainPart.onDidFocus(trackActiveCanvas));
 		this._register(editorService.onDidCloseEditor(event => {
 			if (event.editor instanceof WindowCanvasInput && event.context !== EditorCloseContext.MOVE && !this.workingSets?.state.get().restoring) {
 				this.forget(event.editor.descriptor.id);
@@ -144,16 +186,17 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 	connectWorkingSets(workingSets: ICanvasWorkingSets): IDisposable {
 		this.workingSets = workingSets;
 		const store = new DisposableStore();
-		let focusedCanvas: { entry: ICanvasEntry; element: HTMLElement } | undefined;
+		let focusedCanvas: { entry: ICanvasEntry; element: HTMLElement; navigation: IWindowCanvasOpenRequest } | undefined;
 		let restoreVersion = 0;
 		store.add(runOnChange(workingSets.state, state => {
 			const version = ++restoreVersion;
 			if (state.restoring) {
 				const activeElement = getActiveElement();
+				const navigation = this._activeCanvasOpen.get();
 				if (!focusedCanvas && isHTMLElement(activeElement)) {
 					const entry = [...this.entries.values()].find(entry => entry.input.descriptor.retainFocusOnRestore && entry.presentation?.element.contains(activeElement));
-					if (entry) {
-						focusedCanvas = { entry, element: activeElement };
+					if (entry && navigation?.id === entry.input.descriptor.id) {
+						focusedCanvas = { entry, element: activeElement, navigation };
 					}
 				}
 				return;
@@ -166,11 +209,17 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 					.then(() => {
 						// Detaching the canvas can drop focus to body; never override a control the user focused instead.
 						if (focusToRestore && !store.isDisposed && version === restoreVersion
+							&& this._activeCanvasOpen.get() === focusToRestore.navigation
 							&& [...this.entries.values()].includes(focusToRestore.entry)
 							&& focusToRestore.element.isConnected
 							&& getActiveElement() === focusToRestore.element.ownerDocument.body) {
-							focusToRestore.entry.presentation?.content.focus();
-							focusToRestore.element.focus();
+							this.restoringFocus = true;
+							try {
+								focusToRestore.entry.presentation?.content.focus();
+								focusToRestore.element.focus();
+							} finally {
+								this.restoringFocus = false;
+							}
 						}
 					})
 					.catch(error => this.logService.error('[WindowCanvasService] Restoring canvas failed', error))
@@ -197,18 +246,62 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 		});
 	}
 
-	async openCanvas(id: string): Promise<void> {
+	async openCanvas(id: string, options?: { readonly source?: 'history' }): Promise<void> {
 		if (!this.descriptors.has(id)) {
 			throw new Error(localize('windowCanvas.unavailable', "The canvas '{0}' is unavailable.", id));
 		}
+		const version = ++this.openVersion;
+		this.pendingOpen.clear();
+		const cancellation = new CancellationTokenSource();
+		this.pendingOpen.value = toDisposable(() => cancellation.dispose(true));
+		const request: IWindowCanvasOpenRequest = { id, source: options?.source ?? 'explicit' };
+		this._navigationRequest.set(request, undefined);
 		this.customViewService.hideCustomView();
-		await this.reveal(id, false);
+		try {
+			if (this.workingSets?.state.get().restoring) {
+				await waitForState(this.workingSets.state, state => !state.restoring, undefined, cancellation.token);
+			}
+			if (version !== this.openVersion) {
+				return;
+			}
+			if (await this.reveal(id, false, () => version === this.openVersion) && version === this.openVersion) {
+				this._activeCanvasOpen.set(request, undefined);
+			}
+		} catch (error) {
+			if (!isCancellationError(error) || !cancellation.token.isCancellationRequested) {
+				throw error;
+			}
+		} finally {
+			if (this._navigationRequest.get() === request && this._activeCanvasOpen.get() !== request) {
+				this._navigationRequest.set(undefined, undefined);
+			}
+			if (version === this.openVersion) {
+				this.pendingOpen.clear();
+			}
+		}
 	}
 
-	private async reveal(id: string, preserveFocus: boolean): Promise<void> {
+	cancelPendingOpen(): void {
+		this.openVersion++;
+		this.pendingOpen.clear();
+		if (this._navigationRequest.get() !== this._activeCanvasOpen.get()) {
+			this._navigationRequest.set(undefined, undefined);
+		}
+	}
+
+	deactivateCanvas(tx?: ITransaction): void {
+		this.openVersion++;
+		this.pendingOpen.clear();
+		subtransaction(tx, tx => {
+			this._navigationRequest.set(undefined, tx);
+			this._activeCanvasOpen.set(undefined, tx);
+		});
+	}
+
+	private async reveal(id: string, preserveFocus: boolean, isCurrent = () => true): Promise<boolean> {
 		const descriptor = this.descriptors.get(id);
 		if (!descriptor) {
-			return;
+			return false;
 		}
 		let entry = this.entries.get(id);
 		if (!entry) {
@@ -224,26 +317,56 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 		if (this.entries.get(id) !== entry || !this.descriptors.has(id)) {
 			throw new Error(localize('windowCanvas.unavailable', "The canvas '{0}' is unavailable.", id));
 		}
+		if (!isCurrent()) {
+			if (!this.restoredIds.has(id) && this._navigationRequest.get()?.id !== id) {
+				this.forget(id);
+				entry.input.dispose();
+			}
+			return false;
+		}
 		if (this.workingSets?.state.get().restoring) {
-			return;
+			return false;
 		}
 		if (preserveFocus && this.editorGroupsService.mainPart.groups.some(group => group.contains(entry.input))) {
-			return;
+			return true;
 		}
-		const pane = await this.editorService.openEditor(entry.input, {
-			pinned: true, revealIfOpened: true, preserveFocus, inactive: preserveFocus,
-			activation: preserveFocus ? EditorActivation.PRESERVE : undefined,
-		}, this.editorGroupsService.mainPart.activeGroup);
-		if (!pane && !(preserveFocus && this.editorGroupsService.mainPart.groups.some(group => group.contains(entry.input)))) {
-			throw new Error(localize('windowCanvas.openFailed', "The canvas '{0}' could not be opened.", descriptor.title));
+		const input = entry.input;
+		this.openingInputs.set(input, (this.openingInputs.get(input) ?? 0) + 1);
+		let pane: IEditorPane | undefined;
+		try {
+			pane = await this.editorService.openEditor(input, {
+				pinned: true, revealIfOpened: true, preserveFocus: true, inactive: preserveFocus,
+				activation: EditorActivation.PRESERVE,
+			}, this.editorGroupsService.mainPart.activeGroup);
+			if (!pane && !(preserveFocus && this.editorGroupsService.mainPart.groups.some(group => group.contains(entry.input)))) {
+				if (!isCurrent()) {
+					return false;
+				}
+				throw new Error(localize('windowCanvas.openFailed', "The canvas '{0}' could not be opened.", descriptor.title));
+			}
+			if (this.entries.get(id) !== entry || !this.descriptors.has(id)) {
+				await this.editorService.closeEditors(this.editorService.findEditors(entry.input.resource).filter(editor => editor.editor === entry.input));
+				entry.input.dispose();
+				return false;
+			}
+			this.restoredIds.add(id);
+			this.saveOpenCanvases();
+			// Editor creation is asynchronous; only the still-current navigation may take focus.
+			if (!preserveFocus && pane && isCurrent()) {
+				this.editorGroupsService.activateGroup(pane.group);
+				if (isCurrent()) {
+					pane.focus();
+				}
+			}
+			return isCurrent();
+		} finally {
+			const count = this.openingInputs.get(input)! - 1;
+			if (count) {
+				this.openingInputs.set(input, count);
+			} else {
+				this.openingInputs.delete(input);
+			}
 		}
-		if (this.entries.get(id) !== entry || !this.descriptors.has(id)) {
-			await this.editorService.closeEditors(this.editorService.findEditors(entry.input.resource).filter(editor => editor.editor === entry.input));
-			entry.input.dispose();
-			return;
-		}
-		this.restoredIds.add(id);
-		this.saveOpenCanvases();
 	}
 
 	getPresentation(input: WindowCanvasInput): IWindowCanvasPresentation {
@@ -283,6 +406,12 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 	}
 
 	private forget(id: string): void {
+		if (this._navigationRequest.get()?.id === id) {
+			this.cancelPendingOpen();
+		}
+		if (this._activeCanvasOpen.get()?.id === id) {
+			this.deactivateCanvas();
+		}
 		const entry = this.entries.get(id);
 		this.entries.delete(id);
 		entry?.presentation?.element.remove();

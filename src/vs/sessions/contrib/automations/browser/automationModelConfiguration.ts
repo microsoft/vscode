@@ -59,7 +59,7 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		return Object.keys(effective).length > 0 ? effective : undefined;
 	}
 
-	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
+	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): Promise<void> {
 		if (!isAutomationModelConfiguration(values, true)) {
 			throw new Error('Automation model configuration must contain only JSON primitive values.');
 		}
@@ -81,7 +81,9 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		}).filter(([, value]) => value !== undefined))));
 		this._onDidChange.fire([modelId]);
 		// Only an explicit picker change updates the defaults shared with ordinary New Session.
-		await this.languageModelsService.setModelConfiguration(modelId, values);
+		if (persist) {
+			await this.languageModelsService.setModelConfiguration(modelId, values);
+		}
 	}
 
 	getModelConfigurationActions(modelId: string): IAction[] {

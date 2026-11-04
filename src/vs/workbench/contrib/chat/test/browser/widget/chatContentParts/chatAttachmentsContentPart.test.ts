@@ -13,9 +13,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
-import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -78,7 +79,7 @@ suite('ChatAttachmentsContentPart', () => {
 		} as ILanguageModelsService);
 	}
 
-	test('should keep the image preview in thumbnail hovers by default', () => {
+	function captureImageHovers(): HTMLElement[] {
 		const imageHoverContents: HTMLElement[] = [];
 		instantiationService.stub(IHoverService, {
 			...NullHoverService,
@@ -90,6 +91,11 @@ suite('ChatAttachmentsContentPart', () => {
 				return Disposable.None;
 			},
 		});
+		return imageHoverContents;
+	}
+
+	test('should keep the image preview in thumbnail hovers by default', () => {
+		const imageHoverContents = captureImageHovers();
 
 		disposables.add(instantiationService.createInstance(
 			ChatAttachmentsContentPart,
@@ -336,9 +342,10 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		});
 
-		test('should not mark images omitted for Auto before routing', () => {
+		test('should warn about Copilot Fusion image support without marking images omitted', () => {
 			setModels([{ identifier: 'copilot/auto', id: 'copilot/auto', vendor: 'copilot', vision: false }]);
 			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
+			const imageHoverContents = captureImageHovers();
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
@@ -352,32 +359,62 @@ suite('ChatAttachmentsContentPart', () => {
 				isWarning: attachment?.classList.contains('warning'),
 				isAutoWarning: attachment?.classList.contains('auto-image-warning'),
 				hasWarningIcon: !!attachment?.querySelector('.codicon-warning'),
+				hoverText: imageHoverContents.map(content => content.textContent),
 			}, {
 				omittedState: undefined,
-				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Auto.',
+				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Copilot Fusion.',
 				isWarning: false,
 				isAutoWarning: true,
 				hasWarningIcon: false,
+				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
 			});
 		});
 
-		test('should ignore a stale omitted state when editing with Auto', () => {
-			const autoModel = {
-				identifier: 'copilot/auto',
+		test('should show the Copilot Fusion warning instead of a stale omission when editing', () => {
+			const fusionModel = {
+				identifier: 'agent-host-copilotcli/auto',
 				metadata: {
 					extension: new ExtensionIdentifier('test.extension'),
-					id: 'copilot/auto',
-					vendor: 'copilot',
-					name: 'Auto',
+					id: 'auto',
+					vendor: 'agent-host-copilotcli',
+					name: 'Copilot Fusion',
 					version: '1',
 					family: 'auto',
 					maxInputTokens: 1000,
 					maxOutputTokens: 1000,
 					isDefaultForLocation: {},
+					capabilities: { vision: false },
+					autoModelFusion: true,
 				}
 			} satisfies { identifier: string; metadata: ILanguageModelChatMetadata };
+			setModels([{ identifier: fusionModel.identifier, id: fusionModel.metadata.id, vendor: fusionModel.metadata.vendor, vision: false }]);
+			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
+			image.omittedState = OmittedState.Full;
+			const imageHoverContents = captureImageHovers();
+			const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const widget = disposables.add(instantiationService.createInstance(
+				ImageAttachmentWidget,
+				undefined,
+				image,
+				fusionModel,
+				{ shouldFocusClearButton: false, supportsDeletion: true, isCurrentInput: true },
+				dom.$('div'),
+				contextResourceLabels
+			));
 
-			assert.strictEqual(getEffectiveImageOmittedState(OmittedState.Full, autoModel, true), OmittedState.NotOmitted);
+			assert.deepStrictEqual({
+				ariaLabel: widget.element.ariaLabel,
+				isWarning: widget.element.classList.contains('warning'),
+				isAutoWarning: widget.element.classList.contains('auto-image-warning'),
+				hasWarningIcon: !!widget.element.querySelector('.codicon-warning-compact'),
+				hoverText: imageHoverContents.map(content => content.textContent),
+			}, {
+				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Copilot Fusion. (Delete)',
+				isWarning: false,
+				isAutoWarning: true,
+				hasWarningIcon: false,
+				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
+			});
 		});
 
 		suite('hydrated image attachments', () => {
