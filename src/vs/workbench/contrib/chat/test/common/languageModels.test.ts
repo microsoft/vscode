@@ -909,6 +909,46 @@ suite('LanguageModels', function () {
 			laterPinned: false,
 		});
 	});
+
+	test('pins — copies of a model match across vendors, so the Agents window shows pins from the editor\'s picker', async function () {
+		languageModels.dispose();
+		const storageService = store.add(new TestStorageService());
+		// Pinned in the editor's local picker, where extensions provide the models.
+		storageService.store('chatModelPinned', ['copilot/gpt-5', 'openai/gpt-5'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(storageService));
+		const vendor = 'agent-host-copilotcli';
+		const model = (id: string, modelGroupId: string, byokModelIdentifier?: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier: `${vendor}:${id}`,
+			metadata: { extension: nullExtensionDescription.identifier, name: id, vendor, family: id, version: '1.0', id, maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}, modelGroup: { id: modelGroupId }, byokModelIdentifier },
+		});
+		service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: 'Copilot CLI', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+		store.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [model('gpt-5', 'copilot'), model('claude', 'copilot'), model('auto', 'copilot'), model('openai/gpt-5', 'openai', 'openai/gpt-5')],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await service.selectLanguageModels({ vendor });
+
+		const pinnedFromEditor = service.getPinnedModelIds();
+		service.pinModel(`${vendor}:claude`);
+		service.pinModel(`${vendor}:auto`);
+		const pinned = service.getPinnedModelIds();
+		service.unpinModel(`${vendor}:gpt-5`);
+
+		assert.deepStrictEqual({
+			pinnedFromEditor,
+			pinned,
+			afterUnpin: service.getPinnedModelIds(),
+			stored: storageService.getObject('chatModelPinned', StorageScope.PROFILE),
+		}, {
+			pinnedFromEditor: [`${vendor}:gpt-5`, `${vendor}:openai/gpt-5`],
+			pinned: [`${vendor}:gpt-5`, `${vendor}:openai/gpt-5`, `${vendor}:claude`, `${vendor}:auto`],
+			afterUnpin: [`${vendor}:openai/gpt-5`, `${vendor}:claude`, `${vendor}:auto`],
+			// Copies are stored under the extension's identifier so the editor's picker matches them too.
+			stored: ['openai/gpt-5', 'copilot/claude', `${vendor}:auto`],
+		});
+	});
 });
 
 suite('LanguageModels - When Clause', function () {

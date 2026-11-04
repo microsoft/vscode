@@ -762,7 +762,9 @@ export interface ILanguageModelsService {
 	clearRecentlyUsedList(): void;
 
 	/**
-	 * Returns the pinned model identifiers, in the order they were pinned.
+	 * Returns the identifiers of available pinned models, in the order they were pinned.
+	 * A pinned model is returned under every vendor that offers a copy of it, such as
+	 * the extension and agent-host copies.
 	 */
 	getPinnedModelIds(): string[];
 
@@ -777,7 +779,8 @@ export interface ILanguageModelsService {
 	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void;
 
 	/**
-	 * Returns whether the given model is pinned.
+	 * Returns whether the given model is pinned, including a copy of it pinned under
+	 * another vendor.
 	 */
 	isModelPinned(modelIdentifier: string): boolean;
 
@@ -2728,26 +2731,57 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, this._modelPreferencesScope, StorageTarget.USER);
 	}
 
+	/**
+	 * The identity a pin is stored and matched under, so a pin applies to every copy of a
+	 * model. The built-in provider's models reach the picker under several vendors (the
+	 * extension, the CLI harness and agent-host copies), so they share the extension's
+	 * identifier. An agent-host copy of an extension-provided model the user brought shares
+	 * the original model's identifier. Auto routes differently per harness, so it keeps its
+	 * own identifier, like every other model.
+	 */
+	private _getPinIdentity(modelIdentifier: string): string {
+		const metadata = this._modelCache.get(modelIdentifier);
+		if (!metadata) {
+			return modelIdentifier;
+		}
+		const byokModelIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata);
+		if (byokModelIdentifier !== undefined) {
+			return byokModelIdentifier;
+		}
+		if (metadata.id === AUTO_RAW_MODEL_ID || !BUILT_IN_GROUP_IDS.has(metadata.modelGroup?.id ?? metadata.vendor)) {
+			return modelIdentifier;
+		}
+		return `${COPILOT_VENDOR_ID}/${metadata.id}`;
+	}
+
 	getPinnedModelIds(): string[] {
-		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
+		const identifiersByIdentity = new Map<string, string[]>();
+		for (const identifier of this._modelCache.keys()) {
+			if (identifier !== AUTO_MODEL_IDENTIFIER) {
+				const identity = this._getPinIdentity(identifier);
+				identifiersByIdentity.set(identity, [...identifiersByIdentity.get(identity) ?? [], identifier]);
+			}
+		}
+		return [...new Set(this._pinnedModelIds.flatMap(id => identifiersByIdentity.get(this._getPinIdentity(id)) ?? []))];
 	}
 
 	pinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
-		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this.isModelPinned(modelIdentifier)) {
 			return;
 		}
-		this._pinnedModelIds.push(modelIdentifier);
+		this._pinnedModelIds.push(this._getPinIdentity(modelIdentifier));
 		this._savePinnedModels();
 		this._logPinChange(modelIdentifier, true, telemetry);
 		this._onDidChangePinnedModels.fire();
 	}
 
 	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
-		const index = this._pinnedModelIds.indexOf(modelIdentifier);
-		if (index === -1) {
+		const identity = this._getPinIdentity(modelIdentifier);
+		const remaining = this._pinnedModelIds.filter(id => this._getPinIdentity(id) !== identity);
+		if (remaining.length === this._pinnedModelIds.length) {
 			return;
 		}
-		this._pinnedModelIds.splice(index, 1);
+		this._pinnedModelIds = remaining;
 		this._savePinnedModels();
 		this._logPinChange(modelIdentifier, false, telemetry);
 		this._onDidChangePinnedModels.fire();
@@ -2775,7 +2809,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	isModelPinned(modelIdentifier: string): boolean {
-		return modelIdentifier !== AUTO_MODEL_IDENTIFIER && this._pinnedModelIds.includes(modelIdentifier);
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
+			return false;
+		}
+		const identity = this._getPinIdentity(modelIdentifier);
+		return this._pinnedModelIds.some(id => this._getPinIdentity(id) === identity);
 	}
 
 	//#endregion
