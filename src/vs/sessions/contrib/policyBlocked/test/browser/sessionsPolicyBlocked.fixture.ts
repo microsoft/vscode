@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mock } from '../../../../../base/test/common/mock.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -28,7 +29,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 				override readonly quality = 'insider';
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
-			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container });
+			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container, onDidLayoutMainContainer: Event.None });
 			reg.definePartialInstance(ISessionsPartService, { focusSession: () => { } });
 			reg.definePartialInstance(ISessionsService, { activeSession: constObservable(undefined) });
 		},
