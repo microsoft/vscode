@@ -7,6 +7,7 @@
  * Minimal browser process shim for the Dev Tunnels dependency graph.
  */
 export const process = {
+	browser: true,
 	env: Object.create(null),
 	nextTick(callback, ...args) {
 		queueMicrotask(() => callback(...args));
