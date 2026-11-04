@@ -23,6 +23,12 @@ export interface IOverlayAnchorHost {
 	 * the root of an overlay: what happens over it happens over the anchor.
 	 */
 	readonly element?: HTMLElement;
+
+	/**
+	 * Whether the pointer is over what draws over the anchor: in a frame,
+	 * such as a webview's, the window it is in has no event for it.
+	 */
+	isPointerOver?(): boolean;
 }
 
 interface IOverlayAnchorRegistration {
@@ -91,6 +97,20 @@ export function findOverlayAnchorAt(document: Document, x: number, y: number, to
 		const rect = anchor.getBoundingClientRect();
 		if (rect.width > 0 && rect.height > 0 && x >= rect.left - tolerance && x <= rect.right + tolerance && y >= rect.top - tolerance && y <= rect.bottom + tolerance) {
 			return anchor;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * The element of `document` that something draws over from outside it, such
+ * as a webview over an editor, that the pointer is over.
+ */
+export function findOverlayAnchorUnderPointer(document: Document): HTMLElement | undefined {
+	for (const [host, registration] of overlayHosts) {
+		if (registration.hidden === 0 && registration.anchor.ownerDocument === document && registration.anchor.isConnected && host.isPointerOver?.()) {
+			return registration.anchor;
 		}
 	}
 
@@ -192,7 +212,12 @@ export class OverlayLayoutElement implements IDisposable {
 	private _hidden = false;
 	private readonly _anchorHost: IOverlayAnchorHost = (() => {
 		const layout = this;
-		return { setHidden: (hidden: boolean) => layout.setHidden(hidden), get element() { return layout._root; } };
+		return {
+			setHidden: (hidden: boolean) => layout.setHidden(hidden),
+			get element() { return layout._root; },
+			// The pointer in a frame inside the overlay, such as a webview's, hovers the overlay
+			isPointerOver: () => layout._root.matches(':hover')
+		};
 	})();
 
 	/**

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { findOverlayAnchorAt, findOverlayAnchorOf } from '../../../../base/browser/overlayLayoutElement.js';
+import { findOverlayAnchorAt, findOverlayAnchorOf, findOverlayAnchorUnderPointer } from '../../../../base/browser/overlayLayoutElement.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -42,6 +43,12 @@ const PART_GRID_POINTER_OVER_CLASS = 'part-grid-pointer-over';
  * as a webview, counts as where it went: the window has no event once the pointer is in it.
  */
 const PART_GRID_OVERLAY_ENTRY_TOLERANCE = 4;
+
+/** How long, in milliseconds, after the window's last pointer event the grid looks whether the pointer is over a webview. */
+const PART_GRID_OVERLAY_POINTER_QUIET = 100;
+
+/** How often, in milliseconds, the grid looks again while the pointer is over a webview, where the window has no events. */
+const PART_GRID_OVERLAY_POINTER_POLL = 250;
 
 /**
  * The class of an editor group whose title is at the top edge of its grid: a group at the top of a part in a cell at the
@@ -466,10 +473,18 @@ export class PartGrid extends Disposable {
 		// The grabber of a part shows while the pointer is over the part, also over what draws over it outside its card,
 		// such as a webview, which the card's own hover does not see
 		const targetWindow = getWindow(container);
-		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => this.setPointerOverCell(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined), true));
+		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => {
+			this.pointerInOverlay = false;
+			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
+			this.setPointerOverCell(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined);
+		}, true));
+		// Into the frame of a webview the window may have no event at all: once its events stop, the grid looks for what
+		// draws over a part that the pointer is over
+		this._register(addDisposableListener(targetWindow.document, 'pointermove', () => this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET), true));
 		// Into the frame of a webview, which takes the pointer from the window, the window has a pointerout to nothing and no
 		// event after it: the pointer went into what draws over an element where it was heading, else out of the window
 		this._register(addDisposableListener(targetWindow.document, 'pointerout', e => {
+			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
 			if (isHTMLElement(e.relatedTarget)) {
 				this.setPointerOverCell(this.findCellAt(e.relatedTarget));
 				return;
@@ -483,6 +498,26 @@ export class PartGrid extends Disposable {
 	}
 
 	private pointerOverCard: HTMLElement | undefined;
+
+	/** Whether the pointer is over what draws over a part, as {@link checkOverlayPointer} found, rather than over the window's elements. */
+	private pointerInOverlay = false;
+	private readonly overlayPointerCheck = this._register(new RunOnceScheduler(() => this.checkOverlayPointer(), PART_GRID_OVERLAY_POINTER_QUIET));
+
+	/**
+	 * Marks the part that the pointer is over what draws over it, such as a webview, and looks again while it is; once it
+	 * is not, and no event of the window said where it went, the pointer left the window from there.
+	 */
+	private checkOverlayPointer(): void {
+		const anchor = findOverlayAnchorUnderPointer(getWindow(this.container).document);
+		if (anchor) {
+			this.pointerInOverlay = true;
+			this.setPointerOverCell(this.findCellAt(anchor));
+			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_POLL);
+		} else if (this.pointerInOverlay) {
+			this.pointerInOverlay = false;
+			this.setPointerOverCell(undefined);
+		}
+	}
 
 	private setPointerOverCell(cell: PartGridCell | undefined): void {
 		const card = cell?.part ? cell.cardElement : undefined;

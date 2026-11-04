@@ -667,6 +667,45 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('the grabber shows for a part whose webview the pointer is in, also when the window had no event as the pointer went in, and hides once it left the window from there', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt')]);
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Down });
+		grid.layout(1000, 800);
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		// A webview over the main part, which the pointer can be in without the window knowing
+		const anchor = cardOf('main').appendChild(mainWindow.document.createElement('div'));
+		const overlay = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add(toDisposable(() => overlay.remove()));
+		let pointerInWebview = false;
+		disposables.add(registerOverlayAnchor(anchor, { setHidden: () => { }, element: overlay, isPointerOver: () => pointerInWebview }));
+		const showing = () => ['main', 'chat'].filter(id => cardOf(id).classList.contains('part-grid-pointer-over'));
+
+		cardOf('chat').dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		// The last event of the window: a move inside the chat; then the pointer is in the webview
+		cardOf('chat').dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+		pointerInWebview = true;
+		const atOnce = showing();
+		await timeout(150);
+		const once = showing();
+		await timeout(300);
+		const stillThere = showing();
+		pointerInWebview = false;
+		await timeout(300);
+
+		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow: showing() }, {
+			atOnce: ['chat'],
+			once: ['main'],
+			stillThere: ['main'],
+			leftTheWindow: []
+		});
+	});
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
