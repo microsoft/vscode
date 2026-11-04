@@ -14,7 +14,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
-import { aggregateAnthropicSse, anthropicMessageToSse } from './e2e/harness/capiWireCodec.js';
+import { aggregateAnthropicSse, aggregateResponsesJson, aggregateResponsesSse, anthropicMessageToSse, responsesMessageToSse } from './e2e/harness/capiWireCodec.js';
 
 suite('CapiReplayProxy', () => {
 
@@ -213,6 +213,63 @@ suite('CapiReplayProxy', () => {
 		} finally {
 			await recorder.stop();
 			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('records mixed streaming and JSON model turns readably and asserts the judge request', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-mixed-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		const request = JSON.stringify({ model: 'claude-sonnet-5', system: 'system', messages: [{ role: 'user', content: 'Read input.txt' }] });
+		const judgeRequest = (text: string) => JSON.stringify({ model: 'gpt-5.6-luna', instructions: 'Judge policy', input: text, stream: false });
+		const judgeText = 'Approve only reading input.txt; do not write output.txt.';
+		const reply = { content: [{ type: 'text' as const, text: 'ALLOW: Read only.' }], stopReason: 'end_turn' };
+		const recorder = new CapiReplayProxy({ fixturePath, mode: 'record' });
+		try {
+			const url = await recorder.start();
+			recorder.setRecordingModelResponse({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: anthropicMessageToSse(reply) });
+			await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request })).text();
+			recorder.setRecordingModelResponse({
+				status: 200, headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					object: 'response', status: 'completed', id: 'opaque-response-id',
+					output: [
+						{ type: 'reasoning', encrypted_content: 'opaque-reasoning' },
+						{ type: 'message', content: [{ type: 'output_text', text: 'ALLOW: Read only.' }] },
+					],
+				}),
+			});
+			await (await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest(judgeText) })).text();
+			recorder.setRecordingModelResponse({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: responsesMessageToSse(reply) });
+			await (await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest('Finish') })).text();
+			await recorder.stop();
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(!fixture.includes('opaque-reasoning') && !fixture.includes('opaque-response-id') && fixture.includes(judgeText));
+			for (const changed of [false, true]) {
+				const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+				try {
+					const url = await replay.start();
+					const first = await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request })).text();
+					const second = await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest(changed ? judgeText.replace('do not write', 'write') : judgeText) });
+					const secondBody = await second.text();
+					const third = await (await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest('Finish') })).text();
+					assert.deepStrictEqual({
+						anthropic: aggregateAnthropicSse(first)?.content,
+						json: aggregateResponsesJson(secondBody)?.content,
+						jsonType: second.headers.get('content-type'),
+						stream: aggregateResponsesSse(third)?.content,
+					}, { anthropic: reply.content, json: reply.content, jsonType: 'application/json', stream: reply.content });
+					if (changed) {
+						assert.throws(() => replay.assertNoReplayMismatches(), /model request mismatch/);
+					} else {
+						replay.assertNoReplayMismatches();
+					}
+				} finally {
+					await replay.close();
+				}
+			}
+		} finally {
+			await recorder.stop();
 		}
 	});
 
