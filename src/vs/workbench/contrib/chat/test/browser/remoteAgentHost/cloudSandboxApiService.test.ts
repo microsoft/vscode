@@ -1216,6 +1216,65 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['task'] });
 	});
 
+	test('a capped window eviction does not overwrite a successful pending targeted read', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Original', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const tasks: ITestTask[] = [original];
+		let hold = false;
+		const { service } = createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: url => {
+				if (hold && url.pathname === '/agents/tasks/task') {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		hold = true;
+		const targeted = service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		await entered.p;
+		tasks.unshift(...Array.from({ length: 301 }, (_, i) => ({
+			...task(`new-${i}`, 'Other task', undefined, `s-${i}`, `e-${i}`), compute: { provider: 'other' },
+		})));
+		const scan = await service.listSessions(CancellationToken.None);
+		await pending.complete(jsonResponse(original));
+		const refreshed = await targeted;
+
+		assert.deepStrictEqual({
+			scan,
+			refreshed: refreshed.kind === 'failed' ? refreshed : {
+				kind: refreshed.kind,
+				tasks: refreshed.sessions.map(session => session.taskId),
+				removed: refreshed.removedTaskIds,
+			},
+		}, {
+			scan: { kind: 'complete', sessions: [] },
+			refreshed: { kind: 'incremental', tasks: ['task'], removed: [] },
+		});
+	});
+
+	for (const cached of [false, true]) {
+		test(`complete refreshes report confirmed missing bindings with a cached task: ${cached}`, async () => {
+			const original = { ...task('task', 'Original', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+			const tasks: ITestTask[] = [original];
+			const { service } = createService(store, { tasks, repositories: new Map() });
+			if (cached) {
+				await service.listSessions(CancellationToken.None);
+			}
+			tasks[0] = { ...original, updated_at: '2026-10-18T00:01:00Z', sessions: [] };
+			const full = await service.listSessions(CancellationToken.None);
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+
+			assert.deepStrictEqual({ full, targeted }, {
+				full: { kind: 'complete', sessions: [], removedTaskIds: ['task'] },
+				targeted: { kind: 'incremental', sessions: [], removedTaskIds: ['task'] },
+			});
+		});
+	}
+
 	test('an older full scan retains a task discovered by a concurrent feed read', async () => {
 		const pending = new DeferredPromise<IRequestContext>();
 		const entered = new DeferredPromise<void>();
@@ -1272,7 +1331,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		await service.listSessions(CancellationToken.None, { taskIds: ['removed'] });
 		await pending.complete(jsonResponse({ tasks: [known] }));
 		const result = await scan;
-		assert.deepStrictEqual(result, { kind: 'complete', sessions: [] });
+		assert.deepStrictEqual(result, { kind: 'complete', sessions: [], removedTaskIds: ['removed'] });
 	});
 
 	test('concurrent task refreshes retain each other in the discovery cache', async () => {
@@ -3380,7 +3439,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 		assert.deepStrictEqual(results, [['stalled'], []]);
 	}));
 
-	for (const truncation of ['scope failure', 'page failure']) {
+	for (const truncation of ['scope failure', 'page failure', 'page limit']) {
 		for (const observed of [false, true]) {
 			test(`only removes observed candidates during ${truncation} (observed=${observed})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
 				const current = { ...unstartedTask('stalled', startTime - oneHour + 1_000), repository: observed ? { id: 123 } : undefined };
@@ -3432,7 +3491,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 						removedTaskIds: recovered.kind === 'complete' ? [] : recovered.removedTaskIds,
 					},
 				}, {
-					partial: { kind: 'partial', sessions: ['other'], removedTaskIds: observed ? ['stalled'] : [] },
+					partial: { kind: truncation === 'page limit' ? 'incremental' : 'partial', sessions: ['other'], removedTaskIds: observed ? ['stalled'] : [] },
 					partialDetailReads: 1,
 					recovered: {
 						kind: 'incremental',
@@ -3462,7 +3521,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 			sessions: recovered.kind === 'failed' ? recovered.reason : recovered.sessions.map(session => [session.taskId, session.status]),
 			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/stalled')).length,
 		}, {
-			initial: { kind: 'complete', sessions: [] },
+			initial: { kind: 'complete', sessions: [], removedTaskIds: ['stalled'] },
 			kind: 'incremental',
 			sessions: [['stalled', SessionStatus.Idle]],
 			detailReads: 2,
@@ -3609,7 +3668,7 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty') : undefined,
 			});
 
-			assert.deepStrictEqual(await service.listSessions(CancellationToken.None), { kind: 'complete', sessions: [] });
+			assert.deepStrictEqual(await service.listSessions(CancellationToken.None), { kind: 'complete', sessions: [], removedTaskIds: ['empty'] });
 		});
 	}
 
@@ -3728,6 +3787,36 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 			hidden: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] },
 			cached: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] },
 			recovered: ['empty'], detailReads: 2, historyReads: 2,
+		});
+	});
+
+	test('does not remove an unobserved empty candidate whose recovery is beyond the page limit', async () => {
+		const current = emptyTask('empty', startTime - oneHour + 1_000);
+		const tasks: ITestTask[] = [current];
+		let now = startTime;
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map(), discoveryDate: () => new Date(now).toUTCString(),
+			onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty') : undefined,
+		});
+		await service.listSessions(CancellationToken.None);
+		now += 2_000;
+		current.updated_at = new Date(now - 1_000).toISOString();
+		current.sessions[0].state = 'in_progress';
+		tasks.unshift(...Array.from({ length: 301 }, (_, i) => ({
+			...task(`new-${i}`, 'Other task', undefined, `s-${i}`, `e-${i}`),
+			compute: { provider: 'other' }, updated_at: new Date(now).toISOString(),
+		})));
+		const capped = await service.listSessions(CancellationToken.None, { incremental: true });
+		const refreshed = await service.listSessions(CancellationToken.None, { taskIds: [current.id] });
+
+		assert.deepStrictEqual({
+			capped,
+			refreshed: refreshed.kind === 'failed' ? refreshed : refreshed.sessions.map(session => session.status),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/empty')).length,
+		}, {
+			capped: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+			refreshed: [SessionStatus.InProgress],
+			detailReads: 2,
 		});
 	});
 
@@ -3866,7 +3955,7 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 		await assert.rejects(service.listSessions(CancellationToken.None), isCancellationError);
 		cancelHistory = false;
 
-		assert.deepStrictEqual(await service.listSessions(CancellationToken.None, { incremental: true }), { kind: 'complete', sessions: [] });
+		assert.deepStrictEqual(await service.listSessions(CancellationToken.None, { incremental: true }), { kind: 'complete', sessions: [], removedTaskIds: ['empty'] });
 	});
 });
 
@@ -4009,7 +4098,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			rebound: rebound.kind === 'failed' ? [] : rebound.sessions.map(session => session.taskId),
 		}, {
 			removed: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
-			stillUnbound: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+			stillUnbound: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
 			rebound: ['first'],
 		});
 	});

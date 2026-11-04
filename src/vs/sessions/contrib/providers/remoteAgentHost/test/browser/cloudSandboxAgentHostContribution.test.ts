@@ -1671,12 +1671,13 @@ suite('CloudSandboxAgentHostContribution', () => {
 
 	test('does not restore old history after a removed environment is replaced during background waking', async () => {
 		const wake = new DeferredPromise<void>();
-		const harness = await createContribution(store, [discoveredSession()]);
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [discoveredSession()] };
+		const harness = await createContribution(store, [], { listSessions: async () => result });
 		harness.onConnect = () => wake.p;
 		const opened = await harness.activate('env-1');
-		harness.discovered = [];
+		result = { kind: 'complete', sessions: [], removedTaskIds: ['task-1'] };
 		await harness.runDiscovery();
-		harness.discovered = [discoveredSession({ taskId: 'task-2' })];
+		result = { kind: 'complete', sessions: [discoveredSession({ taskId: 'task-2' })] };
 		await harness.runDiscovery();
 		await wake.error(new Error('Old connection failed'));
 		await timeout(0);
@@ -2980,7 +2981,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			cleared: [...cleared],
 			disposed: provider.disposed,
 		};
-		result = { kind: 'incremental', sessions: [], removedTaskIds: [session.taskId] };
+		result = { kind: 'complete', sessions: [], removedTaskIds: [session.taskId] };
 		await harness.runDiscovery();
 
 		assert.deepStrictEqual({
@@ -2999,6 +3000,86 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				disposed: false,
 			},
 			afterRemoval: { renameHandlers: 0, archiveHandlers: 0, cleared: [session.taskId], disposed: false },
+		});
+	});
+
+	for (const state of ['connecting', 'reconnecting'] as const) {
+		test(`retains ${state} environments on window eviction but reconciles explicit removals`, async () => {
+			const session = discoveredSession();
+			const address = cloudSandboxAddress(session.environmentId);
+			const cleared: (string | undefined)[] = [];
+			let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [session] };
+			const harness = await createContribution(store, [], {
+				listSessions: async () => result,
+				clearSessionHistory: taskId => cleared.push(taskId),
+				connections: [{ address, name: session.name, status: RemoteAgentHostConnectionStatus[state] }],
+			});
+			const provider = harness.contribution.stubProviders.get(address)!;
+			cleared.length = 0;
+			result = { kind: 'complete', sessions: [] };
+			await harness.runDiscovery();
+			const afterWindowRefresh = {
+				disposed: provider.disposed,
+				renameHandlers: provider.taskRenameHandlers.size,
+				archiveHandlers: provider.taskArchiveHandlers.size,
+				cleared: [...cleared],
+				disconnected: [...harness.disconnectedFrom],
+			};
+			result = { kind: 'complete', sessions: [], removedTaskIds: [session.taskId] };
+			await harness.runDiscovery();
+
+			assert.deepStrictEqual({
+				afterWindowRefresh,
+				afterRemoval: { disposed: provider.disposed, cleared, disconnected: harness.disconnectedFrom },
+			}, {
+				afterWindowRefresh: { disposed: false, renameHandlers: 1, archiveHandlers: 1, cleared: [], disconnected: [] },
+				afterRemoval: { disposed: true, cleared: [session.taskId], disconnected: [address] },
+			});
+		});
+	}
+
+	test('a pending wake survives window eviction without a connection entry until explicitly removed', async () => {
+		const session = discoveredSession();
+		const address = cloudSandboxAddress(session.environmentId);
+		const cleared: (string | undefined)[] = [];
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [session] };
+		const harness = await createContribution(store, [], {
+			listSessions: async () => result,
+			clearSessionHistory: taskId => cleared.push(taskId),
+		});
+		const provider = harness.contribution.stubProviders.get(address)!;
+		const wake = new DeferredPromise<void>();
+		let wakeToken = CancellationToken.None;
+		harness.onConnect = async (_options, token) => {
+			wakeToken = token;
+			await wake.p;
+		};
+		const connecting = harness.contribution.connect({
+			environmentId: session.environmentId, sessionId: session.sessionId, name: session.name,
+		});
+		const cancelled = assert.rejects(connecting, CancellationError);
+		cleared.length = 0;
+		result = { kind: 'complete', sessions: [] };
+		await harness.runDiscovery();
+		const afterWindowRefresh = {
+			cancelled: wakeToken.isCancellationRequested,
+			disposed: provider.disposed,
+			renameHandlers: provider.taskRenameHandlers.size,
+			archiveHandlers: provider.taskArchiveHandlers.size,
+			cleared: [...cleared],
+			disconnected: [...harness.disconnectedFrom],
+		};
+		result = { kind: 'complete', sessions: [], removedTaskIds: [session.taskId] };
+		await harness.runDiscovery();
+		await wake.complete();
+		await cancelled;
+
+		assert.deepStrictEqual({
+			afterWindowRefresh,
+			afterRemoval: { cancelled: wakeToken.isCancellationRequested, disposed: provider.disposed, cleared, disconnected: harness.disconnectedFrom },
+		}, {
+			afterWindowRefresh: { cancelled: false, disposed: false, renameHandlers: 1, archiveHandlers: 1, cleared: [], disconnected: [] },
+			afterRemoval: { cancelled: true, disposed: true, cleared: [session.taskId], disconnected: [address] },
 		});
 	});
 

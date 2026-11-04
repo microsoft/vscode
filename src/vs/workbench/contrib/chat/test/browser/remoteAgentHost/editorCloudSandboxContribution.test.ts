@@ -2788,7 +2788,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const other = { ...discovered, environmentId: 'other-environment', sessionId: 'other-session', taskId: 'other-task' };
 		const removed = assert.rejects(h.contribution.connect(discovered), isCancellationError);
 		const retained = h.contribution.connect(other);
-		h.state.result = { kind: 'complete', sessions: [other] };
+		h.state.result = { kind: 'complete', sessions: [other], removedTaskIds: [discovered.taskId] };
 		await h.refresh();
 		await removed;
 		const cancelled = h.calls.connectTokens.map(token => token.isCancellationRequested);
