@@ -2852,7 +2852,14 @@ export class ChatPetWidget extends Disposable {
 		while (this._subagentPets.length < count) {
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
 			const miniScale = 0.5 * (this._scale || 1);
-			element.style.left = `${this._button.element.offsetLeft - 48 * miniScale * (this._subagentPets.length + 1)}px`;
+			const petLeft = this._button.element.offsetLeft;
+			const bounds = this._getHorizontalBounds();
+			const midpoint = bounds ? (bounds.minimumLeft + bounds.maximumLeft) / 2 : (this._overlay.clientWidth - this._getDisplaySize()) / 2;
+			const miniWidth = 48 * miniScale;
+			const left = petLeft < midpoint
+				? petLeft + this._getDisplaySize() + miniWidth * this._subagentPets.length
+				: petLeft - miniWidth * (this._subagentPets.length + 1);
+			element.style.left = `${left}px`;
 			element.style.top = `${this._button.element.offsetTop + this._getDisplaySize() - 48 * miniScale}px`;
 			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
 			const distance = Math.max(0, this._overlay.getBoundingClientRect().top + this._button.element.offsetTop + this._getDisplaySize() - 48 * miniScale);

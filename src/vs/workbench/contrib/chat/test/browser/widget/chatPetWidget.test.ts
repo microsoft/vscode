@@ -2280,8 +2280,14 @@ suite('ChatPetWidget', () => {
 			responseChanged.fire({ reason: 'other' });
 			return tool;
 		};
+		button.style.left = '0px';
 		const first = createSubagent('first');
+		const firstMini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		assert.ok(firstMini.offsetLeft >= button.offsetLeft + button.offsetWidth);
+		button.style.left = '300px';
 		createSubagent('second');
+		const minis = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
+		assert.ok(minis[1].offsetLeft < button.offsetLeft);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent.arriving').length, 2);
 		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent').length, 0);
