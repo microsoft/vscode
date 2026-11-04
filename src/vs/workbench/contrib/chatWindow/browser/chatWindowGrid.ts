@@ -358,7 +358,21 @@ export class ChatWindowGrid extends Disposable {
 	 * rest of the window closes, such as the part that holds its terminals, is not arranged any more.
 	 */
 	willClose(): void {
-		this._closing = true;
+		this.setClosing(true);
+	}
+
+	/**
+	 * Whether the window is closing, from the start of its close, while its parts close and what they show moves to the
+	 * main window: the grid does not arrange the parts meanwhile, and arranges them again when the close does not happen.
+	 */
+	setClosing(closing: boolean): void {
+		if (this._closing === closing) {
+			return;
+		}
+		this._closing = closing;
+		if (!closing) {
+			this._update();
+		}
 	}
 
 	/** The parts the grid created, such as for editors dropped on an edge of the window, in the order it created them. */

@@ -174,6 +174,21 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('a window that starts closing does not arrange its parts, such as the title row showing as editors move out of the chat\'s group, and arranges them again when it stays open', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const shown = observableValue('shown', false);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(30), visible: shown }, strip: createChrome(34) }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const visible = () => grid.partGrid!.isCellVisible(ChatWindowGridCell.TitleRow);
+
+		grid.setClosing(true);
+		shown.set(true, undefined);
+		const whileClosing = visible();
+		grid.setClosing(false);
+
+		assert.deepStrictEqual({ whileClosing, stayedOpen: visible() }, { whileClosing: false, stayedOpen: true });
+	});
+
 	test('opens with the main part wider and taller than the chat, and the title row and strip as large as they say', () => {
 		const { mode, grid } = setup();
 		const sideBySide = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width, titleRow: grid.partGrid!.getCellSize(ChatWindowGridCell.TitleRow).height };

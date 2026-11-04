@@ -20,7 +20,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
-import { EditorCloseContext, EditorsOrder } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
@@ -76,6 +76,8 @@ export interface IChatWindowHost {
 	closeWindow(): void;
 	/** Whether the window unloads: its parts close with it, which must not close it again or change its layout. */
 	isUnloading(): boolean;
+	/** The window starts closing, or stays open after all: what arranges its parts waits meanwhile. */
+	setClosing?(closing: boolean): void;
 	/** Creates the part that holds the window's terminals, in the window's grid. */
 	createTerminalsPart(): IContentPart;
 	/** Whether the part that holds the window's terminals shows in the window's grid. */
@@ -182,20 +184,21 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
 		const chatMoved = observableSignal(this);
 		// The chat leads the window from the first group of the chat part, at its top left, such as not after a group
-		// split off to its left, while it shows there, not while another editor beside it, as a tab, does
+		// split off to its left, while it is alone there: with other editors beside it, as tabs, the group shows its tab row,
+		// below the title row of the window, which shows meanwhile
 		this._register(Event.any(chatPart.onDidAddGroup, chatPart.onDidRemoveGroup, chatPart.onDidMoveGroup)(() => chatMoved.trigger(undefined)));
 		this.chatLeads = derived(this, reader => {
 			chatMoved.read(reader);
-			return _host.chatPartLeads.read(reader) && chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0]?.activeEditor === content.input;
+			const first = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0];
+			return _host.chatPartLeads.read(reader) && first?.count === 1 && first.activeEditor === content.input;
 		});
+		// Any editor that opens or closes in a group of the window, beside the chat or not
 		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, combinedDisposable(group.onDidActiveEditorChange(() => chatMoved.trigger(undefined)), group.onDidModelChange(e => {
-			if (e.editor === content.input) {
+			if (e.kind === GroupModelChangeKind.EDITOR_OPEN || e.editor === content.input) {
 				chatMoved.trigger(undefined);
 			}
 		}), group.onDidCloseEditor(e => {
-			if (e.editor === content.input) {
-				chatMoved.trigger(undefined);
-			}
+			chatMoved.trigger(undefined);
 			if (e.editor !== content.input || this._closing || this._host.isUnloading()) {
 				return;
 			}
@@ -338,6 +341,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			return true;
 		}
 		this._closing = true;
+		this._host.setClosing?.(true);
 		// All or nothing: what the chat part shows beside the chat, such as an editor dropped beside it, moves into the main
 		// part first, so that the chat part, then holding only the chat, which closes without asking, closes once the main
 		// part did. The main part closes first: when an editor cannot move to the main window, the window stays as it was,
@@ -346,10 +350,12 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		if (!this._chatPartHoldsOnlyChat() || !this.mainPart.close()) {
 			moved.moveBack();
 			this._closing = false;
+			this._host.setClosing?.(false);
 			return false;
 		}
 		if (!this.chatPart.close()) {
 			this._closing = false;
+			this._host.setClosing?.(false);
 			return false;
 		}
 		this.willUnload();
@@ -569,6 +575,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				auxiliaryWindow.window.close();
 			},
 			isUnloading: () => unloading,
+			setClosing: closing => gridRef.get()?.setClosing(closing),
 			didMoveChatOut: () => void this._didMoveChatOut(window),
 			resetLayout: () => {
 				this._chatLayouts.delete(content.chat.get());

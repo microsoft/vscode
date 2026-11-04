@@ -116,6 +116,8 @@ suite('Chat window', () => {
 
 	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean }; otherPart?: boolean }) {
 		const events: string[] = [];
+		// What the window says of its close to what arranges its parts
+		const closingStates: boolean[] = [];
 		const chatInput = disposables.add(new TestInput());
 		const onDidEnd = disposables.add(new Emitter<void>());
 		const content = new class extends mock<IChatWindowContent>() {
@@ -135,6 +137,7 @@ suite('Chat window', () => {
 			focusWindow: () => events.push('focus window'),
 			closeWindow: () => events.push('close window'),
 			isUnloading: () => !!options?.unloading?.value,
+			setClosing: closing => closingStates.push(closing),
 			createTerminalsPart: () => {
 				events.push('create terminals');
 				return createPart(events, 'terminals').part;
@@ -152,7 +155,7 @@ suite('Chat window', () => {
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
-		return { window, state, main, chat, other, chatInput, onDidEnd, events, storage, remembered };
+		return { window, state, main, chat, other, chatInput, onDidEnd, events, storage, remembered, closingStates };
 	}
 
 	const editor = () => disposables.add(new TestInput());
@@ -481,15 +484,19 @@ suite('Chat window', () => {
 		});
 	});
 
-	test('with another editor beside the chat in its group, as a tab, the chat leads the window only while it shows there, so that the title row of the window shows the session meanwhile', async () => {
+	test('with another editor beside the chat in its group, as a tab, the chat does not lead the window, so that the title row of the window shows the session and the group\'s tab row is below it; alone again, it leads', async () => {
 		const { window, chat, chatInput } = createWindow();
+		const tab = editor();
 		const leads = [window.chatLeads.get()];
-		chat.group.open(editor());
+		chat.group.open(tab);
 		leads.push(window.chatLeads.get());
+		// Its group shows its tab row while editors are beside it, below the title row of the window
 		await chat.group.openEditor(chatInput);
 		leads.push(window.chatLeads.get());
+		chat.group.fireCloseEditor(tab);
+		leads.push(window.chatLeads.get());
 
-		assert.deepStrictEqual(leads, [true, false, true]);
+		assert.deepStrictEqual(leads, [true, false, false, true]);
 	});
 
 	test('focusing it shows and focuses the chat, also where another editor beside it, as a tab, shows', () => {
@@ -545,9 +552,12 @@ suite('Chat window', () => {
 		staying.chat.group.immovable.add(stuck);
 		const stayed = { closed: staying.window.close(), events: staying.events, besideChat: staying.chat.group.contains(stuck) && staying.chat.group.contains(staying.chatInput) };
 
-		assert.deepStrictEqual({ closedResult, stayed }, {
+		// What arranges the parts waits from the start of the close, and arranges them again when the window stays open
+		assert.deepStrictEqual({ closedResult, closing: closing.closingStates, stayed, stayedClosing: staying.closingStates }, {
 			closedResult: { closed: true, events: ['move to main', 'close main', 'close chat', 'will close', 'close window', 'closed'] },
+			closing: [true],
 			stayed: { closed: false, events: [], besideChat: true },
+			stayedClosing: [true, false],
 		});
 	});
 
