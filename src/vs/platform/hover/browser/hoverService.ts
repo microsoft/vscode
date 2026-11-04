@@ -251,6 +251,7 @@ export class HoverService extends Disposable implements IHoverService {
 		const containingHoverIndex = this._getContainingHoverIndex(options.target);
 		const isNesting = containingHoverIndex >= 0;
 		if (!isNesting && this._currentHover?.isLocked) {
+			this._cancelPendingDelayedHover();
 			return undefined;
 		}
 		const delayedHoverIndex = this._hoverStack.findIndex(entry => entry.hover === this._currentDelayedHover);
@@ -483,15 +484,13 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	hideHover(force?: boolean): void {
-		// If not forcing and the topmost hover is locked, don't hide
-		if (!force && this._currentHover?.isLocked) {
-			return;
-		}
-
 		// A delayed hover that has not been shown yet is not part of the stack, so it has to
 		// be cancelled explicitly. Otherwise it pops up once its delay elapses, on top of
 		// whatever took over in the meantime such as a context menu.
 		this._cancelPendingDelayedHover();
+		if (!force && this._currentHover?.isLocked) {
+			return;
+		}
 
 		if (this._hoverStack.length === 0) {
 			return;
@@ -579,8 +578,8 @@ export class HoverService extends Disposable implements IHoverService {
 				}
 			}
 			// Hide all hovers if the mouse is not over any of them
-			const anyMouseIn = this._hoverStack.some(entry => entry.hover.isMouseIn || !entry.hover.isVisible);
-			if (!anyMouseIn) {
+			const anyHoverActive = this._hoverStack.some(entry => entry.hover.isMouseIn || !entry.hover.isVisible || entry.hover.isFocused);
+			if (!anyHoverActive) {
 				const topEntry = this._hoverStack[this._hoverStack.length - 1];
 				this._hideAllHovers();
 				topEntry?.lastFocusedElementBeforeOpen?.focus();

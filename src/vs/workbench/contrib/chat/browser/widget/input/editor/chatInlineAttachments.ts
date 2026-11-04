@@ -1335,7 +1335,7 @@ export class ChatInlineAttachments extends Disposable {
 		}
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
-			if (this._activePillHover.value !== store) {
+			if (this._activePillHoverContent !== content || this._previewPill !== pill) {
 				return;
 			}
 			const hadFocus = dom.isAncestorOfActiveElement(content.element.closest('.monaco-hover') ?? content.element);

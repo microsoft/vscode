@@ -815,6 +815,64 @@ suite('HoverService', () => {
 	});
 
 	suite('nested hovers', () => {
+		for (const action of ['outsideRequest', 'hideHover']) {
+			test(`cancels a pending nested hover but keeps its locked parent on ${action}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+				const parent = showHover('Parent', undefined, { persistence: { sticky: true } });
+				store.add(parent);
+				const target = mainWindow.document.createElement('div');
+				target.textContent = 'Nested target';
+				asHoverWidget(parent).domNode.appendChild(target);
+				const pending = hoverService.showDelayedHover({ content: 'Nested details', target }, {});
+				assert.ok(pending);
+				store.add(pending);
+				let rejected: IHoverWidget | undefined;
+				if (action === 'outsideRequest') {
+					rejected = hoverService.showDelayedHover({ content: 'Outside details', target: createTarget() }, {});
+				} else {
+					hoverService.hideHover();
+				}
+				await timeout(500);
+				assert.deepStrictEqual({
+					parentVisible: isInDOM(parent),
+					parentDisposed: parent.isDisposed,
+					pendingVisible: isInDOM(pending),
+					pendingDisposed: pending.isDisposed,
+					rejected,
+				}, { parentVisible: true, parentDisposed: false, pendingVisible: false, pendingDisposed: true, rejected: undefined });
+			}));
+		}
+
+		test('keeps a pointer parent alive while a nested control has focus and dismisses after focus leaves', async () => {
+			const parent = showHover('Parent', undefined, { persistence: { hideOnHover: false } });
+			store.add(parent);
+			const target = mainWindow.document.createElement('button');
+			target.textContent = 'Nested target';
+			asHoverWidget(parent).domNode.appendChild(target);
+			const content = mainWindow.document.createElement('button');
+			content.textContent = 'Nested action';
+			const nested = hoverService.showInstantHover({ content, target, persistence: { hideOnHover: false } });
+			assert.ok(nested);
+			store.add(nested);
+			content.focus();
+			content.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			asHoverWidget(nested).domNode.dispatchEvent(new MouseEvent('mouseleave'));
+			asHoverWidget(nested).domNode.parentElement?.dispatchEvent(new MouseEvent('mouseleave'));
+			asHoverWidget(parent).domNode.parentElement?.dispatchEvent(new MouseEvent('mouseleave'));
+			await timeout(250);
+			const whileFocused = { parent: parent.isDisposed, nested: nested.isDisposed, parentFocused: asHoverWidget(parent).isFocused };
+			const outside = mainWindow.document.createElement('button');
+			fixture.appendChild(outside);
+			outside.focus();
+			content.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
+			await new Promise<void>(resolve => mainWindow.setTimeout(resolve, 250));
+			assert.deepStrictEqual({ whileFocused, afterBlur: { parent: parent.isDisposed, nested: nested.isDisposed } }, {
+				whileFocused: { parent: false, nested: false, parentFocused: true },
+				afterBlur: { parent: true, nested: true },
+			});
+		});
+
 		for (const delayed of [false, true]) {
 			test(`keeps a shown delayed parent when creating ${delayed ? 'a delayed' : 'an instant'} nested hover`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				let parentHides = 0;
