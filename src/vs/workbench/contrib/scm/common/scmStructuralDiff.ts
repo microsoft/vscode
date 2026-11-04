@@ -10,6 +10,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { PositionOrRange, RangeMapping, SingleRangeMapping } from '../../../../editor/common/core/ranges/rangeMapping.js';
 import { StructuralDiffClassification, StructuralDiffNode, SymbolKind, symbolKindNames } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -49,6 +52,11 @@ export interface SCMStructuralDiffNode extends SCMStructuralDiffElementBase {
 	readonly node: StructuralDiffNode;
 	readonly parent: ISCMResource | SCMStructuralDiffNode;
 	readonly children: readonly SCMStructuralDiffNode[];
+	/**
+	 * For an entity that only exists in the original document, the position in the modified document where it was
+	 * deleted. An inline diff only shows the modified document, so it shows a deleted entity there.
+	 */
+	readonly deletedAt?: IPosition;
 }
 
 export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
@@ -59,8 +67,11 @@ export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
 
 export type SCMStructuralDiffElement = SCMStructuralDiffNode | SCMStructuralDiffStatus;
 
-/** A step from a parent to a structural entity: its kind, language kind and name, and its position among siblings with the same ones. */
-type EntityKey = readonly [kind: SymbolKind, languageKind: string, name: string, ordinal: number];
+/**
+ * A step from a parent to a structural entity: its kind, language kind and name, whether it was added, where it
+ * starts in the original document, and its position among siblings that have all of these in common.
+ */
+type EntityKey = readonly [kind: SymbolKind, languageKind: string, name: string, added: boolean, line: number, column: number, ordinal: number];
 
 function createElementId(resource: ISCMResource, path: readonly (EntityKey | string)[]): string {
 	const group = resource.resourceGroup;
@@ -401,19 +412,27 @@ export class SCMStructuralDiffModel extends Disposable {
 			}
 			const result = await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
 			this.checkCancellation(entry);
+			const toModified = new RangeMapping((result?.context.changes ?? []).map(change => new SingleRangeMapping(Range.lift(change.originalRange), Range.lift(change.modifiedRange))));
+			const toOriginal = toModified.reverse();
+			// A position in changed text maps to the start of the change in the other document.
+			const startOf = (mapped: PositionOrRange) => mapped.range?.getStartPosition() ?? mapped.position!;
 			const wrap = (nodes: readonly StructuralDiffNode[], parent: ISCMResource | SCMStructuralDiffNode, path: readonly EntityKey[]): SCMStructuralDiffNode[] => {
 				const ordinals = new Map<string, number>();
 				return nodes.map((node, order) => {
-					// Edits do not change the original document, so a modified or renamed entity keeps its id.
 					const entity = (node.original ?? node.modified)!;
-					const key = JSON.stringify([entity.kind, entity.languageKind ?? '', entity.name]);
+					// Edits of the working file do not change the original document, so a position in it identifies an entity,
+					// even when siblings with the same name start or stop changing. An added entity is located through the text changes.
+					const start = node.original ? Range.getStartPosition(node.original.range) : startOf(toOriginal.mapPosition(Range.getStartPosition(node.modified!.range)));
+					const identity = [entity.kind, entity.languageKind ?? '', entity.name, !node.original, start.lineNumber, start.column] as const;
+					const key = JSON.stringify(identity);
 					const ordinal = ordinals.get(key) ?? 0;
 					ordinals.set(key, ordinal + 1);
-					const nodePath: EntityKey[] = [...path, [entity.kind, entity.languageKind ?? '', entity.name, ordinal]];
+					const nodePath: EntityKey[] = [...path, [...identity, ordinal]];
 					const children: SCMStructuralDiffNode[] = [];
 					const element: SCMStructuralDiffNode = {
 						type: 'structuralDiff', id: createElementId(resource, nodePath),
 						generation: entry.generation, resource, node, parent, order, children,
+						...(node.modified ? {} : { deletedAt: startOf(toModified.mapPosition(start)) }),
 					};
 					children.push(...wrap(node.children, element, nodePath));
 					return element;

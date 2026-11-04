@@ -15,10 +15,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffNode, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -220,6 +221,39 @@ suite('SCM structural diff model', () => {
 
 	function flatten(elements: readonly SCMStructuralDiffElement[]): SCMStructuralDiffElement[] {
 		return elements.flatMap(element => [element, ...(element.type === 'structuralDiff' ? flatten(element.children) : [])]);
+	}
+
+	/** A result for the current documents in which the class contains the given methods. Changes are not covered. */
+	function createResultWithMethods(...methods: StructuralDiffNode[]): StructuralDiff {
+		const entity = (name: string, kind: SymbolKind, document: ITextModel) => ({ name, kind, range: document.getFullModelRange() });
+		return {
+			root: {
+				id: 'file', original: entity('file.ts', SymbolKind.File, original), modified: entity('file.ts', SymbolKind.File, modified),
+				originalChanges: [], modifiedChanges: [],
+				children: [{
+					id: 'class', original: entity('Calculator', SymbolKind.Class, original), modified: entity('Calculator', SymbolKind.Class, modified),
+					originalChanges: [], modifiedChanges: [], children: methods,
+				}],
+			},
+			isIncomplete: true,
+		};
+	}
+
+	/** A method that spans the given line of each document in which it exists. */
+	function createMethod(id: string, name: string, originalLine: number | undefined, modifiedLine: number | undefined): StructuralDiffNode {
+		const entity = (document: ITextModel, line: number) => ({ name, kind: SymbolKind.Method, range: new Range(line, 2, line, document.getLineMaxColumn(line)) });
+		return {
+			id,
+			original: originalLine === undefined ? undefined : entity(original, originalLine),
+			modified: modifiedLine === undefined ? undefined : entity(modified, modifiedLine),
+			originalChanges: [], modifiedChanges: [], children: [],
+		};
+	}
+
+	function getMethodIds(children: readonly SCMStructuralDiffElement[]): Record<string, string> {
+		const [calculator] = children;
+		assert.ok(calculator.type === 'structuralDiff');
+		return Object.fromEntries(calculator.children.map(method => [method.node.id, method.id]));
 	}
 
 	test('checks eligibility without loading models or invoking providers', () => {
@@ -453,6 +487,33 @@ suite('SCM structural diff model', () => {
 			distinct: new Set(childIds).size,
 			reloaded: after.children.map(child => child.id),
 		}, { distinct: 4, reloaded: childIds });
+	});
+
+	test('keeps the ids of same-name siblings when other siblings start or stop changing', async () => {
+		original.setValue('class Calculator {\n\trun(a: string) { return 1; }\n\trun(a: number) { return 1; }\n\tstop() { }\n}');
+		modified.setValue('class Calculator {\n\trun(a: string) { return 1; }\n\trun(a: number) { return 2; }\n\tstop() { }\n\trun(a: boolean) { return 0; }\n}');
+		provider.result = createResultWithMethods(createMethod('second', 'run', 3, 3), createMethod('added', 'run', undefined, 5));
+		const before = getMethodIds(await model.getChildren(resource));
+		modified.setValue('class Calculator {\n\trun(a: string) { return 2; }\n\trun(a: number) { return 2; }\n\tstop() { }\n\trun(a: boolean) { return 0; }\n}');
+		provider.result = createResultWithMethods(createMethod('first', 'run', 2, 2), createMethod('second', 'run', 3, 3), createMethod('added', 'run', undefined, 5));
+		const after = getMethodIds(await model.getChildren(resource));
+		assert.deepStrictEqual({
+			kept: { second: after.second === before.second, added: after.added === before.added },
+			distinct: new Set(Object.values(after)).size,
+		}, { kept: { second: true, added: true }, distinct: 3 });
+	});
+
+	test('locates deleted entities in the modified document', async () => {
+		original.setValue('class Calculator {\n\trun() { return 1; }\n\tstop() { return 2; }\n}');
+		modified.setValue('class Calculator {\n\tstop() { return 2; }\n}');
+		provider.result = createResultWithMethods(createMethod('run', 'run', 2, undefined), createMethod('stop', 'stop', 3, undefined));
+		const [calculator] = await model.getChildren(resource);
+		assert.ok(calculator.type === 'structuralDiff' && provider.context);
+		// Deleted text is located where it was deleted, unchanged text where it is in the modified document.
+		assert.deepStrictEqual(calculator.children.map(method => method.deletedAt), [
+			Range.getStartPosition(provider.context.changes[0].modifiedRange),
+			new Position(2, 2),
+		]);
 	});
 
 	test('keeps the results of resources that remain in a changed group and releases the others', async () => {

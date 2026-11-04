@@ -15,7 +15,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffNode, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffChange, getSCMStructuralDiffChangeAnnotation, getSCMStructuralDiffLabel } from '../common/scmStructuralDiff.js';
-import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IEditorOptions, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -116,9 +117,20 @@ export async function openSCMStructuralDiff(element: SCMStructuralDiffNode, opti
 	if (!isDiffEditor(control) || !isCurrent()) {
 		return;
 	}
-	const entity = (element.node.modified ?? element.node.original)!;
-	const target = element.node.modified ? control.getModifiedEditor() : control.getOriginalEditor();
-	const range = entity.selectionRange ?? entity.range;
+	const { original, modified } = element.node;
+	let target: ICodeEditor;
+	let range: IRange;
+	if (modified) {
+		target = control.getModifiedEditor();
+		range = modified.selectionRange ?? modified.range;
+	} else if (control.renderSideBySide || !element.deletedAt) {
+		target = control.getOriginalEditor();
+		range = original!.selectionRange ?? original!.range;
+	} else {
+		// An inline diff hides the original editor and shows deleted text where it was deleted from the modified document.
+		target = control.getModifiedEditor();
+		range = Range.fromPositions(element.deletedAt);
+	}
 	target.setSelection(range, TextEditorSelectionSource.NAVIGATION);
 	target.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
 	if (!options.preserveFocus) {
