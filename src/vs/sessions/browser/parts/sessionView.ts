@@ -174,7 +174,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
 
-		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView, _hostOptions));
+		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView, _hostOptions, undefined));
 		this.primaryChatView = derived(this, reader => this._standaloneView.read(reader) || this._preparationView.read(reader) ? undefined : this._groupsView.primaryChatView.read(reader));
 		this.primaryChatViewTop = derived(this, reader => this._headerHeight.read(reader) + this._groupsView.primaryChatViewTop.read(reader));
 		this._contentContainer.appendChild(this._groupsView.element);
