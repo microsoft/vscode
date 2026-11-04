@@ -67,10 +67,15 @@ function setupFingerprint(nodeVersion: string): string {
 	const hash = createHash('sha256')
 		.update(JSON.stringify([process.env.GITHUB_ENVIRONMENT_ID, nodeVersion, process.arch, getPinnedPnpmVersion(root)]));
 	for (const file of [
-		'.nvmrc', '.npmrc', 'remote/.npmrc', 'build/npm/gyp/package.json', 'build/npm/gyp/pnpm-lock.yaml',
+		'.nvmrc', 'build/npm/gyp/package.json', 'build/npm/gyp/pnpm-lock.yaml',
 		'build/npm/cloudSandbox.ts', 'build/npm/cloudSandboxSetup.ts', 'build/npm/preinstall.ts',
 	]) {
 		hash.update(file).update(fs.readFileSync(path.join(root, file)));
+	}
+	// The runtimes whose headers the preinstall downloads, without the rest of the manifests.
+	for (const file of ['package.json', 'remote/package.json']) {
+		const nativeBuild = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')).nativeBuild;
+		hash.update(file).update(JSON.stringify(nativeBuild ?? null));
 	}
 	const customHeaders = path.join(root, 'build/npm/gyp/custom-headers');
 	if (fs.existsSync(customHeaders)) {

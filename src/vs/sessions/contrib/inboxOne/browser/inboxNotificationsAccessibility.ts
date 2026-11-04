@@ -46,6 +46,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 			localize('inboxNotifications.help.completion', "Opening the full session dismisses its completion notification, but does not answer questions, approve requests, or dismiss CI and review issues. Failed or canceled actions remain pending. If an action moves your selected session to another tab, evidence closes and the composer returns to New Session. A completed background action never clears a newer selection."),
 			localize('inboxNotifications.help.liveUpdates', "While evidence is selected or focus is in the list, passive updates preserve the reading order and selected conversation. Titles and current approval state update without a refresh notice. Agent interpretation refreshes when a response in the selected conversation completes, without changing your reply draft. If new sessions arrive outside the current reading list, Show Inbox Updates reveals them. Changing tabs, search, or sorting applies those choices immediately. Passive workflow changes do not close selected evidence; explicit Hold and Done actions do."),
 			localize('inboxNotifications.help.toolApprovals', "Approvals in evidence use the same cards as chat and show the terminal command or read-only tool input and any disclaimer. Use the approval or skip buttons to respond; additional approval scopes are in the adjacent dropdown. When available, Explain opens a side chat without approving the command. Tool results and requests requiring editable inputs or richer confirmation controls must be reviewed using Open Session."),
+			localize('inboxNotifications.help.planReviews', "Plan reviews in evidence use the same card as chat. Read the plan summary, use Open Full Plan to inspect the file, and choose an implementation option or Reject without opening the session. Tab reaches the review controls and the implementation dropdown. Feedback is available when supported by the request."),
 			localize('inboxNotifications.help.loading', "When Inbox data is refreshing, a spinner appears in the Inbox header so you know the list is updating."),
 			localize('inboxNotifications.help.done', "New work can return a Done session to an active tab. On hold persists until you explicitly resume it."),
 			localize('inboxNotifications.help.accessibleView', "Use Open Accessible View to read the notification list and the selected notification's evidence as plain text. When focus is inside an extension canvas, Accessible View reads that canvas instead."),
@@ -136,6 +137,14 @@ export function buildInboxNotificationsAccessibleContent(items: readonly (Pick<I
 			));
 		}
 		lines.push(localize('inboxNotifications.accessibleView.itemDescription', "   {0}", item.description));
+		if (item.needsInputPart?.kind === 'planReview') {
+			const part = item.needsInputPart;
+			lines.push(part.title, renderAsPlaintext({ value: part.content }));
+			lines.push(localize('inboxNotifications.accessibleView.planActions', "Plan actions: {0}, Reject", part.actions.map(action => action.label).join(', ')));
+			if (part.planUri) {
+				lines.push(localize('inboxNotifications.accessibleView.openPlan', "Open Full Plan"));
+			}
+		}
 		if (item.needsInputPart?.kind === 'toolConfirmation') {
 			const part = item.needsInputPart;
 			for (const text of [part.originMessage, part.title, part.message, part.commandLine, part.disclaimer]) {

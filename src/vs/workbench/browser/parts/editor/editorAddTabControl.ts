@@ -19,6 +19,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IEditorCommandsContext } from '../../../common/editor.js';
 
 export interface IEditorAddTabControlOptions {
 
@@ -31,6 +32,12 @@ export interface IEditorAddTabControlOptions {
 	 * Resolves keybindings shown in the dropdown. Defaults to a lookup in the given context key service.
 	 */
 	readonly keybindingProvider?: (action: IAction) => ResolvedKeybinding | undefined;
+
+	/**
+	 * The context the entries run with, such as the group of the tabs bar, so that they act on that group rather than
+	 * on the active one.
+	 */
+	readonly context?: IEditorCommandsContext;
 }
 
 /**
@@ -79,6 +86,7 @@ export class EditorAddTabControl extends Disposable {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
 			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
 		}));
+		toolbar.context = options?.context;
 		toolbar.setActions([addTabAction]);
 
 		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);

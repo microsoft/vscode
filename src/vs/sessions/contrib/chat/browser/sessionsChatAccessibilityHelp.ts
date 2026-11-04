@@ -34,6 +34,7 @@ import { NAVIGATE_VIEW_COMMANDS } from '../../../../workbench/browser/actions/na
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -102,6 +103,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			}
 		}
 		content.push(getModePickerAccessibilityHelp());
+		if (configurationService.getValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING)) {
+			content.push(localize('sessionsChat.chatWindow', "To show a chat in a window of its own, choose Open in New Window in the context menu of its session or chat in the sessions list, or in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window's title bar to show the chat, the editor area or both, side by side or stacked{0}. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.", '<keybinding:workbench.action.chatWindow.toggleArrangement>'));
+		}
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
 		content.push(localize('sessionsChat.newSessionDrag', "To move a new-session pane before sending a prompt, drag its blank top area beside another pane. The session grid movement commands also work on new-session panes."));
 

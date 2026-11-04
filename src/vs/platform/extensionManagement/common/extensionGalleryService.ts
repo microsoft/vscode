@@ -563,6 +563,14 @@ function setTelemetry(extension: IGalleryExtension, index: number, querySource?:
 	extension.telemetryData = { index, querySource, queryActivityId: extension.queryContext?.[SEARCH_ACTIVITY_HEADER_NAME] };
 }
 
+/**
+ * Resolves the link template for a gallery link type, falling back to the default type
+ * when the gallery reports a link type that its manifest does not define.
+ */
+export function getGalleryLinkTemplate(manifest: IExtensionGalleryManifest, linkType: string | undefined, defaultType: ExtensionGalleryResourceType): string | undefined {
+	return (linkType ? getExtensionGalleryManifestResourceUri(manifest, linkType) : undefined) ?? getExtensionGalleryManifestResourceUri(manifest, defaultType);
+}
+
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], extensionGalleryManifest: IExtensionGalleryManifest, productService: IProductService, queryContext?: IStringDictionary<unknown>): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
 	const assets: IGalleryExtensionAssets = {
@@ -577,9 +585,9 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		coreTranslations: getCoreTranslationAssets(version)
 	};
 
-	const detailsViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.linkType ?? ExtensionGalleryResourceType.ExtensionDetailsViewUri);
-	const publisherViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.publisher.linkType ?? ExtensionGalleryResourceType.PublisherViewUri);
-	const ratingViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.ratingLinkType ?? ExtensionGalleryResourceType.ExtensionRatingViewUri);
+	const detailsViewUri = getGalleryLinkTemplate(extensionGalleryManifest, galleryExtension.linkType, ExtensionGalleryResourceType.ExtensionDetailsViewUri);
+	const publisherViewUri = getGalleryLinkTemplate(extensionGalleryManifest, galleryExtension.publisher.linkType, ExtensionGalleryResourceType.PublisherViewUri);
+	const ratingViewUri = getGalleryLinkTemplate(extensionGalleryManifest, galleryExtension.ratingLinkType, ExtensionGalleryResourceType.ExtensionRatingViewUri);
 	const id = getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName);
 
 	return {

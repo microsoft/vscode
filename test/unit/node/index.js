@@ -112,7 +112,7 @@ function getMajorVersion(version) {
 	return Number(/^v?(?<major>\d+)\./.exec(version)?.groups?.major);
 }
 
-const requiredNodeVersion = getMajorVersion(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))?.[1] ?? '');
+const requiredNodeVersion = getMajorVersion(JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'remote', 'package.json'), 'utf8')).nativeBuild?.target ?? '');
 const currentNodeVersion = getMajorVersion(process.version);
 if (currentNodeVersion < requiredNodeVersion) {
 	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion} (your version is: ${currentNodeVersion})`);

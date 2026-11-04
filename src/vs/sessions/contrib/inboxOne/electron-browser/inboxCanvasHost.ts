@@ -133,7 +133,13 @@ class InboxCanvasHost extends Disposable implements IInboxCanvasHost {
 				this.layout();
 			}));
 			this.modelStore.add(model.onDidRequestOpenExternal(url => {
-				void this.openerService.open(url, { openExternal: true, fromUserGesture: true, allowContributedOpeners: true }).then(opened => {
+				void this.openerService.open(url, {
+					openExternal: true,
+					fromUserGesture: true,
+					allowContributedOpeners: true,
+					// In the window of the canvas: focus is in its page, outside the workbench, so it cannot tell the window.
+					sourceWindowId: getWindow(this.container).vscodeWindowId,
+				}).then(opened => {
 					if (!opened) {
 						this.logService.warn('[InboxCanvasHost] External link was not opened');
 						this.message.textContent = localize('inbox.canvas.linkError', "The external link could not be opened.");

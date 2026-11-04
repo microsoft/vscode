@@ -492,6 +492,36 @@ suite('XtermTerminal', () => {
 		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true]);
 	});
 
+	test('recreates the WebGL renderer once the terminal shows in another window, whose canvas loses its context', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', { ...defaultTerminalConfig, gpuAcceleration: 'on' });
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+		await timeout(0);
+		const created = TestWebglAddon.customGlyphOptions.length;
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryContainer = document.createElement('div');
+		iframe.contentDocument!.body.appendChild(auxiliaryContainer);
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.updateGpuRendererWindow();
+		await timeout(0);
+		const afterMove = TestWebglAddon.customGlyphOptions.length;
+		xterm.updateGpuRendererWindow();
+		await timeout(0);
+
+		deepStrictEqual({ created, afterMove, inTheSameWindow: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled }, { created: 1, afterMove: 2, inTheSameWindow: 2, enabled: true });
+	});
+
 	suite('getContentsAsText', () => {
 		test('should return all buffer contents when no markers provided', async () => {
 			await write('line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');

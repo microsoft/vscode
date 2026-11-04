@@ -893,6 +893,10 @@ per-word capitalization does not survive translation. */
 	flex-shrink: 1;
 }
 
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-skills {
+	flex-shrink: 0;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
