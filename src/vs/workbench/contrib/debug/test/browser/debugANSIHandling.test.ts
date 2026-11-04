@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { registerColors } from '../../../terminal/common/terminalColorRegistry.js';
 import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from '../../browser/debugANSIHandling.js';
@@ -35,6 +36,7 @@ suite('Debug - ANSI Handling', () => {
 		session = createTestSession(model);
 
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
 		registerColors();
 	});
@@ -960,6 +962,47 @@ suite('Debug - ANSI Handling', () => {
 		const child: HTMLSpanElement = getSequenceOutput(sequence);
 		assert(child.textContent === sequence);
 	}
+
+	test('issue #334194: link whose parts have different styles is a single link', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		// Vite prints the port of the server URL in bold
+		const root = handleANSIOutput('  Local:   \x1b[36mhttp://localhost:\x1b[1m5173\x1b[22m/\x1b[39m done', linkDetector, session.root, [], hoverBehavior);
+		hoverBehavior.store.dispose();
+
+		assert.strictEqual(root.textContent, '  Local:   http://localhost:5173/ done');
+		const links = root.querySelectorAll('a');
+		assert.strictEqual(links.length, 1);
+		assert.strictEqual(links[0].textContent, 'http://localhost:5173/');
+		assert.deepStrictEqual([...links[0].children].map(child => [child.textContent, child.className]), [
+			['http://localhost:', 'code-foreground-colored'],
+			['5173', 'code-foreground-colored code-bold'],
+			['/', 'code-foreground-colored'],
+		]);
+	});
+
+	test('link in a single styled part is unchanged', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const root = handleANSIOutput('see \x1b[1mhttp://localhost:5173/\x1b[22m and \x1b[1mhttp://example.com\x1b[22m', linkDetector, session.root, [], hoverBehavior);
+		hoverBehavior.store.dispose();
+
+		assert.strictEqual(root.textContent, 'see http://localhost:5173/ and http://example.com');
+		assert.deepStrictEqual([...root.querySelectorAll('a')].map(link => [link.textContent, link.parentElement?.className]), [
+			['http://localhost:5173/', 'code-bold'],
+			['http://example.com', 'code-bold'],
+		]);
+	});
+
+	test('highlights inside a link whose parts have different styles', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const text = 'http://localhost:\x1b[1m5173\x1b[22m/';
+		// Highlight 'host:51'
+		const root = handleANSIOutput(text, linkDetector, session.root, [{ start: 12, end: 19 }], hoverBehavior);
+		hoverBehavior.store.dispose();
+
+		const link = root.querySelector('a')!;
+		assert.strictEqual(link.textContent, 'http://localhost:5173/');
+		assert.deepStrictEqual([...link.querySelectorAll('.highlight')].map(highlight => highlight.textContent), ['host:', '51']);
+	});
 
 	test('Invalid codes treated as regular text', () => {
 

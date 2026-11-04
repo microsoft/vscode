@@ -11,7 +11,20 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
-import { DebugLinkHoverBehaviorTypeData, ILinkDetector } from './linkDetector.js';
+import { DebugLinkHoverBehaviorTypeData, detectLinks, ILinkDetector } from './linkDetector.js';
+
+/**
+ * A run of text that has the same styles.
+ */
+interface IStyledSegment {
+	readonly text: string;
+	readonly cssClasses: string[];
+	readonly customTextColor: RGBA | string | undefined;
+	readonly customBackgroundColor: RGBA | string | undefined;
+	readonly customUnderlineColor: RGBA | string | undefined;
+	/** The starting index of the text in the original text, used for highlights. */
+	readonly offset: number;
+}
 
 /**
  * @param text The content to stylize.
@@ -30,6 +43,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 	let currentPos: number = 0;
 	let unprintedChars = 0;
 	let buffer: string = '';
+	const segments: IStyledSegment[] = [];
 
 	while (currentPos < textLength) {
 
@@ -63,7 +77,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 				unprintedChars += 2 + ansiSequence.length;
 
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars, hoverBehavior);
+				addSegment(buffer, currentPos - buffer.length - unprintedChars);
 				buffer = '';
 
 				/*
@@ -108,10 +122,18 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length, hoverBehavior);
+		addSegment(buffer, currentPos - buffer.length);
 	}
 
+	appendStyledSegmentsToContainer(root, segments, linkDetector, workspaceFolder, highlights, hoverBehavior);
+
 	return root;
+
+	function addSegment(text: string, offset: number): void {
+		if (text) {
+			segments.push({ text, cssClasses: [...styleNames], customTextColor: customFgColor, customBackgroundColor: customBgColor, customUnderlineColor, offset });
+		}
+	}
 
 	/**
 	 * Change the foreground or background color by clearing the current color
@@ -428,6 +450,111 @@ export function appendStylizedStringToContainer(
 		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
 	);
 
+	applyStyles(container, cssClasses, customTextColor, customBackgroundColor, customUnderlineColor);
+	root.appendChild(container);
+}
+
+/**
+ * Appends the styled segments to the container. Links are detected across
+ * segments, so a link whose parts have different styles, such as a URL with a
+ * bold port, is still a single link.
+ */
+function appendStyledSegmentsToContainer(
+	root: HTMLElement,
+	segments: IStyledSegment[],
+	linkDetector: ILinkDetector,
+	workspaceFolder: IWorkspaceFolder | undefined,
+	highlights: IHighlight[] | undefined,
+	hoverBehavior: DebugLinkHoverBehaviorTypeData,
+): void {
+	const starts: number[] = [];
+	let length = 0;
+	for (const segment of segments) {
+		starts.push(length);
+		length += segment.text.length;
+	}
+
+	// Calls `callback` for the part of each segment that is in [start, end).
+	const forEachPart = (start: number, end: number, callback: (segment: IStyledSegment, text: string, offset: number) => void) => {
+		segments.forEach((segment, i) => {
+			const partStart = Math.max(start, starts[i]) - starts[i];
+			const partEnd = Math.min(end, starts[i] + segment.text.length) - starts[i];
+			if (partStart < partEnd) {
+				callback(segment, segment.text.substring(partStart, partEnd), segment.offset + partStart);
+			}
+		});
+	};
+
+	const appendRange = (start: number, end: number) => {
+		forEachPart(start, end, (segment, text, offset) => {
+			appendStylizedStringToContainer(root, text, segment.cssClasses, linkDetector, workspaceFolder, segment.customTextColor, segment.customBackgroundColor, segment.customUnderlineColor, highlights, offset, hoverBehavior);
+		});
+	};
+
+	const crossesSegments = (start: number, end: number) => starts.some(segmentStart => segmentStart > start && segmentStart < end);
+	const links = segments.length > 1
+		? detectLinks(segments.map(segment => segment.text).join('')).filter(part => part.kind !== 'text' && crossesSegments(part.index, part.index + part.value.length))
+		: [];
+
+	let rendered = 0;
+	for (const link of links) {
+		const linkEnd = link.index + link.value.length;
+		appendRange(rendered, link.index);
+		rendered = linkEnd;
+
+		const container = linkDetector.linkify(link.value, hoverBehavior, false, workspaceFolder);
+		const anchor = container.firstElementChild;
+		if (container.childNodes.length !== 1 || !anchor || anchor.tagName !== 'A' || anchor.textContent !== link.value) {
+			// Not linkified on its own, render the parts as before.
+			appendRange(link.index, linkEnd);
+			continue;
+		}
+
+		// Keep the styles of the parts inside the link.
+		anchor.textContent = '';
+		forEachPart(link.index, linkEnd, (segment, text, offset) => {
+			const span = document.createElement('span');
+			applyStyles(span, segment.cssClasses, segment.customTextColor, segment.customBackgroundColor, segment.customUnderlineColor);
+			appendHighlightedText(span, text, offset, highlights);
+			anchor.appendChild(span);
+		});
+		root.appendChild(container);
+	}
+	appendRange(rendered, length);
+}
+
+function appendHighlightedText(container: HTMLElement, text: string, offset: number, highlights: IHighlight[] | undefined): void {
+	let position = 0;
+	for (const highlight of highlights || []) {
+		const start = Math.max(highlight.start - offset, position);
+		const end = Math.min(highlight.end - offset, text.length);
+		if (start >= end) {
+			continue;
+		}
+		if (start > position) {
+			container.append(text.substring(position, start));
+		}
+		const highlightSpan = document.createElement('span');
+		highlightSpan.classList.add('highlight');
+		if (highlight.extraClasses) {
+			highlightSpan.classList.add(...highlight.extraClasses);
+		}
+		highlightSpan.textContent = text.substring(start, end);
+		container.appendChild(highlightSpan);
+		position = end;
+	}
+	if (position < text.length) {
+		container.append(text.substring(position));
+	}
+}
+
+function applyStyles(
+	container: HTMLElement,
+	cssClasses: string[],
+	customTextColor: RGBA | string | undefined,
+	customBackgroundColor: RGBA | string | undefined,
+	customUnderlineColor: RGBA | string | undefined,
+): void {
 	container.className = cssClasses.join(' ');
 	if (customTextColor) {
 		container.style.color =
@@ -441,8 +568,6 @@ export function appendStylizedStringToContainer(
 		container.style.textDecorationColor =
 			typeof customUnderlineColor === 'string' ? `var(${customUnderlineColor})` : Color.Format.CSS.formatRGB(new Color(customUnderlineColor));
 	}
-
-	root.appendChild(container);
 }
 
 /**
