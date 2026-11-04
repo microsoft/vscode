@@ -98,6 +98,8 @@ suite('EditorDropTarget', () => {
 				operations.push(`split ${direction}`);
 				return newGroup;
 			}
+			override getSize() { return { width: 300, height: 300 }; }
+			override setSize() { }
 		}());
 		instantiation.stub(IEditorService, {});
 		instantiation.stub(ITreeViewsDnDService, {});

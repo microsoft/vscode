@@ -372,6 +372,31 @@ suite('View Editors', () => {
 		});
 	});
 
+	test('an editor dropped on an edge of a view that handles drops splits its group evenly, as the drop indicator shows, also beside a group at its minimum size', async () => {
+		const { parts, part } = await createServices();
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
+		disposables.add(registerContentDropTarget(views[0].element));
+		const viewGroup = groupViewOf(parts, part.activeGroup);
+		const dragFile = async (path: string, edge: 'left' | 'top') => {
+			const file = disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+			await parts.mainPart.activeGroup.openEditor(file, { pinned: true });
+			editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: parts.mainPart.activeGroup.id })], DraggedEditorIdentifier.prototype);
+			const bounds = views[0].element.getBoundingClientRect();
+			await drop(viewGroup, edge === 'left' ? bounds.left + 2 : bounds.left + bounds.width / 2, edge === 'left' ? bounds.top + bounds.height / 2 : bounds.top + 2);
+			editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			return part.groups.find(group => group.contains(file))!;
+		};
+
+		// Beside the view, a group at its minimum width: the view's group counts as expanded
+		const left = await dragFile('/left.txt', 'left');
+		part.setSize(left, { width: 0, height: part.getSize(left).height });
+		const viewHeight = part.getSize(viewGroup).height;
+		const top = await dragFile('/top.txt', 'top');
+
+		const heights = { top: part.getSize(top).height, view: part.getSize(viewGroup).height };
+		assert.deepStrictEqual({ even: Math.abs(heights.top - heights.view) <= 1, total: heights.top + heights.view }, { even: true, total: viewHeight });
+	});
+
 	test('the view\'s drag handle lets what contains it add to its drag, and does not start one from a text field in it', async () => {
 		const { part } = await createServices();
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));

@@ -32,6 +32,12 @@ import { getPartName } from './editorPartActions.js';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
+
+	/**
+	 * Whether the drop splits the group into even halves, as over content
+	 * that handles drops, where the drop shows half of the group.
+	 */
+	splitEvenly?: boolean;
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
@@ -397,7 +403,7 @@ class DropOverlay extends Themable {
 
 				// Handle drop if we have a valid operation
 				if (this.currentDropOperation) {
-					this.handleDrop(e, this.currentDropOperation.splitDirection);
+					this.handleDrop(e, this.currentDropOperation);
 				}
 			}
 		}));
@@ -445,13 +451,29 @@ class DropOverlay extends Themable {
 		return undefined;
 	}
 
-	private async handleDrop(event: DragEvent, splitDirection?: GroupDirection): Promise<void> {
+	private async handleDrop(event: DragEvent, operation: IDropOperation): Promise<void> {
+		const splitDirection = operation.splitDirection;
+
+		// A group that splits evenly gives the new group half of its size, as
+		// the drop shows: the part would otherwise expand the new group, such
+		// as when the group counts as expanded beside one at its minimum size
+		const sizeBeforeSplit = operation.splitEvenly ? this.editorGroupService.getSize(this.groupView) : undefined;
+		const splitEvenly = (targetGroup: IEditorGroup) => {
+			if (!sizeBeforeSplit || typeof splitDirection !== 'number' || targetGroup === this.groupView) {
+				return;
+			}
+
+			const size = this.editorGroupService.getSize(targetGroup);
+			const vertically = splitDirection === GroupDirection.UP || splitDirection === GroupDirection.DOWN;
+			this.editorGroupService.setSize(targetGroup, vertically ? { width: size.width, height: Math.round(sizeBeforeSplit.height / 2) } : { width: Math.round(sizeBeforeSplit.width / 2), height: size.height });
+		};
 
 		// Determine target group
 		const ensureTargetGroup = () => {
 			let targetGroup: IEditorGroup;
 			if (typeof splitDirection === 'number') {
 				targetGroup = this.editorGroupService.addGroup(this.groupView, splitDirection);
+				splitEvenly(targetGroup);
 			} else {
 				targetGroup = this.groupView;
 			}
@@ -477,6 +499,7 @@ class DropOverlay extends Themable {
 						} else {
 							targetGroup = this.editorGroupService.moveGroup(sourceGroup, this.groupView, splitDirection);
 						}
+						splitEvenly(targetGroup);
 					}
 
 					// Merge into existing group
@@ -516,6 +539,7 @@ class DropOverlay extends Themable {
 					// rather move the entire editor group according to the direction
 					if (this.groupView.groupsView.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
 						targetGroup = this.editorGroupService.moveGroup(sourceGroup, this.groupView, splitDirection);
+						splitEvenly(targetGroup);
 					}
 
 					// In any other case do a normal move/copy operation
@@ -635,7 +659,7 @@ class DropOverlay extends Themable {
 		setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
 
 		// Remember as current split direction
-		this.currentDropOperation = { splitDirection };
+		this.currentDropOperation = { splitDirection, splitEvenly: splitsOnly && typeof splitDirection === 'number' };
 	}
 
 	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {
