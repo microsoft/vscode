@@ -103,7 +103,17 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	private _trackWindow(window: IChatWindow): IDisposable {
 		const store = new DisposableStore();
 		// Its terminals keep running for their session as it closes, before the part that holds them closes.
-		store.add(window.onWillClose(() => this.release(window)));
+		// Until it closes: its editors then go with its close.
+		const onlyTerminals = store.add(autorun(reader => {
+			const part = window.terminalsPart.read(reader);
+			if (part) {
+				reader.store.add(this._keepOnlyTerminals(window, part));
+			}
+		}));
+		store.add(window.onWillClose(() => {
+			onlyTerminals.dispose();
+			this.release(window);
+		}));
 		store.add(this._trackMainPart(window));
 		// Restored with its terminals: the part that holds them is there, waiting for them.
 		const part = window.terminalsPart.get();
@@ -311,6 +321,33 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				}
 			});
 		}));
+	}
+
+	/**
+	 * The part that holds the terminals of a window holds only terminals, as the panel does: another editor in it, such
+	 * as one dropped on it, moved there or restored there, goes to the window's main part.
+	 */
+	private _keepOnlyTerminals(window: IChatWindow, part: IEditorPart): IDisposable {
+		const moveToMainPart = (group: IEditorGroup, editor: EditorInput | undefined) => {
+			if (!editor || isTerminalEditor(editor)) {
+				return;
+			}
+			// After the open completes: moving it meanwhile would leave it in no group.
+			void timeout(0).then(() => {
+				if (this._store.isDisposed || !this._windows.has(window) || !group.contains(editor, { strictEquals: true })) {
+					return;
+				}
+				group.moveEditor(editor, window.mainPart.activeGroup);
+			});
+		};
+		return this._trackGroups(part, group => {
+			group.editors.forEach(editor => moveToMainPart(group, editor));
+			return group.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
+					moveToMainPart(group, e.editor);
+				}
+			});
+		});
 	}
 
 	/**

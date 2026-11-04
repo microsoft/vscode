@@ -311,6 +311,21 @@ suite('Chat window terminals', () => {
 		});
 	});
 
+	test('the part that holds the terminals holds only terminals: another editor that opens in it, such as one dropped on it, goes to the main part of the window; a terminal stays', async () => {
+		const { mainGroup, terminalsGroup } = createEnvironment({ restoredWithTerminals: true });
+		const terminalEditor = editor('workbench.editors.terminal');
+		const file = editor('workbench.editors.files.fileEditorInput');
+
+		terminalsGroup.open(terminalEditor);
+		terminalsGroup.open(file);
+		await timeout(0);
+
+		assert.deepStrictEqual({ terminals: terminalsGroup.editors.map(candidate => candidate.typeId), main: mainGroup.moved.map(candidate => candidate.typeId) }, {
+			terminals: ['workbench.editors.terminal'],
+			main: ['workbench.editors.files.fileEditorInput'],
+		});
+	});
+
 	test('the Add Tab entry for a terminal adds one to the terminals that show a terminal, else shows them', async () => {
 		const { terminals, window, calls } = createEnvironment({ terminal: terminal(5) });
 
