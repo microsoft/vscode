@@ -53,6 +53,7 @@ suite('NewSessionViewTourTrigger', () => {
 			id,
 			onboardingService,
 			sessionsService,
+			sessionsService.activeSession,
 			storageService,
 			configurationService,
 			contextKeyService,

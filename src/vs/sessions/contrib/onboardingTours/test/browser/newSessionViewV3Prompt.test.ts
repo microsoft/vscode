@@ -890,10 +890,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
-			}(),
+			constObservable<IActiveSession | undefined>(activeSession),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -948,10 +945,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-				override readonly mainWindowActiveSession = this.activeSession;
-			}(),
+			activeSession,
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -1136,7 +1130,7 @@ async function runPrompt(
 	const runner = new NewSessionViewV3PromptRunner(
 		new TestAssignmentService(treatments) as IWorkbenchAssignmentService,
 		new TestConfigurationService(configuration),
-		sessionsService,
+		sessionsService.activeSession,
 		composerService,
 		gitService,
 		new MissingFileService(),

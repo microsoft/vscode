@@ -25,7 +25,7 @@ import { IOpenNewSessionOptions, ISessionsService } from '../../../../services/s
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { INewSessionComposer, INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { prepareNewVoiceSession, SessionsVoiceActiveSessionContribution, SessionsVoiceBridgeContribution, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsVoiceBridgeContribution - input ownership', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +47,8 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 				override readonly activeSession = constObservable(undefined);
 				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
 			sessionsManagementService,
 			new class extends mock<INewChatVoiceTargetService>() {
 				override readonly activeComposer = constObservable(composer);
@@ -221,7 +223,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 		});
 	});
 
-	test('reports session information from the Agents window session model', () => {
+	test('reports session information from the Agents window session model, active per the focused chat window rather than the main window', () => {
 		const activeResource = URI.parse('agent-session://test/active');
 		const idleResource = URI.parse('agent-session://test/idle');
 		const archivedResource = URI.parse('agent-session://test/archived');
@@ -251,10 +253,13 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 		disposables.add(new SessionsVoiceBridgeContribution(
 			new TestConfigurationService({ 'agents.voice.enabled': true }),
 			new class extends mock<IChatWidgetService>() { }(),
+			// The main window shows the idle session; the focused chat window, the active one.
 			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ resource: activeResource }));
+				override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ resource: idleResource }));
 				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
+			focusedSessionHostServiceOf(constObservable(upcastPartial<IActiveSession>({ resource: activeResource }))),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(upcastPartial<IActiveSession>({ resource: idleResource })), visibleSessions: constObservable([]), windowSessions: constObservable([upcastPartial<IActiveSession>({ resource: activeResource })]) }),
 			new class extends mock<ISessionsManagementService>() {
 				override getSessions(): ISession[] {
 					return sessions;
@@ -315,10 +320,7 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 					draft.set(false, undefined);
 				}
 			}(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-				override readonly mainWindowActiveSession = this.activeSession;
-			}(),
+			focusedSessionHostServiceOf(activeSession),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidSendRequest = didSend.event;
 			}(),
@@ -587,6 +589,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const result = await prepareNewVoiceSession(
 			'refactor the upload service',
 			sessionsService,
+			{ focused: () => sessionsService.activeSession.get(), mainWindow: () => sessionsService.activeSession.get() },
 			sessionsManagementService,
 			voiceSessionController,
 			() => false,
@@ -645,6 +648,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const result = await prepareNewVoiceSession(
 			'',
 			sessionsService,
+			{ focused: () => sessionsService.activeSession.get(), mainWindow: () => sessionsService.activeSession.get() },
 			sessionsManagementService,
 			voiceSessionController,
 			() => false,
@@ -696,6 +700,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const result = await prepareNewVoiceSession(
 			'refactor the upload service',
 			sessionsService,
+			{ focused: () => sessionsService.activeSession.get(), mainWindow: () => sessionsService.activeSession.get() },
 			new class extends mock<ISessionsManagementService>() { }(),
 			voiceSessionController,
 			() => false,
