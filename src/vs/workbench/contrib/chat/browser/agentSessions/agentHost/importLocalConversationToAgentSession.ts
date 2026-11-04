@@ -269,9 +269,13 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 		outputText = subagentData.result;
 	}
 
-	const toolInput = part.toolSpecificData?.kind === 'input'
+	const recordedInput = part.toolSpecificData?.kind === 'input'
 		? stringifyToolInput(part.toolSpecificData.rawInput)
 		: (resultInput ?? subagentData?.prompt ?? '');
+	// A tool's input and output are shown together, and only when it has input.
+	// A data result (e.g. an image) records no input, so it gets an empty input
+	// object; otherwise its output would not be shown.
+	const toolInput = recordedInput || (outputContent.length ? '{}' : '');
 	const toolCallId = part.toolCallId || generateUuid();
 	const displayName = subagentData?.agentName || part.toolId;
 	const shownInvocationMessage = invocationMessage ?? stringifyChatMessage(subagentData?.description);

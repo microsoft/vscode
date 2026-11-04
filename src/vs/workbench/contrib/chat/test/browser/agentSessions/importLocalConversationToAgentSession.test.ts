@@ -12,7 +12,7 @@ import { ElicitationState, ToolConfirmKind, type IChatCodeCitation, type IChatCo
 import type { ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
-import { rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { completedToolCallToSerialized, rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('importedTurnsFromChatModel', () => {
 
@@ -403,6 +403,25 @@ suite('importedTurnsFromChatModel', () => {
 			{ id: 'denied-unattributed', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied, reasonMessage: undefined },
 			{ id: 'unrecorded', invocationMessage: 'Running', pastTenseMessage: 'Ran', confirmed: ToolCallConfirmationReason.NotNeeded, content: undefined },
 		]);
+	});
+
+	test('a data result with no input still shows its output once restored to the chat', () => {
+		const turns = importedTurnsFromChatModel(model([request('q', response([{
+			kind: 'toolInvocationSerialized', toolId: 'screenshot', toolCallId: 'data', invocationMessage: 'Capturing', pastTenseMessage: 'Captured',
+			isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, toolSpecificData: undefined,
+			resultDetails: { output: { type: 'data', mimeType: 'image/png', base64Data: 'AAEC' } },
+		} as unknown as IChatProgressResponseContent]))]));
+		const toolCall = turns[0].responseParts[0].kind === ResponsePartKind.ToolCall ? turns[0].responseParts[0].toolCall : undefined;
+		assert.ok(toolCall?.status === ToolCallStatus.Completed);
+
+		const restored = completedToolCallToSerialized(toolCall, undefined, URI.parse('agent-host-copilot:/session'), 'local');
+		assert.deepStrictEqual(restored.resultDetails, {
+			input: '{}',
+			inputLanguage: 'json',
+			output: [{ type: 'embed', value: 'AAEC', mimeType: 'image/png' }],
+			isError: false,
+			mcpOutput: undefined,
+		});
 	});
 
 	test('shows the agent\'s questions with their answers, requests for input and confirmations', () => {
