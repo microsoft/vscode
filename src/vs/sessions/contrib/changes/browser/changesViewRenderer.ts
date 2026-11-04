@@ -10,7 +10,7 @@ import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner } from '../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, relativePath } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -25,20 +25,27 @@ import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/la
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
 
 const $ = dom.$;
+
+export function getChangesFileUri(change: ISessionFileChange): URI {
+	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+}
+
+export function isChangesFileResource(change: ISessionFileChange, resource: URI): boolean {
+	return isEqual(change.originalUri, resource)
+		|| isEqual(change.modifiedUri, resource)
+		|| isEqual(getChangesFileUri(change), resource);
+}
 
 export function toIChangesFileItem(changes: readonly ISessionFileChange[]): IChangesFileItem[] {
 	return changes.map(change => {
 		const isAddition = change.originalUri === undefined;
 		const isDeletion = change.modifiedUri === undefined;
-		const uri = isIChatSessionFileChange2(change)
-			? change.uri
-			: change.modifiedUri;
+		const uri = getChangesFileUri(change);
 
 		return {
 			type: 'file',
@@ -175,11 +182,11 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		private labels: ResourceLabels,
 		private actionRunner: ActionRunner | undefined,
 		private getRootUri: () => URI | undefined,
+		private readonly scope: IChangesSessionScope,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IChangesTreeTemplate {
@@ -208,16 +215,16 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		label.element.appendChild(actionBarContainer);
 
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.scope.session.read(reader);
 			return activeSession?.sessionType ?? '';
 		}));
 
 		templateDisposables.add(bindContextKey(ActiveSessionContextKeys.HasGitRepository, contextKeyService, reader => {
-			return this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
+			return this.scope.changes.hasGitRepositoryObs.read(reader);
 		}));
 
 		templateDisposables.add(bindContextKey(ChangesContextKeys.VersionMode, contextKeyService, reader => {
-			return this.changesViewService.activeSessionChangesetObs.read(reader)?.id ?? '';
+			return this.scope.changes.changesetObs.read(reader)?.id ?? '';
 		}));
 
 		const changeKindContextKey = ChangesContextKeys.ChangeKind.bindTo(contextKeyService);
@@ -295,7 +302,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 		// Review comments
 		templateData.elementDisposables.add(autorun(reader => {
-			const reviewCommentByFile = this.changesViewService.activeSessionReviewCommentCountByFileObs.read(reader);
+			const reviewCommentByFile = this.scope.changes.reviewCommentCountByFileObs.read(reader);
 			const reviewCommentCount = reviewCommentByFile?.get(data.uri.fsPath) ?? 0;
 
 			if (reviewCommentCount > 0) {
@@ -313,7 +320,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 		// Agent feedback
 		templateData.elementDisposables.add(autorun(reader => {
-			const agentFeedbackByFile = this.changesViewService.activeSessionAgentFeedbackCountByFileObs.read(reader);
+			const agentFeedbackByFile = this.scope.changes.agentFeedbackCountByFileObs.read(reader);
 			const agentFeedbackCount = agentFeedbackByFile?.get(data.uri.fsPath) ?? 0;
 
 			if (agentFeedbackCount > 0) {

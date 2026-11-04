@@ -11,7 +11,7 @@
 	width: 20px;
 	height: 20px;
 	border-radius: 3px;
-	border: 1px solid transparent;
+	border: var(--vscode-strokeThickness, 1px) solid var(--monaco-custom-toggle-border-color, transparent);
 	padding: 1px;
 	box-sizing:	border-box;
 	user-select: none;
@@ -20,6 +20,14 @@
 
 .monaco-custom-toggle:hover {
 	background-color: var(--vscode-inputOption-hoverBackground);
+}
+
+div.monaco-custom-toggle:not(.monaco-checkbox):focus {
+	outline: none;
+}
+
+div.monaco-custom-toggle:not(.monaco-checkbox):focus-visible {
+	border: var(--vscode-strokeThickness, 1px) dashed var(--vscode-focusBorder);
 }
 
 .monaco-custom-toggle.disabled {

@@ -179,6 +179,41 @@ describe('GeminiFunctionDeclarationConverter', () => {
 			});
 		});
 
+		it('should omit non-string enums from nested schemas', () => {
+			const result = toGeminiFunction('nestedEnumFunction', 'Function with nested non-string enums', {
+				type: 'object',
+				properties: {
+					values: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: {
+								enabled: {
+									type: 'boolean',
+									enum: [true]
+								},
+								count: {
+									type: 'integer',
+									enum: [1, 2]
+								}
+							}
+						}
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['values']).toEqual({
+				type: Type.ARRAY,
+				items: {
+					type: Type.OBJECT,
+					properties: {
+						enabled: { type: Type.BOOLEAN },
+						count: { type: Type.INTEGER }
+					}
+				}
+			});
+		});
+
 		it('should handle nullable anyOf schemas', () => {
 			const result = toGeminiFunction('nullableAnyOfFunction', 'Function with nullable anyOf', {
 				type: 'object',

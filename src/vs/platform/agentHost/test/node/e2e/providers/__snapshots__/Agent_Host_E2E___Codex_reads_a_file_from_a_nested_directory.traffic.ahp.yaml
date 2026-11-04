@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Read nested/value.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
+            text: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Read nested/value.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
+            text: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
             origin:
               kind: user
       - channel: ${session_0}
@@ -31,7 +31,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: I’m reading `nested/value.txt` now and will return its contents exactly with no extra text.
+            content: Running the exact command now and I’ll return only its raw output.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -43,8 +43,6 @@ rounds:
           type: chat/toolCallComplete
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          result:
-            success: true
       - channel: ${chat_0}
         action:
           type: chat/responsePart

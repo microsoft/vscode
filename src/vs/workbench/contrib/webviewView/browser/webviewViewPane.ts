@@ -140,6 +140,11 @@ export class WebviewViewPane extends ViewPane {
 		this.layoutWebview();
 	}
 
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.layoutWebview();
+	}
+
 	public override saveState() {
 		if (this._webview.value) {
 			this.viewState[storageKeys.webviewState] = this._webview.value.state;
@@ -257,6 +262,8 @@ export class WebviewViewPane extends ViewPane {
 				priority: 150
 			};
 			this.activity.value = this.activityService.showViewActivity(this.id, activity);
+		} else {
+			this.activity.clear();
 		}
 	}
 

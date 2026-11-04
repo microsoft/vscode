@@ -1,0 +1,290 @@
+{
+  "$comment": "Conformance vectors for the verbatim SDK ModelCallFailureData snapshot carried by `copilot.modelCallFailure` on SessionState._meta.",
+  "key": "copilot.modelCallFailure",
+  "carrier": "SessionState._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: serializes representative SDK diagnostics in camelCase",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "apiCallId": "chatcmpl-123",
+          "apiEndpoint": "/responses",
+          "badRequestKind": "structured_error",
+          "durationMs": 1200,
+          "errorCode": "model_max_prompt_tokens_exceeded",
+          "errorMessage": "400 Bad Request",
+          "errorType": "websocket_error",
+          "failureKind": "api",
+          "initiator": "sub-agent",
+          "isAuto": true,
+          "isByok": false,
+          "maxOutputTokens": 16000,
+          "maxPromptTokens": 128000,
+          "model": "gpt-5.4",
+          "providerCallId": "GH-REQUEST-ID",
+          "quotaSnapshots": {
+            "premium_interactions": {
+              "entitlementRequests": 300,
+              "hasQuota": true,
+              "isUnlimitedEntitlement": false,
+              "overage": 2.0,
+              "overageAllowedWithExhaustedQuota": true,
+              "overageEntitlement": 10.5,
+              "remainingPercentage": 42.5,
+              "resetDate": "2026-08-01",
+              "tokenBasedBilling": false,
+              "usageAllowedWithExhaustedQuota": true,
+              "usedRequests": 172
+            }
+          },
+          "reasoningEffort": "high",
+          "requestFingerprint": {
+            "imagePartCount": 2,
+            "imagePartsMissingMediaType": 1,
+            "lastMessageRole": "tool",
+            "messageCount": 18,
+            "namelessToolCallCount": 1,
+            "toolCallCount": 5,
+            "toolResultMessageCount": 4
+          },
+          "serviceRequestId": "COPILOT-REQUEST-ID",
+          "source": "top_level",
+          "statusCode": 400,
+          "transport": "websocket"
+        }
+      },
+      "expected": {
+        "meta": {
+          "apiCallId": "chatcmpl-123",
+          "apiEndpoint": "/responses",
+          "badRequestKind": "structured_error",
+          "durationMs": 1200,
+          "errorCode": "model_max_prompt_tokens_exceeded",
+          "errorMessage": "400 Bad Request",
+          "errorType": "websocket_error",
+          "failureKind": "api",
+          "initiator": "sub-agent",
+          "isAuto": true,
+          "isByok": false,
+          "maxOutputTokens": 16000,
+          "maxPromptTokens": 128000,
+          "model": "gpt-5.4",
+          "providerCallId": "GH-REQUEST-ID",
+          "quotaSnapshots": {
+            "premium_interactions": {
+              "entitlementRequests": 300,
+              "hasQuota": true,
+              "isUnlimitedEntitlement": false,
+              "overage": 2.0,
+              "overageAllowedWithExhaustedQuota": true,
+              "overageEntitlement": 10.5,
+              "remainingPercentage": 42.5,
+              "resetDate": "2026-08-01",
+              "tokenBasedBilling": false,
+              "usageAllowedWithExhaustedQuota": true,
+              "usedRequests": 172
+            }
+          },
+          "reasoningEffort": "high",
+          "requestFingerprint": {
+            "imagePartCount": 2,
+            "imagePartsMissingMediaType": 1,
+            "lastMessageRole": "tool",
+            "messageCount": 18,
+            "namelessToolCallCount": 1,
+            "toolCallCount": 5,
+            "toolResultMessageCount": 4
+          },
+          "serviceRequestId": "COPILOT-REQUEST-ID",
+          "source": "top_level",
+          "statusCode": 400,
+          "transport": "websocket"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: omits absent optional diagnostics",
+      "op": "projectFromSdk",
+      "input": { "sdk": { "source": "subagent" } },
+      "expected": { "meta": { "source": "subagent" } }
+    },
+    {
+      "name": "set: stamps the failure onto empty _meta",
+      "op": "set",
+      "input": {
+        "meta": {},
+        "value": { "source": "top_level", "statusCode": 503, "model": "gpt-5.4" }
+      },
+      "expected": {
+        "meta": {
+          "copilot.modelCallFailure": {
+            "source": "top_level",
+            "statusCode": 503,
+            "model": "gpt-5.4"
+          }
+        }
+      }
+    },
+    {
+      "name": "set: preserves sibling metadata",
+      "op": "set",
+      "input": {
+        "meta": { "copilot.usageInfo": { "tokenLimit": 200000 } },
+        "value": { "source": "top_level", "statusCode": 503, "model": "gpt-5.4" }
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageInfo": { "tokenLimit": 200000 },
+          "copilot.modelCallFailure": {
+            "source": "top_level",
+            "statusCode": 503,
+            "model": "gpt-5.4"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns a non-empty failure",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.modelCallFailure": {
+            "source": "top_level",
+            "statusCode": 503,
+            "model": "gpt-5.4"
+          }
+        }
+      },
+      "expected": {
+        "failure": { "source": "top_level", "statusCode": 503, "model": "gpt-5.4" }
+      }
+    },
+    {
+      "name": "extract: absent key returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.usageInfo": { "tokenLimit": 200000 } } },
+      "expected": { "failure": null }
+    },
+    {
+      "name": "extract: empty _meta returns null",
+      "op": "extract",
+      "input": { "meta": {} },
+      "expected": { "failure": null }
+    },
+    {
+      "name": "extract: empty object returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.modelCallFailure": {} } },
+      "expected": { "failure": null }
+    },
+    {
+      "name": "extract: wrong type returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.modelCallFailure": "503" } },
+      "expected": { "failure": null }
+    },
+    {
+      "name": "wireShape: pins the flat dotted failure snapshot",
+      "op": "wireShape",
+      "input": {
+        "sdk": {
+          "apiCallId": "chatcmpl-123",
+          "apiEndpoint": "/responses",
+          "badRequestKind": "structured_error",
+          "durationMs": 1200,
+          "errorCode": "model_max_prompt_tokens_exceeded",
+          "errorMessage": "400 Bad Request",
+          "errorType": "websocket_error",
+          "failureKind": "api",
+          "initiator": "sub-agent",
+          "isAuto": true,
+          "isByok": false,
+          "maxOutputTokens": 16000,
+          "maxPromptTokens": 128000,
+          "model": "gpt-5.4",
+          "providerCallId": "GH-REQUEST-ID",
+          "quotaSnapshots": {
+            "premium_interactions": {
+              "entitlementRequests": 300,
+              "hasQuota": true,
+              "isUnlimitedEntitlement": false,
+              "overage": 2.0,
+              "overageAllowedWithExhaustedQuota": true,
+              "overageEntitlement": 10.5,
+              "remainingPercentage": 42.5,
+              "resetDate": "2026-08-01",
+              "tokenBasedBilling": false,
+              "usageAllowedWithExhaustedQuota": true,
+              "usedRequests": 172
+            }
+          },
+          "reasoningEffort": "high",
+          "requestFingerprint": {
+            "imagePartCount": 2,
+            "imagePartsMissingMediaType": 1,
+            "lastMessageRole": "tool",
+            "messageCount": 18,
+            "namelessToolCallCount": 1,
+            "toolCallCount": 5,
+            "toolResultMessageCount": 4
+          },
+          "serviceRequestId": "COPILOT-REQUEST-ID",
+          "source": "top_level",
+          "statusCode": 400,
+          "transport": "websocket"
+        }
+      },
+      "expected": {
+        "json": {
+          "copilot.modelCallFailure": {
+            "apiCallId": "chatcmpl-123",
+            "apiEndpoint": "/responses",
+            "badRequestKind": "structured_error",
+            "durationMs": 1200,
+            "errorCode": "model_max_prompt_tokens_exceeded",
+            "errorMessage": "400 Bad Request",
+            "errorType": "websocket_error",
+            "failureKind": "api",
+            "initiator": "sub-agent",
+            "isAuto": true,
+            "isByok": false,
+            "maxOutputTokens": 16000,
+            "maxPromptTokens": 128000,
+            "model": "gpt-5.4",
+            "providerCallId": "GH-REQUEST-ID",
+            "quotaSnapshots": {
+              "premium_interactions": {
+                "entitlementRequests": 300,
+                "hasQuota": true,
+                "isUnlimitedEntitlement": false,
+                "overage": 2.0,
+                "overageAllowedWithExhaustedQuota": true,
+                "overageEntitlement": 10.5,
+                "remainingPercentage": 42.5,
+                "resetDate": "2026-08-01",
+                "tokenBasedBilling": false,
+                "usageAllowedWithExhaustedQuota": true,
+                "usedRequests": 172
+              }
+            },
+            "reasoningEffort": "high",
+            "requestFingerprint": {
+              "imagePartCount": 2,
+              "imagePartsMissingMediaType": 1,
+              "lastMessageRole": "tool",
+              "messageCount": 18,
+              "namelessToolCallCount": 1,
+              "toolCallCount": 5,
+              "toolResultMessageCount": 4
+            },
+            "serviceRequestId": "COPILOT-REQUEST-ID",
+            "source": "top_level",
+            "statusCode": 400,
+            "transport": "websocket"
+          }
+        }
+      }
+    }
+  ]
+}

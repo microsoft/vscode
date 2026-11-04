@@ -209,7 +209,7 @@ class SessionChatPillsDebugService extends Disposable implements ISessionChatPil
 					disposables.add(autoIncrementCheckbox.onChange(() => state.autoIncrementChanges = autoIncrementCheckbox.checked));
 					disposables.add(DOM.addDisposableListener(autoIncrementLabelElement, DOM.EventType.CLICK, () => setAutoIncrement(!autoIncrementCheckbox.checked)));
 
-					this._createInput(form, disposables, localize('sessions.debug.chatPills.markdownFiles', "Markdown File Names"), state.markdownFiles, value => state.markdownFiles = value);
+					this._createInput(form, disposables, localize('sessions.debug.chatPills.artifactFiles', "Artifact File Names"), state.markdownFiles, value => state.markdownFiles = value);
 					this._createInput(form, disposables, localize('sessions.debug.chatPills.subagents', "Subagent Names"), state.subagents, value => state.subagents = value);
 					this._createInput(form, disposables, localize('sessions.debug.chatPills.browsers', "Browser Labels"), state.browsers, value => state.browsers = value);
 

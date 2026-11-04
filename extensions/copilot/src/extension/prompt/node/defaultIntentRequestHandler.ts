@@ -15,7 +15,6 @@ import { ISessionTranscriptService } from '../../../platform/chat/common/session
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession, NullEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignoreService';
@@ -40,6 +39,7 @@ import { assertType, Mutable } from '../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseMarkdownPart, ChatResponseProgressPart, ChatResponseTextEditPart, LanguageModelToolResult2 } from '../../../vscodeTypes';
 import { CodeBlocksMetadata, CodeBlockTrackingChatResponseStream } from '../../codeBlocks/node/codeBlockProcessor';
+import { Intent } from '../../common/constants';
 import { CopilotInteractiveEditorResponse, InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { formatHookErrorMessage, HookAbortError, isHookAbortError, processHookResults } from '../../intents/node/hookResultProcessor';
 import { EmptyPromptError, IToolCallingBuiltPromptEvent, IToolCallingLoopOptions, IToolCallingResponseEvent, IToolCallLoopResult, ToolCallingLoop, ToolCallingLoopFetchOptions, ToolCallLimitBehavior } from '../../intents/node/toolCallingLoop';
@@ -50,7 +50,7 @@ import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ToolCallCancelledError } from '../../tools/common/toolsService';
 import { IToolGrouping, IToolGroupingService } from '../../tools/common/virtualTools/virtualToolTypes';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
-import { Conversation, getUniqueReferences, GlobalContextMessageMetadata, IResultMetadata, RenderedUserMessageMetadata, RequestDebugInformation, ResponseStreamParticipant, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
+import { Conversation, getUniqueReferences, GlobalContextMessageMetadata, IResultMetadata, RenderedUserMessageMetadata, RequestDebugInformation, ResponseStreamParticipant, Turn, TurnResponseGitHubCopilotRequestTe, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
 import { IBuildPromptContext, IToolCallRound } from '../common/intents';
 import { isToolCallLimitCancellation, ISwitchToAutoOnRateLimitConfirmation } from '../common/specialRequestTypes';
 import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry';
@@ -297,7 +297,8 @@ export class DefaultIntentRequestHandler {
 
 	private async _onDidReceiveResponse({ response, toolCalls, interactionOutcome }: IToolCallingResponseEvent) {
 		const responseMessage = (response.type === ChatFetchResponseType.Success ? response.value : '');
-		await this._loop.telemetry.sendTelemetry(response.requestId, response.type, responseMessage, interactionOutcome.interactionOutcome, toolCalls);
+		this.turn.setMetadata(new TurnResponseGitHubCopilotRequestTe(response.gitHubCopilotRequestTe));
+		await this._loop.telemetry.sendTelemetry(response.requestId, response.type, responseMessage, interactionOutcome.interactionOutcome, toolCalls, response.gitHubCopilotRequestTe);
 
 		if (this.documentContext) {
 			this.turn.setMetadata(new CopilotInteractiveEditorResponse(
@@ -332,6 +333,7 @@ export class DefaultIntentRequestHandler {
 				onHitToolCallLimit: this.handlerOptions.confirmOnMaxToolIterations !== false
 					? ToolCallLimitBehavior.Confirm : ToolCallLimitBehavior.Stop,
 				request: this.request,
+				enableVoiceProgress: this.intent.id === Intent.Agent,
 				documentContext: this.documentContext,
 				streamParticipants: this.makeResponseStreamParticipants(intentInvocation),
 				temperature: this.handlerOptions.temperature ?? this.options.temperature,
@@ -542,6 +544,12 @@ export class DefaultIntentRequestHandler {
 				this.turn.setResponse(TurnStatus.Filtered, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
+			case ChatFetchResponseType.Refusal: {
+				const errorDetails = await this.getErrorDetails(fetchResult);
+				const chatResult = { errorDetails, metadata: metadataFragment };
+				this.turn.setResponse(TurnStatus.Filtered, undefined, baseModelTelemetry.properties.messageId, chatResult);
+				return chatResult;
+			}
 			case ChatFetchResponseType.PromptFiltered: {
 				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: { ...metadataFragment, filterReason: FilterReason.Prompt } };
@@ -621,11 +629,11 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		@IToolGroupingService private readonly toolGroupingService: IToolGroupingService,
 		@IChatHookService chatHookService: IChatHookService,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
-		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
-		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
+		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, otelService, gitService, authenticationService);
 
 		this._register(this.onDidBuildPrompt(({ result, tools, promptTokenLength, toolTokenCount }) => {
 			if (result.metadata.get(SummarizedConversationHistoryMetadata)) {

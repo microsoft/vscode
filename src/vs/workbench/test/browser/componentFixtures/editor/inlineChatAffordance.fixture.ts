@@ -32,7 +32,7 @@ const SAMPLE_CODE = `function greet(name: string): string {
 greet("World");
 `;
 
-function renderInlineChatAffordance({ container, disposableStore, theme }: ComponentFixtureContext, withSelection: boolean): void {
+function renderInlineChatAffordance({ container, disposableStore, theme, focus }: ComponentFixtureContext, withSelection: boolean): void {
 	container.style.width = '500px';
 	container.style.height = '180px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
@@ -86,7 +86,7 @@ function renderInlineChatAffordance({ container, disposableStore, theme }: Compo
 		? new Selection(2, 9, 2, 28)
 		: new Selection(2, 1, 2, 1);
 	editor.setSelection(selection);
-	editor.focus();
+	focus(editor);
 
 	disposableStore.add(instantiationService.createInstance(
 		InlineChatAffordanceWidget,

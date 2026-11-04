@@ -5,7 +5,14 @@
 
 /* Title Label */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container {
+	display: flex;
+	width: 100%;
+	height: var(--editor-group-tab-height);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .label-container {
 	height: var(--editor-group-tab-height);
 	display: flex;
 	justify-content: flex-start;
@@ -14,7 +21,8 @@
 	flex: auto;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .label-container > .title-label {
 	line-height: var(--editor-group-tab-height);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -22,7 +30,8 @@
 	padding-left: 20px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label > .monaco-icon-label-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label > .monaco-icon-label-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .label-container > .title-label > .monaco-icon-label-container {
 	flex: initial; /* helps to show decorations right next to the label and not at the end while still preserving text overflow ellipsis */
 }
 
@@ -97,7 +106,8 @@
 
 /* Editor Actions Toolbar (via title actions) */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .title-actions {
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
@@ -105,15 +115,18 @@
 	height: var(--editor-group-tab-height);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions.hidden {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions.hidden,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .title-actions.hidden {
 	display: none;
 }
 
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item,
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .single-tab-and-actions-container > .title-actions .action-item {
 	margin-right: 4px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title > .title-actions {
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title > .title-actions,
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title > .single-tab-and-actions-container > .title-actions {
 	opacity: 1;
 }

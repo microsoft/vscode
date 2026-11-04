@@ -150,14 +150,15 @@
 
 			acquire(responseChannel: string, nonce: string) {
 				if (validateIPC(responseChannel)) {
-					const responseListener = (e: Electron.IpcRendererEvent, responseNonce: string) => {
+					const responseListener = (e: Electron.IpcRendererEvent, response: string | { nonce: string; error?: string; fatal?: boolean }) => {
 						// validate that the nonce from the response is the same
 						// as when requested. and if so, use `postMessage` to
 						// send the `MessagePort` safely over, even when context
 						// isolation is enabled
+						const responseNonce = typeof response === 'string' ? response : response.nonce;
 						if (nonce === responseNonce) {
 							ipcRenderer.off(responseChannel, responseListener);
-							window.postMessage(nonce, '*', e.ports);
+							window.postMessage(response, '*', e.ports);
 						}
 					};
 

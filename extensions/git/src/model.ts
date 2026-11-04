@@ -797,7 +797,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			if (repository.submodules.length > submodulesLimit && !submoduleLimitWarningShown) {
 				submoduleLimitWarningShown = true;
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length));
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length), { notificationId: 'git.submoduleLimit' });
 			}
 
 			const submodulePaths = repository.submodules.map(r => path.join(repository.root, r.path));
@@ -851,7 +851,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			if (repository.worktrees.length > worktreesLimit && !worktreesLimitWarningShown) {
 				worktreesLimitWarningShown = true;
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length));
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length), { notificationId: 'git.worktreeLimit' });
 			}
 
 			repository.worktrees
@@ -1208,7 +1208,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const always = l10n.t('Always');
 		const never = l10n.t('Never');
 
-		const choice = await window.showInformationMessage(message, yes, always, never);
+		const choice = await window.showInformationMessage(message, { notificationId: 'git.parentRepository' }, yes, always, never);
 		if (choice === yes) {
 			// Open Parent Repositories
 			commands.executeCommand('git.openRepositoriesInParentFolders');
@@ -1240,7 +1240,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const manageUnsafeRepositories = l10n.t('Manage Unsafe Repositories');
 		const learnMore = l10n.t('Learn More');
 
-		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
+		const choice = await window.showErrorMessage(message, { notificationId: 'git.unsafeRepository' }, manageUnsafeRepositories, learnMore);
 		if (choice === manageUnsafeRepositories) {
 			// Manage Unsafe Repositories
 			commands.executeCommand('git.manageUnsafeRepositories');

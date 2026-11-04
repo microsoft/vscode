@@ -103,22 +103,23 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
 		const currentWorkspace = this.delegate.getSelectedWorkspace();
 
 		const labelElements: (string | HTMLElement)[] = [];
+		const label = currentWorkspace
+			? currentWorkspace.label || basename(currentWorkspace.uri)
+			: localize('selectWorkspace', "Workspace");
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
 
-		if (currentWorkspace) {
-			// Show the workspace label or folder name
-			const label = currentWorkspace.label || basename(currentWorkspace.uri);
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
+		labelElements.push(...renderLabelWithIcons(`$(folder-compact)`));
+		if (!compact) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		} else {
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
-			labelElements.push(dom.$('span.chat-input-picker-label', undefined, localize('selectWorkspace', "Workspace")));
 		}
 
 		dom.reset(element, ...labelElements);
+		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 
 		return null;
 	}

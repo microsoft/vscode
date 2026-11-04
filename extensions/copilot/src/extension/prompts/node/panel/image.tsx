@@ -35,6 +35,10 @@ export interface HistoricalImageProps extends BasePromptElementProps {
 	mimeType?: string;
 }
 
+function canSendImage(endpoint: IPromptEndpoint): boolean {
+	return endpoint.supportsVision;
+}
+
 /**
  * Renders an image from conversation history.
  * Checks if the current model supports vision and omits the image if not.
@@ -43,17 +47,12 @@ export class HistoricalImage extends PromptElement<HistoricalImageProps, unknown
 	constructor(
 		props: HistoricalImageProps,
 		@IPromptEndpoint private readonly promptEndpoint: IPromptEndpoint,
-		@IAuthenticationService private readonly authService: IAuthenticationService,
 	) {
 		super(props);
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// If the model doesn't support vision, omit historical images.
-		// Editor preview features are gated only when a Copilot token explicitly
-		// disables them (org policy). Signed-out / BYOK users have no Copilot token
-		// and must not be blocked, so default to enabled when the token is absent.
-		if (!this.promptEndpoint.supportsVision || !(this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true)) {
+		if (!canSendImage(this.promptEndpoint)) {
 			return undefined;
 		}
 
@@ -74,21 +73,13 @@ export class Image extends PromptElement<ImageProps, unknown> {
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// See HistoricalImage: only an explicit org-policy Copilot token disables preview
-		// features; a missing token (signed-out / BYOK) must still send the image.
-		const previewFeaturesEnabled = this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true;
 		const noVisionDescription = l10n.t("{0} does not support images.", this.promptEndpoint.model);
-		// Report the actual reason so a vision-capable model isn't misreported as not supporting images.
-		const omittedDescription = !this.promptEndpoint.supportsVision
-			? noVisionDescription
-			: l10n.t("Images are omitted because editor preview features are disabled by organization policy.");
-		const omittedOptions = { status: { description: omittedDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
-		const errorOptions = { status: { description: noVisionDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
+		const omittedOptions = { status: { description: noVisionDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
 
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			if (!this.promptEndpoint.supportsVision || !previewFeaturesEnabled) {
+			if (!canSendImage(this.promptEndpoint)) {
 				if (this.props.omitReferences) {
 					return;
 				}
@@ -134,7 +125,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 
 			return (
 				<>
-					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, errorOptions)]} />
+					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, omittedOptions)]} />
 				</>);
 		}
 	}

@@ -12,18 +12,30 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { RequestService } from '../../../request/node/requestService.js';
 import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage, type IAgentSdkDownloadProgress } from '../../node/agentSdkDownloader.js';
+import { AgentHostStorageService, type IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { ClaudeSdkPackage } from '../../node/claude/claudeAgentSdkService.js';
 import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import type { IProductService } from '../../../product/common/productService.js';
+
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+		this.events.push({ name: eventName ?? '', data: data ?? {} });
+	}
+}
 
 interface ITestSdkDownloadFixture {
 	tarballPath: string;
@@ -234,17 +246,24 @@ suite('AgentSdkDownloader', () => {
 	 * explicitly. Pass `productConfig: null` to omit the agentSdks block
 	 * entirely (the "no product config" case).
 	 */
-	function makeDownloader(productConfig?: { version?: string; urlTemplate?: string } | null) {
+	function makeDownloader(
+		productConfig?: { version?: string; urlTemplate?: string } | null,
+		telemetryService: ITelemetryService = NullTelemetryService,
+		storageService?: IAgentHostStorageService,
+	) {
 		const config = productConfig === null ? undefined : {
 			version: productConfig?.version ?? '1.0.0',
 			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/sdk-{sdkTarget}.tgz`,
 		};
+		const storage = storageService ?? disposables.add(new AgentHostStorageService(undefined, new NullLogService()));
 		return disposables.add(new AgentSdkDownloader(
 			makeEnvService(userDataPath),
 			makeProductService(config),
 			makeRequestService(disposables),
 			makeFileService(disposables),
 			new NullLogService(),
+			telemetryService,
+			storage,
 		));
 	}
 
@@ -265,6 +284,25 @@ suite('AgentSdkDownloader', () => {
 		process.env[AgentHostClaudeSdkRootEnvVar] = '/path/to/dev/sdk';
 		const root = await makeDownloader(null).loadSdkRoot(ClaudeSdkPackage, newToken());
 		assert.strictEqual(root, '/path/to/dev/sdk');
+	});
+
+	test('resolveInstalledSdkRoot never downloads on a cold or removed cache', async () => {
+		const downloader = makeDownloader();
+		const cold = await downloader.resolveInstalledSdkRoot(ClaudeSdkPackage);
+		const coldRequests = server.requestCount;
+		const installed = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		const cached = await downloader.resolveInstalledSdkRoot(ClaudeSdkPackage);
+		await fsp.unlink(path.join(installed, '.complete'));
+		const removed = await downloader.resolveInstalledSdkRoot(ClaudeSdkPackage);
+		assert.deepStrictEqual({ cold, coldRequests, cached, removed, requests: server.requestCount }, {
+			cold: undefined, coldRequests: 0, cached: installed, removed: undefined, requests: 1,
+		});
+	});
+
+	test('resolveInstalledSdkRoot uses the configured local SDK', async () => {
+		process.env[AgentHostClaudeSdkRootEnvVar] = '/local/history-reader';
+		const root = await makeDownloader(null).resolveInstalledSdkRoot(ClaudeSdkPackage);
+		assert.deepStrictEqual({ root, requests: server.requestCount }, { root: '/local/history-reader', requests: 0 });
 	});
 
 	test('loadSdkRoot: substitutes {sdkTarget} into urlTemplate', async () => {
@@ -306,14 +344,112 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(completed.receivedBytes, tarballSize);
 	});
 
+	test('loadSdkRoot: counts only the endpoints of a download, with the time it took', async () => {
+		const telemetry = new RecordingTelemetryService();
+		const downloader = makeDownloader(undefined, telemetry);
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		// The throttled `progress` frames drive the progress bar, not the funnel.
+		assert.deepStrictEqual(telemetry.events.map(event => [event.name, event.data.phase]), [
+			['agentHost.agentSdkDownload', 'started'],
+			['agentHost.agentSdkDownload', 'completed'],
+		]);
+		const completed = telemetry.events[1].data;
+		assert.strictEqual(completed.packageId, 'claude');
+		assert.strictEqual(completed.failureReason, '');
+		assert.strictEqual(completed.explicitlyRequested, false);
+		assert.ok(typeof completed.durationMs === 'number' && completed.durationMs >= 0);
+	});
+
+	test('loadSdkRoot: a failed download reports its bucket, never the raw cause', async () => {
+		const telemetry = new RecordingTelemetryService();
+		// Port 1 on loopback refuses instantly, so this is a network failure with
+		// no bytes and no advertised total.
+		const downloader = makeDownloader({ urlTemplate: 'http://127.0.0.1:1/sdk-{sdkTarget}.tgz' }, telemetry);
+
+		await assert.rejects(() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()));
+
+		const failure = telemetry.events[telemetry.events.length - 1].data;
+		assert.strictEqual(failure.phase, 'failed');
+		assert.strictEqual(failure.failureReason, 'network');
+		assert.strictEqual(failure.totalBytes, 0, 'an unknown total is reported as zero rather than dropped');
+		assert.ok(!JSON.stringify(failure).includes(userDataPath), 'the on-disk cache path must not reach telemetry');
+	});
+
+	test('loadSdkRoot: marks progress explicitly requested by a user-initiated flow', async () => {
+		const telemetry = new RecordingTelemetryService();
+		const downloader = makeDownloader(undefined, telemetry);
+		const samples: IAgentSdkDownloadProgress[] = [];
+		disposables.add(downloader.onDidDownloadProgress(p => samples.push(p)));
+		disposables.add(downloader.acquireDownloadProgressInterest(ClaudeSdkPackage));
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		assert.ok(samples.length >= 2);
+		assert.ok(samples.every(sample => sample.explicitlyRequested));
+		// The same split reaches telemetry, which is what separates a button press
+		// from a quiet re-fetch under standing consent.
+		assert.ok(telemetry.events.every(event => event.data.explicitlyRequested === true));
+	});
+
+	test('loadSdkRoot: a user asking by hand retries through the negative cache', async () => {
+		// Port 1 refuses instantly, so every attempt here fails. The latch rethrows
+		// the *same* error it stored, while a real attempt builds a new one — which
+		// is how this tells a short-circuit from a retry without a second server.
+		const downloader = makeDownloader({ urlTemplate: 'http://127.0.0.1:1/sdk-{sdkTarget}.tgz' });
+		const failure = async () => {
+			try {
+				await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+				throw new Error('expected the download to fail');
+			} catch (err) {
+				return err;
+			}
+		};
+
+		const first = await failure();
+		assert.strictEqual(await failure(), first, 'a background caller is short-circuited by the latch');
+
+		disposables.add(downloader.acquireDownloadProgressInterest(ClaudeSdkPackage));
+		assert.notStrictEqual(await failure(), first, 'an explicit request is a fresh mandate to try again');
+	});
+
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {
 		const downloader = makeDownloader();
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 1);
 
 		// Second call hits the cache.
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 1, 'cache hit should not re-download');
+		assert.deepStrictEqual({
+			requests: server.requestCount,
+			downloadConsent: downloader.hasDownloadConsent(ClaudeSdkPackage),
+		}, {
+			requests: 1,
+			downloadConsent: false,
+		});
+	});
+
+	test('download consent persists in host storage without an SDK cache', async () => {
+		const storageResource = URI.file(path.join(userDataPath, 'agent-host-storage.json'));
+		const firstStorage = disposables.add(new AgentHostStorageService(storageResource, new NullLogService()));
+		const first = makeDownloader(undefined, NullTelemetryService, firstStorage);
+		await first.recordDownloadConsent(ClaudeSdkPackage);
+
+		const restartedStorage = disposables.add(new AgentHostStorageService(storageResource, new NullLogService()));
+		const restarted = makeDownloader(undefined, NullTelemetryService, restartedStorage);
+		const otherPackage: IAgentSdkPackage = { ...ClaudeSdkPackage, id: 'codex' };
+
+		assert.deepStrictEqual({
+			first: first.hasDownloadConsent(ClaudeSdkPackage),
+			restarted: restarted.hasDownloadConsent(ClaudeSdkPackage),
+			otherPackage: restarted.hasDownloadConsent(otherPackage),
+			sdkLocal: await restarted.isSdkResolvableWithoutDownload(ClaudeSdkPackage),
+		}, {
+			first: true,
+			restarted: true,
+			otherPackage: false,
+			sdkLocal: false,
+		});
 	});
 
 	test('loadSdkRoot: cache dir includes sdkTarget so Universal launches stay separate', async () => {
@@ -415,5 +551,26 @@ suite('AgentSdkDownloader', () => {
 		const root = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
 		assert.strictEqual(root, target);
 		assert.strictEqual(server.requestCount, 0);
+	});
+
+	const DAY_MS = 24 * 60 * 60 * 1000;
+
+	test('loadSdkRoot records its use so that other processes keep the version', async () => {
+		const root = await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
+		const sentinel = path.join(root, '.complete');
+		const monthAgo = new Date(Date.now() - 30 * DAY_MS);
+		await fsp.utimes(sentinel, monthAgo, monthAgo);
+
+		await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		const now = Date.now();
+		const lastUsed = (await fsp.stat(sentinel)).mtimeMs;
+		assert.deepStrictEqual({
+			requests: server.requestCount,
+			usedToday: now - lastUsed < DAY_MS,
+		}, {
+			requests: 1,
+			usedToday: true,
+		});
 	});
 });

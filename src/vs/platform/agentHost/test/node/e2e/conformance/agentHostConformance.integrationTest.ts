@@ -40,17 +40,18 @@ const REFERENCE_CONFIG: IAgentHostE2EProviderConfig = {
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
+	fileOperationStrategy: 'fileTools',
 	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: true,
 	supportsWorktreeIsolation: true,
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
-	supportsPlanMode: true,
+	planModeStyle: 'session-state',
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
-	supportsFileTools: true,
 };
 
 defineAgentHostConformanceTests(REFERENCE_CONFIG);

@@ -9,6 +9,8 @@ import { NoNextEditReason, StreamedEdit } from '../../../../platform/inlineEdits
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { AsyncIterableSource } from '../../../../util/vs/base/common/async';
+import { isWindows } from '../../../../util/vs/base/common/platform';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { Position } from '../../../../util/vs/editor/common/core/position';
 import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRange';
@@ -95,6 +97,43 @@ relative/path/to/another_file.js:42
 +Added line`;
 		const patches = await collectPatches(patchText);
 		expect(patches).toEqual(patchText);
+	});
+
+	it.skipIf(!isWindows)('applies a patch for a Windows path whose parent folder contains a space', async () => {
+		const workspaceRoot = URI.file('C:\\workspace');
+		const documentId = DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString());
+		const document = new CurrentDocument(new StringText('def my_function'), new Position(1, 16));
+		const lines = AsyncIterUtils.fromArray([
+			'space folder/test.py:0',
+			'-def my_function',
+			'+def my_function():',
+			'+    pass',
+		]);
+
+		const { edits } = await consumeHandleResponse(
+			lines,
+			document,
+			documentId,
+			workspaceRoot,
+			undefined,
+			new TestLogService(),
+			DuplicateAdditionsMode.Off,
+			true,
+		);
+
+		expect(edits.map(edit => ({
+			targetDocument: edit.targetDocument.toString(),
+			lineRange: edit.edit.lineRange.toString(),
+			newLines: edit.edit.newLines,
+		}))).toEqual([{
+			targetDocument: 'file:///c%3A/workspace/space%20folder/test.py',
+			lineRange: '[1,2)',
+			newLines: ['def my_function():'],
+		}, {
+			targetDocument: 'file:///c%3A/workspace/space%20folder/test.py',
+			lineRange: '[2,2)',
+			newLines: ['    pass'],
+		}]);
 	});
 
 	it('discard a patch if no valid header', async () => {

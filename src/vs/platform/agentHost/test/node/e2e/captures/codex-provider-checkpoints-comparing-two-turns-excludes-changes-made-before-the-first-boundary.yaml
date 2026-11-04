@@ -1,0 +1,262 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''early.txt'',''early'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+    response:
+      content:
+        - type: text
+          text: Running the exact command now, then I’ll confirm completion.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').writeFileSync('early.txt','early')"
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''early.txt'',''early'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running the exact command now, then I’ll confirm completion.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('early.txt','early')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: fe8e2a
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: done
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''early.txt'',''early'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running the exact command now, then I’ll confirm completion.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('early.txt','early')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: fe8e2a
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+    response:
+      content: settled
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''early.txt'',''early'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running the exact command now, then I’ll confirm completion.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('early.txt','early')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: fe8e2a
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+        - role: assistant
+          content: settled
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''later\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+    response:
+      content:
+        - type: text
+          text: Running that exact command now, then I’ll reply done.
+        - type: tool_use
+          id: toolcall_1
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').writeFileSync('seed.txt','later\n')"
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''early.txt'',''early'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running the exact command now, then I’ll confirm completion.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('early.txt','early')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: fe8e2a
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+        - role: assistant
+          content: settled
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''later\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now, then I’ll reply done.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','later\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Chunk ID: 398682
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: done
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''early.txt'',''early'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running the exact command now, then I’ll confirm completion.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('early.txt','early')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: fe8e2a
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+        - role: assistant
+          content: settled
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''later\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now, then I’ll reply done.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','later\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Chunk ID: 398682
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+    response:
+      content: settled
+      stopReason: end_turn

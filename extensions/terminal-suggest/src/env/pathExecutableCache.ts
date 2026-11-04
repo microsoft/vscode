@@ -112,8 +112,10 @@ export class PathExecutableCache implements vscode.Disposable {
 					const labelText = typeof executable.label === 'string' ? executable.label : executable.label.label;
 					labels.add(labelText);
 				}
-			} else {
-				// Not cached, need to scan this directory
+			} else if (!promisePaths.includes(pathDir)) {
+				// Not cached, need to scan this directory. Scan it once even if PATH lists it more than
+				// once: concurrent scans of the same directory would split its executables between them,
+				// and only the first scan's result is cached.
 				promisePaths.push(pathDir);
 				promises.push(this._getExecutablesInSinglePath(pathDir, pathSeparator, labels));
 			}

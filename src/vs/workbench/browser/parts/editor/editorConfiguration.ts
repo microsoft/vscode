@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, markdownDefaultEditorAgentsWindowSettingId, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
+import { diffEditorsAssociationsAgentsWindowDefault, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, markdownDefaultEditorAgentsWindowSettingId, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -109,7 +109,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 	private updateDynamicEditorConfigurations(): void {
 		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS].filter(e => !DynamicEditorConfigurations.AUTO_LOCK_REMOVE_EDITORS.has(e.id));
-		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority.editor !== RegisteredEditorPriority.exclusive).map(e => e.id);
+		const binaryEditorCandidates = this.editorResolverService.getEditors({ excludeExclusiveEditors: true }).map(e => e.id);
 
 		// Build config from registered editors
 		const autoLockGroupConfiguration: IJSONSchemaMap = Object.create(null);
@@ -192,6 +192,9 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 							type: 'string',
 							enum: binaryEditorCandidates,
 						}
+					},
+					agentsWindow: {
+						default: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: markdownDefaultEditorEnabled })
 					}
 				}
 			}

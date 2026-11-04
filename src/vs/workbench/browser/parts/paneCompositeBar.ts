@@ -82,6 +82,7 @@ export interface IPaneCompositeBarOptions {
 	readonly preventLoopNavigation?: boolean;
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
+	readonly transformContextMenuActionsForComposite?: (actions: IAction[], compositeId: string) => IAction[];
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
 }
 
@@ -145,7 +146,10 @@ export class PaneCompositeBar extends Disposable {
 			getCompositeBadgeAction: compositeId => this.getCompositeActions(compositeId).badgeAction,
 			getOnCompositeClickAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			fillExtraContextMenuActions: (actions, e) => this.options.fillExtraContextMenuActions(actions, e),
-			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
+			getContextMenuActionsForComposite: compositeId => {
+				const actions = this.getContextMenuActionsForComposite(compositeId);
+				return this.options.transformContextMenuActionsForComposite?.(actions, compositeId) ?? actions;
+			},
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)?.id,
 			dndHandler: this.dndHandler,
 			compositeSize: this.options.compositeSize,

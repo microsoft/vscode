@@ -6,39 +6,35 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Read note.txt and reply with its exact contents only.
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''note.txt'',''utf8''))"`. Then reply with its exact output only.'
     response:
       content:
-        - type: text
-          text: I’ll read `note.txt` now and return its contents verbatim.
         - type: tool_use
           id: toolcall_0
           name: exec_command
           input:
-            cmd: cat note.txt
-            workdir: ${workdir}/ahp-coverage-read-${temp}
+            cmd: node -e "process.stdout.write(require('fs').readFileSync('note.txt','utf8'))"
+            workdir: ${workdir}
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: Read note.txt and reply with its exact contents only.
-        - role: assistant
-          content: I’ll read `note.txt` now and return its contents verbatim.
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''note.txt'',''utf8''))"`. Then reply with its exact output only.'
         - role: assistant
           content:
             - type: tool_use
               name: exec_command
               input:
-                cmd: cat note.txt
-                workdir: ${workdir}/ahp-coverage-read-${temp}
+                cmd: node -e "process.stdout.write(require('fs').readFileSync('note.txt','utf8'))"
+                workdir: ${workdir}
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: f549b9
+                Chunk ID: d852f3
                 Wall time: 0.0000 seconds
                 Process exited with code 0
                 Original token count: 4
