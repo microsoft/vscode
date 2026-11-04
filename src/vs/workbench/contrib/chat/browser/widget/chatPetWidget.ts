@@ -1246,7 +1246,7 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
-	private readonly _subagentPets = new Map<string, { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; accessoryImage: HTMLImageElement | undefined; eyes: HTMLElement; disposables: DisposableStore; slot: number; side: 'left' | 'right' }>();
+	private readonly _subagentPets = new Map<string, { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; accessoryImage: HTMLImageElement | undefined; eyes: HTMLElement; disposables: DisposableStore; updateBlink: () => void; slot: number; side: 'left' | 'right' }>();
 	private _subagentModel: IChatModel | undefined;
 	private readonly _subagentEffects = this._register(new DisposableStore());
 	private readonly _subagentLayer: HTMLElement;
@@ -1811,6 +1811,12 @@ export class ChatPetWidget extends Disposable {
 					}
 				} else {
 					this._finishDisable();
+				}
+			}
+			for (const pet of this._subagentPets.values()) {
+				pet.updateBlink();
+				if (this._motionReduced) {
+					pet.eyes.classList.remove('bobbed');
 				}
 			}
 
@@ -2890,8 +2896,21 @@ export class ChatPetWidget extends Disposable {
 			canvas.width = CHAT_PET_SOURCE_SIZE;
 			canvas.height = CHAT_PET_SOURCE_SIZE;
 			const eyes = element.appendChild(this._eyes.cloneNode(true)) as HTMLElement;
+			eyes.classList.remove('blink', 'blinking', 'bobbed');
 			eyes.classList.add('tracking');
 			const disposables = this._subagentEffects.add(new DisposableStore());
+			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
+			const updateBlink = () => blink.setEnabled(this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
+			disposables.add(this._onDidChangeAnimationVisibility.event(updateBlink));
+			const firstPupil = eyes.firstElementChild?.firstElementChild;
+			if (firstPupil) {
+				disposables.add(dom.addDisposableListener(firstPupil, 'animationend', event => {
+					if ((event as AnimationEvent).animationName === 'chat-pet-tall-eye-blink') {
+						blink.onAnimationComplete();
+					}
+				}));
+			}
+			updateBlink();
 			const animation = disposables.add(new MutableDisposable<IDisposable>());
 			const image = dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 			image.alt = '';
@@ -2906,6 +2925,7 @@ export class ChatPetWidget extends Disposable {
 				setChatPetImageSource(accessoryImage, getChatPetAccessoryImageSource(accessory).url);
 			}
 			disposables.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation, undefined, false, frameIndex => {
+				eyes.classList.toggle('bobbed', !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
 				if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
 					const context = canvas.getContext('2d');
 					if (context) {
@@ -2914,7 +2934,7 @@ export class ChatPetWidget extends Disposable {
 				}
 			})));
 			setChatPetImageSource(image, source.url);
-			this._subagentPets.set(id, { element, canvas, image, accessoryImage, eyes, disposables, slot, side });
+			this._subagentPets.set(id, { element, canvas, image, accessoryImage, eyes, disposables, updateBlink, slot, side });
 		}
 	}
 

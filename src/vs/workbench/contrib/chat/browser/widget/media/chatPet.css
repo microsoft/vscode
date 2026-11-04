@@ -509,7 +509,8 @@
 .chat-pet-button[data-state='typing'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='painting'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='buttonPress'] .chat-pet-eyes.blink .chat-pet-pupil,
-.chat-pet-button[data-state='love'] .chat-pet-eyes.blink .chat-pet-pupil {
+.chat-pet-button[data-state='love'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-subagent .chat-pet-eyes.blink .chat-pet-pupil {
 	animation-name: chat-pet-tall-eye-blink;
 }
 

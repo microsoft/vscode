@@ -2374,6 +2374,47 @@ suite('ChatPetWidget', () => {
 		assert.ok(overlay.querySelector('.chat-pet-subagent-despawning img')?.getAttribute('src')?.endsWith('-96.png'));
 	});
 
+	test('mini pets blink and move their eyes with their own idle frames', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		sinon.stub(Math, 'random').returns(0);
+		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const response = new class extends mock<IChatResponseModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly isPendingConfirmation = constObservable(undefined);
+			override readonly response = new class extends mock<IResponse>() { override readonly value = [tool]; }();
+		}();
+		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
+		const model = new class extends mock<IChatModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly hasActiveRequest = constObservable(true);
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests(): IChatRequestModel[] { return [request]; }
+		}();
+		widget.setHost({ ...firstHost, model: constObservable(model) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		const eyes = pet.querySelector<HTMLElement>('.chat-pet-eyes')!;
+		const pupil = pet.querySelector<HTMLElement>('.chat-pet-pupil')!;
+		await pet.querySelector<HTMLImageElement>('img')!.decode();
+		await Promise.resolve();
+		assert.ok(!eyes.classList.contains('bobbed'));
+		clock.tick(800);
+		assert.ok(eyes.classList.contains('bobbed'));
+		clock.tick(600);
+		assert.ok(eyes.classList.contains('blink'));
+		assert.strictEqual(mainWindow.getComputedStyle(pupil).animationName, 'chat-pet-tall-eye-blink');
+		pupil.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-tall-eye-blink' }));
+		assert.ok(!eyes.classList.contains('blink'));
+		clock.tick(600);
+		assert.ok(!eyes.classList.contains('bobbed'));
+		setReducedMotion(true);
+		clock.tick(3_400);
+		assert.ok(!eyes.classList.contains('blink'));
+		assert.ok(!eyes.classList.contains('bobbed'));
+	});
+
 	for (const variant of ['stable', 'insiders'] as const) {
 		for (const reducedMotion of [false, true]) {
 			test(`paints only while a visible image-generation tool is active (${variant}, ${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
