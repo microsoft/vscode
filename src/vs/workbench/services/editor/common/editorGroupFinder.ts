@@ -209,14 +209,16 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 		// Locked group: find the next non-locked group
 		// going up the neigbours of the group or create
-		// a new group otherwise
+		// a new group otherwise. A group that hands off
+		// its editors does so here too.
 		if (isGroupLockedForEditor(candidateGroup, editor)) {
 			for (const group of groupsContainer.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (isGroupLockedForEditor(group, editor)) {
+				const handOffGroup = handOffFromSelfTitledEditor(group, editorGroupService);
+				if (isGroupLockedForEditor(handOffGroup, editor)) {
 					continue;
 				}
 
-				candidateGroup = group;
+				candidateGroup = handOffGroup;
 				break;
 			}
 

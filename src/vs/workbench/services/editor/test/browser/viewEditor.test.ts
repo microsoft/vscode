@@ -30,6 +30,7 @@ import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 class TestView implements IViewEditorView {
 
@@ -267,6 +268,41 @@ suite('View Editors', () => {
 			onlyUntitledView: 'part',
 			mainWindow: 'main'
 		});
+	});
+
+	test('opens to the active group while a locked group is active, such as of terminals, skip a group that shows only a view with its own title for the main part of its window', async () => {
+		const { parts, editorService, part } = await createServices();
+		const lockedContainer = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const lockedPart = parts.createEditorPart({ container: lockedContainer });
+		lockedPart.layout(800, 200, 0, 0);
+		disposables.add({ dispose: () => { lockedPart.close(); lockedContainer.remove(); } });
+		await lockedPart.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/terminal.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		lockedPart.activeGroup.lock(true);
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+
+		const where = (resource: URI) => parts.mainPart.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'main' : part.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'part' : lockedPart.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'locked' : 'none';
+		const open = async (resource: URI, typed: boolean) => {
+			// The view's group was focused before the locked one, such as of terminals, where focus was last: it moved on
+			// to the quick input that opens the editor
+			groupViewOf(parts, part.activeGroup).focus();
+			groupViewOf(parts, lockedPart.activeGroup).focus();
+			(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+			const lockedActive = parts.activeGroup.id === lockedPart.activeGroup.id;
+			if (typed) {
+				await editorService.openEditor(disposables.add(new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID)), { pinned: true }, ACTIVE_GROUP);
+			} else {
+				// As Quick Open opens a file
+				await editorService.openEditor({ resource, options: { pinned: true } }, ACTIVE_GROUP);
+			}
+			return { lockedActive, openedIn: where(resource) };
+		};
+
+		assert.deepStrictEqual({ typed: await open(URI.file('/typed.txt'), true), resource: await open(URI.file('/resource.txt'), false) }, {
+			typed: { lockedActive: true, openedIn: 'main' },
+			resource: { lockedActive: true, openedIn: 'main' }
+		});
+		await parts.mainPart.activeGroup.closeAllEditors();
+		await part.activeGroup.closeAllEditors();
 	});
 
 	test('a view saves its state before its editor moves to another group, where it is created again, and before its pane clears its input', async () => {
