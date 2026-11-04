@@ -35,6 +35,7 @@ import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ActiveSessionScope, ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -128,7 +129,7 @@ suite('SessionInputBanners', () => {
 		assert.deepStrictEqual({
 			windowA: bannersIn({ _serviceBrand: undefined, session: constObservable(windowA) }),
 			windowB: bannersIn({ _serviceBrand: undefined, session: constObservable(windowB) }),
-			main: bannersIn(instantiationService.createInstance(ActiveSessionScope)),
+			main: bannersIn(new ActiveSessionScope(stubSessionHosts(instantiationService, store, { session: constObservable(main) }).mainHost)),
 		}, {
 			windowA: '1 check failed',
 			windowB: '2 out of 2 checks failed',
@@ -264,7 +265,7 @@ suite('SessionInputBanners', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
-			new ActiveSessionScope(sessionsService),
+			new ActiveSessionScope(stubSessionHosts(instantiationService, store, { session: sessionsService.mainWindowActiveSession }).mainHost),
 			sessionsProvidersService,
 			configuration,
 			gitHubService,

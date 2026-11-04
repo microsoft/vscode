@@ -85,6 +85,7 @@ import { NewChatModelPickerService, INewChatModelPickerService } from '../../cha
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -1758,8 +1759,11 @@ export function renderForm(
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const newChatModelPickerService = new NewChatModelPickerService();
 	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, activeAutomationSession, { modelConfiguration: true }));
+	const automationHost = instantiationService.invokeFunction(accessor => new ActiveSessionHost({ kind: SessionHostKind.AutomationDialog, parent: accessor.get(ISessionHost), session: activeAutomationSession, contextKeyService: scopedContextKeyService }));
+	disposables.add(instantiationService.invokeFunction(accessor => accessor.get(ISessionHostService).registerHost(automationHost)));
 	const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection(
 		[IContextKeyService, scopedContextKeyService],
+		[ISessionHost, automationHost],
 		[ISessionContext, new SessionContext(activeAutomationSession)],
 		[INewChatModelPickerService, newChatModelPickerService],
 		[ISessionModelSelection, sessionModelSelection],

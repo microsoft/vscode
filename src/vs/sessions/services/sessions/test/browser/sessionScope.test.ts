@@ -12,7 +12,12 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../browser/sessionHost.js';
 import { ActiveSessionScope, getFocusedWindowSession, ISessionScope } from '../../browser/sessionScope.js';
+import { MainWindowSessionHost } from '../../browser/sessionHostService.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
@@ -20,14 +25,24 @@ suite('ActiveSessionScope', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('follows the session of the main window, not the one of a focused chat window', () => {
+	test('at root, follows the session of the main window through the delayed main window host', () => {
 		const main = upcastPartial<IActiveSession>({ sessionId: 'main' });
-		const focused = upcastPartial<IActiveSession>({ sessionId: 'chat-window' });
-		const sessionsService = upcastPartial<ISessionsService>({
-			activeSession: constObservable<IActiveSession | undefined>(focused),
-			mainWindowActiveSession: constObservable<IActiveSession | undefined>(main),
-		});
-		assert.strictEqual(new ActiveSessionScope(sessionsService).session.get(), main);
+		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+			[ISessionsService, upcastPartial<ISessionsService>({ mainWindowActiveSession: constObservable<IActiveSession | undefined>(main) })],
+			[IContextKeyService, upcastPartial<IContextKeyService>({})],
+			[ISessionHost, new SyncDescriptor(MainWindowSessionHost, [], true)],
+			[ISessionScope, new SyncDescriptor(ActiveSessionScope, [], true)],
+		)));
+		assert.strictEqual(instantiationService.invokeFunction(accessor => accessor.get(ISessionScope).session.get())?.sessionId, 'main');
+	});
+
+	test('follows the session of the window host, also from a pane nested in it', () => {
+		const main = upcastPartial<IActiveSession>({ sessionId: 'main' });
+		const pane = upcastPartial<IActiveSession>({ sessionId: 'pane' });
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(main), contextKeyService });
+		const paneHost = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(pane), contextKeyService });
+		assert.strictEqual(new ActiveSessionScope(paneHost).session.get(), main);
 	});
 
 	test('the session of the window with focus is that of the chat window with focus, from its own scope, even before it is the active session', () => {

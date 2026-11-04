@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
+import { getWindowHost, hasActiveSessionSource, ISessionHost } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 
 /**
  * The session the UI of a host acts on. A host (the main side bar, the title
  * bar of a window, a chat window) provides its own scope through a child
- * instantiation service. Without a host the scope is the active session.
+ * instantiation service. Without a host the scope is the main window's. An alias of the window {@link ISessionHost}.
  */
 export interface ISessionScope {
 	readonly _serviceBrand: undefined;
@@ -23,13 +24,14 @@ export interface ISessionScope {
 
 export const ISessionScope = createDecorator<ISessionScope>('sessionScope');
 
+/** The session of the window host: the main window's at root, which it keeps while a chat window has focus. */
 export class ActiveSessionScope implements ISessionScope {
 	declare readonly _serviceBrand: undefined;
 	readonly session: IObservable<IActiveSession | undefined>;
 
-	constructor(@ISessionsService sessionsService: ISessionsService) {
-		// The main window keeps its session while a chat window has focus.
-		this.session = sessionsService.mainWindowActiveSession;
+	constructor(@ISessionHost host: ISessionHost) {
+		const windowHost = getWindowHost(host);
+		this.session = hasActiveSessionSource(windowHost) ? windowHost.activeSession : constObservable(undefined);
 	}
 }
 

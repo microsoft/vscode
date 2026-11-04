@@ -44,6 +44,7 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, ISession } from '../../../services/sessions/common/session.js';
@@ -255,6 +256,10 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 	/** The title row the session header shows in: the one that shows. */
 	readonly header: IObservable<ISessionChatViewHeaderHost | undefined> = derived(this, reader => this.showsTitle.read(reader) ? this._viewHeader.read(reader) : this.windowHeader.read(reader));
 	private readonly _heldChat: ChatModelHold;
+	/** The host of the window: the chat it shows, and its session. */
+	readonly host: ISessionHost;
+	/** The context of its window's parts, where the window binds the keys of its session. */
+	private _windowContextKeyService: IContextKeyService | undefined;
 
 	constructor(
 		readonly sourceSession: ISession,
@@ -268,6 +273,8 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IChatService chatService: IChatService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
@@ -277,8 +284,17 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		// Its tab, while other editors are beside it in its group, shows the title of the chat
 		this._register(autorun(reader => input.setName(this.title.read(reader))));
 		// What the window shows acts on its session, not on the one the main window shows.
+		this.host = new ActiveSessionHost({
+			kind: SessionHostKind.ChatWindow,
+			parent: undefined,
+			session: this._session,
+			loadingChat: this.chat,
+			windowId: derived(this, reader => this.window.read(reader)?.windowId),
+			contextKeyService: () => this._windowContextKeyService ?? contextKeyService,
+		});
+		this._register(sessionHostService.registerHost(this.host));
 		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: this._session };
-		this.services = new ServiceCollection([ISessionScope, sessionScope]);
+		this.services = new ServiceCollection([ISessionHost, this.host], [ISessionScope, sessionScope]);
 		this._heldChat = this._register(new ChatModelHold(resource => chatService.acquireExistingSession(resource, 'ChatWindow#move')));
 		this._register(toDisposable(() => this._releaseSession()));
 	}
@@ -307,6 +323,8 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 
 		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
 		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+		this._windowContextKeyService = contextKeyService;
+		store.add(toDisposable(() => this._windowContextKeyService = undefined));
 		CustomViewVisibleContext.bindTo(contextKeyService).set(false);
 		// Its Changes editor shows the list of the changed files beside the diffs, in whichever of its parts it shows; the
 		// main window's does not.

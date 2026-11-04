@@ -24,6 +24,7 @@ import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
+import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
@@ -99,6 +100,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+	/** The host of what this view shows, nested in the host of its window. */
+	readonly host: ISessionHost;
 	private readonly _isVisibleObs = observableValue(this, true);
 	readonly shownChatCount: IObservable<number>;
 
@@ -129,6 +132,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
+		@ISessionHost parentHost: ISessionHost,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
 		super();
 
@@ -147,8 +152,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
+		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._sessionObs, contextKeyService: scopedContextKeyService });
+		this._register(sessionHostService.registerHost(this.host));
 		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
+			[ISessionHost, this.host],
 			[ISessionContext, new SessionContext(this._sessionObs)],
 		)));
 

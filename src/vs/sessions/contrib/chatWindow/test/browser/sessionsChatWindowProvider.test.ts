@@ -47,6 +47,7 @@ import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -83,6 +84,7 @@ suite('Sessions chat window provider', () => {
 		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
+		stubSessionHosts(instantiationService, store);
 		instantiationService.stub(IConfigurationService, configuration);
 		const editorGroups: IEditorGroup[] = [];
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {

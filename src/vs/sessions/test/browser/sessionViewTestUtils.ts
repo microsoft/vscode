@@ -31,6 +31,7 @@ import { ISessionsPartService } from '../../services/sessions/browser/sessionsPa
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../services/sessions/common/session.js';
+import { stubSessionHosts } from '../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
@@ -119,7 +120,8 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		override get() { return undefined; }
 		override set(): void { }
 	}());
-	return { instantiationService, configurationService, contextKeyService, chatViews };
+	const { sessionHostService } = stubSessionHosts(instantiationService, store);
+	return { instantiationService, configurationService, contextKeyService, chatViews, sessionHostService };
 }
 
 export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: { container?: HTMLElement; instantiationService?: TestInstantiationService; layoutService?: IAgentWorkbenchLayoutService; compactLayout?: () => boolean; chatBackground?: ISessionsChatBackground }) {

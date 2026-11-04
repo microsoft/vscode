@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { getActiveWindow, hasWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { GroupIdentifier } from '../../../../workbench/common/editor.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from './sessionHost.js';
+import { ISessionsService } from './sessionsService.js';
+
+/** The host of the main window: the session and chat of the active slot of its grid. */
+export class MainWindowSessionHost extends ActiveSessionHost {
+	constructor(
+		@ISessionsService sessionsService: ISessionsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super({
+			kind: SessionHostKind.MainWindow,
+			parent: undefined,
+			session: sessionsService.mainWindowActiveSession,
+			contextKeyService,
+			windowId: constObservable(mainWindow.vscodeWindowId),
+		});
+	}
+}
+
+/** Whether a host owns what it shows: windows and panes do, while composers and dialogs only draft in them. */
+function ownsContent(host: ISessionHost): boolean {
+	return host.kind !== SessionHostKind.Composer && host.kind !== SessionHostKind.AutomationDialog;
+}
+
+/** Drops the hosts that a host nested in them also matches, as the main window and its active pane show the same chat. */
+function innermost(hosts: readonly ISessionHost[]): readonly ISessionHost[] {
+	return hosts.filter(host => !hosts.some(other => other !== host && isNestedIn(other, host)));
+}
+
+function isNestedIn(host: ISessionHost, ancestor: ISessionHost): boolean {
+	for (let current = host.parent; current; current = current.parent) {
+		if (current === ancestor) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export class SessionHostService extends Disposable implements ISessionHostService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _hosts = observableValue<readonly ISessionHost[]>(this, []);
+	readonly hosts: IObservable<readonly ISessionHost[]> = this._hosts;
+
+	constructor(
+		/** The host of the main window. Not part of {@link ISessionHostService}: UI injects the host it is in. */
+		@ISessionHost readonly mainWindowHost: ISessionHost,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+	) {
+		super();
+		this._register(this.registerHost(mainWindowHost));
+	}
+
+	registerHost(host: ISessionHost): IDisposable {
+		this._hosts.set([...this._hosts.get(), host], undefined);
+		return toDisposable(() => this._hosts.set(this._hosts.get().filter(candidate => candidate !== host), undefined));
+	}
+
+	getHost(id: string): ISessionHost | undefined {
+		return this._hosts.get().find(host => host.id === id);
+	}
+
+	getHostOfWindow(windowId: number, reader?: IReader): ISessionHost | undefined {
+		const windowHost = this._hosts.read(reader).find(host => !host.parent && host.windowId.read(reader) === windowId);
+		if (windowHost) {
+			return windowHost;
+		}
+		// Floating editor windows belong to the main window.
+		return hasWindow(windowId) ? this.mainWindowHost : undefined;
+	}
+
+	getHostOfGroup(group: IEditorGroup | GroupIdentifier, reader?: IReader): ISessionHost | undefined {
+		const resolved = typeof group === 'number' ? this._editorGroupsService.getGroup(group) : group;
+		return resolved ? this.getHostOfWindow(resolved.windowId, reader) : undefined;
+	}
+
+	getHostOfChat(chatResource: URI, reader?: IReader): ISessionHost | undefined {
+		return innermost(this._hosts.read(reader).filter(host => ownsContent(host) && isEqual(host.chatResource.read(reader), chatResource)))[0];
+	}
+
+	getHostsOfSession(sessionResource: URI, reader?: IReader): readonly ISessionHost[] {
+		return innermost(this._hosts.read(reader).filter(host => ownsContent(host) && isEqual(host.session.read(reader)?.resource, sessionResource)));
+	}
+
+	isShown(resource: URI, reader?: IReader): boolean {
+		return this._hosts.read(reader).some(host => hostShows(host, resource, reader));
+	}
+}
+
+export class FocusedSessionHostService extends Disposable implements IFocusedSessionHostService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _focusedWindowId = observableValue<number>(this, getActiveWindow().vscodeWindowId);
+	readonly focusedHost: IObservable<ISessionHost>;
+
+	constructor(
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@ISessionHost private readonly _mainWindowHost: ISessionHost,
+		@IHostService hostService: IHostService,
+	) {
+		super();
+		// Sticky: only a window gaining focus changes it, not the app losing focus. A chat window that gains focus before
+		// its host knows its window resolves once it does.
+		this._register(hostService.onDidChangeActiveWindow(windowId => this._focusedWindowId.set(windowId, undefined)));
+		this.focusedHost = derived(this, reader => _sessionHostService.getHostOfWindow(this._focusedWindowId.read(reader), reader) ?? _mainWindowHost);
+	}
+
+	getFocusedHost(): ISessionHost {
+		// While the app is in the background, `getActiveWindow` falls back to the main window rather than the window that
+		// last had focus, as `IChatWindowService.activeWindow` does: commands keep resolving as they did.
+		return this._sessionHostService.getHostOfWindow(getActiveWindow().vscodeWindowId) ?? this._mainWindowHost;
+	}
+}
+
+registerSingleton(ISessionHost, MainWindowSessionHost, InstantiationType.Delayed);
+registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
+registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
