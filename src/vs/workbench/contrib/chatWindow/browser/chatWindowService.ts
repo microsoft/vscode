@@ -565,6 +565,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			terminals: window.terminalsPart,
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition, partFactory));
 		gridRef.set(grid, undefined);
+		// As the window goes away, after its chat part and main part closed and before the part that holds its terminals does
+		disposables.add(window.onWillClose(() => grid.willClose()));
 		this._grids.set(window, grid);
 		disposables.add(toDisposable(() => this._grids.delete(window)));
 		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.

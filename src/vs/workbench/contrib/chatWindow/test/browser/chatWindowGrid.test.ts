@@ -1066,4 +1066,77 @@ suite('Chat window grid', () => {
 			after: 'column(titleRow, row(chat, main))'
 		});
 	});
+
+	test('a window with terminals closes without arranging its parts again: its main part and chat part close first, then, as it goes away, the part that holds its terminals', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const terminalsPart = createPartWithEditors('terminals');
+		const closing = (name: string) => {
+			const onWillClose = disposables.add(new Emitter<void>());
+			const part = new class extends mock<IContentPart>() {
+				override readonly element = $(`.${name}`);
+				override readonly minimumWidth = 100;
+				override readonly maximumWidth = Number.POSITIVE_INFINITY;
+				override readonly minimumHeight = 50;
+				override readonly maximumHeight = Number.POSITIVE_INFINITY;
+				override readonly onDidChange = Event.None;
+				override readonly groups = createPart(name).groups;
+				override readonly onDidAddGroup = Event.None;
+				override readonly onDidRemoveGroup = Event.None;
+				override readonly onDidMoveGroup = Event.None;
+				override readonly onWillClose = onWillClose.event;
+				override layout() { }
+				override setVisible() { }
+			}();
+			return { part, close: () => onWillClose.fire() };
+		};
+		const main = closing('main');
+		const chat = closing('chat');
+		const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: main.part, chat: chat.part, titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.UnderEditor), undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+
+		main.close();
+		chat.close();
+		// As the window goes away (its willUnload), which then closes the part that holds its terminals
+		grid.willClose();
+		terminals.set(undefined, undefined);
+
+		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, terminals)');
+	});
+
+	test('a window whose parts close while it stays open, such as a part created for dropped editors, keeps arranging its parts', () => {
+		const onWillClose = disposables.add(new Emitter<void>());
+		const created = new class extends mock<IContentPart>() {
+			override readonly element = $('.created');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [new class extends mock<IEditorGroup>() {
+				override readonly isEmpty = false;
+				override readonly onDidModelChange = Event.None;
+				override focus(): void { }
+			}()];
+			override get activeGroup() { return this.groups[0]; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = onWillClose.event;
+			override layout() { }
+		}();
+		const { mode, grid } = setup({ createPart: () => ({ id: 'created', part: created }) });
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Right });
+		onWillClose.fire();
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+
+		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, row(column(main, chat), strip))');
+	});
 });

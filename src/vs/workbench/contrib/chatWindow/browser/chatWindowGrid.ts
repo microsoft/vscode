@@ -215,6 +215,8 @@ export class ChatWindowGrid extends Disposable {
 	private _createdPartsChanging = false;
 	/** The height the terminals take once the cells of the arrangement they moved in show. */
 	private _pendingTerminalsHeight: number | undefined;
+	/** Whether the window closes; see {@link willClose}. */
+	private _closing = false;
 
 	private readonly _terminalsVisible = observableValue<boolean>(this, false);
 	/** Whether the part that holds the window's terminals shows: it is in the grid and has editors. */
@@ -274,7 +276,9 @@ export class ChatWindowGrid extends Disposable {
 			_cells.titleRow?.visible.read(reader);
 			_cells.terminals?.read(reader);
 			this._terminalPosition.read(reader);
-			this._update();
+			if (!this._closing) {
+				this._update();
+			}
 		}));
 		// Only the sizes the user gives the cells are remembered: those of a sash they drag or reset. The sizes the grid takes
 		// otherwise, such as by the least size of a part or as a mode shows, are not theirs.
@@ -317,6 +321,14 @@ export class ChatWindowGrid extends Disposable {
 			moveEditorsToChatWindow(part.groups, this._cells.main.activeGroup);
 			part.close();
 		}
+	}
+
+	/**
+	 * The window closes: its chat part and main part closed, and their cells left the grid. What still changes as the
+	 * rest of the window closes, such as the part that holds its terminals, is not arranged any more.
+	 */
+	willClose(): void {
+		this._closing = true;
 	}
 
 	/** The parts the grid created, such as for editors dropped on an edge of the window, in the order it created them. */
