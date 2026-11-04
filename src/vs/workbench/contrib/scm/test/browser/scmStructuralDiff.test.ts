@@ -629,6 +629,7 @@ suite('SCM structural diff tree', () => {
 				const originalEditor = new TestCodeEditor();
 				const modifiedEditor = new TestCodeEditor();
 				const diffEditor = new class extends mock<IDiffEditor>() {
+					override readonly renderSideBySide = true;
 					override getEditorType(): string { return EditorType.IDiffEditor; }
 					override getOriginalEditor(): ICodeEditor { return originalEditor; }
 					override getModifiedEditor(): ICodeEditor { return modifiedEditor; }
@@ -659,6 +660,32 @@ suite('SCM structural diff tree', () => {
 			});
 		}
 	}
+
+	test('opens deleted symbols in the modified editor where they were deleted when the diff is inline', async () => {
+		const originalEditor = new TestCodeEditor();
+		const modifiedEditor = new TestCodeEditor();
+		const diffEditor = new class extends mock<IDiffEditor>() {
+			override readonly renderSideBySide = false;
+			override getEditorType(): string { return EditorType.IDiffEditor; }
+			override getOriginalEditor(): ICodeEditor { return originalEditor; }
+			override getModifiedEditor(): ICodeEditor { return modifiedEditor; }
+		};
+		const pane = new class extends mock<ITextDiffEditorPane>() {
+			override getControl(): IDiffEditor { return diffEditor; }
+		};
+		const editorService = new class extends mock<IEditorService>() {
+			override async openEditor(): Promise<ITextDiffEditorPane> { return pane; }
+		};
+		await openSCMStructuralDiff({ ...child, node: { ...child.node, modified: undefined }, deletedAt: { lineNumber: 2, column: 1 } }, {}, editorService, () => true);
+		const range = new Range(2, 1, 2, 1);
+		assert.deepStrictEqual({
+			original: { selections: originalEditor.selections, reveals: originalEditor.reveals, focused: originalEditor.focused },
+			modified: { selections: modifiedEditor.selections, reveals: modifiedEditor.reveals, focused: modifiedEditor.focused },
+		}, {
+			original: { selections: [], reveals: [], focused: false },
+			modified: { selections: [range], reveals: [range], focused: true },
+		});
+	});
 
 	test('does not navigate a stale result after asynchronous editor opening', async () => {
 		const pending = new DeferredPromise<ITextDiffEditorPane | undefined>();
