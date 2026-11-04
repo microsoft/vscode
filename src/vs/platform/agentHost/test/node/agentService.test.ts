@@ -4479,6 +4479,18 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('createSession rejects virtual working directories without the provider opt-in', async () => {
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(localService, agent);
+		await assert.rejects(localService.createSession({
+			legacyChatUris: true,
+			provider: agent.id,
+			workingDirectories: [URI.parse('vscode-vfs://github/microsoft/vscode')],
+		}), /does not support virtual workspaces/);
+	});
+
 	test('createSession validates, exposes, and persists multi-root metadata', async () => {
 		const db = new TestSessionDatabase();
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -23727,7 +23739,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		for (const cached of [undefined, [], ['file:///wd/cached.ts']]) {
 			test(`subscribe to an uncommitted changeset returns ${cached ? 'cached' : 'uncached'} ${cached?.length ? 'files' : 'empty files'} before its refresh finishes`, async () => {
-				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd' });
+				const workingDirectory = URI.file('/wd');
 				copilotAgent.resolvedWorkingDirectory = workingDirectory;
 				copilotAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory] };
 				const computeGate = new DeferredPromise<void>();
@@ -24910,7 +24922,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('surviving cold subscriber installs summary interest when the restoring subscriber is cancelled', async () => {
 			const db = new TestSessionDatabase();
-			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/concurrent-folder-summary' });
+			const workingDirectory = URI.file('/concurrent-folder-summary');
 			const cached = { additions: 100, deletions: 20, files: 8 };
 			const agent = disposables.add(new MockAgent('copilot'));
 			agent.resolvedWorkingDirectory = workingDirectory;
@@ -24959,7 +24971,7 @@ suite('AgentService (node dispatcher)', () => {
 		for (const [isolation, cold] of [['folder', true], ['folder', false], ['worktree', true], ['worktree', false]] as const) {
 			test(`session selection replaces cached counts from the selected source for a ${cold ? 'cold' : 'warm'} ${isolation} session`, async () => {
 				const db = new TestSessionDatabase();
-				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/folder-summary' });
+				const workingDirectory = URI.file('/folder-summary');
 				const cached = { additions: 100, deletions: 20, files: 8 };
 				const expected = isolation === 'worktree' ? { additions: 7, deletions: 2, files: 1 } : { additions: 0, deletions: 0, files: 0 };
 				const agent = disposables.add(new MockAgent('copilot'));
@@ -43402,7 +43414,7 @@ suite('AgentService (node dispatcher)', () => {
 	suite('addSubscriber triggers uncommitted refresh', () => {
 
 		test('addSubscriber for <session>/changeset/uncommitted triggers the first git diff refresh', async () => {
-			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh' });
+			const workingDirectory = URI.file('/wd-refresh');
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 
@@ -43446,7 +43458,7 @@ suite('AgentService (node dispatcher)', () => {
 			// directly, so the chip would never refresh on session open
 			// without this trigger. Subscribing to the session-changeset
 			// URI from any other client must also fire its own refresh.
-			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh-2' });
+			const workingDirectory = URI.file('/wd-refresh-2');
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 
@@ -43485,7 +43497,7 @@ suite('AgentService (node dispatcher)', () => {
 			// 3. restoreSession then runs (driven by the chat-view path or
 			//    a separate subscribe), populates `summary.workingDirectory`
 			//    from disk, and recomputes the current subscriptions.
-			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-restore-drain' });
+			const workingDirectory = URI.file('/wd-restore-drain');
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 

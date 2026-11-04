@@ -40,6 +40,8 @@ import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpr, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TERMINAL_AUTO_APPROVE_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { permissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
@@ -138,6 +140,7 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -165,7 +168,6 @@ import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { toAgentHostClientCustomization } from '../../../common/agentHostSessionCustomizations.js';
 import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
@@ -1648,6 +1650,40 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(chatAgentService.registeredAgents.get('agent-host-copilot')?.data.modes, [ChatModeKind.Agent, ChatModeKind.Ask]);
 		});
 
+		test('hides unsupported local harnesses in virtual editor workspaces only', () => {
+			const results = [];
+			for (const { isSessionsWindow, remoteAuthority } of [
+				{ isSessionsWindow: false, remoteAuthority: undefined },
+				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test' },
+				{ isSessionsWindow: true, remoteAuthority: undefined },
+			]) {
+				const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow, remoteAuthority });
+				instantiationService.stub(ICustomizationHarnessService, {
+					activeSessionResource: constObservable(URI.parse('agent-host-copilotcli:/session')),
+					registerExternalHarness: () => toDisposable(() => { }),
+				});
+				agentHostService.setRootState({
+					agents: ['copilotcli', 'claude', 'codex'].map(provider => ({ provider, displayName: provider, description: 'test', models: [] })),
+					activeSessions: 0,
+				});
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				const context = new Context(0, null);
+				const visible = ['', 'vscode-vfs'].map(scheme => {
+					context.setValue(VirtualWorkspaceContext.key, scheme);
+					return chatSessionContributions.filter(contribution => !contribution.when || ContextKeyExpr.deserialize(contribution.when)?.evaluate(context))
+						.map(contribution => contribution.type);
+				});
+				results.push({ isSessionsWindow, remoteAuthority, visible });
+			}
+			const all = ['agent-host-copilotcli', 'agent-host-claude', 'agent-host-codex'];
+			assert.deepStrictEqual(results, [
+				{ isSessionsWindow: false, remoteAuthority: undefined, visible: [all, ['agent-host-copilotcli']] },
+				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test', visible: [all, all] },
+				{ isSessionsWindow: true, remoteAuthority: undefined, visible: [all, all] },
+			]);
+		});
+
 		test('offers plugin source installation only when the management API supports it', () => {
 			const results = [];
 			for (const supported of [false, true]) {
@@ -2759,6 +2795,34 @@ suite('AgentHostChatContribution', () => {
 				link: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
 				peerLink: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
 			});
+		});
+
+		test('maps virtual workspace SDK path links back to the workspace resource', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'virtual-links');
+			const defaultChat = 'host-chat:/virtual-main';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Virtual', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				workingDirectories: ['vscode-vfs://github/microsoft/vscode?ref=main'],
+			};
+			const main = createDefaultChatSummary(summary, defaultChat);
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main] });
+			agentHostService.chatStates.set(defaultChat, createChatState(main));
+			const resource = URI.parse('agent-host-copilot:/virtual-links');
+			disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+
+			assert.deepStrictEqual([
+				'/vscode-vfs/github/microsoft/vscode/src/a.ts',
+				'/vscode-vfs/github/microsoft/vscode/src/a.ts:42',
+				'/elsewhere/a.ts',
+				'file:///C:/Users/me/plan.md',
+			].map(href => sessionHandler.resolveChatResponseUri(resource, href, 'link')), [
+				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts?ref=main').toString(),
+				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts?ref=main').with({ fragment: 'L42' }).toString(),
+				URI.file('/elsewhere/a.ts').toString(),
+				URI.parse('file:///C:/Users/me/plan.md').toString(),
+			]);
 		});
 
 		test('a chat on another agent than its session\'s, such as one moved in from a session of that agent, restores its models from that agent', async () => {
@@ -21584,6 +21648,46 @@ suite('AgentHostChatContribution', () => {
 			const content = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
 			assert.deepStrictEqual(content.history.map(item => item.type), ['request', 'response']);
+		});
+
+		test('keeps virtual working directories unchanged only for local Copilot CLI editor sessions', async () => {
+			const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode?ref=main');
+			const results = [];
+			for (const kind of agentHostConnectionKinds) {
+				const directories: (string[] | undefined)[] = [];
+				for (const { provider, isSessionsWindow } of [
+					{ provider: 'copilotcli', isSessionsWindow: false },
+					{ provider: 'claude', isSessionsWindow: false },
+					{ provider: 'copilotcli', isSessionsWindow: true },
+				]) {
+					const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, { resolve: () => workingDirectory });
+					instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+					agentHostService.resourceUris = kind.resourceUris;
+					agentHostService.clientConnectionKind = kind.name === 'local' ? AgentHostClientConnectionKind.Local : AgentHostClientConnectionKind.DirectWebSocket;
+					agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/vscode' });
+					const agentId = `agent-host-${provider}`;
+					const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider,
+						agentId,
+						sessionType: agentId,
+						fullName: provider,
+						description: 'test',
+						connection: agentHostService,
+						connectionAuthority: kind.name === 'local' ? LOCAL_AGENT_HOST_AUTHORITY : 'remote-test',
+					}));
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { agentId });
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+					directories.push(agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(directory => directory.toString()));
+				}
+				results.push({ connection: kind.name, directories });
+			}
+			assert.deepStrictEqual(results, [
+				{ connection: 'local', directories: [[workingDirectory.toString()], undefined, undefined] },
+				{ connection: 'remote agent host', directories: [undefined, undefined, undefined] },
+				{ connection: 'editor remote', directories: [undefined, undefined, undefined] },
+				{ connection: 'strict', directories: [undefined, undefined, undefined] },
+			]);
 		});
 
 		test('drops a working directory the host cannot address, letting it choose its own', async () => {

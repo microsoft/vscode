@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, MessageOptions, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
@@ -32,6 +32,7 @@ import { getCopilotMcpConfigurationPath, ICopilotHomeService } from '../../../en
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -81,6 +82,8 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { createCopilotSessionPathMapper, createCopilotSdkPathMapper, toCopilotWorkspace, type ICopilotSdkPathMapper } from '../../node/copilot/copilotWorkspace.js';
+import { CopilotVirtualSessionFs } from '../../node/copilot/copilotVirtualSessionFs.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { CopilotSandboxCertificate } from '../../node/copilot/copilotSandboxCertificate.js';
@@ -1381,6 +1384,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Coordinates the session's edit tool calls with the host's changes of their files. */
 	fileEditCoordinator?: AgentHostFileEditCoordinator;
 	workingDirectory?: URI;
+	pathMapper?: ICopilotSdkPathMapper;
+	virtualSessionFs?: CopilotVirtualSessionFs;
 	customizationDirectory?: URI;
 	shellManager?: ShellManager;
 	/** Per-key effective config values returned by the fake configuration service. */
@@ -1541,6 +1546,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
+		workspace: options?.workingDirectory && toCopilotWorkspace(options.workingDirectory),
+		virtualSessionFs: options?.virtualSessionFs,
 		resolvedAgentName: options?.resolvedAgentName,
 		snapshot: options?.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
@@ -1616,6 +1623,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
+		stat: async (resource: URI) => ({
+			isDirectory: !storedFileContents.has(resource.toString()) && [...storedFileContents.keys()].some(key => key.startsWith(`${resource.toString()}/`)),
+		}) as Awaited<ReturnType<IFileService['stat']>>,
 		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
 			options?.fileAtomicWrite === true &&
 			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
@@ -1842,6 +1852,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resource: options?.resource,
 			chatChannelUri,
 			rawSessionId: 'test-session-1',
+			pathMapper: options?.pathMapper ?? createCopilotSdkPathMapper(toCopilotWorkspace(options?.workingDirectory ?? URI.file(process.cwd()))),
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
 			sandboxCertificate: options?.sandboxCertificate ?? new CopilotSandboxCertificate(logService),
@@ -6475,6 +6486,41 @@ suite('CopilotAgentSession', () => {
 				displayName: 'file:test.js',
 			}],
 		}]);
+	});
+
+	test('makes host snapshots readable through the virtual session filesystem, skips host folders, and keeps the read-only reminder aligned', async () => {
+		const snapshot = URI.file('/data/attachments/id/snapshot.txt');
+		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
+		const workspace = { kind: 'virtual' as const, root: workingDirectory };
+		const stateDirectory = URI.file('/sdk-state');
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const virtualSessionFs = new CopilotVirtualSessionFs(workspace, '/session-state', stateDirectory, () => undefined, files);
+		const { session, mockSession } = await createAgentSession(disposables, {
+			workingDirectory, virtualSessionFs,
+			pathMapper: createCopilotSessionPathMapper(workspace, stateDirectory),
+			fileContents: { [snapshot.toString()]: 'shared content' },
+		});
+		await session.send('read this', [{
+			type: MessageAttachmentKind.Resource, label: 'snapshot.txt', displayKind: 'document',
+			uri: snapshot.toString(), _meta: toHostSnapshotAttachmentMeta('text/plain'),
+		}, {
+			type: MessageAttachmentKind.Resource, label: 'attachments', displayKind: 'directory', uri: URI.file('/data/attachments').toString(),
+		}]);
+		const attachments = (mockSession.sendRequests[0] as MessageOptions).attachments;
+		const attachment = attachments?.[0];
+		const path = attachment?.type === 'file' ? attachment.path : '';
+		assert.deepStrictEqual({
+			statePath: path.startsWith('/session-state/files/attachments/') && path.endsWith('/snapshot.txt'),
+			attachmentCount: attachments?.length,
+			content: await virtualSessionFs.readFile(path),
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			statePath: true,
+			attachmentCount: 1,
+			content: 'shared content',
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([path]) },
+		});
 	});
 
 	test('sends a host-created text snapshot as a read-only file reference with a read-only additionalContext note (#331154)', async () => {

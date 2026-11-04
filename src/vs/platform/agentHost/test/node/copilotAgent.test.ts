@@ -7196,6 +7196,37 @@ suite('CopilotAgent', () => {
 			return { agent, clients, options, launches, configurationService };
 		}
 
+		for (const scoped of [false, true]) {
+			test(`creates and resumes a virtual workspace on one dedicated runtime with ${scoped ? 'scoped' : 'host'} credentials`, async () => {
+				const { agent, options, launches } = setup();
+				afterTest(() => disposeAgent(agent));
+				await agent.authenticate('https://api.github.com', 'host-token');
+				const session = AgentSession.uri('copilotcli', `virtual-${scoped}`);
+				const chat = defaultChatUri(session);
+				const directory = URI.parse('vscode-vfs://github/microsoft/vscode');
+				const credentials = scoped ? { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) } : undefined;
+				const context = { ...exactChatContext(session, chat, session), credentials };
+				await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+				const target = chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession;
+				target.discardActiveTurn();
+				await (agent as unknown as { _destroyLiveSession(session: CopilotAgentSession, preserveRouting: boolean): Promise<void> })._destroyLiveSession(target, true);
+				await agent.chats.sendMessage(chat, 'resumed', [directory], undefined, 'second', undefined, context);
+				assert.deepStrictEqual({
+					filesystems: options.filter(option => option.sessionFs).map(option => option.sessionFs),
+					launches: launches.map(launch => ({
+						kind: launch.kind,
+						token: launch.config.gitHubToken,
+						workingDirectory: launch.config.workingDirectory,
+						provider: typeof launch.config.createSessionFsProvider,
+					})),
+				}, {
+					filesystems: [{ initialCwd: '/vscode-vfs/github/microsoft/vscode', sessionStatePath: '/session-state', conventions: 'posix', capabilities: { binary: true } }],
+					launches: ['create', 'resume'].map(kind => ({ kind, token: scoped ? 'sponsor' : 'host-token', workingDirectory: '/vscode-vfs/github/microsoft/vscode', provider: 'function' })),
+				});
+			});
+		}
+
 		test('discovers and caches models without a host token using only the caller credential', async () => {
 			const { agent, clients, options } = setup();
 			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
@@ -21456,8 +21487,8 @@ suite('CopilotAgent', () => {
 
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			const provider = disposables.add(new StatTrackingFileSystemProvider());
-			disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
-			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			const workspace = URI.file('/workspace');
 			await fileService.createFolder(workspace);
 
 			const sessionDataService = disposables.add(new TestSessionDataService());

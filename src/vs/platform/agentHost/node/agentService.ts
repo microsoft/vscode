@@ -6240,6 +6240,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${config?.provider ?? '(none)'}`);
 		}
+		if (!provider.supportsVirtualWorkspaces && config?.workingDirectories?.some(directory => directory.scheme !== Schemas.file)) {
+			throw new Error(localize('agentHost.virtualWorkspaceUnsupported', "Agent '{0}' does not support virtual workspaces.", provider.id));
+		}
 		if (config?.credentials) {
 			this._requireProviderCredentials(provider, config.credentials);
 		}
@@ -6306,7 +6309,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const agentMergeEnabled = isAnyAgentMergeEnabled(sessionConfig?.values, config?.workingDirectories?.[0] ? getWorkingDirectoryKey(config.workingDirectories[0].toString()) : undefined);
 		// A pull request session always gets a worktree, and fails rather than
 		// falling back to the folder when its working directory is not a repository.
-		const deferWorktreeCreation = (sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' || getSessionPullRequestUrl(sessionConfig?.values) !== undefined) && !config?.importConversation;
+		const deferWorktreeCreation = (sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' || getSessionPullRequestUrl(sessionConfig?.values) !== undefined) && !config?.importConversation && !config?.workingDirectories?.some(directory => directory.scheme !== Schemas.file);
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([

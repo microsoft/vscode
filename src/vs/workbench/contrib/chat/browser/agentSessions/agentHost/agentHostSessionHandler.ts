@@ -47,6 +47,7 @@ import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } 
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentClientPath } from '../../../../../../platform/agentHost/common/agentClientUri.js';
 import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -94,6 +95,8 @@ import { packErrorForTelemetry } from '../../../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { isVirtualResource } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -412,6 +415,47 @@ interface IStartServerRequestOptions {
 function parseTimestamp(value: string): number | undefined {
 	const timestamp = Date.parse(value);
 	return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+/**
+ * Sessions on a virtual workspace name its files by their `toAgentClientPath`, which the
+ * model writes as plain absolute paths. Maps such a `file:` link back to the workspace resource.
+ *
+ * This leaks the agent host's virtual workspace path format into the client, which should
+ * ideally receive links already in the URI space of the workspace it published. The host has
+ * no markdown link rewriting layer to do that today, and adding one would need to buffer links
+ * split across streamed deltas. If this is revisited, prefer having the host declare the
+ * mapping on the session (e.g. "working directory `vscode-vfs://…` is addressed as
+ * `/vscode-vfs/…`") and applying that declared prefix generically in
+ * `rewriteAgentHostLinkTarget`, rather than hard-coding the path format here.
+ */
+function toVirtualWorkspaceLink(resolved: string, workingDirectory: string | undefined): string {
+	const root = workingDirectory ? URI.parse(workingDirectory) : undefined;
+	if (!root || root.scheme === Schemas.file) {
+		return resolved;
+	}
+	let link: URI;
+	try {
+		link = URI.parse(resolved, true);
+	} catch {
+		return resolved;
+	}
+	if (link.scheme !== Schemas.file) {
+		return resolved;
+	}
+	let resource: URI;
+	try {
+		// SDK paths carry no query, so the root's query (such as a ref) is restored for containment.
+		resource = fromAgentClientPath(link.path).with({ query: root.query });
+	} catch {
+		// Host-local links (such as `file:///C:/...`) do not decode as SDK paths.
+		return resolved;
+	}
+	if (!extUriBiasedIgnorePathCase.isEqualOrParent(resource, root)) {
+		return resolved;
+	}
+	const query = [root.query, link.query].filter(Boolean).join('&');
+	return resource.with({ query, fragment: link.fragment }).toString();
 }
 
 function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number | undefined; duration: number | undefined } {
@@ -1455,6 +1499,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
@@ -7681,17 +7726,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			.filter(folder => !scratchFolders.some(scratch => isEqual(folder, scratch)));
 	}
 
-	/**
-	 * Drop working directories whose scheme the host cannot address, falling back to `undefined` so
-	 * it picks its own. Schemes are compared as the host receives them, after unwrapping.
-	 */
+	/** Drop directories the host cannot address unless the local provider can read them back from this client. */
 	private _hostAddressableWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
 		const defaultDirectory = this._config.connection.initializeResult.get()?.defaultDirectory;
 		if (!directories?.length || !defaultDirectory) {
 			return directories;
 		}
 		const hostScheme = URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory).scheme : URI.parse(defaultDirectory).scheme;
-		const addressable = directories.filter(directory => this._config.connection.resourceUris.toAgentHost(directory).scheme === hostScheme);
+		const supportsVirtualWorkingDirectories = !this._environmentService.isSessionsWindow
+			&& this._config.connection.clientConnectionKind === AgentHostClientConnectionKind.Local
+			&& this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+		const addressable = directories.filter(directory => {
+			const hostDirectory = this._config.connection.resourceUris.toAgentHost(directory);
+			return hostDirectory.scheme === hostScheme || (supportsVirtualWorkingDirectories && isVirtualResource(hostDirectory));
+		});
 		if (addressable.length === directories.length) {
 			return directories;
 		}
@@ -8675,7 +8723,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			? this._getSessionState(session.toString(), chatUri)?.workingDirectories?.[0]
 			: undefined;
 		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
-		const resolved = resolve(href);
+		const resolved = toVirtualWorkspaceLink(resolve(href), directory);
 		const chat = chatUri === this._getRawSessionState(session.toString())?.defaultChat
 			? this._getDefaultChatState(session.toString())
 			: chatUri ? this._getAdditionalChatState(chatUri) : undefined;
