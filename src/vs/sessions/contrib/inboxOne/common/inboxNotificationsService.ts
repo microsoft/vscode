@@ -229,7 +229,7 @@ export interface IInboxNotificationsService {
 
 	/**
 	 * Map from a completed item's id to its structured, model-generated evidence pack.
-	 * Generation is focus-triggered via {@link requestDetailSummary}; an entry is absent
+	 * Generation is visibility-triggered via {@link requestDetailSummary}; an entry is absent
 	 * until it has been generated.
 	 */
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;

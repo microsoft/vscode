@@ -1261,16 +1261,18 @@ suite('InboxNotificationsView', () => {
 			title: id, description: id, timestamp: 1, actions: [], previewSignature: id, previewInputText: id,
 		}));
 		const previewRequests: string[] = [];
+		const summaryRequests: string[] = [];
 		const events: string[] = [];
-		const { view, container } = createView(constObservable(items), { intersectionObserver: TestIntersectionObserver, previewRequests, events });
+		const { view, container, instantiationService } = createView(constObservable(items), { intersectionObserver: TestIntersectionObserver, previewRequests, events });
+		instantiationService.stub(IInboxNotificationsService, 'requestDetailSummary', (item: IInboxNotificationItem) => summaryRequests.push(item.id));
 		view.render(container);
 		assert.ok(observer);
 		const [visible, offscreen] = Array.from(observer.targets);
 		observer.setIntersecting(offscreen, false);
-		assert.deepStrictEqual({ previewRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, { previewRequests: [], impressions: [] });
+		assert.deepStrictEqual({ previewRequests, summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, { previewRequests: [], summaryRequests: [], impressions: [] });
 		observer.setIntersecting(visible, true);
-		assert.deepStrictEqual({ previewRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, {
-			previewRequests: ['visible'], impressions: ['agents/inboxImpression'],
+		assert.deepStrictEqual({ previewRequests, summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, {
+			previewRequests: ['visible'], summaryRequests: ['visible'], impressions: ['agents/inboxImpression'],
 		});
 
 		observer.setIntersecting(visible, false);
@@ -1280,6 +1282,39 @@ suite('InboxNotificationsView', () => {
 		assert.ok(previewRequests.length > 0 && previewRequests.every(id => id === 'visible'));
 		view.dispose();
 		assert.strictEqual(observer.targets.size, 0);
+	});
+
+	test('shows preparation instead of a provisional title and interpretation before generated content arrives', () => {
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review completed work', description: 'Provider summary', timestamp: 1, actions: [],
+			sessionResource: URI.parse('test:///session'), previewSignature: 'preview',
+		};
+		const previews = observableValue<ReadonlyMap<string, string>>('previews', new Map());
+		const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());
+		const { view, container } = createView(constObservable([item]), { previews, detailSummaries: summaries });
+		view.render(container);
+		const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+		const initialTitle = card.querySelector('.inbox-notifications-item-title')?.textContent;
+		previews.set(new Map([['preview', 'Review chocolate.md']]), undefined);
+		card.click();
+		const snapshot = () => ({
+			title: card.querySelector('.inbox-notifications-item-title')?.textContent,
+			heading: container.querySelector('.inbox-notifications-evidence-header h3')?.textContent,
+			interpretation: container.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')?.hidden,
+			accessible: view.getDetailAccessibleContent()?.includes('Review chocolate.md'),
+		});
+		const selected = snapshot();
+		summaries.set(new Map([['item', { status: 'Created chocolate.md.', decisions: [], evidence: [] }]]), undefined);
+		assert.deepStrictEqual({
+			initialTitle, selected, ready: snapshot(),
+			summary: container.querySelector('.inbox-notifications-detail-summary')?.textContent,
+		}, {
+			initialTitle: 'Preparing notification…',
+			selected: { title: 'Review chocolate.md', heading: 'Review chocolate.md', interpretation: true, accessible: true },
+			ready: { title: 'Review chocolate.md', heading: 'Review chocolate.md', interpretation: false, accessible: true },
+			summary: 'Created chocolate.md.',
+		});
 	});
 
 	test('preserves a focused inline draft on same-id refreshes and defers new notifications', () => {

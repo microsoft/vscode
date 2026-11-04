@@ -402,6 +402,7 @@ suite('InboxNotificationsService', () => {
 		fixture.service.requestPreview(first);
 		await waitForState(fixture.service.isLoading, loading => !loading);
 		chatService.setCompletedResponse(resource, { requestId: 'second', markdown: `${'Earlier progress. '.repeat(200)}Created chocolate.md.` });
+		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(300), undefined);
 		const next = fixture.service.sessionRows.get()[0];
 		fixture.service.requestPreview(next);
 		await waitForState(fixture.service.isLoading, loading => !loading);
@@ -418,6 +419,45 @@ suite('InboxNotificationsService', () => {
 		}, {
 			sameRow: true, newSignature: true, title: 'Update profile', latestInput: true, containsResult: true,
 			bounded: true, requests: 2, old: 'Review profile changes', current: 'Review chocolate.md',
+		});
+	});
+
+	test('keeps completed row content stable when opening and unloading its history', async () => {
+		const session = createSession({ id: 'stable-preview', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		const resource = session.mainChat.get().resource;
+		let requests = 0;
+		chatService.setAcquireOrLoadHandler(async () => {
+			chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+			return { object: chatService.getSession(resource)!, dispose: () => chatService.removeSession(resource) };
+		});
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => {
+				requests++;
+				return request.purpose === 'inboxPreview' ? 'Review chocolate.md' : '{"status":"Created chocolate.md.","decisions":[],"evidence":[]}';
+			},
+		});
+		const before = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(before);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		fixture.service.requestDetailSummary(before);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+		const opened = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(opened);
+		fixture.service.requestDetailSummary(opened);
+		chatService.removeSession(resource);
+		const closed = fixture.service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			signatures: [before, opened, closed].map(row => row.previewSignature),
+			titles: [before, opened, closed].map(row => fixture.service.previews.get().get(row.previewSignature!)),
+			summary: fixture.service.detailSummaries.get().get(opened.id)?.status,
+			requests,
+		}, {
+			signatures: [before.previewSignature, before.previewSignature, before.previewSignature],
+			titles: ['Review chocolate.md', 'Review chocolate.md', 'Review chocolate.md'],
+			summary: 'Created chocolate.md.',
+			requests: 2,
 		});
 	});
 

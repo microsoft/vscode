@@ -538,6 +538,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 				this.reportImpression(item, index);
 				this.inboxNotificationsService.requestPreview(item);
+				this.inboxNotificationsService.requestDetailSummary(item);
 			}
 		}, { root: this.scrollableElement.getDomNode() });
 		this._register(toDisposable(() => this.cardVisibilityObserver.disconnect()));
@@ -1281,7 +1282,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		store.add(this.hoverService.setupDelayedHover(title, () => ({ content: title.textContent ?? item.title })));
 		store.add(autorun(reader => {
 			const generated = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
-			title.textContent = generated || row?.workTitle || item.title;
+			const preparing = !!item.previewSignature && generated === undefined;
+			title.textContent = preparing ? localize('inboxNotifications.preparing', "Preparing notification…") : generated || row?.workTitle || item.title;
+			title.setAttribute('aria-busy', String(preparing));
 			sessionTitle.textContent = row?.workTitle ?? row?.sessionTitle ?? item.title;
 			card.setAttribute('aria-label', [
 				title.textContent, sessionTitle.textContent, kindLabel, row && getInboxTabLabel(row.tab),
@@ -2944,7 +2947,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.detailDisposables.add(autorun(reader => {
 			const current = this.inboxNotificationsService.sessionRows.read(reader).find(row => row.id === item.id) ?? item;
 			const generated = current?.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(current.previewSignature) : undefined;
-			heading.textContent = generated || sessionTitle;
+			const preparing = !!current.previewSignature && generated === undefined;
+			heading.textContent = preparing ? localize('inboxNotifications.preparing', "Preparing notification…") : generated || sessionTitle;
+			heading.setAttribute('aria-busy', String(preparing));
 			this.detailContentElement.setAttribute('aria-label', localize('inboxNotifications.detail.ariaLabel.item', "Notification details for {0}.", heading.textContent));
 		}));
 		const headerActions = header.appendChild($('.inbox-notifications-evidence-actions'));
@@ -3239,6 +3244,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (summary && (summary.status || summary.decisions.length || summary.evidence.length)) {
 			return summary;
 		}
+		if (item.sessionResource && (item.kind === InboxNotificationKind.Completed || item.needsInputPart || item.pullRequestStates?.length)) {
+			return undefined;
+		}
 		const preview = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
 		return preview && preview !== item.description && preview !== item.previewFallbackText ? { status: preview, decisions: [], evidence: [] } : undefined;
 	}
@@ -3335,7 +3343,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	getDetailAccessibleContent(): string | undefined {
 		const item = this.selectedItem();
 		const sessionTitle = item ? this.getRow(item.id)?.sessionTitle ?? item.title : '';
-		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? sessionTitle : sessionTitle;
+		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? localize('inboxNotifications.preparing', "Preparing notification…") : sessionTitle;
 		const interpretation = item && this.getDetailInterpretation(item);
 		const content = [
 			...(interpretation ? [
