@@ -12,7 +12,7 @@ import { isWindows, OperatingSystem } from '../../../../base/common/platform.js'
 import { originalFSPath } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationError, FileOperationResult, hasFileRealpathCapability, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, FileType, hasFileRealpathCapability, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -180,6 +180,12 @@ async function isResolvedResourceInAnyRoot(
 		return true;
 	}
 
+	// Disk file systems return the unresolved path when resolving fails but the path is readable,
+	// so an unchanged path only proves containment if no link was involved.
+	if (uriIdentityService.extUri.isEqual(resolvedResource, request.resource)) {
+		return !await hasLinkBelowRoot(request, fileService, uriIdentityService);
+	}
+
 	if (isContainedInAnyRoot(resolvedResource, request.roots, uriIdentityService, request.forcePosixSemantics)) {
 		return true;
 	}
@@ -188,6 +194,35 @@ async function isResolvedResourceInAnyRoot(
 		.filter(root => root.scheme === request.resource.scheme)
 		.map(root => resolveRealpath(root, fileService, remoteOS).catch(() => undefined)));
 	return isContainedInAnyRoot(resolvedResource, resolvedRoots.filter(isDefined), uriIdentityService, request.forcePosixSemantics);
+}
+
+/**
+ * Whether the resource, or a folder between it and the closest root containing it, is a link.
+ * Links in the path of a root itself are allowed. Paths that cannot be checked count as links.
+ */
+async function hasLinkBelowRoot(request: IContainmentRequest, fileService: IFileService, uriIdentityService: IUriIdentityService): Promise<boolean> {
+	const extUri = uriIdentityService.extUri;
+	const containingRoots = request.roots.filter(root => containsResource(root, request.resource, uriIdentityService, request.forcePosixSemantics));
+	const closestRoot = containingRoots.reduce<URI | undefined>((closest, root) => !closest || extUri.isEqualOrParent(root, closest) ? root : closest, undefined);
+	const provider = fileService.getProvider(request.resource.scheme);
+	if (!closestRoot || !provider) {
+		return true;
+	}
+
+	const candidates: URI[] = [];
+	for (let current = request.resource; !extUri.isEqualOrParent(closestRoot, current); current = extUri.dirname(current)) {
+		if (extUri.isEqual(extUri.dirname(current), current)) {
+			return true;
+		}
+		candidates.push(current);
+	}
+
+	try {
+		const stats = await Promise.all(candidates.map(candidate => provider.stat(candidate)));
+		return stats.some(stat => (stat.type & FileType.SymbolicLink) !== 0);
+	} catch {
+		return true;
+	}
 }
 
 /**

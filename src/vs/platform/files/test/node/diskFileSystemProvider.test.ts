@@ -12,11 +12,11 @@ import { promisify } from 'util';
 import { stub } from 'sinon';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../common/files.js';
+import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../common/files.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 
@@ -50,6 +50,31 @@ suite('DiskFileSystemProvider', function () {
 			provider.realpath(URI.file(join(testDir, 'removed-checkout'))),
 			error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound
 		);
+	});
+
+	(isLinux ? test : test.skip)('realpath returns the unresolved path of a readable link it cannot resolve, which stat reports as a link', async () => {
+		// A link to the descriptor of an open, deleted file cannot be resolved, but reading it succeeds.
+		// Callers that authorize by resolved path (e.g. webview resource loading) rely on `stat` to detect this.
+		const deletedPath = join(testDir, 'deleted.txt');
+		await promises.writeFile(deletedPath, 'contents');
+		const handle = await promises.open(deletedPath, 'r');
+		try {
+			await promises.unlink(deletedPath);
+			const link = URI.file(join(testDir, 'fd-link.txt'));
+			await promises.symlink(`/proc/self/fd/${handle.fd}`, link.fsPath);
+
+			assert.deepStrictEqual({
+				realpath: await provider.realpath(link),
+				isSymbolicLink: ((await provider.stat(link)).type & FileType.SymbolicLink) !== 0,
+				contents: Buffer.from(await provider.readFile(link)).toString(),
+			}, {
+				realpath: link.fsPath,
+				isSymbolicLink: true,
+				contents: 'contents',
+			});
+		} finally {
+			await handle.close();
+		}
 	});
 
 	for (const method of ['open', 'readFile', 'readFileStream']) {
