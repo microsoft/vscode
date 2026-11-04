@@ -2965,11 +2965,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.focusSelectedCard();
 			this.clearSelectedItem('closeEvidence');
 		}));
-		for (const notification of row?.notifications ?? [item]) {
-			body.appendChild(this.renderNotificationDetails(notification, sessionTitle, this.detailDisposables));
-		}
 		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed || item.previewSignature || item.pullRequestStates?.length) {
 			this.renderDetailSummary(body, item);
+		}
+		for (const notification of row?.notifications ?? [item]) {
+			body.appendChild(this.renderNotificationDetails(notification, sessionTitle, this.detailDisposables));
 		}
 		if (this.detailChatBinding) {
 			const { session, chat } = this.detailChatBinding;
@@ -3338,6 +3338,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? sessionTitle : sessionTitle;
 		const interpretation = item && this.getDetailInterpretation(item);
 		const content = [
+			...(interpretation ? [
+				localize('inboxNotifications.detail.interpretation', "Agent interpretation"),
+				interpretation.status,
+				...interpretation.decisions,
+				...interpretation.evidence.map(evidence => evidence.artifact.kind === 'session' && !evidence.artifact.uri
+					? evidence.text : `${evidence.text}\n${evidence.artifact.label}${evidence.artifact.uri ? `: ${evidence.artifact.uri.toString(true)}` : ''}`),
+			] : []),
 			...(item ? (this.getRow(item.id)?.notifications ?? [item]).map(notification => [
 				notification.title !== sessionTitle ? notification.title : '', notification.description,
 				notification.needsInputPart?.kind === 'questionCarousel' ? notification.needsInputPart.questions.map(question => question.title).join('\n') : '',
@@ -3349,13 +3356,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 					localize('inboxNotifications.planReview.reject', "Reject"),
 				].join('\n') : '',
 			].filter(Boolean).join('\n')) : []),
-			...(interpretation ? [
-				localize('inboxNotifications.detail.interpretation', "Agent interpretation"),
-				interpretation.status,
-				...interpretation.decisions,
-				...interpretation.evidence.map(evidence => evidence.artifact.kind === 'session' && !evidence.artifact.uri
-					? evidence.text : `${evidence.text}\n${evidence.artifact.label}${evidence.artifact.uri ? `: ${evidence.artifact.uri.toString(true)}` : ''}`),
-			] : []),
 			this.evidenceWidget?.getAccessibleContent(),
 			...(item?.pullRequestStates?.map(state => `${state.repositoryLabel} ${state.label}: ${state.statusLabel}${state.pullRequestUri ? `\n${state.pullRequestUri.toString(true)}` : ''}`) ?? []),
 			this.getDetailChatStatus(),
