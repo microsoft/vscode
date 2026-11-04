@@ -21,15 +21,26 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
- * The files that configure how the native modules build. A cached node_modules folder only works with the
- * configuration that built it.
+ * The files that configure how the native modules build, besides the `nativeBuild` field of the
+ * install roots' `package.json` (see {@link getNativeBuildTargets}). A cached node_modules folder
+ * only works with the configuration that built it.
  */
-const nativeBuildConfigFiles = ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
+const nativeBuildConfigFiles = ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
 
 /**
- * Computes the node_modules cache key from the native module build configuration (`.npmrc` and
- * pnpmfiles), the dependency sections of every `package.json`, the `pnpm-lock.yaml` and
- * `pnpm-workspace.yaml` of every install root, and the given arguments.
+ * Returns the `nativeBuild` field of the root and `remote` `package.json`: the runtime and version
+ * that their native modules are built for. `build` builds for the Node.js that runs the install,
+ * whose version is in `.nvmrc`.
+ */
+function getNativeBuildTargets(readFile: ReadRepositoryFile): string {
+	return JSON.stringify(['package.json', 'remote/package.json'].map(file => JSON.parse(readFile(file).toString()).nativeBuild ?? null));
+}
+
+/**
+ * Computes the node_modules cache key from the native module build configuration (the pnpmfiles
+ * and the `nativeBuild` field of the install roots' `package.json`), the dependency sections of
+ * every `package.json`, the `pnpm-lock.yaml` and `pnpm-workspace.yaml` of every install root, and
+ * the given arguments.
  */
 export function computeNodeModulesCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
 	const shasum = crypto.createHash('sha256');
@@ -48,7 +59,8 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 			optionalDependencies: packageJson.optionalDependencies,
 			resolutions: packageJson.resolutions,
 			distro: packageJson.distro,
-			packageManager: packageJson.packageManager
+			packageManager: packageJson.packageManager,
+			nativeBuild: packageJson.nativeBuild
 		};
 		shasum.update(JSON.stringify(relevantPackageJsonSections));
 	}
@@ -79,6 +91,7 @@ export function computeNodeModulesBaseCacheKey(args: readonly string[], readFile
 	for (const file of [...nativeBuildConfigFiles, '.nvmrc', 'extensions/copilot/.nvmrc']) {
 		shasum.update(readFile(file));
 	}
+	shasum.update(getNativeBuildTargets(readFile));
 	shasum.update(JSON.stringify(JSON.parse(readFile('package.json').toString()).packageManager));
 	for (const dir of ['', ...separateRoots, ...distroRoots]) {
 		shasum.update(readFile(path.posix.join(dir, 'pnpm-workspace.yaml')));

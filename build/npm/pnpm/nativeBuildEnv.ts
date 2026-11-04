@@ -7,74 +7,135 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * `.npmrc` keys that configure native module builds (node-gyp, prebuild-install, ...). pnpm
- * ignores them in `.npmrc` and doesn't export its configuration as `npm_config_*` variables to
- * install scripts, so the `.pnpmfile.mjs` of each install root passes them to pnpm instead.
+ * How an install root builds its native modules: the `nativeBuild` field of its `package.json`.
+ * This is the one place that describes the field. For example, in the root `package.json`:
+ *
+ * ```json
+ * "nativeBuild": {
+ *   "runtime": "electron",
+ *   "target": "43.8.3",
+ *   "disturl": "https://electronjs.org/headers",
+ *   "msBuildId": "15784459",
+ *   "buildFromSource": true
+ * }
+ * ```
+ *
+ * The fields are the node-gyp and prebuild-install settings that npm used to read from the
+ * root's `.npmrc`. pnpm doesn't pass its configuration to install scripts as `npm_config_*`
+ * variables, and fails on unknown settings in `pnpm-workspace.yaml`, so the `.pnpmfile.mjs` of
+ * the root passes them to every install script instead (see {@link createNativeBuildHooks}).
+ *
+ * The root `package.json` has the Electron version (read with `getElectronVersion()` of
+ * `build/lib/electronVersion.ts`), `remote/package.json` the Node.js version of the server (read
+ * with `getServerNodeVersion()` of `build/lib/node.ts`), and `build/package.json` has no `target`:
+ * its native modules are built for the Node.js that runs the install. An Electron or Node.js
+ * update changes `target`, `msBuildId` and the checksums in `build/checksums/`.
+ */
+export interface NativeBuildConfig {
+	/** The runtime that the native modules run in (`npm_config_runtime`). */
+	readonly runtime: 'electron' | 'node';
+	/** The version of the runtime, without a `v` prefix (`npm_config_target`). */
+	readonly target?: string;
+	/** Where node-gyp downloads the headers of the runtime from (`npm_config_disturl`). */
+	readonly disturl: string;
+	/**
+	 * The build of the runtime in Microsoft's internal feeds (`npm_config_ms_build_id`): product
+	 * builds download Electron and the server's Node.js of this build.
+	 */
+	readonly msBuildId?: string;
+	/** Build native modules from source instead of downloading prebuilt binaries (`npm_config_build_from_source`). */
+	readonly buildFromSource?: boolean;
+	/**
+	 * Use `process.config` for node-gyp (`npm_config_force_process_config`), for roots that build
+	 * for Node.js. Only applies on macOS, where it gives node-gyp the clang settings it needs; keep
+	 * the version check in preinstall.ts in sync with this, because `process.config` only has them
+	 * since https://github.com/nodejs/node/commit/6e0a2bb54c5bbeff0e9e33e1a0c683ed980a8a0f.
+	 */
+	readonly forceProcessConfig?: boolean;
+}
+
+/**
+ * The `npm_config_*` keys (without the prefix) that configure native module builds, set from the
+ * fields of {@link NativeBuildConfig}.
  */
 export const nativeBuildKeys = ['disturl', 'target', 'ms_build_id', 'runtime', 'build_from_source', 'force_process_config'] as const;
+
+const nativeBuildFields: Readonly<Record<keyof NativeBuildConfig, 'string' | 'boolean'>> = {
+	runtime: 'string',
+	target: 'string',
+	disturl: 'string',
+	msBuildId: 'string',
+	buildFromSource: 'boolean',
+	forceProcessConfig: 'boolean',
+};
+
+/**
+ * Reads the `nativeBuild` field of the `package.json` in `rootDir`, or `undefined` when it has
+ * none. Throws when the field is not a valid {@link NativeBuildConfig}.
+ */
+export function readNativeBuildConfig(rootDir: string): NativeBuildConfig | undefined {
+	const file = path.join(rootDir, 'package.json');
+	const value: unknown = JSON.parse(fs.readFileSync(file, 'utf8')).nativeBuild;
+	if (value === undefined) {
+		return undefined;
+	}
+	const fail = (message: string) => new Error(`Invalid nativeBuild field in ${file}: ${message}. See NativeBuildConfig in build/npm/pnpm/nativeBuildEnv.ts.`);
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		throw fail('expected an object');
+	}
+	for (const [key, fieldValue] of Object.entries(value)) {
+		const type = Object.hasOwn(nativeBuildFields, key) ? nativeBuildFields[key as keyof NativeBuildConfig] : undefined;
+		if (!type) {
+			throw fail(`unknown property "${key}"`);
+		}
+		if (typeof fieldValue !== type) {
+			throw fail(`"${key}" must be a ${type}`);
+		}
+	}
+	const config = value as NativeBuildConfig;
+	if (config.runtime !== 'electron' && config.runtime !== 'node') {
+		throw fail('"runtime" must be "electron" or "node"');
+	}
+	if (config.disturl === undefined) {
+		throw fail('"disturl" is required');
+	}
+	return config;
+}
 
 /**
  * Options of an install root that builds native modules.
  */
 export interface NativeBuildOptions {
-	/**
-	 * Use `process.config` for node-gyp on macOS (`npm_config_force_process_config`), for roots
-	 * that build for Node.js. The clang settings of `process.config` are only correct for the
-	 * Node.js version checked by the preinstall.
-	 */
-	readonly forceProcessConfigOnDarwin?: boolean;
 	/** Build for the architecture of the running Node.js, ignoring `npm_config_arch`. */
 	readonly hostArch?: boolean;
 	/**
 	 * Build for the version of the running Node.js (`npm_config_target`), for roots whose native
-	 * modules run in the Node.js that installs them (build scripts) and whose `.npmrc` has no `target`.
+	 * modules run in the Node.js that installs them (build scripts) and whose `nativeBuild` field
+	 * has no `target`.
 	 */
 	readonly runningNodeTarget?: boolean;
 }
 
 /**
- * Reads the `key=value` lines of an `.npmrc` file, without surrounding quotes.
- */
-export function readNpmrc(file: string): Map<string, string> {
-	const result = new Map<string, string>();
-	if (!fs.existsSync(file)) {
-		return result;
-	}
-	for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-		const trimmed = line.trim();
-		if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';')) {
-			continue;
-		}
-		const eq = trimmed.indexOf('=');
-		if (eq <= 0) {
-			continue;
-		}
-		result.set(trimmed.substring(0, eq).trim(), trimmed.substring(eq + 1).trim().replace(/^"(.*)"$/, '$1'));
-	}
-	return result;
-}
-
-/**
  * Returns the `npm_config_*` variables for native module builds in the install root `rootDir`:
- * every key of its `.npmrc`, and the known native build keys it doesn't set removed (so that they
- * aren't inherited from another root). `undefined` means "unset".
+ * the fields of the `nativeBuild` field of its `package.json`, with the native build keys that it
+ * doesn't set removed (so that they aren't inherited from another root). `undefined` means "unset".
  *
  * `npm_config_node_gyp` is not set: install scripts build with the node-gyp bundled with pnpm, as
  * they built with the one bundled with npm, which ignores the variable. The node-gyp of
  * `build/npm/gyp` only installs the Electron and Node.js headers (see preinstall.ts).
  */
 export function getNativeBuildEnv(rootDir: string, options: NativeBuildOptions = {}, platform: string = process.platform, arch: string = process.arch, nodeVersion: string = process.versions.node): Record<string, string | undefined> {
-	const result: Record<string, string | undefined> = {};
-	for (const key of nativeBuildKeys) {
-		result[`npm_config_${key}`] = undefined;
-	}
-	for (const [key, value] of readNpmrc(path.join(rootDir, '.npmrc'))) {
-		result[`npm_config_${key}`] = value;
-	}
-
-	// Keep the version check in preinstall.ts in sync with this: process.config must have the
-	// clang settings that node-gyp needs (https://github.com/nodejs/node/commit/6e0a2bb54c5bbeff0e9e33e1a0c683ed980a8a0f).
-	result.npm_config_force_process_config = options.forceProcessConfigOnDarwin && platform === 'darwin' ? 'true' : undefined;
+	const config = readNativeBuildConfig(rootDir);
+	const values: Record<(typeof nativeBuildKeys)[number], string | undefined> = {
+		disturl: config?.disturl,
+		target: config?.target,
+		ms_build_id: config?.msBuildId,
+		runtime: config?.runtime,
+		build_from_source: config?.buildFromSource === undefined ? undefined : String(config.buildFromSource),
+		force_process_config: config?.forceProcessConfig && platform === 'darwin' ? 'true' : undefined,
+	};
+	const result: Record<string, string | undefined> = Object.fromEntries(nativeBuildKeys.map(key => [`npm_config_${key}`, values[key]]));
 
 	if (options.hostArch) {
 		result.npm_config_arch = arch;
@@ -129,9 +190,9 @@ export function createNativeBuildHooks(rootDir: string, options: NativeBuildHook
 /**
  * Returns pnpm's `extraEnv` with the variables of {@link getNativeBuildEnv} added:
  * - `extraEnv` can only set variables, not remove them. A native build key that the root's
- *   `.npmrc` doesn't set is set to an empty value instead, so that a value inherited from the
- *   caller (such as the root's Electron settings, when the root postinstall installs `build`) is
- *   not used. node-gyp treats an empty value like a missing one: it tests `force_process_config`
+ *   `nativeBuild` field doesn't set is set to an empty value instead, so that a value inherited
+ *   from the caller (such as the root's Electron settings, when the root postinstall installs
+ *   `build`) is not used. node-gyp treats an empty value like a missing one: it tests `force_process_config`
  *   for truthiness and doesn't read `ms_build_id`.
  * - With {@link NativeBuildHookOptions.exportFrozenLockfileOfCi}, `pnpm ci` (and its aliases, which
  *   pnpm reports as the command `ci` in `npm_command`) sets `pnpm_config_frozen_lockfile`, so the

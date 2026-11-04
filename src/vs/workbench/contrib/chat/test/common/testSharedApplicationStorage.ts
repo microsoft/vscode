@@ -57,15 +57,20 @@ class WindowApplicationStorageDatabase implements IStorageDatabase {
 /**
  * An in-memory storage service for one window: its own profile and workspace
  * storage, plus application storage backed by a {@link SharedApplicationStorageDatabase}.
+ * With `useApplicationStorageForProfile`, profile storage is that application storage,
+ * like in a window whose profile uses the default profile's storage.
  * Call {@link init} before use so existing shared items are loaded.
  */
 export class TestWindowStorageService extends InMemoryStorageService {
 	private readonly _sharedApplicationStorage: Storage;
 
-	constructor(shared: SharedApplicationStorageDatabase) {
+	constructor(shared: SharedApplicationStorageDatabase, private readonly _options?: { useApplicationStorageForProfile?: boolean }) {
 		super();
 		this._sharedApplicationStorage = this._register(new Storage(new WindowApplicationStorageDatabase(shared), { hint: StorageHint.STORAGE_IN_MEMORY }));
 		this._register(this._sharedApplicationStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION, e)));
+		if (_options?.useApplicationStorageForProfile) {
+			this._register(this._sharedApplicationStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.PROFILE, e)));
+		}
 	}
 
 	async init(): Promise<this> {
@@ -74,7 +79,10 @@ export class TestWindowStorageService extends InMemoryStorageService {
 	}
 
 	protected override getStorage(scope: StorageScope): IStorage {
-		return scope === StorageScope.APPLICATION ? this._sharedApplicationStorage : super.getStorage(scope);
+		if (scope === StorageScope.APPLICATION || (scope === StorageScope.PROFILE && this._options?.useApplicationStorageForProfile)) {
+			return this._sharedApplicationStorage;
+		}
+		return super.getStorage(scope);
 	}
 }
 

@@ -302,6 +302,22 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
+		test('repeated focus-style refreshes only reread the local catalogue', async () => {
+			const fixture = await createFixture();
+			for (let index = 0; index < 3; index++) {
+				fixture.management.sessions = [createTestSession(`Latest ${index}`).session];
+				fixture.list.refresh();
+			}
+			const immediate = fixture.counts();
+			await nextFrame();
+
+			assert.deepStrictEqual({
+				immediate, settled: fixture.counts(), titles: fixture.titles(),
+			}, {
+				immediate: { reads: 3, updates: 3 }, settled: { reads: 3, updates: 3 }, titles: ['Latest 2'],
+			});
+		});
+
 		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
 			const fixture = await createFixture();
 			fixture.invalidateCatalogue();
@@ -785,6 +801,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = activeSession;
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			});
@@ -9688,6 +9705,7 @@ suite('Sessions - SessionsList', () => {
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = activeSession;
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			}).container;
@@ -9748,6 +9766,7 @@ suite('Sessions - SessionsList', () => {
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
 					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 						override readonly activeSession = activeSession;
+						override readonly mainWindowActiveSession = this.activeSession;
 						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 					});
 					instantiationService.stub(IHoverService, {
@@ -11475,6 +11494,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11572,6 +11592,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11606,6 +11627,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11657,11 +11679,17 @@ suite('Sessions - SessionsList', () => {
 				isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
 				sessionPayload: dataTransfer.getData(SessionsDataTransfers.SESSION),
 				chatPayload: getSessionChatDragData(dragStart),
+				// Unlike a chat tab's drag, a row's drag offers its URI as text to other apps,
+				// so dropping it on the desktop creates a text clipping rather than a chat window.
+				externalTypes: [...dataTransfer.types].filter(type => !type.startsWith('application/vnd.code.')),
+				text: dataTransfer.getData('text/plain'),
 			}, {
 				isChatDrag: true,
 				isSameSessionDrag: true,
 				sessionPayload: '',
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
+				externalTypes: ['text/plain'],
+				text: peer.resource.toString(),
 			});
 		});
 
@@ -11920,6 +11948,7 @@ suite('Sessions - SessionsList', () => {
 					if (activePeer) {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							override readonly activeSession = constObservable(activeSession);
+							override readonly mainWindowActiveSession = this.activeSession;
 							override readonly visibleSessions = constObservable([activeSession]);
 						});
 					}
@@ -13344,6 +13373,7 @@ suite('Sessions - SessionsList', () => {
 					const harness = createListHarness(disposables, [session], instantiationService => {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							override readonly activeSession = constObservable(activeSession);
+							override readonly mainWindowActiveSession = this.activeSession;
 							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
 						});
 					});

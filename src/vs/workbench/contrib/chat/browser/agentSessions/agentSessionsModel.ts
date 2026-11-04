@@ -38,7 +38,7 @@ import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProvider
 
 export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 
-type AgentSessionRefreshReason = Exclude<ChatSessionRefreshReason, 'initial'>;
+export type AgentSessionRefreshReason = Exclude<ChatSessionRefreshReason, 'initial'>;
 
 /** Keeps refresh intent and errors in the same batch across the delayer and throttler queues. */
 interface IProviderResolution {

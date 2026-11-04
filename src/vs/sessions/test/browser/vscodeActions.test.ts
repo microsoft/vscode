@@ -15,7 +15,11 @@ import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
+import { Menus } from '../../browser/menus.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -69,4 +73,22 @@ suite('Web Open in Editor', () => {
 			assert.deepStrictEqual(calls, [{ ...expected, openExternal: true }]);
 		});
 	}
+});
+
+suite('Open in Editor in Agents windows', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows in the main window and in chat windows, as the main window always showed it, and not in editor windows', () => {
+		const menus = new OpenInVSCodeAction().desc.menu;
+		const when = (Array.isArray(menus) ? menus : [menus]).find(menu => menu?.id === Menus.TitleBarCenterRight)?.when;
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const shows = (auxiliary: boolean, layoutMode: string | undefined) => {
+			const scoped = store.add(contextKeyService.createScoped(document.createElement('div')));
+			IsAuxiliaryWindowContext.bindTo(scoped).set(auxiliary);
+			LayoutModeContext.bindTo(scoped).set(layoutMode);
+			return scoped.contextMatchesRules(when);
+		};
+
+		assert.deepStrictEqual({ main: shows(false, undefined), chatWindow: shows(true, 'sideBySide'), editorWindow: shows(true, undefined) }, { main: true, chatWindow: true, editorWindow: false });
+	});
 });

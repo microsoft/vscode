@@ -80,6 +80,16 @@ import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actio
 
 export class PromptExtensionInstallFailureAction extends Action {
 
+	/**
+	 * Whether installing again from the prompt opens the extension in the Extensions editor, like {@link InstallAction.opensExtensionEditor}.
+	 */
+	opensExtensionEditor = true;
+
+	/**
+	 * Whether installing again from the prompt also enables the extension, like {@link InstallAction.enablesExtension}.
+	 */
+	enablesExtension = false;
+
 	constructor(
 		private readonly extension: IExtension,
 		private readonly options: InstallOptions | undefined,
@@ -129,11 +139,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 				message: getErrorMessage(this.error),
 				buttons: [{
 					label: localize('install prerelease', "Install Pre-Release"),
-					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { installPreReleaseVersion: true });
-						installAction.extension = this.extension;
-						return installAction.run();
-					}
+					run: () => this.installAgain({ installPreReleaseVersion: true })
 				}],
 				cancelButton: localize('cancel', "Cancel")
 			});
@@ -152,11 +158,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 				detail: getErrorMessage(this.error),
 				buttons: [{
 					label: localize('install anyway', "Install Anyway"),
-					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
-						installAction.extension = this.extension;
-						return installAction.run();
-					}
+					run: () => this.installAgain({ ...this.options, donotVerifySignature: true, })
 				}],
 				cancelButton: true
 			});
@@ -173,11 +175,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
 				}, {
 					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
-					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
-						installAction.extension = this.extension;
-						return installAction.run();
-					}
+					run: () => this.installAgain({ ...this.options, donotVerifySignature: true, })
 				}],
 				cancelButton: true
 			});
@@ -200,11 +198,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 					})
 				}, {
 					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
-					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
-						installAction.extension = this.extension;
-						return installAction.run();
-					}
+					run: () => this.installAgain({ ...this.options, donotVerifySignature: true, })
 				}],
 				cancelButton: true
 			});
@@ -239,6 +233,18 @@ export class PromptExtensionInstallFailureAction extends Action {
 
 		const message = additionalMessage ? NotificationText.concat(operationMessage, ' ', additionalMessage) : operationMessage;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
+	}
+
+	private async installAgain(options: InstallOptions): Promise<unknown> {
+		const installAction = this.instantiationService.createInstance(InstallAction, options);
+		try {
+			installAction.opensExtensionEditor = this.opensExtensionEditor;
+			installAction.enablesExtension = this.enablesExtension;
+			installAction.extension = this.extension;
+			return await installAction.run();
+		} finally {
+			installAction.dispose();
+		}
 	}
 
 	private async getDownloadUrl(): Promise<URI | undefined> {
@@ -443,6 +449,18 @@ export class InstallAction extends ExtensionAction {
 	private readonly updateThrottler = this._register(new Throttler());
 	public readonly options: InstallOptions;
 
+	/**
+	 * Whether installing opens the extension in the Extensions editor, which is also how the replacement of a
+	 * deprecated extension is offered. Windows without the Extensions editor turn this off.
+	 */
+	opensExtensionEditor = true;
+
+	/**
+	 * Whether installing also enables the extension when it is disabled once installed, such as in windows that disable
+	 * extensions by default. The extensions service enables it before installing completes.
+	 */
+	enablesExtension = false;
+
 	constructor(
 		options: InstallOptions,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -546,15 +564,17 @@ export class InstallAction extends ExtensionAction {
 				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", this.extension.deprecationInfo.extension.displayName);
 
 				const alternateExtension = this.extension.deprecationInfo.extension;
-				buttons.push({
-					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName),
-					run: async () => {
-						const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None);
-						await this.extensionsWorkbenchService.open(extension);
+				if (this.opensExtensionEditor) {
+					buttons.push({
+						label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName),
+						run: async () => {
+							const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None);
+							await this.extensionsWorkbenchService.open(extension);
 
-						return DeprecationChoice.ShowAlternateExtension;
-					}
-				});
+							return DeprecationChoice.ShowAlternateExtension;
+						}
+					});
+				}
 			} else if (this.extension.deprecationInfo.settings) {
 				detail = localize('deprecated with alternate settings message', "This extension is deprecated as this functionality is now built-in to VS Code.");
 
@@ -590,9 +610,13 @@ export class InstallAction extends ExtensionAction {
 			}
 		}
 
-		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.options.installPreReleaseVersion });
+		if (this.opensExtensionEditor) {
+			this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.options.installPreReleaseVersion });
 
-		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+		} else {
+			alert(localize('installExtensionStartWithoutEditor', "Installing extension {0} started.", this.extension.displayName));
+		}
 
 		/* __GDPR__
 			"extensions:action:install" : {
@@ -643,9 +667,16 @@ export class InstallAction extends ExtensionAction {
 
 	private async install(extension: IExtension): Promise<IExtension | undefined> {
 		try {
-			return await this.extensionsWorkbenchService.install(extension, this.options);
+			return await this.extensionsWorkbenchService.install(extension, this.enablesExtension ? { ...this.options, enable: true } : this.options);
 		} catch (error) {
-			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, this.options, extension.latestVersion, InstallOperation.Install, error).run();
+			const promptFailure = this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, this.options, extension.latestVersion, InstallOperation.Install, error);
+			try {
+				promptFailure.opensExtensionEditor = this.opensExtensionEditor;
+				promptFailure.enablesExtension = this.enablesExtension;
+				await promptFailure.run();
+			} finally {
+				promptFailure.dispose();
+			}
 			return undefined;
 		}
 	}
@@ -695,6 +726,20 @@ export class InstallDropdownAction extends ButtonWithDropDownExtensionAction {
 	set manifest(manifest: IExtensionManifest | null) {
 		this.extensionActions.forEach(a => (<InstallAction>a).manifest = manifest);
 		this.update();
+	}
+
+	/**
+	 * Whether installing opens the extension in the Extensions editor. See {@link InstallAction.opensExtensionEditor}.
+	 */
+	set opensExtensionEditor(opensExtensionEditor: boolean) {
+		this.extensionActions.forEach(a => (<InstallAction>a).opensExtensionEditor = opensExtensionEditor);
+	}
+
+	/**
+	 * Whether installing also enables the extension. See {@link InstallAction.enablesExtension}.
+	 */
+	set enablesExtension(enablesExtension: boolean) {
+		this.extensionActions.forEach(a => (<InstallAction>a).enablesExtension = enablesExtension);
 	}
 
 	constructor(
