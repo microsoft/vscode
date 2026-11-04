@@ -120,3 +120,12 @@ export const AGENTIC_SIGN_IN_COMMAND_ID = 'workbench.action.agenticSignIn';
 
 /** Opens the managed Files editor. Registered in `addTabActions.ts`. */
 export const NEW_FILE_TAB_COMMAND_ID = 'workbench.action.agentSessions.newFileTab';
+
+/** Opens the Changes tab in the main part of a chat window, for its session. Registered in `chatWindowActions.ts`. */
+export const CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID = 'sessions.chatWindow.openChanges';
+
+/** Opens the Files tab in the main part of a chat window, for its session. Registered in `chatWindowActions.ts`. */
+export const CHAT_WINDOW_OPEN_FILES_COMMAND_ID = 'sessions.chatWindow.openFiles';
+
+/** Opens a browser tab in the main part of a chat window. Registered in `chatWindowActions.ts`. */
+export const CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID = 'sessions.chatWindow.openBrowser';
