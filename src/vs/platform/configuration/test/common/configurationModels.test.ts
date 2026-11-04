@@ -436,6 +436,15 @@ suite('ConfigurationModelParser - Nested Restricted Properties', () => {
 					'default': {},
 					'restricted': true
 				},
+				'terminal.integrated.env.osx': {
+					'type': 'object' as const,
+					'default': {}
+				},
+				'terminal.integrated.machineProfiles': {
+					'type': 'object' as const,
+					'default': {},
+					'scope': ConfigurationScope.MACHINE
+				},
 				'terminal.integrated.fontSize': {
 					'type': 'number' as const,
 					'default': 12,
@@ -528,6 +537,82 @@ suite('ConfigurationModelParser - Nested Restricted Properties', () => {
 
 		assert.strictEqual(JSON.stringify(dottedObject.configurationModel.contents), JSON.stringify(nestedObject.configurationModel.contents));
 		assert.deepStrictEqual(new Set(dottedObject.restrictedConfigurations), new Set(nestedObject.restrictedConfigurations));
+	});
+
+	test('keys deeper than a registered restricted object setting are removed with skipRestricted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.profiles.windows.Pwn.path': 'cmd.exe',
+			'terminal.integrated.profiles.windows.Pwn2': { 'path': 'cmd.exe' },
+			'terminal': {
+				'integrated.profiles.windows.Pwn3.path': 'cmd.exe',
+				'integrated': { 'profiles': { 'windows.Pwn4': { 'path': 'cmd.exe' } } }
+			},
+			'[typescript]': { 'terminal.integrated.profiles.windows.Pwn5.path': 'cmd.exe' },
+			'terminal.integrated.cwd': '/safe'
+		}), { skipRestricted: true });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.strictEqual(testObject.configurationModel.overrides.length, 1);
+		assert.strictEqual(testObject.configurationModel.overrides[0].keys.length, 0);
+		assert.deepStrictEqual(new Set(testObject.restrictedConfigurations), new Set(['terminal.integrated.profiles.windows']));
+	});
+
+	test('keys deeper than a registered restricted object setting remain when trusted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.profiles.windows.Mine.path': 'cmd.exe'
+		}), { skipRestricted: false, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows.Mine.path'), 'cmd.exe');
+	});
+
+	test('keys deeper than a registered non-restricted object setting remain with skipRestricted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.env.osx.MY_VAR': 'value'
+		}), { skipRestricted: true, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.env.osx.MY_VAR'), 'value');
+		assert.deepStrictEqual(testObject.restrictedConfigurations, []);
+	});
+
+	test('keys deeper than a registered machine-scoped object setting respect scope filtering', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.machineProfiles.a.path': 'x',
+			'terminal.integrated.cwd': '/safe'
+		}), { scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.machineProfiles'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('registered restricted descendant of an unregistered key under a non-restricted object is still removed', () => {
+		const node: IConfigurationNode = {
+			'id': 'RestrictedDescendantTest',
+			'type': 'object',
+			'properties': {
+				'descendant.parent': { 'type': 'object' as const, 'default': {} },
+				'descendant.parent.child.secret': { 'type': 'string' as const, 'default': '', 'restricted': true }
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		testConfigurationNodes.push(node);
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({ 'descendant.parent.child': { 'secret': 'x', 'other': 'y' } }), { skipRestricted: true });
+
+		assert.deepStrictEqual({ secret: testObject.configurationModel.getValue('descendant.parent.child.secret'), other: testObject.configurationModel.getValue('descendant.parent.child.other'), restricted: testObject.restrictedConfigurations }, { secret: undefined, other: 'y', restricted: ['descendant.parent.child.secret'] });
 	});
 
 	test('nested machine-scoped settings respect scope filtering', () => {
