@@ -246,10 +246,10 @@ export interface IInboxNotificationsService {
 	requestPreview(item: IInboxNotificationItem): void;
 
 	/**
-	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
-	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
+	 * Generate and cache structured evidence for a session notification in {@link detailSummaries}.
+	 * Visibility requests settle empty results until inputs or models change; interaction requests can retry them.
 	 */
-	requestDetailSummary(item: IInboxNotificationItem): void;
+	requestDetailSummary(item: IInboxNotificationItem, source?: 'visibility' | 'interaction'): void;
 
 	/**
 	 * Privacy-safe telemetry identity for the item's session: a hashed session id and a bounded

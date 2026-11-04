@@ -544,7 +544,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 				this.reportImpression(item, index);
 				this.inboxNotificationsService.requestPreview(item);
-				this.inboxNotificationsService.requestDetailSummary(item);
+				this.inboxNotificationsService.requestDetailSummary(item, 'visibility');
 			}
 		}, { root: this.scrollableElement.getDomNode() });
 		this._register(toDisposable(() => this.cardVisibilityObserver.disconnect()));

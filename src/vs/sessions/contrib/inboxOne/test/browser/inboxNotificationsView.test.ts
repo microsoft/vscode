@@ -1267,10 +1267,10 @@ suite('InboxNotificationsView', () => {
 			title: id, description: id, timestamp: 1, actions: [], previewSignature: id, previewInputText: id,
 		}));
 		const previewRequests: string[] = [];
-		const summaryRequests: string[] = [];
+		const summaryRequests: { id: string; source: 'visibility' | 'interaction' | undefined }[] = [];
 		const events: string[] = [];
 		const { view, container, instantiationService } = createView(constObservable(items), { intersectionObserver: TestIntersectionObserver, previewRequests, events });
-		instantiationService.stub(IInboxNotificationsService, 'requestDetailSummary', (item: IInboxNotificationItem) => summaryRequests.push(item.id));
+		instantiationService.stub(IInboxNotificationsService, 'requestDetailSummary', (item: IInboxNotificationItem, source?: 'visibility' | 'interaction') => summaryRequests.push({ id: item.id, source }));
 		view.render(container);
 		assert.ok(observer);
 		const [visible, offscreen] = Array.from(observer.targets);
@@ -1278,12 +1278,17 @@ suite('InboxNotificationsView', () => {
 		assert.deepStrictEqual({ previewRequests, summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, { previewRequests: [], summaryRequests: [], impressions: [] });
 		observer.setIntersecting(visible, true);
 		assert.deepStrictEqual({ previewRequests, summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, {
-			previewRequests: ['visible'], summaryRequests: ['visible'], impressions: ['agents/inboxImpression'],
+			previewRequests: ['visible'], summaryRequests: [{ id: 'visible', source: 'visibility' }], impressions: ['agents/inboxImpression'],
 		});
 
 		observer.setIntersecting(visible, false);
 		observer.setIntersecting(visible, true);
-		assert.deepStrictEqual(events.filter(event => event === 'agents/inboxImpression'), ['agents/inboxImpression']);
+		assert.deepStrictEqual({
+			summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression'),
+		}, {
+			summaryRequests: [{ id: 'visible', source: 'visibility' }, { id: 'visible', source: 'visibility' }],
+			impressions: ['agents/inboxImpression'],
+		});
 		(visible as HTMLElement).click();
 		assert.ok(previewRequests.length > 0 && previewRequests.every(id => id === 'visible'));
 		view.dispose();

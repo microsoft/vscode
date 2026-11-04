@@ -1154,7 +1154,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.sortMode.set(sortMode, undefined);
 	}
 
-	requestDetailSummary(item: IInboxNotificationItem): void {
+	requestDetailSummary(item: IInboxNotificationItem, source: 'visibility' | 'interaction' = 'interaction'): void {
 		if (!this._enabled.get() || this._store.isDisposed || this._dismissedIds.get().has(item.id) || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart && !item.pullRequestStates?.length)) {
 			return;
 		}
@@ -1175,9 +1175,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 		const existing = this._detailSummaryCache.get(key);
-		// A transient empty result (deps not ready / model unavailable) is re-attemptable;
-		// only a real summary or an in-flight request should block regeneration.
-		if ((existing && existing !== EMPTY_DETAIL_SUMMARY) || this._detailSummaryInFlight.has(key)) {
+		// Re-observing a card must not retry an empty result from loading and releasing its history.
+		if ((existing && (source === 'visibility' || existing !== EMPTY_DETAIL_SUMMARY)) || this._detailSummaryInFlight.has(key)) {
 			return;
 		}
 		void this.generateDetailSummary(key, item);
@@ -1234,7 +1233,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				if (summary) {
 					this.publishDetailSummary(key, summary);
 				} else {
-					// Empty summaries settle loading but remain retryable.
+					// Interactions or invalidated inputs can retry an empty summary.
 					this.publishDetailSummary(key, EMPTY_DETAIL_SUMMARY);
 				}
 			}
