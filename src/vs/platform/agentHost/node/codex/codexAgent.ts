@@ -55,7 +55,7 @@ import { CodexChatHistory } from './codexChatHistory.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
 import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexInstructions, discoverCodexWorkspaceAgents, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
@@ -2121,6 +2121,17 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _customizationWorkingDirectories(session: ICodexSession): readonly URI[] {
 		return session.managedWorkingDirectory ? [] : this._workingDirectories(session);
+	}
+
+	/**
+	 * The user-level CODEX_HOME directory (where Codex natively loads the
+	 * user-scope `AGENTS.md` from). Respects the `CODEX_HOME` environment
+	 * variable the agent host itself uses when spawning the app-server, so the
+	 * surfaced customizations match the binary's actual configuration root.
+	 */
+	private _codexHome(): URI {
+		const configured = process.env[AgentHostCodexAgentCodexHomeEnvVar];
+		return configured ? URI.file(resolve(configured)) : URI.joinPath(this._environmentService.userHome, '.codex');
 	}
 
 	private _runtimeWorkspaceRoots(session: ICodexSession): string[] {
@@ -8542,7 +8553,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
 				discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
-				discoverCodexWorkspaceInstructions(this._customizationWorkingDirectories(session), this._fileService),
+				discoverCodexInstructions(this._customizationWorkingDirectories(session), this._codexHome(), this._fileService),
 				discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
 				this._fetchSkillHookContainers(session),
 			]);
@@ -8681,7 +8692,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const catalogConnection = this._connection.kind === 'ready' ? this._connection : undefined;
 		const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
-			discoverCodexWorkspaceInstructions(this._customizationWorkingDirectories(session), this._fileService),
+			discoverCodexInstructions(this._customizationWorkingDirectories(session), this._codexHome(), this._fileService),
 			discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
 			this._fetchSkillHookContainers(session),
 		]);
