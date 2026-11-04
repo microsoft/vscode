@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
@@ -148,7 +149,8 @@ import { modelConfigurationSourceKey } from '../../common/agentModelConfiguratio
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase as InMemorySessionDatabase } from '../common/sessionTestHelpers.js';
+import { IMPORTED_TURN_DURATIONS_DB_KEY } from '../../node/copilot/buildSessionEvents.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
@@ -18453,7 +18455,7 @@ suite('CopilotAgent', () => {
 				added.complete();
 			}));
 			return {
-				agent, client, root, userHome, watches, published, added,
+				agent, client, root, userHome, watches, published, added, fileService,
 				change(directory: URI, resource: URI, type: FileChangeType) {
 					const watcher = watches.get(directory.toString());
 					assert.ok(watcher, `Expected a discovery watcher for ${directory.path}`);
@@ -18753,6 +18755,94 @@ suite('CopilotAgent', () => {
 			} finally {
 				release.complete();
 				await context.dispose();
+			}
+		});
+
+		test('startup publishes a session whose files were only reported as changed while the SDK listed them', async () => {
+			const sessions: TestCopilotSessionMetadata[] = [];
+			const context = await createLiveDiscoveryAgent(sessions);
+			const release = new DeferredPromise<void>();
+			context.client.sessionListGate = release.p;
+			context.client.sessionListStarted = new DeferredPromise<void>();
+			const id = 'accessed-while-listing';
+			const directory = URI.joinPath(context.root, id);
+			try {
+				await fs.mkdir(directory.fsPath);
+				await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
+				await writeExtensionHostMarker(context.userHome, id, { origin: 'vscode' });
+				sessions.push(sdkSession(id, context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
+				const initial = context.agent.startChatDiscovery();
+				await context.client.sessionListStarted.p;
+				// Windows reports the listing's reads of a session's files as changes.
+				context.change(directory, URI.joinPath(directory, 'vscode.metadata.json'), FileChangeType.UPDATED);
+				context.change(directory, URI.joinPath(directory, 'workspace.yaml'), FileChangeType.UPDATED);
+				release.complete();
+				await initial;
+				assert.deepStrictEqual({
+					requests: context.client.sessionListRequests.length,
+					published: context.published.map(chat => ({ id: sessionIdOfChat(chat.chat), adoptable: readSessionEhcliAdoptable(chat._meta) })),
+				}, { requests: 1, published: [{ id, adoptable: true }] });
+			} finally {
+				release.complete();
+				await context.dispose();
+			}
+		});
+
+		test('a session reported as changed after its validation is retried instead of retired', async () => {
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const gitService = new class extends TestAgentHostGitService {
+				override async getRepositoryRoot(workingDirectory?: URI): Promise<URI | undefined> {
+					started.complete();
+					await release.p;
+					return workingDirectory;
+				}
+			};
+			const sessions: TestCopilotSessionMetadata[] = [];
+			const context = await createLiveDiscoveryAgent(sessions, { gitService });
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const [validated, revalidating] = ['validated', 'revalidating'].map(id => URI.joinPath(context.root, id));
+			const laterPublished = new DeferredPromise<void>();
+			disposables.add(context.agent.onDidDiscoverChats(chats => {
+				if (chats.some(chat => sessionIdOfChat(chat.chat) === 'validated')) {
+					laterPublished.complete();
+				}
+			}));
+			let armed = false;
+			const stat = context.fileService.stat.bind(context.fileService);
+			const statStub = stub(context.fileService, 'stat').callsFake(resource => {
+				if (armed && dirname(resource.fsPath) === revalidating.fsPath) {
+					// While the second session is revalidated, the first one's files are read and reported as changed.
+					armed = false;
+					context.change(validated, URI.joinPath(validated, 'vscode.metadata.json'), FileChangeType.UPDATED);
+				}
+				return stat(resource);
+			});
+			try {
+				for (const directory of [validated, revalidating]) {
+					const id = basename(directory.fsPath);
+					await fs.mkdir(directory.fsPath);
+					await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
+					await writeExtensionHostMarker(context.userHome, id, { origin: 'vscode' });
+					sessions.push(sdkSession(id, context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
+				}
+				const initial = context.agent.startChatDiscovery();
+				await started.p;
+				context.change(revalidating, URI.joinPath(revalidating, 'vscode.metadata.json'), FileChangeType.UPDATED);
+				armed = true;
+				release.complete();
+				await initial;
+				const publishedAtStartup = context.published.map(chat => sessionIdOfChat(chat.chat));
+				await clock.tickAsync(60_001);
+				await laterPublished.p;
+				assert.deepStrictEqual({ armed, publishedAtStartup, published: context.published.map(chat => sessionIdOfChat(chat.chat)) }, {
+					armed: false, publishedAtStartup: ['revalidating'], published: ['revalidating', 'validated'],
+				});
+			} finally {
+				release.complete();
+				statStub.restore();
+				await context.dispose();
+				clock.restore();
 			}
 		});
 
@@ -26755,6 +26845,59 @@ suite('CopilotAgent', () => {
 				providerData: { sdkSessionId: 'import-backing' },
 				recordedBacking: { sdkSessionId: 'import-backing' },
 				backingSession: undefined,
+			});
+		}).timeout(30_000);
+
+		test('an imported conversation saves each turn\'s reported usage and original duration for restore', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-usage-home-`));
+			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-usage-cwd-`));
+			const database = new InMemorySessionDatabase();
+			const client = new TestCopilotClient([]);
+			client.resumeSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: createSessionDataService(database), userHome });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'import-usage');
+			const turn = (id: string, usage: Turn['usage']): Turn => ({
+				id,
+				state: TurnState.Complete,
+				message: { text: id, origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage,
+			});
+			const withUsage = generateUuid();
+			const creditsOnly = generateUuid();
+			const noUsage = generateUuid();
+			const usage = { inputTokens: 1200, outputTokens: 300, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } };
+
+			await provisionSession(agent, {
+				session,
+				workingDirectories: [workingDirectory],
+				importConversation: {
+					turns: [
+						{ ...turn(withUsage, usage), duration: 4_000 },
+						turn(creditsOnly, { _meta: { copilotUsage: { totalNanoAiu: 0 } } }),
+						turn(noUsage, undefined),
+						turn('not-a-uuid', usage),
+					],
+				},
+			});
+
+			const usages = [...(await database.getTurnUsages()).entries()].sort(([a], [b]) => a.localeCompare(b));
+			assert.deepStrictEqual({
+				usages,
+				durations: JSON.parse(await database.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY) ?? 'null'),
+			}, {
+				usages: [
+					[withUsage, JSON.stringify(usage)],
+					[creditsOnly, JSON.stringify({ _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
+				].sort(([a], [b]) => a.localeCompare(b)),
+				// Recorded so a replay does not invent durations from the synthesized event times.
+				durations: { [withUsage]: 4_000, [creditsOnly]: null, [noUsage]: null },
 			});
 		}).timeout(30_000);
 

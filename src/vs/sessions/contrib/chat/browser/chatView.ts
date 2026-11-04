@@ -109,10 +109,11 @@ export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalCompo
 }
 
 export function getSessionComparisonRequestSummary(comparisons: readonly ISessionComparison[], sessionResource: URI | undefined, chatResource: URI | undefined, mainChatResource: URI | undefined): string | undefined {
-	if (!sessionResource || !chatResource || !isEqual(chatResource, mainChatResource)) {
+	if (!sessionResource || !chatResource) {
 		return undefined;
 	}
-	const participant = comparisons.flatMap(comparison => comparison.participants).find(participant => isEqual(participant.sessionResource, sessionResource));
+	const participant = comparisons.flatMap(comparison => comparison.participants).find(participant => isEqual(participant.sessionResource, sessionResource)
+		&& isEqual(participant.chatResource ?? mainChatResource, chatResource));
 	switch (participant?.role) {
 		case SessionComparisonParticipantRole.Judge:
 			return localize('sessionComparison.judgeInstructions', "Judge Instructions");
@@ -655,6 +656,7 @@ export class ChatView extends AbstractChatView {
 			this._currentSessionObs,
 			() => this._layoutChatWidget(),
 			scopedInstantiationService.createInstance(ChatContentMarkdownRenderer),
+			this._currentChatResourceObs,
 		));
 
 		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derivedOpts<ISessionArchiveNudgeTarget | undefined>({

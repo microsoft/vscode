@@ -11,6 +11,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatService, IChatToolInvocationSerialized } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -19,6 +20,7 @@ import { IChatSideChatService } from '../../../../../workbench/contrib/chat/comm
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ITerminalChatService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -32,6 +34,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
+import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../chat/common/constants.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
 import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
@@ -243,6 +246,8 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
+			reg.defineInstance(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.define(IChatMarkdownAnchorService, ChatMarkdownAnchorService);
 			reg.defineInstance(IInboxNotificationsService, service);
@@ -315,6 +320,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	});
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	await configurationService.setUserConfiguration(NEW_SESSION_WELCOME_NAME_SETTING, state === 'empty' ? 'Megan' : '');
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	ctx.container.classList.add('monaco-workbench', 'agent-sessions-workbench');
