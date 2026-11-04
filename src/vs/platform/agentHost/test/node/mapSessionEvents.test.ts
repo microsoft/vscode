@@ -2219,6 +2219,35 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	for (const hasChannel of [false, true]) {
+		test(`restores MCP skill reads ${hasChannel ? 'with a resource link' : 'without a link when no channel is available'} and preserves local skill links`, async () => {
+			const qualifiedName = 'mcp1:6673:0123456789abcdef';
+			const origin = { serverName: 'fs', uri: 'skill://review/SKILL.md' };
+			const channel = buildMcpChannel(URI.parse(buildChatUri(session, 'default')), 'fs', 'copilot');
+			const uri = hasChannel ? buildMcpResourceUri(channel, origin.uri, 'Review') : undefined;
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Review the changes' } },
+				{ type: 'skill.invoked', id: 'mcp-skill', data: { name: qualifiedName, path: '', content: '', source: 'mcp', mcpOrigin: origin } },
+				{ type: 'skill.invoked', id: 'local-skill', data: { name: 'plan', path: '/skills/plan/SKILL.md', content: '', source: 'plugin' } },
+			]), {
+				resolveSkill: (name, mcpOrigin) => name === qualifiedName && mcpOrigin?.serverName === origin.serverName && mcpOrigin.uri === origin.uri
+					? { name: 'fs:Review', uri } : undefined
+			});
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+					? [{ invocationMessage: part.toolCall.invocationMessage, pastTenseMessage: part.toolCall.pastTenseMessage }] : [])), [
+				{
+					invocationMessage: { markdown: hasChannel ? `Read skill [fs:Review](${uri})` : 'Read skill fs:Review' },
+					pastTenseMessage: { markdown: hasChannel ? `Read skill [fs:Review](${uri})` : 'Read skill fs:Review' },
+				},
+				{
+					invocationMessage: { markdown: 'Read skill [plan](file:///skills/plan/SKILL.md)' },
+					pastTenseMessage: { markdown: 'Read skill [plan](file:///skills/plan/SKILL.md)' },
+				},
+			]);
+		});
+	}
+
 	for (const hasPreviousTurn of [false, true]) {
 		test(`restores user-invoked skills in the following request (${hasPreviousTurn ? 'follow-up' : 'first'} turn)`, async () => {
 			const previousEvents: ISessionEvent[] = hasPreviousTurn ? [

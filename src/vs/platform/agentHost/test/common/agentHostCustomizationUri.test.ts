@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, getMcpSkillCustomizationUri, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
 
 suite('Agent Host customization URI', () => {
@@ -32,6 +33,22 @@ suite('Agent Host customization URI', () => {
 			fileReadable: true,
 		});
 
+	});
+
+	test('only host-routable MCP skills expose readable content', () => {
+		const readable = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
+		const unavailable = URI.parse('skill://server/friendly/SKILL.md');
+		assert.deepStrictEqual([readable, unavailable].map(resource => {
+			const uri = getMcpSkillCustomizationUri(resource);
+			return {
+				scheme: uri.scheme,
+				readable: hasReadableCustomizationContent(uri),
+				wrappedReadable: hasReadableCustomizationContent(toAgentHostUri(uri, 'remote')),
+			};
+		}), [
+			{ scheme: 'mcp-resource', readable: true, wrappedReadable: true },
+			{ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, readable: false, wrappedReadable: false },
+		]);
 	});
 
 	test('discovery identities do not imply readable source files', () => {

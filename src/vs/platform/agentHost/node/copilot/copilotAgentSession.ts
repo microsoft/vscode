@@ -8,6 +8,8 @@ import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
+import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
+import { parseCopilotMcpSkillConsentRequest, type ICopilotMcpSkillConsentRequest } from './copilotMcpSkillConsent.js';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -50,7 +52,7 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { copilotConnectorServers, reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
@@ -114,8 +116,8 @@ import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
-import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
-import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
+import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, mcpSkillDisplayName, type IMcpServerProvenance, type IMcpSkill, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer, targetForMcpSkill } from '../shared/customizationEnablementGate.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { appendSdkToolResultContent, getSdkMcpResultMeta, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
@@ -328,6 +330,8 @@ const MCP_ROUTING_PROXY_DESCRIPTION_MAX_LENGTH = 12_000;
 const MCP_ROUTING_MAX_CALLS_PER_CONNECTION = 2;
 const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user denied permission.' } satisfies PermissionRequestResult;
 const ALLOW_SAMPLING_ALWAYS_OPTION_ID = 'allow-sampling-always';
+const ALLOW_MCP_SKILLS_ALWAYS_OPTION_ID = 'allow-mcp-skills-always';
+const DENY_MCP_SKILLS_ALWAYS_OPTION_ID = 'deny-mcp-skills-always';
 
 function isSamplingContent(value: unknown): value is { text?: unknown; content?: unknown } {
 	return isObject(value);
@@ -953,6 +957,7 @@ class CopilotTurn extends Disposable {
 
 	readonly toolTitles = new Map<string, string>();
 	readonly toolIntentions = new Map<string, string>();
+	readonly declinedMcpSkillServers = new Set<string>();
 
 	/**
 	 * Per-turn tool-call aggregate accumulated across the turn's `assistant.message` rounds (main
@@ -1292,7 +1297,10 @@ export class CopilotAgentSession extends Disposable {
 		readonly managedApprovalRequired: boolean;
 		readonly sandboxPathGrant?: ISandboxPathGrant;
 		readonly samplingServerIdentity?: string;
+		readonly mcpSkillConsent?: { readonly serverIdentity: string; readonly turn: CopilotTurn };
 	}>();
+	private readonly _mcpSkillSessionApprovals = new Set<string>();
+	private readonly _pendingMcpSkillConsents = new Map<string, DeferredPromise<boolean>>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _lifetimeCts = this._register(new CancellationTokenSource());
@@ -2017,8 +2025,11 @@ export class CopilotAgentSession extends Disposable {
 	private _workingDirectory: URI | undefined;
 	private _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
+	private readonly _mcpSkillCacheWriter: McpSkillCacheWriter;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
+	private _mcpSkillsVersion = 0;
+	private readonly _mcpSkillToggleSequencer = new SequencerByKey<string>();
 	private readonly _mcpToolRoutingCache: CopilotMcpToolRoutingCache;
 	private readonly _mcpToolRoutingEnabled: boolean;
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
@@ -2161,6 +2172,7 @@ export class CopilotAgentSession extends Disposable {
 		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
 		this._storageUri = this.resourceUri;
+		this._mcpSkillCacheWriter = this._instantiationService.createInstance(McpSkillCacheWriter, this._storageUri);
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
@@ -4675,6 +4687,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._markMcpLaunchConfigurationDirty();
+			this._reconcileMcpSkillEnablement();
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
 		this._subscribeToPermissionConfigChanges();
@@ -5324,6 +5337,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _createRuntimeAdapter(cancellationToken: CancellationToken, adoptLaunchConnectorReconcile: (reconcile: Promise<ICopilotConnectorServers | undefined>) => void): ICopilotSessionRuntime {
+		const handleUserInputRequest = this._guarded((request: UserInputRequest, invocation: { sessionId: string }) => {
+			const recorder = this._currentTurn.value?.timingRecorder;
+			recorder?.markMilestone?.('userInputRequest');
+			return measureAgentProviderOperation(recorder, 'userInputRequest', () => this._handleUserInputRequest(request, invocation));
+		}, { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input');
 		const launch = {};
 		this._launchMcpRestartObserver = launch;
 		return {
@@ -5367,11 +5385,10 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('exitPlanModeRequest');
 				return measureAgentProviderOperation(recorder, 'exitPlanModeRequest', () => this._handleExitPlanModeRequest(request, invocation));
 			}, { approved: false } satisfies CopilotExitPlanModeResponse, 'exit-plan-mode'),
-			handleUserInputRequest: this._guarded((request, invocation) => {
-				const recorder = this._currentTurn.value?.timingRecorder;
-				recorder?.markMilestone?.('userInputRequest');
-				return measureAgentProviderOperation(recorder, 'userInputRequest', () => this._handleUserInputRequest(request, invocation));
-			}, { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input'),
+			handleUserInputRequest: (request, invocation) => {
+				const consent = parseCopilotMcpSkillConsentRequest(request);
+				return consent ? this._handleMcpSkillConsentRequest(consent) : handleUserInputRequest(request, invocation);
+			},
 			handleElicitationRequest: this._guarded(context => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('elicitationRequest');
@@ -6141,7 +6158,9 @@ export class CopilotAgentSession extends Disposable {
 		const abortToken = this._abortToken;
 		const sendingTurn = this._currentTurn.value;
 
-		let displayPrompt: string | undefined;
+		const rewrittenPrompt = this._rewriteMcpSkillReferences(prompt);
+		let displayPrompt = rewrittenPrompt !== prompt ? prompt : undefined;
+		prompt = rewrittenPrompt;
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
 			try {
@@ -6306,7 +6325,7 @@ export class CopilotAgentSession extends Disposable {
 							mode = runtimeMode;
 						}
 						prompt = result.prompt;
-						displayPrompt = result.displayPrompt;
+						displayPrompt ??= result.displayPrompt;
 						break;
 					}
 					case 'select-subcommand':
@@ -6361,6 +6380,13 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	private _rewriteMcpSkillReferences(prompt: string): string {
+		return prompt.replace(/(?<!\S)\/\S+/g, reference => {
+			const name = this._mcpCustomizations.skillNameForPublishedName(reference.slice(1));
+			return name ? `/${name}` : reference;
+		});
 	}
 
 	private async _measureSdkSend<T>(turn: CopilotTurn | undefined, recorder: IAgentProviderSendStageRecorder | undefined, operation: () => Promise<T>): Promise<T> {
@@ -6671,6 +6697,10 @@ export class CopilotAgentSession extends Disposable {
 		return sdkAttachments;
 	}
 
+	getMcpSkillCommandNames(): ReadonlySet<string> {
+		return this._mcpCustomizations.skillCommandNames();
+	}
+
 	async getRuntimeSlashCommands(options?: { readonly maxWaitMs?: number }): Promise<readonly RuntimeSlashCommandInfo[]> {
 		try {
 			return await this._slashCommandProvider.getSlashCommands(options);
@@ -6957,6 +6987,7 @@ export class CopilotAgentSession extends Disposable {
 				logService: this._logService,
 				workingDirectory: this._workingDirectory,
 				clientToolNames: this._clientToolNames,
+				resolveSkill: (name, origin) => this._mcpCustomizations.skillForInvocation(name, origin),
 				model: this._launchPlan.kind === 'create'
 					? this._launchPlan.model
 					: this._launchPlan.fallback.model,
@@ -7228,7 +7259,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Mapping:
 	 *  - `tools/list` → `rpc.mcp.apps.listTools`
 	 *  - `tools/call` → `rpc.mcp.apps.callTool`
-	 *  - `resources/read` → `rpc.mcp.apps.readResource`
+	 *  - `resources/read` → `rpc.mcp.resources.read` (or `rpc.mcp.apps.readResource` for UI resources)
 	 *  - `resources/list` → `rpc.mcp.apps.listResources` (empty list fallback)
 	 *  - `resources/templates/list` → `rpc.mcp.apps.listResourceTemplates` (empty list fallback)
 	 *  - `sampling/createMessage` → `rpc.mcp.executeSampling`
@@ -7255,7 +7286,9 @@ export class CopilotAgentSession extends Disposable {
 				if (!uri) {
 					throw new Error(`resources/read missing 'uri' parameter`);
 				}
-				return apps.readResource({ serverName, uri });
+				return URI.parse(uri).scheme === 'ui'
+					? apps.readResource({ serverName, uri })
+					: this._wrapper.session.rpc.mcp.resources.read({ serverName, uri });
 			}
 			case 'resources/list': {
 				// Not implemented in the SDK yet
@@ -7639,7 +7672,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _getSamplingServerIdentity(serverName: string): string {
+	private _getMcpServerIdentity(serverName: string): string {
 		const identities: string[] = [];
 		const configuration = this._appliedSnapshot.mcpServers[serverName];
 		if (configuration) {
@@ -7672,7 +7705,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!isObject(data.request) || !data.serverName || (typeof data.mcpRequestId !== 'string' && typeof data.mcpRequestId !== 'number')) {
 				throw new Error('Invalid MCP sampling request');
 			}
-			const serverIdentity = this._getSamplingServerIdentity(data.serverName);
+			const serverIdentity = this._getMcpServerIdentity(data.serverName);
 			const preapproved = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey)?.includes(serverIdentity) === true;
 			if (turn && !this.isDisposed && !abortToken.isCancellationRequested && (preapproved || !this._isAutopilotMode())) {
 				const approval = preapproved ? undefined : this._pendingPermissions.register(pending.toolCallId, {
@@ -8646,6 +8679,17 @@ export class CopilotAgentSession extends Disposable {
 					this._configurationService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [...servers, metadata.samplingServerIdentity] });
 				}
 			}
+			if (metadata?.mcpSkillConsent) {
+				const { serverIdentity: identity, turn } = metadata.mcpSkillConsent;
+				if ((approved && context?.selectedOptionId === ALLOW_MCP_SKILLS_ALWAYS_OPTION_ID) || (!approved && context?.selectedOptionId === DENY_MCP_SKILLS_ALWAYS_OPTION_ID)) {
+					const approvals = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsServerApprovalsConfigKey) ?? {};
+					this._configurationService.updateRootConfig({ [AgentHostMcpSkillsServerApprovalsConfigKey]: { ...approvals, [identity]: approved ? 'allow' : 'deny' } });
+				} else if (approved) {
+					this._mcpSkillSessionApprovals.add(identity);
+				} else if (context?.selectedOptionId === 'not-now') {
+					turn.declinedMcpSkillServers.add(identity);
+				}
+			}
 			this._deletePendingEditContent(requestId);
 			return true;
 		}
@@ -8702,6 +8746,116 @@ export class CopilotAgentSession extends Disposable {
 		const approved = decision.kind === 'decision' && decision.result.kind === 'approve-once';
 		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this.launchOwner.toString());
 		return approved && currentPolicy?.allowBypass !== false && !(currentPolicy?.enabled && !currentPolicy.allowBypass);
+	}
+
+	private async _handleMcpSkillConsentRequest(request: ICopilotMcpSkillConsentRequest): Promise<UserInputResponse> {
+		const turn = this._currentTurn.value;
+		const abortToken = this._abortToken;
+		const decline = { answer: request.declineChoice, wasFreeform: false };
+		if (!turn || this.isDisposed || abortToken.isCancellationRequested) {
+			return decline;
+		}
+		const servers = request.servers.map(name => ({ name, identity: this._getMcpServerIdentity(name) }));
+		const approvals = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsServerApprovalsConfigKey);
+		if (servers.some(server => approvals?.[server.identity] === 'deny' || turn.declinedMcpSkillServers.has(server.identity))) {
+			return decline;
+		}
+		for (const server of servers) {
+			if (this.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+				return decline;
+			}
+			const decision = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsServerApprovalsConfigKey)?.[server.identity];
+			if (decision === 'deny' || turn.declinedMcpSkillServers.has(server.identity)) {
+				return decline;
+			}
+			if (decision === 'allow' || this._mcpSkillSessionApprovals.has(server.identity)) {
+				continue;
+			}
+			if (this._isAutopilotMode() || !await this._getMcpSkillServerApproval(server.name, server.identity, request.action)) {
+				return decline;
+			}
+		}
+		const currentApprovals = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsServerApprovalsConfigKey);
+		return !this.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn
+			&& !servers.some(server => currentApprovals?.[server.identity] === 'deny' || turn.declinedMcpSkillServers.has(server.identity))
+			? { answer: request.approveChoice, wasFreeform: false }
+			: decline;
+	}
+
+	private async _getMcpSkillServerApproval(serverName: string, serverIdentity: string, action: ICopilotMcpSkillConsentRequest['action']): Promise<boolean> {
+		const existing = this._pendingMcpSkillConsents.get(serverIdentity);
+		if (existing) {
+			return existing.p;
+		}
+		const pending = new DeferredPromise<boolean>();
+		this._pendingMcpSkillConsents.set(serverIdentity, pending);
+		try {
+			await pending.complete(await this._confirmMcpSkillServer(serverName, serverIdentity, action));
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.error(error, `[Copilot:${this.sessionId}] Failed to confirm MCP skills`);
+			}
+			await pending.complete(false);
+		} finally {
+			this._pendingMcpSkillConsents.delete(serverIdentity);
+		}
+		return pending.p;
+	}
+
+	private async _confirmMcpSkillServer(serverName: string, serverIdentity: string, action: ICopilotMcpSkillConsentRequest['action']): Promise<boolean> {
+		const turn = this._currentTurn.value;
+		const abortToken = this._abortToken;
+		if (!turn || this.isDisposed || abortToken.isCancellationRequested || this._isAutopilotMode()) {
+			return false;
+		}
+		const toolCallId = generateUuid();
+		const approval = this._pendingPermissions.register(toolCallId, { managedApprovalRequired: false, mcpSkillConsent: { serverIdentity, turn } });
+		let approved = false;
+		try {
+			this._emitAction({
+				type: ActionType.ChatToolCallStart,
+				turnId: turn.id,
+				toolCallId,
+				toolName: 'mcp_skill_consent',
+				displayName: localize('mcpSkillConsentDisplayName', "MCP Skills"),
+			});
+			this._emitAction({
+				type: ActionType.ChatToolCallReady,
+				turnId: turn.id,
+				toolCallId,
+				invocationMessage: action === 'load'
+					? localize('mcpSkillConsentLoad', "MCP server '{0}' provides skills that want to load instructions into this session.", serverName)
+					: action === 'execute'
+						? localize('mcpSkillConsentExecute', "MCP server '{0}' provides skills that want to use tools in this session.", serverName)
+						: localize('mcpSkillConsentCrossOriginRead', "MCP server '{0}' is involved in a skill reading resources from another MCP server.", serverName),
+				confirmationTitle: localize('mcpSkillConsentConfirmation', "Allow Skills from {0}?", serverName),
+				options: [
+					{ id: 'allow-once', label: localize('mcpSkillConsentAllowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
+					{ id: ALLOW_MCP_SKILLS_ALWAYS_OPTION_ID, label: localize('mcpSkillConsentAlwaysAllow', "Always Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
+					{ id: 'not-now', label: localize('mcpSkillConsentNotNow', "Not Now"), kind: ConfirmationOptionKind.Deny, group: 2 },
+					{ id: DENY_MCP_SKILLS_ALWAYS_OPTION_ID, label: localize('mcpSkillConsentNever', "Never"), kind: ConfirmationOptionKind.Deny, group: 2 },
+				],
+			});
+			const result = await raceCancellationError(approval, abortToken);
+			approved = result.kind === 'decision' && result.result.kind === 'approve-once'
+				&& !this.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
+			return approved;
+		} finally {
+			this._pendingPermissions.respond(toolCallId, { kind: 'decision', result: { kind: 'reject' }, source: 'unattended_fallback' });
+			if (!this.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn) {
+				this._emitAction({
+					type: ActionType.ChatToolCallComplete,
+					turnId: turn.id,
+					toolCallId,
+					result: {
+						success: approved,
+						pastTenseMessage: approved
+							? localize('mcpSkillConsentAllowed', "Allowed skills from {0}", serverName)
+							: localize('mcpSkillConsentDeclined', "Did not allow skills from {0}", serverName),
+					},
+				});
+			}
+		}
 	}
 
 	// ---- user input handling ------------------------------------------------
@@ -10242,9 +10396,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer
-		// `skill.invoked` event with the resolved SKILL.md path. Synthesize a
+		// `skill.invoked` event with the resolved skill origin. Synthesize a
 		// tool-start/complete pair from the latter so the UI can render a
-		// clickable file link, matching the `view`-tool display style.
+		// readable resource link, matching the `view`-tool display style.
 		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 			this._resumeSubagentForEvent(e);
@@ -10265,7 +10419,7 @@ export class CopilotAgentSession extends Disposable {
 				});
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			const synth = synthesizeSkillToolCall(e.data, e.id);
+			const synth = synthesizeSkillToolCall(e.data, e.id, (name, origin) => this._mcpCustomizations.skillForInvocation(name, origin));
 			this._emitAction({
 				type: ActionType.ChatToolCallStart,
 				turnId: this._turnId,
@@ -10972,6 +11126,16 @@ export class CopilotAgentSession extends Disposable {
 		// bare top-level entry (`SessionCustomizationUpdated`). Each state
 		// change is also logged (with structured metadata) so it flows to the
 		// agent host's OTLP log stream and the per-server Output channels.
+		if (wrapper.launchMcpSkillsEnabled) {
+			store.add(wrapper.onSkillsLoaded(event => {
+				this._mcpSkillsVersion++;
+				this._applyMcpSkills(event.data.skills);
+				this._reconcileMcpSkillEnablement();
+			}));
+		} else {
+			this._mcpCustomizations.clearSkills();
+			this._mcpSkillCacheWriter.write(new Map());
+		}
 		store.add(wrapper.onMcpServersLoaded(() => {
 			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
 			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.listConfigured`);
@@ -11102,7 +11266,94 @@ export class CopilotAgentSession extends Disposable {
 					});
 				}
 			}
+			await this._refreshMcpSkillsFromRpc();
 			return;
+		}
+	}
+
+	private _applyMcpSkills(skills: readonly SessionEventPayload<'session.skills_loaded'>['data']['skills'][number][]): void {
+		if (!this._wrapper.launchMcpSkillsEnabled) {
+			return;
+		}
+		const byServer = new Map<string, IMcpSkill[]>();
+		for (const skill of skills) {
+			if (skill.source !== 'mcp' || !skill.mcpOrigin) {
+				continue;
+			}
+			let serverSkills = byServer.get(skill.mcpOrigin.serverName);
+			if (!serverSkills) {
+				serverSkills = [];
+				byServer.set(skill.mcpOrigin.serverName, serverSkills);
+			}
+			serverSkills.push({
+				name: skill.name,
+				declaredName: skill.declaredName,
+				description: skill.description,
+				uri: skill.mcpOrigin.uri,
+				enabled: skill.enabled,
+				userInvocable: skill.userInvocable,
+				argumentHint: skill.argumentHint,
+			});
+		}
+		this._mcpCustomizations.setSkills(byServer);
+		this._mcpSkillCacheWriter.write(new Map([...byServer].map(([serverName, skills]) => [serverName, skills.map(skill => ({
+			name: `${serverName}:${mcpSkillDisplayName(skill)}`, description: skill.description,
+			userInvocable: skill.userInvocable, enabled: skill.enabled, uri: skill.uri,
+		}))])), serverName => this._mcpCustomizations.isServerReady(serverName));
+		this._slashCommandProvider.clearCache();
+	}
+
+	private _reconcileMcpSkillEnablement(): void {
+		const wrapper = this._wrapper;
+		if (this.isDisposed || !wrapper?.launchMcpSkillsEnabled) {
+			return;
+		}
+		for (const [serverId, server] of this._mcpCustomizations.runtimeStates.get()) {
+			for (const skill of server.children ?? []) {
+				const name = this._mcpCustomizations.skillNameForCustomizationId(skill.id);
+				if (name === undefined) {
+					continue;
+				}
+				void this._mcpSkillToggleSequencer.queue(name, async () => {
+					if (this.isDisposed || this._wrapper !== wrapper) {
+						return;
+					}
+					const current = this._mcpCustomizations.runtimeStates.get().get(serverId)?.children?.find(child => child.id === skill.id);
+					if (!current) {
+						return;
+					}
+					const resolution = this._customizationEnablementService.resolve(this.launchOwner.toString(), targetForMcpSkill(current));
+					if (resolution.kind === 'pending' || resolution.enabled === (current.enabled ?? true)) {
+						return;
+					}
+					try {
+						if (resolution.enabled) {
+							await wrapper.session.rpc.skills.enable({ name });
+						} else {
+							await wrapper.session.rpc.skills.disable({ name });
+						}
+					} finally {
+						if (!this.isDisposed && this._wrapper === wrapper) {
+							await this._refreshMcpSkillsFromRpc(false);
+						}
+					}
+				}).catch(error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to toggle MCP skill '${name}'`, error));
+			}
+		}
+	}
+
+	private async _refreshMcpSkillsFromRpc(reconcileEnablement = true): Promise<void> {
+		if (this.isDisposed || !this._wrapper.launchMcpSkillsEnabled) {
+			return;
+		}
+		const wrapper = this._wrapper;
+		const version = ++this._mcpSkillsVersion;
+		const result = await wrapper.session.rpc.skills.list();
+		if (!this.isDisposed && this._wrapper === wrapper && version === this._mcpSkillsVersion) {
+			this._applyMcpSkills(result.skills);
+			if (reconcileEnablement) {
+				this._reconcileMcpSkillEnablement();
+			}
 		}
 	}
 

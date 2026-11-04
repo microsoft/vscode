@@ -18,7 +18,7 @@ import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCall
 import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type SkillToolCallResolver, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
@@ -358,6 +358,7 @@ export interface IMapSessionEventsOptions {
 	readonly model?: ModelSelection;
 	readonly agent?: AgentSelection;
 	readonly interruptedTurnError?: ErrorInfo;
+	readonly resolveSkill?: SkillToolCallResolver;
 }
 
 function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind; startedAt?: string }): ITurnBuilder {
@@ -1091,7 +1092,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'skill.invoked': {
-				const synth = synthesizeSkillToolCall(e.data, e.id);
+				const synth = synthesizeSkillToolCall(e.data, e.id, options?.resolveSkill);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				// Slash-command skills arrive before the user.message they belong to.
 				const builder = !e.agentId && (!parentBuilder || e.data.trigger === 'user-invoked')

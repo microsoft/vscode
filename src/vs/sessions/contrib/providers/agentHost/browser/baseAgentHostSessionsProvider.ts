@@ -7536,6 +7536,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				id: `${sessionUri.authority}/${server.id}`,
 				name: server.name,
 				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+				skillBundle: server.children?.length && isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin))
+					? { id: server.id, count: server.children.length } : undefined,
 				enablement: server.enablement,
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,

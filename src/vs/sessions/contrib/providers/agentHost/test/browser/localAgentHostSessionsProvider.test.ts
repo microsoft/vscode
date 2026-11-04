@@ -5559,7 +5559,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
-	test('getMcpServers returns MCP servers from a draft session', async () => {
+	test('getMcpServers returns MCP servers and their skill bundles from a draft session', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.onCreateSession = uri => {
 			agentHost.setSessionState(AgentSession.id(uri), AgentSession.provider(uri)!, {
@@ -5580,6 +5580,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 						uri: 'vscode://synced-data/docs-server',
 						name: 'Docs Server',
 						state: { kind: McpServerStatus.Ready },
+						children: [
+							{ type: CustomizationType.Skill, id: 'docs-server#skill=a', uri: 'skill://docs/a/SKILL.md', name: 'Docs Server:a' },
+							{ type: CustomizationType.Skill, id: 'docs-server#skill=b', uri: 'skill://docs/b/SKILL.md', name: 'Docs Server:b', enabled: false },
+						],
 					}],
 				}],
 			});
@@ -5594,12 +5598,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			enabled: server.enabled,
 			status: server.status,
 			state: server.state,
+			skillBundle: server.skillBundle,
 		})), [{
 			id: `${AgentSession.uri(provider.sessionTypes[0].id, session.resource.path.substring(1)).authority}/docs-server`,
 			name: 'Docs Server',
 			enabled: true,
 			status: McpServerStatus.Ready,
 			state: { kind: McpServerStatus.Ready },
+			skillBundle: { id: 'docs-server', count: 2 },
 		}]);
 	});
 

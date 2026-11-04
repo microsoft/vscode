@@ -5,6 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { fromAgentHostUri } from './agentHostUri.js';
+import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
 
 /**
  * URI scheme for synthetic built-in customizations that carry discovery and invocation metadata, but no readable file content.
@@ -24,4 +25,9 @@ export function isAgentBuiltinCustomizationUri(resource: URI): boolean {
 export function hasReadableCustomizationContent(resource: URI): boolean {
 	const scheme = fromAgentHostUri(resource).scheme;
 	return scheme !== AGENT_BUILTIN_CUSTOMIZATION_SCHEME && scheme !== AGENT_DISCOVERY_CUSTOMIZATION_SCHEME;
+}
+
+/** Uses the existing discovery-only presentation when an MCP skill has no readable host resource. */
+export function getMcpSkillCustomizationUri(uri: URI): URI {
+	return uri.scheme === MCP_RESOURCE_SCHEME ? uri : uri.with({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME });
 }

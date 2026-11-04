@@ -24,7 +24,7 @@ import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithheldClientTool, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
@@ -1299,7 +1299,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.featureFlags?.MCP_SKILLS === true, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
@@ -1442,6 +1442,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			AUTO_APPROVAL: true,
 			...catalogInstallationFeatureFlags,
 			CONNECTORS: copilotConnectorsEnabled,
+			MCP_SKILLS: this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsEnabledConfigKey) === true,
 			TGREP: true,
 			CONTENT_EXCLUSION: true,
 			// Attached long-lived services prevent the runtime from reaching session idle.

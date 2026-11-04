@@ -1691,7 +1691,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (completionMeta?.kind === 'skill') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: URI.parse(completionMeta.uri),
+						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
 						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
 						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
