@@ -28,7 +28,9 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { MenuId, MenuRegistry, isIMenuItem } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -216,24 +218,32 @@ suite('SCM structural diff tree', () => {
 		});
 	}
 
-	test('adds Show Structural Diff as a checkable action in a separate View & Sort group', () => {
+	test('adds Show Structural Diff as a checkable action in a separate View & Sort group while enabled and a provider is registered', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.for('SCMViewSort'))
 			.find(item => isIMenuItem(item) && item.command.id === 'workbench.scm.action.toggleShowStructuralDiff');
 		assert.ok(item && isIMenuItem(item));
 		const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
+		const isShown = (enabled: boolean, hasProvider: boolean) => {
+			const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService({ 'scm.structuralDiff.enabled': enabled })));
+			ContextKeys.SCMViewHasStructuralDiffProvider.bindTo(contextKeyService).set(hasProvider);
+			return contextKeyService.contextMatchesRules(item.when);
+		};
 		assert.deepStrictEqual({
-			title: item.command.title, group: item.group, order: item.order, when: item.when?.serialize(), toggled: toggled?.serialize(),
+			title: item.command.title, group: item.group, order: item.order, toggled: toggled?.serialize(),
+			shown: { disabled: isShown(false, true), withoutProvider: isShown(true, false), enabled: isShown(true, true) },
 		}, {
 			title: 'Show Structural Diff', group: '3_structuralDiff', order: 1,
-			when: ContextKeys.SCMViewHasStructuralDiffProvider.serialize(),
 			toggled: ContextKeys.SCMViewShowStructuralDiff.serialize(),
+			shown: { disabled: false, withoutProvider: false, enabled: true },
 		});
 	});
 
-	test('describes structural diff in the accessibility help only while a provider is registered', () => {
+	test('describes structural diff in the accessibility help only while enabled and a provider is registered', async () => {
 		const features = new LanguageFeaturesService();
+		const configurationService = new TestConfigurationService({ 'scm.structuralDiff.enabled': true });
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ISCMViewService, { visibleRepositories: [] });
 		instantiationService.stub(IViewsService, { getFocusedViewName: () => '' });
 		instantiationService.set(ILanguageFeaturesService, features);
@@ -241,11 +251,13 @@ suite('SCM structural diff tree', () => {
 			const provider = store.add(instantiationService.invokeFunction(accessor => new SCMAccessibilityHelp().getProvider(accessor)));
 			return provider.provideContent().includes('Show Structural Diff');
 		};
-		const without = mentionsStructuralDiff();
+		const withoutProvider = mentionsStructuralDiff();
 		const registration = features.structuralDiffProvider.register('*', new class extends mock<StructuralDiffProvider>() { });
-		const withProvider = mentionsStructuralDiff();
+		const enabled = mentionsStructuralDiff();
+		await configurationService.setUserConfiguration('scm.structuralDiff.enabled', false);
+		const disabled = mentionsStructuralDiff();
 		registration.dispose();
-		assert.deepStrictEqual({ without, withProvider, afterRemoval: mentionsStructuralDiff() }, { without: false, withProvider: true, afterRemoval: false });
+		assert.deepStrictEqual({ withoutProvider, enabled, disabled }, { withoutProvider: false, enabled: true, disabled: false });
 	});
 
 	test('the menu command toggles the active Source Control view', async () => {

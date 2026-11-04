@@ -1316,7 +1316,10 @@ class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.SCMViewShowStructuralDiff,
-			menu: { id: Menus.ViewSort, group: '3_structuralDiff', order: 1, when: ContextKeys.SCMViewHasStructuralDiffProvider },
+			menu: {
+				id: Menus.ViewSort, group: '3_structuralDiff', order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('config.scm.structuralDiff.enabled', true), ContextKeys.SCMViewHasStructuralDiffProvider),
+			},
 		});
 	}
 
@@ -1457,19 +1460,29 @@ export class SCMViewPane extends ViewPane {
 	private readonly _onDidChangeViewSortKey = this._register(new Emitter<ViewSortKey>());
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
-	get showStructuralDiff(): boolean { return this.structuralDiff.enabled; }
+	/** The user's choice from the View & Sort menu. Structural diffs are only shown while `scm.structuralDiff.enabled` is also set. */
+	get showStructuralDiff(): boolean { return this._showStructuralDiff; }
 	set showStructuralDiff(show: boolean) {
-		if (this.showStructuralDiff === show) {
+		if (this._showStructuralDiff === show) {
 			return;
 		}
-		if (!show && this.tree) {
+		this._showStructuralDiff = show;
+		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.updateStructuralDiffEnablement();
+	}
+
+	private updateStructuralDiffEnablement(): void {
+		const enabled = this._showStructuralDiff && this.configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true;
+		if (this.structuralDiff.enabled === enabled) {
+			return;
+		}
+		if (!enabled && this.tree) {
 			const toResource = (element: TreeElement) => isSCMStructuralDiffElement(element) ? element.resource : element;
 			this.tree.setFocus([...new Set(this.tree.getFocus().map(toResource))]);
 			this.tree.setSelection([...new Set(this.tree.getSelection().map(toResource))]);
 		}
-		this.showStructuralDiffContextKey.set(show);
-		this.structuralDiff.setEnabled(show);
-		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.showStructuralDiffContextKey.set(enabled);
+		this.structuralDiff.setEnabled(enabled);
 	}
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
@@ -1481,6 +1494,7 @@ export class SCMViewPane extends ViewPane {
 
 	private viewModeContextKey: IContextKey<ViewMode>;
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
+	private _showStructuralDiff: boolean;
 	private showStructuralDiffContextKey: IContextKey<boolean>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
@@ -1514,7 +1528,7 @@ export class SCMViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
-		this.structuralDiff.setEnabled(this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false));
+		this._showStructuralDiff = this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false);
 
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
@@ -1526,7 +1540,8 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey = ContextKeys.SCMViewSortKey.bindTo(contextKeyService);
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.showStructuralDiffContextKey = ContextKeys.SCMViewShowStructuralDiff.bindTo(contextKeyService);
-		this.showStructuralDiffContextKey.set(this.showStructuralDiff);
+		this.updateStructuralDiffEnablement();
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.structuralDiff.enabled'), this.disposables)(() => this.updateStructuralDiffEnablement(), this, this.disposables);
 		this.disposables.add(bindContextKey(ContextKeys.SCMViewHasStructuralDiffProvider, contextKeyService, reader => this.structuralDiff.hasProvider.read(reader)));
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);

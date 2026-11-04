@@ -9,6 +9,7 @@ import { localize } from '../../../../nls.js';
 import { AccessibleViewType, AccessibleContentProvider, IAccessibleViewContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { FocusedViewContext, SidebarFocusContext } from '../../../common/contextkeys.js';
@@ -33,8 +34,9 @@ export class SCMAccessibilityHelp implements IAccessibleViewImplementation {
 		const scmViewService = accessor.get(ISCMViewService);
 		const viewsService = accessor.get(IViewsService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const configurationService = accessor.get(IConfigurationService);
 
-		return new SCMAccessibilityHelpContentProvider(commandService, scmViewService, viewsService, languageFeaturesService);
+		return new SCMAccessibilityHelpContentProvider(commandService, scmViewService, viewsService, languageFeaturesService, configurationService);
 	}
 }
 
@@ -49,7 +51,8 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._focusedView = this._viewsService.getFocusedViewName();
@@ -127,7 +130,7 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
 		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
 		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
-		if (hasSCMStructuralDiffProvider(this._languageFeaturesService)) {
+		if (this._configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true && hasSCMStructuralDiffProvider(this._languageFeaturesService)) {
 			content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
 			content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
 			content.push(localize('scm-structural-staged', " - For Git, staged structural changes compare HEAD with the index, while unstaged structural changes compare the index with the working file. Both versions of the file and a provider that supports their document types are required."));
