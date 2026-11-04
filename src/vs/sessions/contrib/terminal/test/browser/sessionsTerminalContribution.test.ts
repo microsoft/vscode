@@ -1263,6 +1263,25 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
+	test('a terminal a chat window takes, such as of a task or opened by New Terminal there, is the terminal of its session: hidden, it does not show for another session of its working directory, and archiving its session disposes it', async () => {
+		const worktree = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:chat-window', worktree, providerType: AgentSessionProviders.Background });
+		const taken = makeTerminalInstance(nextInstanceId++, worktree.fsPath);
+		terminalInstances.set(taken.instanceId, taken);
+		contribution.trackChatWindowTerminal(session, taken);
+		// The window's terminals hide: it gives the terminal back to the panel, into its background
+		contribution.setShownInChatWindow(taken, false);
+		backgroundedInstances.add(taken.instanceId);
+
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:other', worktree, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		const shownForOther = showBackgroundCalls.includes(taken.instanceId);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [makeAgentSession({ sessionId: session.sessionId, isArchived: true, worktree, providerType: AgentSessionProviders.Background })] });
+		await tick();
+
+		assert.deepStrictEqual({ shownForOther, disposed: disposedInstances.map(instance => instance.instanceId) }, { shownForOther: false, disposed: [taken.instanceId] });
+	});
+
 	test('disposes the active terminal when its session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const session = makeAgentSession({

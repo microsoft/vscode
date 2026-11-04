@@ -33,6 +33,12 @@ export interface IChatWindowTerminalsSource {
 	createChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined>;
 	/** Leaves `instance` to the chat window that shows it, out of the terminal panel, or gives it back to the panel. */
 	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void;
+	/**
+	 * Leaves `instance` to the chat window that shows `session`, as {@link setShownInChatWindow} does, and takes it as a
+	 * terminal of `session`, such as the terminal of a task or one opened by New Terminal in the window: it goes with the
+	 * session, such as as the session is archived, rather than with another session.
+	 */
+	trackChatWindowTerminal(session: IActiveSession, instance: ITerminalInstance): void;
 }
 
 export const IChatWindowTerminalsService = createDecorator<IChatWindowTerminalsService>('chatWindowTerminalsService');
@@ -191,7 +197,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		this._trackPart(window, part);
 		let first = true;
 		for (const instance of toShow) {
-			await this._moveToGroup(instance, group, first && focus);
+			await this._moveToGroup(window, instance, group, first && focus);
 			first = false;
 		}
 		return true;
@@ -307,7 +313,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			return true;
 		}
 		terminals.add(instance);
-		await this._moveToGroup(instance, part.activeGroup, focus);
+		await this._moveToGroup(window, instance, part.activeGroup, focus);
 		return true;
 	}
 
@@ -333,9 +339,9 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		this._terminals.delete(window);
 	}
 
-	/** Moves a terminal of the window to `group`, out of the panel or an editor elsewhere. */
-	private async _moveToGroup(instance: ITerminalInstance, group: IEditorGroup, focus: boolean): Promise<void> {
-		this._source.setShownInChatWindow(instance, true);
+	/** Moves a terminal of `window` to `group`, out of the panel or an editor elsewhere. */
+	private async _moveToGroup(window: IChatWindow, instance: ITerminalInstance, group: IEditorGroup, focus: boolean): Promise<void> {
+		this._take(window, instance);
 		if (instance.target === TerminalLocation.Editor && group.editors.some(editor => isEqual(editor.resource, instance.resource))) {
 			// Already in the group, such as a terminal created there.
 			if (focus) {
@@ -411,10 +417,10 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}
 		const terminals = this._getTerminals(window);
 		const track = (editor: EditorInput | undefined) => {
-			const instance = editor instanceof TerminalEditorInput ? editor.terminalInstance : undefined;
+			const instance = this._instanceOf(editor);
 			if (instance && !terminals.has(instance)) {
 				terminals.add(instance);
-				this._source.setShownInChatWindow(instance, true);
+				this._take(window, instance);
 			}
 		};
 		this._partListeners.set(window, this._trackGroups(part, group => {
@@ -488,6 +494,21 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		store.add(part.onDidAddGroup(add));
 		store.add(part.onDidRemoveGroup(group => groups.deleteAndDispose(group)));
 		return store;
+	}
+
+	/** Takes `instance` as a terminal of `window`, and of the session it shows. */
+	private _take(window: IChatWindow, instance: ITerminalInstance): void {
+		const session = this._sessionOf(window);
+		if (session) {
+			this._source.trackChatWindowTerminal(session, instance);
+		} else {
+			this._source.setShownInChatWindow(instance, true);
+		}
+	}
+
+	/** The terminal `editor` shows, if it is a terminal. */
+	private _instanceOf(editor: EditorInput | undefined): ITerminalInstance | undefined {
+		return editor && isTerminalEditor(editor) ? this._terminalService.getInstanceFromResource(editor.resource) : undefined;
 	}
 
 	/** The session `window` shows: the session its parts act on. */

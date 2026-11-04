@@ -975,6 +975,19 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
+	trackChatWindowTerminal(session: IActiveSession, instance: ITerminalInstance): void {
+		this.setShownInChatWindow(instance, true);
+		if (instance.isDisposed || this._sessionTerminals.get(session.sessionId)?.has(instance.instanceId)) {
+			return;
+		}
+		// The session the window shows takes it, also from another session, such as a task terminal of the same working
+		// directory and task that the window reused
+		this._removeTerminalFromTrackedSessions(instance.instanceId);
+		this._standaloneTerminalIds.delete(instance.instanceId);
+		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd;
+		this._trackTerminalsForSession(session.sessionId, [instance], cwd && { sessionId: session.sessionId, key: cwd.fsPath.toLowerCase(), agentHostAddress: this._getSessionAgentHostAddress(session) });
+	}
+
 	async showAllTerminals(): Promise<void> {
 		for (const instance of this._terminalService.instances) {
 			if (!this._terminalService.foregroundInstances.includes(instance)) {

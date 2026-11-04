@@ -102,6 +102,7 @@ suite('Chat window terminals', () => {
 	function createEnvironment(options: IEnvironmentOptions = {}) {
 		const calls: string[] = [];
 		const shownInChatWindow: string[] = [];
+		const tracked: string[] = [];
 		const session = upcastPartial<IActiveSession>({ sessionId: 'session-1' });
 
 		// The window: its main part, and the part that holds its terminals once created.
@@ -141,6 +142,7 @@ suite('Chat window terminals', () => {
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override get foregroundInstances() { return foreground; }
 			override getInstanceFromId(id: number) { return options.instances?.find(instance => instance.instanceId === id); }
+			override getInstanceFromResource(resource: URI | undefined) { return [...options.instances ?? [], ...options.terminal ? [options.terminal] : []].find(instance => instance.resource.toString() === resource?.toString()); }
 			override async showBackgroundTerminal(instance: ITerminalInstance) {
 				foreground.push(instance);
 				calls.push('fromBackground');
@@ -202,10 +204,14 @@ suite('Chat window terminals', () => {
 				return terminal(100);
 			},
 			setShownInChatWindow: (instance, shown) => shownInChatWindow.push(`${instance.instanceId}:${shown}`),
+			trackChatWindowTerminal: (forSession, instance) => {
+				shownInChatWindow.push(`${instance.instanceId}:true`);
+				tracked.push(`${forSession.sessionId}:${instance.instanceId}`);
+			},
 		};
 		windows.set([window], undefined);
 		const terminals = disposables.add(instantiationService.createInstance(ChatWindowTerminals, source));
-		return { calls, shownInChatWindow, window, windows, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
+		return { calls, shownInChatWindow, tracked, window, windows, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
 	}
 
 	test('shows a terminal of the window\'s session in the part that holds its terminals, and gives it back to the panel, still running, as the window closes', async () => {
@@ -473,6 +479,18 @@ suite('Chat window terminals', () => {
 		await terminals.addTerminal(window);
 
 		assert.deepStrictEqual(calls, ['createPart', 'terminalOf:session-1:{"viewColumn":0}', 'fromBackground', 'toEditor:7', 'newOf:session-1:{"viewColumn":0}']);
+	});
+
+	test('the terminals the window takes, such as the terminal of a task or one opened by New Terminal in the part that holds its terminals, are terminals of its session', async () => {
+		const task = terminal(9);
+		const opened = terminal(11, { target: TerminalLocation.Editor });
+		const { terminals, window, terminalsGroup, tracked } = createEnvironment({ instances: [task, opened], foreground: [task, opened] });
+
+		await terminals.showTerminal(window, 9, false);
+		terminalsGroup.open(editor('workbench.editors.terminal', opened.resource));
+		terminals.release(window);
+
+		assert.deepStrictEqual(tracked, ['session-1:9', 'session-1:11']);
 	});
 
 	test('a window that closes while its first terminal is created does not take it: nothing moves into the window, the terminal stays with its session', async () => {
