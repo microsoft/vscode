@@ -193,13 +193,13 @@ class PartGridCell implements ISerializableView {
 	private lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	/**
-	 * Parts keep their shares of the grid as it is resized, such as with
-	 * its window; views that are not parts, such as a title row, keep their
-	 * sizes. Parts that keep their sizes get them back once the grid is laid
-	 * out (see `PartGrid.keepSizes`): opting out here would keep the size of
-	 * the row or column around them too.
+	 * Whether the cell keeps its size as the grid is resized: views that are
+	 * not parts, such as a title row, and parts that say so. Every cell is
+	 * laid out in proportion, and these get their sizes back once the grid
+	 * is laid out (see `PartGrid.keepSizes`): opting out of the proportional
+	 * layout would keep the size of the row or column around them too.
 	 */
-	get proportionalLayout(): boolean { return !!this.part; }
+	get keepsSize(): boolean { return !this.part || !!this.options.keepsSize; }
 
 	get minimumWidth(): number { return this.view.minimumWidth + this.horizontalFrame; }
 	get maximumWidth(): number { return this.view.maximumWidth + this.horizontalFrame; }
@@ -1517,14 +1517,14 @@ export class PartGrid extends Disposable {
 	private readonly keptShares = new WeakMap<PartGridCell, { readonly views: readonly (PartGridCell | undefined)[]; readonly sizes: readonly number[]; readonly shares: readonly number[] }>();
 
 	/**
-	 * The sizes of the parts that keep their sizes (see
-	 * {@link IPartGridPartOptions.keepsSize}) along their rows or columns,
+	 * The sizes of the cells that keep their sizes (see
+	 * {@link PartGridCell.keepsSize}) along their rows or columns,
 	 * and the shares the others in them have.
 	 */
 	private keptSizes(grid: PartGridLayout): Map<PartGridCell, { readonly size: number; readonly shares: readonly number[] }> {
 		const kept = new Map<PartGridCell, { readonly size: number; readonly shares: readonly number[] }>();
 		for (const cell of this.cells.values()) {
-			const line = cell.part && cell.options.keepsSize ? findLineOf(grid, cell) : undefined;
+			const line = cell.keepsSize ? findLineOf(grid, cell) : undefined;
 			if (!line || !grid.isViewVisible(cell)) {
 				continue;
 			}
@@ -1845,12 +1845,12 @@ function findLineOf(grid: Grid<PartGridCell>, cell: PartGridCell): { readonly br
 }
 
 /**
- * The others in the row or column of a part that keeps its size, which
- * make room for it: rows or columns across it, and parts that show and
- * can be resized.
+ * The others in the row or column of a cell that keeps its size, which
+ * make room for it: rows or columns across it, and parts that show, can be
+ * resized and do not keep their sizes either.
  */
 function othersInLine(line: { readonly branch: GridBranchNode<PartGridCell>; readonly index: number; readonly orientation: Orientation }): GridNode<PartGridCell>[] {
-	return line.branch.children.filter((node, index) => index !== line.index && (isGridBranchNode(node) || (node.cachedVisibleSize === undefined && maximumAlong(node.view, line.orientation) > minimumAlong(node.view, line.orientation))));
+	return line.branch.children.filter((node, index) => index !== line.index && (isGridBranchNode(node) || (!node.view.keepsSize && node.cachedVisibleSize === undefined && maximumAlong(node.view, line.orientation) > minimumAlong(node.view, line.orientation))));
 }
 
 /**

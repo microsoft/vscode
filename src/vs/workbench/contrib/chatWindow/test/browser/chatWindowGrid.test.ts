@@ -33,6 +33,7 @@ suite('Chat window grid', () => {
 			override readonly isEmpty = false;
 			override readonly onDidModelChange = Event.None;
 			override getEditors() { return []; }
+			override focus(): void { }
 		}();
 		return new class extends mock<IContentPart>() {
 			override readonly element = $(`.${name}`);
@@ -42,6 +43,7 @@ suite('Chat window grid', () => {
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
 			override readonly groups = [group];
+			override readonly activeGroup = group;
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -667,22 +669,49 @@ suite('Chat window grid', () => {
 		open();
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		userResize(ChatWindowGridCell.Chat, 'top', 177);
-		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals, ChatWindowGridCell.TitleRow].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const strip = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Strip).width;
 		const before = heights();
+		const chrome = new Set<string>();
 		// As a window is dragged: by uneven steps, out and back
 		const steps = [1, 3, 2, 7, 1, 5, 4, 1, 9, 2];
 		let height = 800;
 		for (let i = 0; i < 60; i++) {
 			height += steps[i % steps.length];
 			grid.layout(1000, height);
+			chrome.add(`${heights()[3]}/${strip()}`);
 		}
 		for (let i = 0; i < 60; i++) {
 			height -= steps[(i * 3) % steps.length];
 			grid.layout(1000, height);
+			chrome.add(`${heights()[3]}/${strip()}`);
 		}
 		grid.layout(1000, 800);
 
-		assert.deepStrictEqual(heights(), before);
+		// The title row and the strip keep their sizes at every step
+		assert.deepStrictEqual({ heights: heights(), chrome: [...chrome] }, { heights: before, chrome: ['30/34'] });
+	});
+
+	test('in Stacked, with a part dropped at the bottom edge of the window, below the parts and the strip, the parts keep their shares of the window as it is resized, and the title row and the strip their sizes', () => {
+		const { mode, grid } = setup({ createPart: () => ({ id: 'created', part: createPart('created') }) });
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Down }, { dropped: true });
+		const size = (cell: string) => grid.partGrid!.getCellSize(cell);
+		const sizes = () => `${size(ChatWindowGridCell.Main).height + size(ChatWindowGridCell.Chat).height}/${size('created').height} title ${size(ChatWindowGridCell.TitleRow).height} strip ${size(ChatWindowGridCell.Strip).width}`;
+		const resized = [800, 1200, 700, 800].map(height => {
+			grid.layout(1000, height);
+			return sizes();
+		});
+
+		assert.deepStrictEqual({ shape: grid.partGrid!.describe(), resized }, {
+			shape: 'column(titleRow, row(column(main, chat), strip), created)',
+			resized: ['556/214 title 30 strip 34', '845/325 title 30 strip 34', '484/186 title 30 strip 34', '556/214 title 30 strip 34'],
+		});
 	});
 
 	test('QA\'s INFO-2 sequence: side by side, only the chat (its sizes saved meanwhile), a part moved, stacked, and side by side again: the split the user had, never the main part at its minimum', () => {
