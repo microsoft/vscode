@@ -29,8 +29,8 @@ export interface IRemoteWorkspaceHandoffService {
 	/**
 	 * Resolves a remote folder to the folder of the remote agent host on the
 	 * same machine. Adds that host when the Agents Window does not know it yet,
-	 * signing in first when only an account that is not signed in can find it,
-	 * and starts a user-initiated connection.
+	 * offering to sign in first when only an account that is not signed in can
+	 * find it, and starts a user-initiated connection.
 	 */
 	resolveFolder(folder: IRemoteWorkspaceFolder, token: CancellationToken): Promise<RemoteWorkspaceHandoffResult>;
 }

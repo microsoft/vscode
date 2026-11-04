@@ -19,6 +19,7 @@ import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticati
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -44,6 +45,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 		readonly cachedTunnels?: readonly ICachedTunnel[];
 		readonly listTunnels?: (authProvider: 'github' | 'microsoft' | undefined) => Promise<ITunnelInfo[]>;
 		readonly signIn?: (authProvider: 'github' | 'microsoft') => Promise<void>;
+		readonly confirmSignIn?: boolean;
 		readonly dismissedTunnels?: readonly string[];
 	} = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -80,10 +82,18 @@ suite('RemoteWorkspaceHandoffService', () => {
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task(upcastPartial({ report: () => { } })) }));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }));
+		const dialogs: IConfirmation[] = [];
+		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({
+			confirm: async confirmation => {
+				calls.push('confirm');
+				dialogs.push(confirmation);
+				return { confirmed: options.confirmSignIn ?? true };
+			},
+		}));
 		instantiationService.stub(ILogService, new NullLogService());
 		const service = disposables.add(instantiationService.createInstance(RemoteWorkspaceHandoffService));
 		return {
-			service, storage, calls, errors,
+			service, storage, calls, errors, dialogs,
 			addProvider: (address: string, connect: (status: ISettableObservable<RemoteAgentHostConnectionStatus>) => Promise<void>, initialStatus: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.disconnected) => {
 				const status = observableValue<RemoteAgentHostConnectionStatus>('status', initialStatus);
 				const provider = upcastPartial<IAgentHostSessionsProvider>({
@@ -238,6 +248,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 			// An account without tunnel configuration fails to list, which must not hide the sign-in.
 			await resolve('tunnel+unconfigured', { listTunnels: async authProvider => authProvider === 'github' ? signedOut() : Promise.reject(new Error('No authentication is available to enumerate tunnels.')) }),
 			await resolve('tunnel+sign-in-cancelled', { listTunnels: signedOut, signIn: async () => { throw new CancellationError(); } }),
+			await resolve('tunnel+sign-in-declined', { listTunnels: signedOut, signIn: async () => { throw new Error('Declining must not sign in.'); }, confirmSignIn: false }),
 		], [
 			{ unavailableReason: 'The Agents Window cannot connect to this kind of remote.' },
 			{ unavailableReason: 'The Agents Window cannot connect to this kind of remote.' },
@@ -248,10 +259,11 @@ suite('RemoteWorkspaceHandoffService', () => {
 			{ unavailableReason: 'Sign in to find tunnel \'signed-out\'.' },
 			{ unavailableReason: 'Sign in to find tunnel \'unconfigured\'.' },
 			{ unavailableReason: 'Sign in to find tunnel \'sign-in-cancelled\'.' },
+			{ unavailableReason: 'Sign in to find tunnel \'sign-in-declined\'.' },
 		]);
 	});
 
-	test('signs in to find the tunnel of an account that is not signed in yet', async () => {
+	test('explains and confirms signing in to find the tunnel of an account that is not signed in yet', async () => {
 		let signedIn = false;
 		const harness = createHarness({
 			listTunnels: async authProvider => {
@@ -266,9 +278,15 @@ suite('RemoteWorkspaceHandoffService', () => {
 			signIn: async () => { signedIn = true; },
 		});
 		const result = describe(await harness.service.resolveFolder({ remoteAuthority: 'tunnel+signed-out-tunnel', path: '/project' }, CancellationToken.None));
-		assert.deepStrictEqual({ result, calls: harness.calls }, {
+		assert.deepStrictEqual({ result, calls: harness.calls, dialogs: harness.dialogs }, {
 			result: { authority: agentHostAuthority('tunnel:signed-out-tunnel-id'), folder: 'file:///project' },
-			calls: ['signIn:github', 'clearTunnelDismissal:signed-out-tunnel-id', 'cacheTunnel:signed-out-tunnel-id:github'],
+			calls: ['confirm', 'signIn:github', 'clearTunnelDismissal:signed-out-tunnel-id', 'cacheTunnel:signed-out-tunnel-id:github'],
+			dialogs: [{
+				type: 'info',
+				message: 'Sign in to open your folder from tunnel \'signed-out-tunnel\'?',
+				detail: 'Your editor window is connected to tunnel \'signed-out-tunnel\'. To open the same folder here, the Agents Window needs to sign in with your GitHub account to find the tunnel and connect to its agent host.',
+				primaryButton: '&&Sign In',
+			}],
 		});
 	});
 

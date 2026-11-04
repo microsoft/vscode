@@ -19,6 +19,7 @@ import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../..
 import { ITunnelAgentHostService, TunnelAuthenticationRequiredError } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -166,6 +167,7 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 		@IStorageService private readonly _storageService: IStorageService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -289,8 +291,17 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 					}
 				}
 				const signInMessage = localize('remoteWorkspaceHandoff.tunnelSignIn', "Sign in to find tunnel '{0}'.", machine.name);
-				// The tunnel may belong to an account that is not signed in yet; opening its folder is reason enough to sign in.
+				// The tunnel may belong to an account that is not signed in yet; offer to sign in, explaining why first.
 				if (signInProvider && this._tunnelService.signIn) {
+					const { confirmed } = await this._dialogService.confirm({
+						type: 'info',
+						message: localize('remoteWorkspaceHandoff.tunnelSignInConfirmation', "Sign in to open your folder from tunnel '{0}'?", machine.name),
+						detail: localize('remoteWorkspaceHandoff.tunnelSignInDetail', "Your editor window is connected to tunnel '{0}'. To open the same folder here, the Agents Window needs to sign in with your {1} account to find the tunnel and connect to its agent host.", machine.name, signInProvider === 'github' ? 'GitHub' : 'Microsoft'),
+						primaryButton: localize('remoteWorkspaceHandoff.tunnelSignInButton', "&&Sign In"),
+					});
+					if (!confirmed) {
+						return signInMessage;
+					}
 					try {
 						await this._tunnelService.signIn(signInProvider);
 					} catch (error) {
