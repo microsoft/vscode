@@ -1425,6 +1425,35 @@ suite('CloudSandboxApiService repository-scoped discovery', () => {
 suite('CloudSandboxApiService feed task refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const status of [403, 404]) {
+		test(`a scan of another repository cannot override a pending task HTTP ${status} removal`, async () => {
+			const entered = new DeferredPromise<void>();
+			const pending = new DeferredPromise<IRequestContext>();
+			let hold = false;
+			const { service } = createService(store, {
+				tasks: [
+					{ ...task('one', 'First', 42, 's1', 'e1'), updated_at: '2026-10-18T00:00:00Z' },
+					{ ...task('two', 'Second', 43, 's2', 'e2'), updated_at: '2026-10-18T00:00:00Z' },
+				],
+				repositories: new Map([[42, { full_name: 'owner/repo' }], [43, { full_name: 'other/repo' }]]),
+				onRequest: url => {
+					if (hold && url.pathname === '/agents/tasks/one') {
+						void entered.complete();
+						return pending.p;
+					}
+					return undefined;
+				},
+			});
+			await service.listSessions(CancellationToken.None);
+			hold = true;
+			const refresh = service.listSessions(CancellationToken.None, { taskIds: ['one'] });
+			await entered.p;
+			await service.listSessions(CancellationToken.None, { repositories: ['other/repo'] });
+			await pending.complete(jsonResponse({}, status));
+			assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['one'] });
+		});
+	}
+
 	test('a delayed targeted read cannot overwrite a newer archive discovered by an inventory scan', async () => {
 		const pending = new DeferredPromise<IRequestContext>();
 		const entered = new DeferredPromise<void>();

@@ -920,6 +920,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				for (const [id, cached] of cache) {
 					if (matchesScope(cached.summary, cached.repositoryId) && !scannedTaskIds.has(id)) {
 						cache.delete(id);
+						removedTaskIds.push(id);
 					}
 				}
 			}
@@ -956,9 +957,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				removed.add(id);
 			}
 		}
+		// Retaining an out-of-scope entry is not a new task observation.
 		const committedIds = targeted
 			? new Set([...tasks.keys(), ...removed])
-			: new Set([...this._discoveredTasks.keys(), ...cache.keys()]);
+			: new Set([...this._discoveredTasks.keys(), ...cache.keys()].filter(id => tasks.has(id) || removed.has(id) || published.has(id)));
 		for (const id of committedIds) {
 			const cached = cache.get(id);
 			if (cached) {
