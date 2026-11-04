@@ -83,7 +83,7 @@ suite('Copilot PermissionPicker', () => {
 	});
 
 	for (const policyRestricted of [false, true]) {
-		test(`labels Assisted permissions as experimental on phones${policyRestricted ? ' while honoring enterprise policy' : ''}`, async () => {
+		test(`labels Assisted permissions as recommended on phones${policyRestricted ? ' while honoring enterprise policy' : ''}`, async () => {
 			const container = dom.append(document.body, dom.$('.phone-layout'));
 			store.add(toDisposable(() => container.remove()));
 			const configurationService = new class extends TestConfigurationService {
@@ -129,16 +129,16 @@ suite('Copilot PermissionPicker', () => {
 			assert.deepStrictEqual(levels, [
 				{ label: 'Default permissions', badge: undefined, ariaLabel: null, disabled: false },
 				{
-					label: 'Assisted permissions', badge: policyRestricted ? undefined : 'New', disabled: policyRestricted,
+					label: 'Assisted permissions', badge: policyRestricted ? undefined : 'Recommended', disabled: policyRestricted,
 					ariaLabel: policyRestricted
 						? null
-						: 'Assisted permissions, New, Evaluates risk before running tools',
+						: 'Assisted permissions, Recommended, Evaluates risk before running tools',
 				},
 				{ label: 'Allow all', badge: undefined, ariaLabel: null, disabled: policyRestricted },
 			]);
 		});
 
-		test(`labels Assisted permissions as new by default${policyRestricted ? ' but disables it under enterprise policy' : ''}`, async () => {
+		test(`labels Assisted permissions as recommended by default${policyRestricted ? ' but disables it under enterprise policy' : ''}`, async () => {
 			const configurationService = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
 					const result = super.inspect<T>(key);
@@ -178,7 +178,7 @@ suite('Copilot PermissionPicker', () => {
 			}, {
 				levels: [
 					{ label: 'Default permissions', badge: undefined, disabled: false, description: undefined },
-					{ label: 'Assisted permissions', badge: policyRestricted ? undefined : 'New', disabled: policyRestricted, description: policyRestricted ? POLICY_DESCRIPTION : undefined },
+					{ label: 'Assisted permissions', badge: policyRestricted ? undefined : 'Recommended', disabled: policyRestricted, description: policyRestricted ? POLICY_DESCRIPTION : undefined },
 					{ label: 'Allow all', badge: undefined, disabled: policyRestricted, description: policyRestricted ? POLICY_DESCRIPTION : undefined },
 				],
 				hover: policyRestricted ? POLICY_HOVER : 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.',
