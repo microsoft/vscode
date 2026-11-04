@@ -7,7 +7,7 @@ import { raceCancellationError } from '../../../../../base/common/async.js';
 import { decodeHex } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
@@ -118,11 +118,25 @@ function isDefaultDistro(machine: ParsedRemoteMachine): machine is { readonly ki
 	return machine.kind === 'wsl' && machine.distro === undefined;
 }
 
+/** Awaits a step of a handoff, failing once the handoff is cancelled, even if the step completed, so that no later step acts for it. */
+async function whileCurrent<T>(promise: Promise<T>, token: CancellationToken): Promise<T> {
+	const result = await raceCancellationError(promise, token);
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	return result;
+}
+
 function matchesTunnel(tunnel: { readonly name: string; readonly tunnelId: string; readonly clusterId: string }, name: string): boolean {
 	return equalsIgnoreCase(tunnel.name, name) || equalsIgnoreCase(`${tunnel.tunnelId}.${tunnel.clusterId}`, name);
 }
 
-function matchesMachine(entry: IRemoteAgentHostEntry, machine: RemoteMachine): boolean {
+/**
+ * Whether the entry connects to the machine. An SSH machine without a config alias carries the
+ * user and port that SSH config supplies when its authority omits them, and an entry without a
+ * port connects on the port of that same configuration.
+ */
+function matchesMachine(entry: IRemoteAgentHostEntry, machine: RemoteMachine, sshConfigPort = 22): boolean {
 	const connection = entry.connection;
 	switch (machine.kind) {
 		case 'ssh':
@@ -134,8 +148,8 @@ function matchesMachine(entry: IRemoteAgentHostEntry, machine: RemoteMachine): b
 			}
 			return connection.sshConfigHost === undefined
 				&& equalsIgnoreCase(connection.hostName, machine.hostName)
-				&& (machine.user === undefined || connection.user === machine.user)
-				&& (connection.port ?? 22) === (machine.port ?? 22);
+				&& connection.user === machine.user
+				&& (connection.port ?? sshConfigPort) === (machine.port ?? sshConfigPort);
 		case 'wsl':
 			return connection.type === RemoteAgentHostEntryType.WSL && equalsIgnoreCase(connection.distro, machine.distro);
 		case 'tunnel':
@@ -185,14 +199,21 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 		let machine: RemoteMachine | undefined;
 		let entry: IRemoteAgentHostEntry | undefined;
 		try {
-			machine = isDefaultDistro(parsed) ? await raceCancellationError(this._getDefaultDistro(), token) : parsed;
+			machine = isDefaultDistro(parsed) ? await whileCurrent(this._getDefaultDistro(), token) : parsed;
 			if (!machine) {
 				return { unavailableReason: localize('remoteWorkspaceHandoff.wslNoDefaultDistro', "No default WSL distribution was found. Remote agent hosts require WSL 2.") };
 			}
+			let sshConfigPort: number | undefined;
+			if (machine.kind === 'ssh' && machine.sshConfigHost === undefined) {
+				// Like Remote - SSH, use the user and port of SSH config where the authority omits them.
+				const resolved = await whileCurrent(this._sshService.resolveSSHConfig(machine.hostName), token);
+				sshConfigPort = resolved.port;
+				machine = { ...machine, user: machine.user ?? resolved.user, port: machine.port ?? resolved.port };
+			}
 			const known = machine;
-			entry = this._remoteAgentHostService.configuredEntries.find(entry => matchesMachine(entry, known));
+			entry = this._remoteAgentHostService.configuredEntries.find(entry => matchesMachine(entry, known, sshConfigPort));
 			if (!entry) {
-				const added = await raceCancellationError(this._addEntry(known), token);
+				const added = await whileCurrent(this._addEntry(known, token), token);
 				if (typeof added === 'string') {
 					return { unavailableReason: added };
 				}
@@ -218,36 +239,45 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 		return distro && { kind: 'wsl', distro: distro.name };
 	}
 
-	/** Adds the machine's remote agent host, returning its entry or a user-facing reason why it is unavailable. */
-	private async _addEntry(machine: RemoteMachine): Promise<IRemoteAgentHostEntry | string> {
+	/**
+	 * Adds the machine's remote agent host, returning its entry or a user-facing reason why it is unavailable.
+	 * Stops once the handoff is cancelled, before storing or caching anything or asking the user to sign in.
+	 */
+	private async _addEntry(machine: RemoteMachine, token: CancellationToken): Promise<IRemoteAgentHostEntry | string> {
 		switch (machine.kind) {
 			case 'ssh': {
-				const resolved = await this._sshService.resolveSSHConfig(machine.sshConfigHost ?? machine.hostName);
-				const entry: IRemoteAgentHostEntry = machine.sshConfigHost !== undefined ? {
-					name: machine.sshConfigHost,
-					connection: {
-						type: RemoteAgentHostEntryType.SSH,
-						address: computeSSHConnectionKey({ sshConfigHost: machine.sshConfigHost }),
-						sshConfigHost: machine.sshConfigHost,
-						hostName: resolved.hostname,
-						user: resolved.user,
-						port: resolved.port,
-					},
-				} : {
-					name: getMachineLabel(machine),
-					connection: {
-						type: RemoteAgentHostEntryType.SSH,
-						address: computeSSHConnectionKey({ username: machine.user ?? resolved.user, host: machine.hostName, port: machine.port }),
-						hostName: machine.hostName,
-						user: machine.user ?? resolved.user,
-						port: machine.port,
-					},
-				};
+				let entry: IRemoteAgentHostEntry;
+				if (machine.sshConfigHost !== undefined) {
+					const resolved = await whileCurrent(this._sshService.resolveSSHConfig(machine.sshConfigHost), token);
+					entry = {
+						name: machine.sshConfigHost,
+						connection: {
+							type: RemoteAgentHostEntryType.SSH,
+							address: computeSSHConnectionKey({ sshConfigHost: machine.sshConfigHost }),
+							sshConfigHost: machine.sshConfigHost,
+							hostName: resolved.hostname,
+							user: resolved.user,
+							port: resolved.port,
+						},
+					};
+				} else {
+					// The user and port already include those of SSH config, so the key names the endpoint the connection uses.
+					entry = {
+						name: getMachineLabel(machine),
+						connection: {
+							type: RemoteAgentHostEntryType.SSH,
+							address: computeSSHConnectionKey({ username: machine.user, host: machine.hostName, port: machine.port }),
+							hostName: machine.hostName,
+							user: machine.user,
+							port: machine.port,
+						},
+					};
+				}
 				addSSHRemoteAgentHostEntry(this._storageService, entry);
 				return entry;
 			}
 			case 'wsl': {
-				const distro = (await this._wslService.listDistros()).find(distro => equalsIgnoreCase(distro.name, machine.distro));
+				const distro = (await whileCurrent(this._wslService.listDistros(), token)).find(distro => equalsIgnoreCase(distro.name, machine.distro));
 				if (!distro) {
 					return localize('remoteWorkspaceHandoff.wslDistroNotFound', "WSL distribution '{0}' was not found. Remote agent hosts require WSL 2.", machine.distro);
 				}
@@ -261,7 +291,7 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 					return { name: cached.name, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: cached.tunnelId, clusterId: cached.clusterId, label: cached.name, authProvider: cached.authProvider } };
 				}
 				const findTunnel = async (authProvider: 'github' | 'microsoft'): Promise<IRemoteAgentHostEntry | undefined> => {
-					const tunnel = (await this._tunnelService.listTunnels({ silent: true, authProvider })).find(tunnel => matchesTunnel(tunnel, machine.name));
+					const tunnel = (await whileCurrent(this._tunnelService.listTunnels({ silent: true, authProvider }), token)).find(tunnel => matchesTunnel(tunnel, machine.name));
 					if (!tunnel) {
 						return undefined;
 					}
@@ -270,7 +300,7 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 					return { name: tunnel.name, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, label: tunnel.name, authProvider } };
 				};
 				// Like Remote - Tunnels, look for the tunnel with each signed-in account, the most recent one first.
-				const preferred = await this._tunnelService.getAuthProvider({ silent: true });
+				const preferred = await whileCurrent(this._tunnelService.getAuthProvider({ silent: true }), token);
 				const authProviders = [...new Set([preferred, 'github', 'microsoft'] as const)].filter(provider => provider !== undefined);
 				let listed = false;
 				let signInProvider: 'github' | 'microsoft' | undefined;
@@ -283,6 +313,9 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 							return entry;
 						}
 					} catch (error) {
+						if (isCancellationError(error)) {
+							throw error;
+						}
 						if (error instanceof TunnelAuthenticationRequiredError) {
 							signInProvider ??= error.authProvider;
 						} else {
@@ -293,19 +326,20 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 				const signInMessage = localize('remoteWorkspaceHandoff.tunnelSignIn', "Sign in to find tunnel '{0}'.", machine.name);
 				// The tunnel may belong to an account that is not signed in yet; offer to sign in, explaining why first.
 				if (signInProvider && this._tunnelService.signIn) {
-					const { confirmed } = await this._dialogService.confirm({
+					const { confirmed } = await whileCurrent(this._dialogService.confirm({
 						type: 'info',
 						message: localize('remoteWorkspaceHandoff.tunnelSignInConfirmation', "Sign in to open your folder from tunnel '{0}'?", machine.name),
 						detail: localize('remoteWorkspaceHandoff.tunnelSignInDetail', "Your editor window is connected to tunnel '{0}'. To open the same folder here, the Agents Window needs to sign in with your {1} account to find the tunnel and connect to its agent host.", machine.name, signInProvider === 'github' ? 'GitHub' : 'Microsoft'),
 						primaryButton: localize('remoteWorkspaceHandoff.tunnelSignInButton', "&&Sign In"),
-					});
+					}), token);
 					if (!confirmed) {
 						return signInMessage;
 					}
 					try {
-						await this._tunnelService.signIn(signInProvider);
+						await whileCurrent(this._tunnelService.signIn(signInProvider), token);
 					} catch (error) {
-						if (isCancellationError(error)) {
+						// Cancelling the sign-in leaves the handoff without the tunnel, but cancelling the handoff ends it.
+						if (isCancellationError(error) && !token.isCancellationRequested) {
 							return signInMessage;
 						}
 						throw error;

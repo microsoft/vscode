@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeHex, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -46,6 +46,8 @@ suite('RemoteWorkspaceHandoffService', () => {
 		readonly listTunnels?: (authProvider: 'github' | 'microsoft' | undefined) => Promise<ITunnelInfo[]>;
 		readonly signIn?: (authProvider: 'github' | 'microsoft') => Promise<void>;
 		readonly confirmSignIn?: boolean;
+		/** Holds SSH config, WSL and tunnel lookups until it settles. */
+		readonly lookupGate?: Promise<void>;
 		readonly dismissedTunnels?: readonly string[];
 	} = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -57,10 +59,16 @@ suite('RemoteWorkspaceHandoffService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: options.enabled ?? true }));
 		instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ configuredEntries: options.entries ?? [] }));
 		instantiationService.stub(ISSHRemoteAgentHostService, upcastPartial<ISSHRemoteAgentHostService>({
-			resolveSSHConfig: async host => upcastPartial<ISSHResolvedConfig>({ hostname: `${host}.example.com`, user: 'resolved-user', port: 2222 }),
+			resolveSSHConfig: async host => {
+				await options.lookupGate;
+				return upcastPartial<ISSHResolvedConfig>({ hostname: `${host}.example.com`, user: 'resolved-user', port: 2222 });
+			},
 		}));
 		instantiationService.stub(IWSLRemoteAgentHostService, upcastPartial<IWSLRemoteAgentHostService>({
-			listDistros: async () => (options.distros ?? []).map(name => ({ name, isDefault: name === options.defaultDistro, isRunning: true, version: 2 as const })),
+			listDistros: async () => {
+				await options.lookupGate;
+				return (options.distros ?? []).map(name => ({ name, isDefault: name === options.defaultDistro, isRunning: true, version: 2 as const }));
+			},
 			cacheDistro: (distro: IWSLCachedDistro) => { calls.push(`cacheDistro:${distro.distro}`); },
 		}));
 		instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({
@@ -68,7 +76,10 @@ suite('RemoteWorkspaceHandoffService', () => {
 			isTunnelDismissed: tunnelId => !!options.dismissedTunnels?.includes(tunnelId),
 			clearTunnelDismissal: tunnelId => { calls.push(`clearTunnelDismissal:${tunnelId}`); },
 			getAuthProvider: async () => 'github',
-			listTunnels: async discovery => options.listTunnels ? options.listTunnels(discovery?.authProvider) : [],
+			listTunnels: async discovery => {
+				await options.lookupGate;
+				return options.listTunnels ? options.listTunnels(discovery?.authProvider) : [];
+			},
 			cacheTunnel: (info, authProvider) => { calls.push(`cacheTunnel:${info.tunnelId}:${authProvider}`); },
 			signIn: options.signIn && (async authProvider => {
 				calls.push(`signIn:${authProvider}`);
@@ -288,6 +299,54 @@ suite('RemoteWorkspaceHandoffService', () => {
 				primaryButton: '&&Sign In',
 			}],
 		});
+	});
+
+	test('matches SSH hosts by the user and port that SSH config supplies', async () => {
+		// SSH config supplies user 'resolved-user' and port 2222 for every host.
+		const root: IRemoteAgentHostEntry = { name: 'root@server', connection: { type: RemoteAgentHostEntryType.SSH, address: 'root@server:2222', hostName: 'server', user: 'root', port: 2222 } };
+		const withoutPort: IRemoteAgentHostEntry = { name: 'resolved-user@server', connection: { type: RemoteAgentHostEntryType.SSH, address: 'resolved-user@server:22', hostName: 'server', user: 'resolved-user' } };
+		const harness = createHarness({ entries: [root, withoutPort] });
+		const results = [];
+		for (const remoteAuthority of ['ssh-remote+server:2222', 'ssh-remote+resolved-user@server', 'ssh-remote+resolved-user@server:2200', 'ssh-remote+me@other']) {
+			results.push(describe(await harness.service.resolveFolder({ remoteAuthority, path: '/project' }, CancellationToken.None)));
+		}
+		assert.deepStrictEqual({ results, stored: readSSHRemoteAgentHostEntries(harness.storage).map(entry => entry.connection) }, {
+			results: [
+				// Not root's connection: the authority omits the user, so SSH config's user connects.
+				{ authority: agentHostAuthority('resolved-user@server:22'), folder: 'file:///project' },
+				// The entry without a port connects on SSH config's port, unlike an explicit other port.
+				{ authority: agentHostAuthority('resolved-user@server:22'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('resolved-user@server:2200'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('me@other:2222'), folder: 'file:///project' },
+			],
+			stored: [
+				{ type: RemoteAgentHostEntryType.SSH, address: 'resolved-user@server:2200', sshConfigHost: undefined, hostName: 'server', user: 'resolved-user', port: 2200 },
+				{ type: RemoteAgentHostEntryType.SSH, address: 'me@other:2222', sshConfigHost: undefined, hostName: 'other', user: 'me', port: 2222 },
+			],
+		});
+	});
+
+	test('stops a cancelled handoff before it stores or caches anything or asks to sign in', async () => {
+		const gate = new DeferredPromise<void>();
+		const harness = createHarness({
+			distros: ['Ubuntu'],
+			lookupGate: gate.p,
+			listTunnels: async () => { throw new TunnelAuthenticationRequiredError('github'); },
+			signIn: async () => { },
+		});
+		const cancellation = new CancellationTokenSource();
+		const pending = ['ssh-remote+myhost', 'ssh-remote+me@host', 'wsl+ubuntu', 'tunnel+signed-out'].map(remoteAuthority =>
+			harness.service.resolveFolder({ remoteAuthority, path: '/project' }, cancellation.token).then(describe, error => isCancellationError(error) ? 'cancelled' : String(error)));
+		cancellation.cancel();
+		await gate.complete();
+		const results = await Promise.all(pending);
+		await timeout(0);
+		assert.deepStrictEqual({ results, calls: harness.calls, stored: readSSHRemoteAgentHostEntries(harness.storage) }, {
+			results: ['cancelled', 'cancelled', 'cancelled', 'cancelled'],
+			calls: [],
+			stored: [],
+		});
+		cancellation.dispose();
 	});
 
 	test('reveals and connects the host once its provider registers, reporting failures', async () => {
