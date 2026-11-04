@@ -167,7 +167,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
@@ -5470,7 +5470,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): void {
 		const inputReq = part$.get().request;
 		// Claim the elicitation so the session-level responder does not cancel
-		// it while an observer is rendering it. This covers all three render
+		// it while an observer is rendering it. This covers all render
 		// paths below, since each is reached only through this method.
 		store.add(this._markInputRequestRendered(opts.chatURI, inputReq.id, opts.sessionResource));
 		const planReview = readAgentPlanReview(inputReq);
@@ -5491,8 +5491,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		if (inputReq.url) {
-			this._setupUrlInputRequest(part$, inputReq.url, store, opts);
+		if (inputReq.url || isEmptyFormInputRequest(inputReq)) {
+			this._setupElicitationInputRequest(part$, store, opts);
 			return;
 		}
 
@@ -5780,59 +5780,58 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(toDisposable(reject));
 	}
 
-	/**
-	 * Handle a URL-style {@link ChatInputRequest} by rendering a
-	 * {@link ChatElicitationRequestPart} that prompts the user to open the
-	 * URL. Clicking the accept button opens the URL via {@link IOpenerService}
-	 * and dispatches `ChatInputCompleted` with `Accept`; reject dispatches
-	 * `Decline`; abandonment / cancellation dispatches `Cancel`.
-	 */
-	private _setupUrlInputRequest(
+	/** Shows a confirmation for an empty elicitation form or a request to open an elicitation URL. */
+	private _setupElicitationInputRequest(
 		responsePart$: IObservable<InputRequestResponsePart>,
-		url: string,
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
 		const inputReq = responsePart$.get().request;
+		const url = inputReq.url;
 		let completionDispatched = false;
 		let completedFromServer = false;
-		const settle = (response: ChatInputResponseKind) => {
+		const settle = (response: ChatInputResponseKind): ElicitationState => {
 			if (completionDispatched || completedFromServer) {
-				return;
+				return part.state.get();
 			}
 			completionDispatched = true;
+			part.state.set(response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected, undefined);
 			this._config.connection.dispatch(opts.chatURI, {
 				type: ActionType.ChatInputCompleted,
 				requestId: inputReq.id,
 				response,
+				...(response === ChatInputResponseKind.Accept && !url ? { answers: {} } : {}),
 			});
+			return part.state.get();
 		};
 
-		const presentation = getUrlInputRequestPresentation(inputReq, url);
+		const presentation = getElicitationInputRequestPresentation(inputReq, this._config.connectionAuthority);
 
 		const part = new ChatElicitationRequestPart(
-			localize('agentHost.elicit.url.title', "Authorization Required"),
+			presentation.title,
 			presentation.message,
 			'',
-			localize('agentHost.elicit.url.open', "Open {0}", presentation.authority),
-			localize('agentHost.elicit.url.cancel', "Cancel"),
+			presentation.acceptButtonLabel,
+			presentation.rejectButtonLabel,
 			async () => {
+				if (completionDispatched || completedFromServer || store.isDisposed) {
+					return part.state.get();
+				}
+				if (!url) {
+					return settle(ChatInputResponseKind.Accept);
+				}
 				try {
 					const opened = await this._openerService.open(url, { allowCommands: false });
-					if (opened) {
-						settle(ChatInputResponseKind.Accept);
-						return ElicitationState.Accepted;
-					}
-					settle(ChatInputResponseKind.Decline);
-					return ElicitationState.Rejected;
+					return settle(opened ? ChatInputResponseKind.Accept : ChatInputResponseKind.Decline);
 				} catch {
-					settle(ChatInputResponseKind.Decline);
-					return ElicitationState.Rejected;
+					return settle(ChatInputResponseKind.Decline);
 				}
 			},
 			async () => {
-				settle(ChatInputResponseKind.Decline);
-				return ElicitationState.Rejected;
+				if (completionDispatched || completedFromServer || store.isDisposed) {
+					return part.state.get();
+				}
+				return settle(ChatInputResponseKind.Decline);
 			},
 		);
 
