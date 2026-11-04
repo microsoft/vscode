@@ -428,6 +428,14 @@ suite('ChatMarkdownContentPart', () => {
 		);
 	});
 
+	test('preserves browser-normalized links without parsing them as file resources', () => {
+		const part = createMarkdownPart('[Web](https:////example.com) [Source](file:///workspace/file.ts)');
+		assert.deepStrictEqual(
+			Array.from(part.domNode.querySelectorAll('a'), anchor => ({ text: anchor.textContent, href: anchor.getAttribute('data-href') })),
+			[{ text: 'Web', href: 'https:////example.com' }, { text: 'Source', href: 'file:///workspace/file.ts' }],
+		);
+	});
+
 	test('preserves absolute Windows targets for newly created file links', () => {
 		disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
 			provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
