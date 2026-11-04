@@ -715,6 +715,47 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
 	});
 
+	test('auto update delay expires for an old selected version despite a recent listing update', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 5) }, async () => {
+		await instantiationService.get(IConfigurationService).updateValue(AutoUpdateDelayConfigurationKey, 48);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - 60 * 60 * 1000);
+		testObject.local[0].gallery!.versionLastUpdated = Date.now() - 72 * 60 * 60 * 1000;
+
+		assert.deepStrictEqual({
+			outdated: testObject.local[0].outdated,
+			delayed: testObject.isAutoUpdateDelayed(testObject.local[0]),
+			remaining: testObject.getAutoUpdateDelayRemaining(testObject.local[0]),
+		}, {
+			outdated: true,
+			delayed: false,
+			remaining: 0,
+		});
+	}));
+
+	test('auto update delay still applies to a young selected version despite a recent listing update', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 5) }, async () => {
+		await instantiationService.get(IConfigurationService).updateValue(AutoUpdateDelayConfigurationKey, 48);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - 60 * 60 * 1000);
+		testObject.local[0].gallery!.versionLastUpdated = Date.now() - 24 * 60 * 60 * 1000;
+
+		assert.deepStrictEqual({
+			outdated: testObject.local[0].outdated,
+			delayed: testObject.isAutoUpdateDelayed(testObject.local[0]),
+			remaining: testObject.getAutoUpdateDelayRemaining(testObject.local[0]),
+		}, {
+			outdated: true,
+			delayed: true,
+			remaining: 24 * 60 * 60 * 1000,
+		});
+	}));
+
+	for (const [name, versionLastUpdated] of [['NaN', NaN], ['infinite', Infinity], ['zero', 0], ['future', Date.now() + 60 * 60 * 1000]] as const) {
+		test(`auto update delay ignores ${name} selected version dates`, async () => {
+			testObject = await anOutdatedExtensionWorkbenchService(Date.now());
+			testObject.local[0].gallery!.versionLastUpdated = versionLastUpdated;
+
+			assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+		});
+	}
+
 	test('test isAutoUpdateDelayed returns true for a recently published signed version', async () => {
 		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */, true);
 
@@ -768,6 +809,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	test('test getAutoUpdateDelayRemaining returns 0 for a trusted publisher', async () => {
 		instantiationService.stub(IProductService, { ...TestProductService, trustedExtensionPublishers: ['pub'] });
 		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+		testObject.local[0].gallery!.versionLastUpdated = Date.now();
 
 		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
 		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);

@@ -612,6 +612,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		tags: galleryExtension.tags || [],
 		releaseDate: Date.parse(galleryExtension.releaseDate),
 		lastUpdated: Date.parse(galleryExtension.lastUpdated),
+		versionLastUpdated: Date.parse(version.lastUpdated),
 		allTargetPlatforms,
 		assets,
 		properties: {
