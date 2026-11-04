@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { LayoutModeContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { TaskExecutionSupportedContext } from '../../tasks/common/taskService.js';
 import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal.js';
@@ -19,6 +19,7 @@ import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
@@ -37,6 +38,23 @@ export const enum TerminalMenuBarGroup {
 	Manage = '5_manage',
 	Configure = '7_configure'
 }
+
+/**
+ * True when a dictation engine is available for the terminal: either the
+ * built-in on-device engine (with AI features enabled) or the speech
+ * extension's provider. Used to gate the "Start Dictation" context menu entry
+ * so it only shows when dictation can actually be started.
+ */
+const TerminalDictationAvailable = ContextKeyExpr.or(
+	HasSpeechProvider,
+	ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.speechToTextConfigured)
+);
+
+/**
+ * Where the context menu of a terminal editor's tab offers to move it into the panel: not in a window with layout modes,
+ * which keeps its terminals in a part of its own, while the panel is the main window's.
+ */
+export const MoveTerminalEditorToPanelWhen = ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), LayoutModeContext.negate());
 
 export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
@@ -182,6 +200,18 @@ export function setupTerminalMenus(): void {
 					order: 3
 				}
 			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoiceContext', "Start Dictation"),
+					},
+					group: TerminalContextMenuGroup.Edit,
+					order: 4,
+					when: ContextKeyExpr.and(TerminalDictationAvailable, TerminalContextKeys.terminalDictationInProgress.toNegated())
+				}
+			},
 		]
 	);
 
@@ -289,6 +319,18 @@ export function setupTerminalMenus(): void {
 					},
 					group: TerminalContextMenuGroup.Edit,
 					order: 3
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoiceContext', "Start Dictation"),
+					},
+					group: TerminalContextMenuGroup.Edit,
+					order: 4,
+					when: ContextKeyExpr.and(TerminalDictationAvailable, TerminalContextKeys.terminalDictationInProgress.toNegated())
 				}
 			},
 			{
@@ -668,7 +710,7 @@ export function setupTerminalMenus(): void {
 			id: TerminalCommandId.MoveToTerminalPanel,
 			title: terminalStrings.moveToTerminalPanel
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		when: MoveTerminalEditorToPanelWhen,
 		group: '2_files'
 	});
 

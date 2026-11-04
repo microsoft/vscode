@@ -7,7 +7,7 @@ import { localize } from '../../../nls.js';
 import { IMarkerData, MarkerSeverity } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import type * as vscode from 'vscode';
-import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol.js';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMarkerChange, IMainContext } from './extHost.protocol.js';
 import { DiagnosticSeverity } from './extHostTypes.js';
 import * as converter from './extHostTypeConverters.js';
 import { Event, Emitter, DebounceEmitter } from '../../../base/common/event.js';
@@ -123,15 +123,17 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		if (!this.#proxy) {
 			return;
 		}
-		const entries: [URI, IMarkerData[]][] = [];
+		const entries: IMarkerChange[] = [];
 		let totalMarkerCount = 0;
 		for (const uri of toSync) {
 			let marker: IMarkerData[] = [];
+			let isTruncated = false;
 			const diagnostics = this.#data.get(uri);
 			if (diagnostics) {
 
 				// no more than N diagnostics per file
 				if (diagnostics.length > this._maxDiagnosticsPerFile) {
+					isTruncated = true;
 					marker = [];
 					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
 					orderLoop: for (let i = 0; i < 4; i++) {
@@ -159,7 +161,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 				}
 			}
 
-			entries.push([uri, marker]);
+			entries.push([uri, marker, isTruncated]);
 
 			totalMarkerCount += marker.length;
 			if (totalMarkerCount > this._maxDiagnosticsTotal) {
@@ -263,7 +265,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		const { _collections, _proxy, _onDidChangeDiagnostics, _logService, _fileSystemInfoService, _extHostDocumentsAndEditors } = this;
 
 		const loggingProxy = new class implements MainThreadDiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void {
+			$changeMany(owner: string, entries: IMarkerChange[]): void {
 				_proxy.$changeMany(owner, entries);
 				_logService.trace('[DiagnosticCollection] change many (extension, owner, uris)', extensionId.value, owner, entries.length === 0 ? 'CLEARING' : entries);
 			}
@@ -361,7 +363,11 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 
 		for (const [uri, markers] of data) {
-			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			if (markers.length === 0) {
+				this._mirrorCollection.delete(URI.revive(uri));
+			} else {
+				this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			}
 		}
 	}
 }

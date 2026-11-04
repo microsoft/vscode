@@ -11,9 +11,9 @@
  *  Covers (no network required):
  *    1. isSpdxStub truth table — true for all 17 known CG stub bodies, false for
  *       real short license bodies and license prose.
- *    2. parseCargoLock — extracts packages from cli/Cargo.lock + build/win32,
- *       skips workspace crates with no source, returns correct name/version for
- *       clap, jiff, slog, term.
+ *    2. parseCargoLock — extracts packages from cli/Cargo.lock, build/win32,
+ *       and copilot_shim/Cargo.lock; preserves workspace crates with no source;
+ *       returns correct names, versions, and registry sources.
  *    3. getCrateRepository — override map returns mirror URLs.
  *--------------------------------------------------------------------------------------------*/
 
@@ -104,6 +104,7 @@ console.log('parseCargoLock:');
 const repoRoot = path.resolve(process.cwd(), '..', '..', '..');
 const cliLockPath = path.join(repoRoot, 'cli', 'Cargo.lock');
 const win32LockPath = path.join(repoRoot, 'build', 'win32', 'Cargo.lock');
+const shimLockPath = path.join(repoRoot, 'copilot_shim', 'Cargo.lock');
 
 const cliPkgs = parseCargoLock(fs.readFileSync(cliLockPath, 'utf8'));
 console.log(`  cli/Cargo.lock: ${cliPkgs.length} packages parsed`);
@@ -126,6 +127,27 @@ const slog = win32Pkgs.find(p => p.name === 'slog');
 check('win32: slog present with version', !!slog && /^\d/.test(slog!.version));
 const term = win32Pkgs.find(p => p.name === 'term');
 check('win32: term present with version', !!term && /^\d/.test(term!.version));
+
+const shimLockContent = fs.readFileSync(shimLockPath, 'utf8');
+const shimPkgs = parseCargoLock(shimLockContent);
+console.log(`  copilot_shim/Cargo.lock: ${shimPkgs.length} packages parsed`);
+const shimWorkspace = shimPkgs.find(p => p.name === 'copilot_shim');
+check('shim: workspace package present with no source', !!shimWorkspace && !shimWorkspace.source);
+
+const shimRegistryPkgs = shimPkgs.filter(p => p.source?.startsWith('registry+'));
+check('shim: parsed a meaningful number of registry packages (>10)', shimRegistryPkgs.length > 10);
+check('shim: all packages have valid names and versions', shimPkgs.every(p => /^[A-Za-z0-9_.-]+$/.test(p.name) && /^[0-9]/.test(p.version)));
+
+for (const crateName of ['tempfile', 'libc', 'windows-sys']) {
+	const crate = shimPkgs.find(p => p.name === crateName);
+	check(`shim: ${crateName} present with version + registry source`, !!crate && /^[0-9]/.test(crate.version) && !!crate.source?.startsWith('registry+'));
+}
+
+const supportCrateNames = ['getrandom', 'rustix', 'windows-link'].filter(name => shimLockContent.includes(`name = "${name}"`));
+check(
+	'shim: secure temp and platform support crates in the lock are parsed',
+	supportCrateNames.length > 0 && supportCrateNames.every(name => shimRegistryPkgs.some(p => p.name === name))
+);
 
 // Sanity: no parsed package has a quote/bracket leaking into its fields.
 check('parse: no malformed names', cliPkgs.every(p => /^[A-Za-z0-9_.-]+$/.test(p.name)));

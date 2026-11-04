@@ -5,7 +5,7 @@
 
 import { Explorer } from './explorer';
 import { ActivityBar } from './activityBar';
-import { QuickAccess } from './quickaccess';
+import { IRunCommandOptions, QuickAccess } from './quickaccess';
 import { QuickInput } from './quickinput';
 import { Extensions } from './extensions';
 import { Search } from './search';
@@ -26,7 +26,7 @@ import { Chat } from './chat';
 import { AgentsWindow } from './agentsWindow';
 
 export interface Commands {
-	runCommand(command: string, options?: { exactLabelMatch?: boolean }): Promise<any>;
+	runCommand(command: string, options?: IRunCommandOptions): Promise<any>;
 }
 
 export class Workbench {

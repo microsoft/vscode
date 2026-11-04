@@ -18,6 +18,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
+import { agentIdentityAttributes } from '../../../platform/otel/common/otelIdentity';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { toErrorMessage } from '../../../util/common/errorMessage';
@@ -31,9 +32,9 @@ import { ChatRequestEditorData, ChatResponseTextEditPart, LanguageModelTextPart,
 import { Intent } from '../../common/constants';
 import { getAgentTools } from '../../intents/node/agentIntent';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation } from '../../prompt/common/conversation';
+import { Conversation, TurnResponseGitHubCopilotRequestTe } from '../../prompt/common/conversation';
 import { IToolCall } from '../../prompt/common/intents';
-import { ToolCallRound } from '../../prompt/common/toolCallRound';
+import { setGitHubCopilotRequestTeForRound, ToolCallRound } from '../../prompt/common/toolCallRound';
 import { ChatTelemetryBuilder, InlineChatTelemetry } from '../../prompt/node/chatParticipantTelemetry';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IIntent } from '../../prompt/node/intents';
@@ -159,6 +160,7 @@ export class InlineChatIntent implements IIntent {
 			{ ...documentContext, query: request.prompt, intent: this },
 			result.telemetry.telemetryMessageId, result.telemetry, editSurvivalTracker
 		));
+		turn.setMetadata(new TurnResponseGitHubCopilotRequestTe(result.lastResponse.gitHubCopilotRequestTe));
 
 		if (result.errorMessage) {
 			return {
@@ -204,6 +206,7 @@ class InlineChatToolCalling {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) { }
 
 	async run(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
@@ -216,6 +219,7 @@ class InlineChatToolCalling {
 				kind: SpanKind.INTERNAL,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
+					...agentIdentityAttributes(this._otelService.config, this._authenticationService),
 					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.AGENT_NAME]: 'Inline Chat',
 					[GenAiAttr.CONVERSATION_ID]: conversation.sessionId,
@@ -344,14 +348,15 @@ class InlineChatToolCalling {
 				telemetry.sendTelemetry(
 					lastResponse.requestId, lastResponse.type, responseText,
 					lastInteractionOutcome,
-					result.toolCalls
+					result.toolCalls,
+					lastResponse.gitHubCopilotRequestTe
 				);
 
-				toolCallRounds.push(ToolCallRound.create({
+				toolCallRounds.push(setGitHubCopilotRequestTeForRound(ToolCallRound.create({
 					response: responseText,
 					toolCalls: result.toolCalls,
 					toolInputRetry: failedEditCount
-				}));
+				}), lastResponse.gitHubCopilotRequestTe));
 			}
 
 			if (result.toolCalls.length === 0) {
@@ -451,9 +456,7 @@ class InlineChatToolCalling {
 			requestOptions,
 			modelCapabilities: {
 				enableThinking: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatEnableThinking, this._experimentationService),
-				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string'
-					? request.modelConfiguration.reasoningEffort
-					: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatReasoningEffort, this._experimentationService),
+				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string' ? request.modelConfiguration.reasoningEffort : undefined,
 			},
 			telemetryProperties: {
 				messageId: telemetry.telemetryMessageId,
@@ -506,6 +509,7 @@ class InlineChatToolCalling {
 							const result = await this._toolsService.invokeToolWithEndpoint(toolCall.name, {
 								input,
 								toolInvocationToken: request.toolInvocationToken,
+								chatSessionResource: request.sessionResource,
 								// Split on `__vscode` so it's the chat stream id
 								// TODO @lramos15 - This is a gross hack
 								chatStreamToolCallId: toolCall.id.split('__vscode')[0],
@@ -515,7 +519,7 @@ class InlineChatToolCalling {
 
 							if (result.hasError) {
 								failedEdits.push([toolCall, result]);
-								stream.progress(l10n.t('Looking not yet good, trying again...'));
+								stream.progress(l10n.t('An error occurred, trying again...'));
 							}
 
 							this._logService.trace(`Tool ${toolCall.name} invocation result: ${JSON.stringify(result)}`);

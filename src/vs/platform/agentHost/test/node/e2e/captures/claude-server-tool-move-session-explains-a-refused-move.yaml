@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MOVE_REFUSED_READY".
+    response:
+      content: MOVE_REFUSED_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call move_session exactly once with session "agent-host-session://claude/${uuid_0}" and into "agent-host-session://claude/${uuid_1}" so the host can check the move. Do not refuse on your own. After the tool fails, reply exactly "refused".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__move_session
+          input:
+            session: agent-host-session://claude/${uuid_0}
+            into: agent-host-session://claude/${uuid_1}
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call move_session exactly once with session "agent-host-session://claude/${uuid_0}" and into "agent-host-session://claude/${uuid_1}" so the host can check the move. Do not refuse on your own. After the tool fails, reply exactly "refused".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__move_session
+              input:
+                session: agent-host-session://claude/${uuid_0}
+                into: agent-host-session://claude/${uuid_1}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Cannot move: This session has nested sessions; move them out first, or move each nested session on its own.'
+    response:
+      content: refused
+      stopReason: end_turn

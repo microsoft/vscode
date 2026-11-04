@@ -36,28 +36,28 @@ suite('shellQuotePluginRootInCommand', () => {
 	test('quotes path with spaces', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/run.sh', '/path with spaces', TOKEN),
-			'"/path with spaces/run.sh"',
+			'\'/path with spaces/run.sh\'',
 		);
 	});
 
 	test('quotes path with ampersand', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/run.sh', '/path&dir', TOKEN),
-			'"/path&dir/run.sh"',
+			'\'/path&dir/run.sh\'',
 		);
 	});
 
 	test('quotes multiple occurrences with unsafe path', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/a && ${PLUGIN_ROOT}/b', '/my dir', TOKEN),
-			'"/my dir/a" && "/my dir/b"',
+			'\'/my dir/a\' && \'/my dir/b\'',
 		);
 	});
 
 	test('does not double-quote when already in double quotes', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('"${PLUGIN_ROOT}/run.sh"', '/my dir', TOKEN),
-			'"/my dir/run.sh"',
+			'\'/my dir/run.sh\'',
 		);
 	});
 
@@ -68,31 +68,52 @@ suite('shellQuotePluginRootInCommand', () => {
 		);
 	});
 
-	test('escapes embedded double-quote characters in path', () => {
+	test('preserves embedded double-quote characters in path', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/run.sh', '/path"with"quotes', TOKEN),
-			'"/path\\"with\\"quotes/run.sh"',
+			'\'/path"with"quotes/run.sh\'',
+		);
+	});
+
+	test('preserves shell expansion characters in path', () => {
+		assert.strictEqual(
+			shellQuotePluginRootInCommand('printf %s ${PLUGIN_ROOT}/run.sh', '/plugins/$HOME/`example`', TOKEN),
+			'printf %s \'/plugins/$HOME/`example`/run.sh\'',
+		);
+	});
+
+	test('escapes embedded single quotes for POSIX shells', () => {
+		assert.strictEqual(
+			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/run.sh', '/plugins/it\'s', TOKEN),
+			'\'/plugins/it\'\\\'\'s/run.sh\'',
+		);
+	});
+
+	test('escapes embedded single quotes for PowerShell', () => {
+		assert.strictEqual(
+			shellQuotePluginRootInCommand('${PLUGIN_ROOT}\\run.ps1', 'C:\\plugins\\it\'s $HOME', TOKEN, 'powershell'),
+			'\'C:\\plugins\\it\'\'s $HOME\\run.ps1\'',
 		);
 	});
 
 	test('handles token without trailing path suffix', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('cd ${PLUGIN_ROOT} && run', '/my dir', TOKEN),
-			'cd "/my dir" && run',
+			'cd \'/my dir\' && run',
 		);
 	});
 
 	test('does not consume shell operators adjacent to token', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('cd ${PLUGIN_ROOT}&& echo ok', '/my dir', TOKEN),
-			'cd "/my dir"&& echo ok',
+			'cd \'/my dir\'&& echo ok',
 		);
 	});
 
 	test('handles token at start, middle and end of command', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/a ${PLUGIN_ROOT}/b ${PLUGIN_ROOT}/c', '/sp ace', TOKEN),
-			'"/sp ace/a" "/sp ace/b" "/sp ace/c"',
+			'\'/sp ace/a\' \'/sp ace/b\' \'/sp ace/c\'',
 		);
 	});
 
@@ -106,21 +127,21 @@ suite('shellQuotePluginRootInCommand', () => {
 	test('uses default CLAUDE_PLUGIN_ROOT token with quoting', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${CLAUDE_PLUGIN_ROOT}/run.sh', '/my dir', '${CLAUDE_PLUGIN_ROOT}'),
-			'"/my dir/run.sh"',
+			'\'/my dir/run.sh\'',
 		);
 	});
 
 	test('handles Windows-style paths with spaces', () => {
 		assert.strictEqual(
-			shellQuotePluginRootInCommand('${PLUGIN_ROOT}\\scripts\\run.bat', 'C:\\Program Files\\plugin', TOKEN),
-			'"C:\\Program Files\\plugin\\scripts\\run.bat"',
+			shellQuotePluginRootInCommand('${PLUGIN_ROOT}\\scripts\\run.ps1', 'C:\\Program Files\\plugin', TOKEN, 'powershell'),
+			'\'C:\\Program Files\\plugin\\scripts\\run.ps1\'',
 		);
 	});
 
 	test('handles path with parentheses', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/run.sh', '/path(1)', TOKEN),
-			'"/path(1)/run.sh"',
+			'\'/path(1)/run.sh\'',
 		);
 	});
 });

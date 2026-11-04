@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/sessionChangesEditorInput.css';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
@@ -12,7 +15,11 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DockedEditorInput } from '../../../browser/dockedEditorInput.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { getSessionChangesFileCountLabel } from '../common/changes.js';
+import { ISessionChangesService } from '../common/sessionChangesService.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
@@ -24,13 +31,20 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private _innerInput: MultiDiffEditorInput | undefined;
+	private readonly _innerInput = new MutableDisposable<MultiDiffEditorInput>();
+	private _viewModelRetainers = 0;
 
 	constructor(
 		readonly multiDiffSource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 	) {
-		super();
+		super(editorGroupsService, layoutService);
+
+		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionUncommittedChangesCountObs);
+		this._register(onDidChangeCount(() => this._onDidChangeLabel.fire()));
 	}
 
 	override get resource(): URI {
@@ -53,6 +67,17 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 		return localize('sessionChangesEditor.name', "Changes");
 	}
 
+	override getAriaLabel(): string {
+		const changeCount = this.sessionChangesService.activeSessionUncommittedChangesCountObs.get();
+		return !changeCount
+			? this.getName()
+			: localize('sessionChangesEditor.ariaLabel', "{0}, {1}", this.getName(), getSessionChangesFileCountLabel(changeCount));
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['session-changes-editor-label'];
+	}
+
 	override getIcon(): ThemeIcon {
 		return Codicon.diffMultiple;
 	}
@@ -62,13 +87,13 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	private get innerInput(): MultiDiffEditorInput {
-		if (!this._innerInput) {
-			this._innerInput = this._register(MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
+		if (!this._innerInput.value) {
+			this._innerInput.value = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 				multiDiffSource: this.multiDiffSource,
 				label: this.getName(),
-			}, this.instantiationService));
+			}, this.instantiationService);
 		}
-		return this._innerInput;
+		return this._innerInput.value;
 	}
 
 	/**
@@ -82,6 +107,36 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {
 		return this.innerInput.getViewModel();
+	}
+
+	clear(): void {
+		this._innerInput.clear();
+	}
+
+	/**
+	 * Keeps the resolved view model alive, even after this input is disposed, until the
+	 * returned handle is disposed. The Changes editor retains the input it is showing
+	 * while it resolves the next one, so replacing the input does not blank the diffs.
+	 */
+	retainViewModel(): IDisposable {
+		this._viewModelRetainers++;
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			if (--this._viewModelRetainers === 0 && this.isDisposed()) {
+				this._innerInput.dispose();
+			}
+		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+		if (this._viewModelRetainers === 0) {
+			this._innerInput.dispose();
+		}
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

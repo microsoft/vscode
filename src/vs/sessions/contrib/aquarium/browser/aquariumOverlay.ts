@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -55,6 +56,7 @@ const DART_RATE_PER_SECOND = 0.04;
 const DART_IMPULSE = 150;
 
 const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
+const ACTION_VISIBLE_STORAGE_KEY = 'sessions.aquarium.action.visible';
 
 const FISH_HUNGER_ICONS: Record<FishHungerState, ThemeIcon> = {
 	happy: Codicon.fish1Happy,
@@ -80,6 +82,8 @@ export const IAquariumService = createDecorator<IAquariumService>('aquariumServi
 
 export interface IAquariumService {
 	readonly _serviceBrand: undefined;
+	/** Whether the aquarium action is visible on its mounted hosts. */
+	readonly actionVisible: IObservable<boolean>;
 
 	/**
 	 * Mount a toggle button into `parent`. Returns a handle that exposes a
@@ -89,6 +93,9 @@ export interface IAquariumService {
 	 * the last mount.
 	 */
 	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+
+	/** Toggles and persists the aquarium action visibility. */
+	toggleActionVisibility(): boolean;
 
 	/**
 	 * Development/demo hook: force the persisted feeding streak into a specific
@@ -127,6 +134,8 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeContextKey: IContextKey<boolean>;
 	private readonly streak: FishFeedingStreak;
 	private readonly hungerRefreshScheduler: RunOnceScheduler;
+	private readonly _actionVisible = observableValue(this, true);
+	readonly actionVisible: IObservable<boolean> = this._actionVisible;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -142,10 +151,14 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.mainContainer = layoutService.mainContainer;
 		this.activeContextKey = SessionsAquariumActiveContext.bindTo(contextKeyService);
 		this.streak = new FishFeedingStreak(storageService);
+		this._actionVisible.set(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true), undefined);
 		this.hungerRefreshScheduler = this._register(new RunOnceScheduler(() => {
 			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 		}, 0));
 
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, ACTION_VISIBLE_STORAGE_KEY, this._store)(() => {
+			this.setActionVisible(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true));
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)) {
 				this.applyFeatureEnabledState();
@@ -154,9 +167,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	mountToggle(parent: HTMLElement): IMountedToggleHandle {
-		const doc = parent.ownerDocument;
-		const button = doc.createElement('button');
-		button.className = 'agents-aquarium-toggle';
+		const button = $<HTMLButtonElement>('button.agents-aquarium-toggle');
 		button.type = 'button';
 		this.updateToggleButtonVisual(button, !!this.activeRef.value);
 
@@ -202,9 +213,26 @@ export class AquariumService extends Disposable implements IAquariumService {
 		};
 	}
 
+	toggleActionVisibility(): boolean {
+		const visible = !this._actionVisible.get();
+		this.setActionVisible(visible);
+		this.storageService.store(ACTION_VISIBLE_STORAGE_KEY, visible, StorageScope.APPLICATION, StorageTarget.USER);
+		this.accessibilityService.status(visible
+			? localize('aquarium.action.shown', "Aquarium action shown")
+			: localize('aquarium.action.hidden', "Aquarium action hidden"));
+		return visible;
+	}
+
 	simulateStreak(count: number, alive: boolean): void {
 		this.streak.simulate(count, alive);
 		this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+	}
+
+	private setActionVisible(visible: boolean): void {
+		this._actionVisible.set(visible, undefined);
+		for (const mount of this.mounts) {
+			this.applyFeatureEnabledStateForButton(mount.button);
+		}
 	}
 
 	/**
@@ -261,7 +289,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	private applyFeatureEnabledStateForButton(button: HTMLButtonElement): void {
-		button.style.display = this.isFeatureEnabled() ? '' : 'none';
+		button.style.display = this.isFeatureEnabled() && this._actionVisible.get() ? '' : 'none';
 	}
 
 	private updateToggleButtonVisual(button: HTMLButtonElement, active: boolean): void {
@@ -274,7 +302,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		// Build the icon as a real DOM child instead of innerHTML to satisfy Trusted Types.
 		button.replaceChildren();
-		const iconSpan = button.ownerDocument.createElement('span');
+		const iconSpan = $<HTMLSpanElement>('span');
 		// The icon is purely decorative; the button already has an aria-label.
 		iconSpan.setAttribute('aria-hidden', 'true');
 		addIconClasses(iconSpan, icon);
@@ -288,11 +316,11 @@ export class AquariumService extends Disposable implements IAquariumService {
 		const showStreak = streak > 0 || revivable > 0;
 		button.classList.toggle('has-streak', showStreak);
 		if (showStreak) {
-			const streakSpan = button.ownerDocument.createElement('span');
+			const streakSpan = $<HTMLSpanElement>('span');
 			streakSpan.className = 'agents-aquarium-toggle-streak';
 			streakSpan.setAttribute('aria-hidden', 'true');
 			if (active) {
-				const hungerIconSpan = button.ownerDocument.createElement('span');
+				const hungerIconSpan = $<HTMLSpanElement>('span');
 				addIconClasses(hungerIconSpan, hungerIcon);
 				streakSpan.appendChild(hungerIconSpan);
 			}
@@ -478,9 +506,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	}
 
 	const store = new DisposableStore();
-	const doc = targetWindow.document;
-	const water = doc.createElement('div');
-	water.className = 'agents-aquarium-water';
+	const water = $('.agents-aquarium-water');
 	// Decorative: hide the entire subtree from a11y tree.
 	water.setAttribute('aria-hidden', 'true');
 	// First child so subsequent chat bar content paints over it.
@@ -494,12 +520,10 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 		sessionsContainer.classList.remove('aquarium-active');
 	}));
 
-	const fishLayer = doc.createElement('div');
-	fishLayer.className = 'agents-aquarium-fish-layer';
+	const fishLayer = $('.agents-aquarium-fish-layer');
 	water.appendChild(fishLayer);
 
-	const foodLayer = doc.createElement('div');
-	foodLayer.className = 'agents-aquarium-food-layer';
+	const foodLayer = $('.agents-aquarium-food-layer');
 	water.appendChild(foodLayer);
 
 	const bounds = { width: 0, height: 0 };
@@ -645,8 +669,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			const oldest = food[0];
 			removeFood(oldest);
 		}
-		const el = doc.createElement('div');
-		el.className = 'agents-aquarium-food';
+		const el = $<HTMLDivElement>('.agents-aquarium-food');
 		el.style.transform = `translate(${dropX}px, ${dropY}px)`;
 		foodLayer.appendChild(el);
 		food.push({ element: el, positionX: dropX, positionY: dropY, fallSpeed: randomBetween(20, 35) });

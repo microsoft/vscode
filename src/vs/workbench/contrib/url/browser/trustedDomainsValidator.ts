@@ -16,7 +16,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ITrustedDomainService } from './trustedDomainService.js';
 import { isURLDomainTrusted } from '../../../../platform/url/common/trustedDomains.js';
@@ -37,13 +37,29 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: (uri, options) => this.validateLink(uri, options) });
 	}
 
 	async validateLink(resource: URI | string, openOptions?: OpenOptions): Promise<boolean> {
-		if (!matchesScheme(resource, Schemas.http) && !matchesScheme(resource, Schemas.https)) {
+		const resourceUri = typeof resource === 'string' ? URI.parse(resource) : resource;
+
+		if (matchesScheme(resourceUri, Schemas.command)
+			&& !this._workspaceTrustService.isWorkspaceTrusted()
+			&& (openOptions?.allowCommands === true || (Array.isArray(openOptions?.allowCommands) && openOptions.allowCommands.includes(resourceUri.path)))) {
+			let message: string | undefined;
+			if (openOptions?.fromWorkspace) {
+				message = localize('commandWorkspaceTrust', "Running a command from a link requires trusting this workspace.");
+			}
+
+			if (message) {
+				return await this._workspaceTrustRequestService.requestWorkspaceTrust({ message }) === true;
+			}
+		}
+
+		if (!matchesScheme(resourceUri, Schemas.http) && !matchesScheme(resourceUri, Schemas.https)) {
 			return true;
 		}
 
@@ -52,12 +68,6 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		}
 
 		const originalResource = resource;
-		let resourceUri: URI;
-		if (typeof resource === 'string') {
-			resourceUri = URI.parse(resource);
-		} else {
-			resourceUri = resource;
-		}
 
 		if (this._trustedDomainService.isValid(resourceUri)) {
 			return true;

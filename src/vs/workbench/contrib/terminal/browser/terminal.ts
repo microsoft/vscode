@@ -34,8 +34,8 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
+import type { IAction } from '../../../../base/common/actions.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
-import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -123,18 +123,40 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
+	readonly terminalToolSessionId: string | undefined;
+	/** Opens the complete output associated with this progress part, when available. */
+	readonly fullOutputAction?: IAction;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
 	continueInBackground(): void;
+	didRegisterOutputSource(terminalToolSessionId: string): void;
+	markContinuedInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
+}
+
+/** Where the retained output of a {@link IChatTerminalOutputSource} sits in its stream. */
+export interface IChatTerminalOutputPosition {
+	/** Changes whenever the output is replaced rather than appended to. Sources never share one, so a renderer that switches sources starts over. */
+	readonly generation: number;
+	/** How many characters of the stream were dropped before the retained output. */
+	readonly start: number;
 }
 
 /** A read-only output stream rendered by chat without a workbench terminal instance. */
 export interface IChatTerminalOutputSource {
 	readonly onDidChange: Event<void>;
+	/** The retained output. Once the stream outgrows the retention limit, its oldest output is dropped. */
 	readonly output: string;
+	/** Lets a renderer that already shows earlier output write only what was appended since. */
+	readonly outputPosition: IChatTerminalOutputPosition;
+	/**
+	 * Whether the underlying command has finished. A command can exit without
+	 * reporting an {@link exitCode}, so completion must be read from here
+	 * rather than inferred from the code being present.
+	 */
+	readonly hasExited: boolean;
 	readonly exitCode: number | undefined;
 }
 
@@ -146,7 +168,6 @@ export interface ITerminalChatService {
 	 * the chat UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
-	readonly onDidRegisterOutputSource: Event<string>;
 
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically
@@ -272,20 +293,6 @@ export interface ITerminalChatService {
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
-
-	/**
-	 * Generate auto-approve rule actions for a command line that was not evaluated by the
-	 * built-in run in terminal tool, such as terminal confirmations surfaced by agent host
-	 * sessions. The command line is parsed into sub-commands and evaluated against the
-	 * persisted configuration rules only (never workbench session rules, which agent hosts
-	 * do not consume) to produce the same persistent-rule suggestions the built-in tool
-	 * offers.
-	 * @param commandLine The full command line being confirmed
-	 * @param language The language to parse the command line with
-	 * @returns The actions to show in the confirmation dropdown, or undefined if the command
-	 * line could not be analyzed
-	 */
-	getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined>;
 
 	/**
 	 * Signal that a foreground terminal tool invocation should continue in the background.
@@ -430,6 +437,8 @@ export interface IDetachedXTermOptions {
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
+	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
+	scrollback?: number;
 }
 
 /**
@@ -1352,7 +1361,8 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sets or triggers a quick pick to change the icon of this terminal.
 	 */
-	changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined>;
+	/** `null` resets the icon; `undefined` opens the picker or reports cancellation. */
+	changeIcon(icon?: TerminalIcon | null): Promise<TerminalIcon | null | undefined>;
 
 	/**
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.

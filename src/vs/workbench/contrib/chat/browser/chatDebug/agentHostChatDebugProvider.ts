@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readUsageInfoMeta } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -16,21 +17,23 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { buildDefaultChatUri, CustomizationType, readUsageInfoMeta, StateComponents, type ChatState, type ChildCustomization, type Customization, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { CustomizationType, StateComponents, type ChatState, type ChildCustomization, type Customization, type SessionState, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { ChatDebugHookResult, ChatDebugLogLevel, IChatDebugCustomizationLogEntry, IChatDebugEvent, IChatDebugFileEntry, IChatDebugLogProvider, IChatDebugMessageSection, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId } from '../../common/promptSyntax/promptTypes.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { buildLocalSessionStateUri, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
 import { AgentHostCustomizationRecorder, AgentHostUsageRecorder, buildAgentHostCustomizationsUri, buildAgentHostUsageUri, readAgentHostCustomizationsSnapshot, readAgentHostUsageRecords, type IAgentHostUsageRecord } from './agentHostUsageSidecar.js';
 
 /**
  * One record in an Agent Host Copilot CLI `events.jsonl` stream. The CLI
  * writes a line-delimited JSON log of the session under
- * `~/.copilot/session-state/<id>/events.jsonl`. Every record shares the same
+ * `<COPILOT_HOME>/session-state/<id>/events.jsonl`. Every record shares the same
  * envelope. Note that `parentId` is **not** a logical parent: the SDK defines
  * it as the chronologically preceding event in the session (a flat linked chain
  * over every event), not the user → model-turn → tool-call hierarchy. The
@@ -107,7 +110,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	constructor(
 		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 		@IFileService private readonly _fileService: IFileService,
-		@IPathService private readonly _pathService: IPathService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -221,10 +224,9 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	}
 
 	private _resolveEventsUri(sessionResource: URI): URI | undefined {
-		const userHome = this._pathService.userHome({ preferLocal: true });
 		const result = resolveEventsUri(
 			sessionResource,
-			userHome,
+			this._copilotHomeService.home,
 			authority => this._remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority),
 		);
 		return result.kind === 'ok' ? result.resource : undefined;
@@ -270,9 +272,28 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// Also refresh when the live AHP chat state changes: input/cache/AIU
 		// usage is on the chat channel (not in events.jsonl until
 		// session.shutdown), so a usage update mid-turn must re-render the tiles.
-		const liveSub = this._sessionChatSubscription(sessionResource);
-		if (liveSub) {
-			store.add(liveSub.onDidChange(() => scheduler.schedule()));
+		// The session state names its default chat, and may still be loading
+		// (or later recreate its default), so follow the session subscription
+		// and rebind the chat listener whenever the default chat changes.
+		const sessionSub = this._sessionSubscription(sessionResource);
+		if (sessionSub) {
+			const chatListener = store.add(new MutableDisposable());
+			let boundChat: string | undefined;
+			const bindDefaultChat = () => {
+				const defaultChat = this._defaultChatOf(sessionSub);
+				if (defaultChat === boundChat) {
+					return;
+				}
+				const chatSub = defaultChat !== undefined ? this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChat)) : undefined;
+				// Leave the default unbound while its chat isn't subscribed, so a later session change retries.
+				boundChat = chatSub ? defaultChat : undefined;
+				chatListener.value = chatSub?.onDidChange(() => scheduler.schedule());
+				if (chatSub) {
+					scheduler.schedule();
+				}
+			};
+			store.add(sessionSub.onDidChange(bindDefaultChat));
+			bindDefaultChat();
 		}
 
 		// The set of loaded customizations (skills/hooks/agents/MCP) is sourced
@@ -283,13 +304,11 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	}
 
 	/**
-	 * Returns the live AHP chat-state subscription for a local Agent Host
+	 * Returns the live AHP session-state subscription for a local Agent Host
 	 * session, if one is currently active (i.e. the session is open/subscribed).
-	 * Turns (and their usage) live on the session's default chat channel, so we
-	 * subscribe to that channel rather than the session. Read-only: never
-	 * creates a subscription.
+	 * Read-only: never creates a subscription.
 	 */
-	private _sessionChatSubscription(sessionResource: URI) {
+	private _sessionSubscription(sessionResource: URI): IAgentSubscription<SessionState> | undefined {
 		if (sessionResource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME) {
 			return undefined; // live usage only for local Agent Host sessions
 		}
@@ -298,9 +317,25 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 			return undefined;
 		}
 		const backendSession = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${rawId}` });
-		// Turns/usage moved off the session onto its default chat channel.
-		const chatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
-		return this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, chatUri);
+		return this._agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession);
+	}
+
+	/** The default chat the session subscription's current state advertises, if it has loaded. */
+	private _defaultChatOf(sessionSub: IAgentSubscription<SessionState>): string | undefined {
+		const sessionState = sessionSub.value;
+		return sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined;
+	}
+
+	/**
+	 * Returns the live AHP chat-state subscription for a local Agent Host
+	 * session's default chat, if both are currently active. Turns (and their
+	 * usage) live on the session's default chat channel, so we read that
+	 * channel rather than the session. Read-only: never creates a subscription.
+	 */
+	private _sessionChatSubscription(sessionResource: URI): IAgentSubscription<ChatState> | undefined {
+		const sessionSub = this._sessionSubscription(sessionResource);
+		const defaultChat = sessionSub ? this._defaultChatOf(sessionSub) : undefined;
+		return defaultChat !== undefined ? this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChat)) : undefined;
 	}
 
 	/**
@@ -548,8 +583,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	}
 
 	private async _discoverLocalSessions(token: CancellationToken): Promise<{ uri: URI; title?: string }[]> {
-		const userHome = this._pathService.userHome({ preferLocal: true });
-		const sessionStateDir = joinPath(userHome, '.copilot', 'session-state');
+		const sessionStateDir = buildLocalSessionStateUri(this._copilotHomeService.home);
 
 		let stat;
 		try {
@@ -753,7 +787,7 @@ export function convertAgentHostEventsToDebugEvents(
 				const durationInMillis = turnStart ? diffMillis(turnStart.timestamp, record.timestamp) : undefined;
 
 				currentAssistantMessageByAgent.set(agentKey, record.id);
-				modelTurnRefs.push({ index: events.length, id: record.id, turnId, outputTokens });
+				modelTurnRefs.push({ index: events.length, id: record.id, turnId, outputTokens, apiCallId: asString(record.data.apiCallId) });
 				events.push({
 					kind: 'modelTurn', id: record.id, sessionResource, created, parentEventId,
 					model, requestName: 'copilotcli', outputTokens, durationInMillis,
@@ -1105,6 +1139,18 @@ export function convertAgentHostEventsToDebugEvents(
 				});
 			}
 		}
+		if (usageRecords.some(record => record.schemaVersion === 2)) {
+			const totals = extractSessionUsageTotals(records) ?? fallbackUsageTotals;
+			const unpriced = modelTurnRefs.filter(ref => (events[ref.index] as IChatDebugModelTurnEvent).copilotUsageNanoAiu === undefined);
+			if (totals && unpriced.length > 0) {
+				const assigned = modelTurnRefs.reduce((sum, ref) => sum + ((events[ref.index] as IChatDebugModelTurnEvent).copilotUsageNanoAiu ?? 0), 0);
+				const costs = distributeEvenly(Math.max(0, totals.totalNanoAiu - assigned), unpriced.length);
+				for (let i = 0; i < unpriced.length; i++) {
+					const ref = unpriced[i];
+					events[ref.index] = { ...events[ref.index] as IChatDebugModelTurnEvent, copilotUsageNanoAiu: costs[i] > 0 ? costs[i] : undefined };
+				}
+			}
+		}
 	} else if (modelTurnRefs.length > 0) {
 		const totals = extractSessionUsageTotals(records) ?? fallbackUsageTotals;
 		if (totals) {
@@ -1162,7 +1208,9 @@ function flattenCustomizations(customizations: readonly Customization[]): IFlatC
 			type: c.type,
 			name: c.name,
 			uri: c.uri,
-			enabled: (c as { enabled?: boolean }).enabled !== false,
+			enabled: c.type === CustomizationType.McpServer
+				? isCustomizationEnabled(c)
+				: c.enabled !== false,
 			description: (c as { description?: string }).description,
 		});
 	};
@@ -1287,6 +1335,7 @@ export function buildCustomizationDebugEvents(
 
 /** A model-turn debug event plus the context needed to back-fill its usage. */
 interface IModelTurnRef {
+	readonly apiCallId?: string;
 	readonly index: number;
 	readonly id: string;
 	readonly turnId?: string;
@@ -1311,6 +1360,40 @@ function applyPerTurnUsage(
 	modelTurnRefs: readonly IModelTurnRef[],
 	usageRecords: readonly IAgentHostUsageRecord[],
 ): IPerTurnUsageCoverage {
+	if (usageRecords.some(record => record.schemaVersion === 2)) {
+		const byCallId = new Map(usageRecords.filter(record => record.schemaVersion === 2 && record.apiCallId).map(record => [record.apiCallId!, record]));
+		const covered = new Set<number>();
+		let assignedInput = 0;
+		let assignedCache = 0;
+		let assignedAiu = 0;
+		const costByTurn = new Map<string, { index: number; cost: number }>();
+		for (let index = 0; index < modelTurnRefs.length; index++) {
+			const ref = modelTurnRefs[index];
+			const record = ref.apiCallId ? byCallId.get(ref.apiCallId) : undefined;
+			if (!record) {
+				continue;
+			}
+			byCallId.delete(ref.apiCallId!);
+			const turn = events[ref.index] as IChatDebugModelTurnEvent;
+			const totalTokens = record.inputTokens !== undefined ? record.inputTokens + (record.outputTokens ?? ref.outputTokens ?? 0) : undefined;
+			events[ref.index] = { ...turn, inputTokens: record.inputTokens, cachedTokens: record.cacheReadTokens, totalTokens };
+			const detail = resolved.get(ref.id);
+			if (detail?.kind === 'modelTurn') {
+				resolved.set(ref.id, { ...detail, inputTokens: record.inputTokens, cachedTokens: record.cacheReadTokens, totalTokens });
+			}
+			assignedInput += record.inputTokens ?? 0;
+			assignedCache += record.cacheReadTokens ?? 0;
+			if (record.turnId && !record.agentId && record.totalNanoAiu !== undefined) {
+				costByTurn.set(record.turnId, { index: ref.index, cost: Math.max(record.totalNanoAiu, costByTurn.get(record.turnId)?.cost ?? 0) });
+			}
+			covered.add(index);
+		}
+		for (const { index, cost } of costByTurn.values()) {
+			events[index] = { ...events[index] as IChatDebugModelTurnEvent, copilotUsageNanoAiu: cost };
+			assignedAiu += cost;
+		}
+		return { covered, assignedInput, assignedCache, assignedAiu };
+	}
 	const assign = (ref: typeof modelTurnRefs[number], inputTokens: number | undefined, cachedTokens: number | undefined, copilotUsageNanoAiu: number | undefined) => {
 		const turn = events[ref.index] as IChatDebugModelTurnEvent;
 		const totalTokens = inputTokens !== undefined ? inputTokens + (ref.outputTokens ?? 0) : undefined;
@@ -1529,7 +1612,7 @@ function lastIndexOfNewline(buffer: VSBuffer): number {
  * the session id.
  */
 function fallbackSessionTitle(sessionId: string): string {
-	return localize('agentHost.debug.untitledSession', "Copilot CLI Session {0}", sessionId.slice(0, 8));
+	return localize('agentHost.debug.untitledSession', "Copilot Session {0}", sessionId.slice(0, 8));
 }
 
 /** Derives a session title from the first user message in an events stream. */

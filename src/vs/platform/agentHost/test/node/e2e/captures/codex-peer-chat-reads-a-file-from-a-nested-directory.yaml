@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/peer.txt'',''utf8''))"`. Then reply with its exact output only.'
+    response:
+      content:
+        - type: text
+          text: Running that exact command now and I’ll return only its output.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "process.stdout.write(require('fs').readFileSync('nested/peer.txt','utf8'))"
+            workdir: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/peer.txt'',''utf8''))"`. Then reply with its exact output only.'
+        - role: assistant
+          content: Running that exact command now and I’ll return only its output.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "process.stdout.write(require('fs').readFileSync('nested/peer.txt','utf8'))"
+                workdir: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: d42f37
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 4
+                Output:
+                PEER_NESTED_READ
+    response:
+      content: PEER_NESTED_READ
+      stopReason: end_turn

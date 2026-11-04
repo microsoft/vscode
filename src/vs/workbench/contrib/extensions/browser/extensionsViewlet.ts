@@ -65,11 +65,12 @@ import { registerNavigableContainer } from '../../../browser/actions/widgetNavig
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/browser/defaultAccount.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -146,7 +147,10 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				ContextKeyExpr.or(
 					ContextKeyExpr.has('searchMarketplaceExtensions'), ContextKeyExpr.and(DefaultViewsContext)
 				),
-				ContextKeyExpr.or(CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn), CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied))
+				ContextKeyExpr.or(
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
+				)
 			),
 			order: -1,
 		});
@@ -155,10 +159,11 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		viewRegistry.registerViews(viewDescriptors, this.container);
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:${DEFAULT_ACCOUNT_SIGN_IN_COMMAND}`),
+			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:workbench.extensions.actions.gallery.signIn`),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
 		});
 
+		// Access denied applies to every provider (microsoft/github/default), so gate on status alone.
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
 			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
@@ -789,8 +794,20 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 			} else {
 				messageElement.textContent = status.message;
 			}
-			if (status.extensions.length) {
-				const showAction = append(messageText,
+			const actionsContainer = status.action || status.extensions.length
+				? append(this.notificationContainer, $('.notification-actions'))
+				: undefined;
+			const action = status.action;
+			if (action && actionsContainer) {
+				const actionButton = this.notificationDisposables.value.add(new Button(actionsContainer, { ...defaultButtonStyles, ariaLabel: action.label }));
+				actionButton.element.classList.add('message-action-button');
+				actionButton.label = action.label;
+				this.notificationDisposables.value.add(actionButton.onDidClick(() => {
+					Promise.resolve(action.run()).catch(error => this.notificationService.error(error));
+				}));
+			}
+			if (status.extensions.length && actionsContainer) {
+				const showAction = append(actionsContainer,
 					$('span.message-text-action', {
 						'tabindex': '0',
 						'role': 'button',
@@ -805,29 +822,10 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 					standardKeyboardEvent.stopPropagation();
 				}));
 			}
-			const actionsContainer = append(this.notificationContainer, $('.notification-actions'));
-			if (status.action) {
-				const actionButton = append(actionsContainer,
-					$('span.message-action-button', {
-						'tabindex': '0',
-						'role': 'button',
-						'aria-label': status.action.label,
-					}, status.action.label));
-				this.notificationDisposables.value.add(addDisposableListener(actionButton, EventType.CLICK, () => {
-					Promise.resolve(status.action!.run()).catch(error => this.notificationService.error(error));
-				}));
-				this.notificationDisposables.value.add(addDisposableListener(actionButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const standardKeyboardEvent = new StandardKeyboardEvent(e);
-					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-						Promise.resolve(status.action!.run()).catch(error => this.notificationService.error(error));
-					}
-					standardKeyboardEvent.stopPropagation();
-				}));
-			}
 			const dismiss = status.dismiss;
 			if (dismiss) {
 				const dismissLabel = localize('dismiss notification', "Dismiss");
-				const dismissButton = append(actionsContainer,
+				const dismissButton = append(this.notificationContainer,
 					$('span.dismiss-action.codicon.codicon-close', {
 						'tabindex': '0',
 						'role': 'button',

@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveAppModulePath, resolveAppModulePathSync } from '../appNodeModules';
+import { resolveAppModulePath } from '../appNodeModules';
 
 describe('appNodeModules', () => {
 	let appRoot: string;
@@ -20,31 +20,31 @@ describe('appNodeModules', () => {
 		await rm(appRoot, { recursive: true, force: true });
 	});
 
-	it('prefers node_modules.asar.unpacked when both roots are present (sync)', async () => {
+	it('prefers node_modules.asar.unpacked when both roots are present', async () => {
 		const plain = join(appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin');
 		const unpacked = join(appRoot, 'node_modules.asar.unpacked', '@vscode', 'ripgrep-universal', 'bin');
 		await mkdir(plain, { recursive: true });
 		await mkdir(unpacked, { recursive: true });
 
-		expect(resolveAppModulePathSync(appRoot, '@vscode', 'ripgrep-universal', 'bin')).toBe(unpacked);
+		await expect(resolveAppModulePath(appRoot, '@vscode', 'ripgrep-universal', 'bin')).resolves.toBe(unpacked);
 	});
 
-	it('uses plain node_modules when the unpacked root is absent (sync)', async () => {
+	it('uses plain node_modules when the unpacked root is absent', async () => {
 		const plain = join(appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin');
 		await mkdir(plain, { recursive: true });
 
-		expect(resolveAppModulePathSync(appRoot, '@vscode', 'ripgrep-universal', 'bin')).toBe(plain);
+		await expect(resolveAppModulePath(appRoot, '@vscode', 'ripgrep-universal', 'bin')).resolves.toBe(plain);
 	});
 
-	it('falls back to node_modules.asar.unpacked in a packaged build (sync)', async () => {
+	it('falls back to node_modules.asar.unpacked in a packaged build', async () => {
 		const unpacked = join(appRoot, 'node_modules.asar.unpacked', '@microsoft', 'mxc-sdk', 'bin');
 		await mkdir(unpacked, { recursive: true });
 
-		expect(resolveAppModulePathSync(appRoot, '@microsoft', 'mxc-sdk', 'bin')).toBe(unpacked);
+		await expect(resolveAppModulePath(appRoot, '@microsoft', 'mxc-sdk', 'bin')).resolves.toBe(unpacked);
 	});
 
-	it('returns the plain node_modules path when neither root exists (sync)', () => {
-		expect(resolveAppModulePathSync(appRoot, '@vscode', 'ripgrep-universal', 'bin')).toBe(
+	it('returns the plain node_modules path when neither root exists', async () => {
+		await expect(resolveAppModulePath(appRoot, '@vscode', 'ripgrep-universal', 'bin')).resolves.toBe(
 			join(appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin')
 		);
 	});

@@ -717,11 +717,13 @@ declare module 'vscode' {
 		readonly promo?: {
 			readonly id: string;
 			readonly discountPercent: number;
-			readonly endsAt: string;
+			readonly endsAt?: string;
 			readonly message: string;
 		};
 		readonly maxInputTokens?: number;
 		readonly maxOutputTokens?: number;
+		/** The total context window, independent of the input and output token limits. */
+		readonly maxContextWindowTokens?: number;
 		readonly capabilities?: {
 			readonly vision?: boolean;
 			readonly toolCalling?: boolean;

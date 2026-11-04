@@ -8,7 +8,7 @@ import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -17,11 +17,15 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
+import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
+import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
 const $ = DOM.$;
 const CUSTOMIZATIONS_VERTICAL_PADDING = 6;
 const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortcuts.collapsed';
@@ -39,11 +43,14 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	private _toolbar: MenuWorkbenchToolBar | undefined;
 	private _headerElement: HTMLElement | undefined;
 	private _headerTotalCountElement: HTMLElement | undefined;
+	private _headerSuggestionBadgeElement: HTMLElement | undefined;
+	private _headerSuggestionHover: MutableDisposable<IDisposable> | undefined;
 	private _chevronElement: HTMLElement | undefined;
 	private _toolbarContentElement: HTMLElement | undefined;
 	private _scrollableDomNode: HTMLElement | undefined;
 	private _rootVerticalPadding = 0;
 	private _headerTotalCount = 0;
+	private _showExtensionSuggestionsBadge = false;
 	private _collapsed = false;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -65,10 +72,14 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IMcpService private readonly mcpService: IMcpService,
+		@IAICustomizationMcpServerCountService private readonly mcpServerCountService: IAICustomizationMcpServerCountService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -93,6 +104,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._toolbar = undefined;
 		this._headerElement = undefined;
 		this._headerTotalCountElement = undefined;
+		this._headerSuggestionBadgeElement = undefined;
+		this._headerSuggestionHover = undefined;
 		this._chevronElement = undefined;
 		this._toolbarContentElement = undefined;
 		this._scrollableDomNode = undefined;
@@ -104,25 +117,14 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private _totalCount() {
-		return derived(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.availableHarnesses.read(reader);
-			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
-			let total = 0;
-			for (const config of CUSTOMIZATION_ITEMS) {
-				if (config.section && hidden.has(config.section)) {
-					continue;
-				}
-				if (config.modelSection) {
-					total += this.itemsModel.getCount(config.modelSection).read(reader);
-				} else if (config.isMcp) {
-					total += this.mcpService.servers.read(reader).length;
-				} else if (config.isPlugins) {
-					total += this.itemsModel.getPluginCount().read(reader);
-				}
-			}
-			return total;
-		});
+		return derived(reader => readTotalCustomizationCount(
+			reader,
+			this.itemsModel,
+			this.mcpServerCountService,
+			this.toolsService,
+			this.toolEnablementService,
+			this.harnessService,
+		));
 	}
 
 	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
@@ -139,6 +141,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		const headerLabel = DOM.append(header, $('span.ai-customization-header-label'));
 		headerLabel.textContent = localize('customizations', "Customizations");
 		this._headerTotalCountElement = DOM.append(header, $('span.ai-customization-header-total-count.hidden'));
+		this._headerSuggestionBadgeElement = DOM.append(header, $('span.ai-customization-suggestion-badge.hidden', { role: 'img', 'aria-label': getExtensionSuggestionsBadgeDescription() }));
+		this._headerSuggestionHover = this._renderDisposables.add(new MutableDisposable());
 
 		this._chevronElement = DOM.append(header, $('span.ai-customization-chevron'));
 		this._chevronElement.setAttribute('aria-hidden', 'true');
@@ -148,6 +152,11 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._renderDisposables.add(autorun(reader => {
 			this._headerTotalCount = totalCount.read(reader);
 			this._renderHeaderTotalCount();
+		}));
+		// The header shows the badge while collapsed, otherwise the Extensions item shows it.
+		this._renderDisposables.add(autorun(reader => {
+			this._showExtensionSuggestionsBadge = this.extensionSuggestionsService.showBadge.read(reader);
+			this._renderHeaderSuggestionBadge();
 		}));
 
 		this._renderDisposables.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, () => this._toggleCollapsed()));
@@ -223,6 +232,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		}
 		this._updateChevron();
 		this._renderHeaderTotalCount();
+		this._renderHeaderSuggestionBadge();
 	}
 
 	private _updateChevron(): void {
@@ -241,6 +251,21 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._headerTotalCountElement.classList.toggle('hidden', !this._collapsed || this._headerTotalCount === 0);
 	}
 
+	private _renderHeaderSuggestionBadge(): void {
+		if (!this._headerElement || !this._headerSuggestionBadgeElement || !this._headerSuggestionHover) {
+			return;
+		}
+		const visible = this._collapsed && this._showExtensionSuggestionsBadge;
+		const currentlyVisible = !this._headerSuggestionBadgeElement.classList.contains('hidden');
+		if (visible === currentlyVisible) {
+			return;
+		}
+		this._headerSuggestionBadgeElement.classList.toggle('hidden', !visible);
+		this._headerSuggestionHover.value = visible
+			? this.hoverService.setupDelayedHover(this._headerElement, { content: getExtensionSuggestionsBadgeDescription() })
+			: undefined;
+	}
+
 	layout(_height: number, _width: number): void {
 		if (this._collapsed) {
 			return;
@@ -254,5 +279,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			return;
 		}
 		this._toolbar?.focus();
+	}
+
+	hasFocus(): boolean {
+		return !!this._wrapper && DOM.isAncestorOfActiveElement(this._wrapper);
 	}
 }

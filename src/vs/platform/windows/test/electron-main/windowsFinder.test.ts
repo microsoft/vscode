@@ -13,12 +13,12 @@ import { ICommandAction } from '../../../action/common/action.js';
 import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { INativeWindowConfiguration } from '../../../window/common/window.js';
 import { ICodeWindow, ILoadEvent, IWindowState } from '../../../window/electron-main/window.js';
-import { findWindowOnFile } from '../../electron-main/windowsFinder.js';
+import { findWindowOnFile, findWindowOnRequestedPath } from '../../electron-main/windowsFinder.js';
 import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FocusMode } from '../../../native/common/native.js';
+import { FocusMode, IApplicationBadge } from '../../../native/common/native.js';
 
 suite('WindowsFinder', () => {
 
@@ -50,6 +50,7 @@ suite('WindowsFinder', () => {
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;
 			remoteAuthority?: string | undefined;
+			iconPath?: URI | undefined;
 			isExtensionDevelopmentHost = false;
 			isExtensionTestHost = false;
 			lastFocusTime = options.lastFocusTime;
@@ -67,10 +68,12 @@ suite('WindowsFinder', () => {
 			send(channel: string, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
+			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
 			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
+			setApplicationBadge(badge: IApplicationBadge | undefined): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
 			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined; dimmed?: boolean | undefined }): void { throw new Error('Method not implemented.'); }
@@ -112,6 +115,22 @@ suite('WindowsFinder', () => {
 	test('Workspace folder wins', async () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
 		assert.strictEqual(await findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+	});
+
+	test('Window on the requested path, not a restored one', () => {
+		const workspaceWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 4, openedWorkspace: testWorkspace });
+		const usedWindows = [vscodeFolderWindow, noVscodeFolderWindow, workspaceWindow];
+		const vscodeFolder = { id: '', uri: URI.file(join(fixturesFolder, 'vscode_folder')) };
+		const file = URI.file(join(fixturesFolder, 'no_vscode_folder', 'file.txt'));
+		const found = [
+			findWindowOnRequestedPath(usedWindows, [{ workspace: vscodeFolder }], undefined),
+			findWindowOnRequestedPath(usedWindows, [{ workspace: testWorkspace }], undefined),
+			findWindowOnRequestedPath(usedWindows, [{ fileUri: file }], noVscodeFolderWindow),
+			// A requested path that doesn't exist isn't resolved, so a single restored window must not be picked
+			findWindowOnRequestedPath([vscodeFolderWindow], [], undefined),
+			findWindowOnRequestedPath(usedWindows, [{ workspace: vscodeFolder }, { workspace: testWorkspace }], undefined),
+		];
+		assert.deepStrictEqual(found.map(window => window ? usedWindows.indexOf(window) : -1), [0, 2, 1, -1, -1]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

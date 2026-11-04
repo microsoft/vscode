@@ -10,9 +10,9 @@ import { IssueType } from '../../common/issue.js';
 import { normalizeGitHubUrl } from '../../common/issueReporterUtil.js';
 
 suite('IssueReporter', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test('sets defaults to include all data', () => {
-		const issueReporterModel = new IssueReporterModel();
+		const issueReporterModel = store.add(new IssueReporterModel());
 		assert.deepStrictEqual(issueReporterModel.getData(), {
 			allExtensions: [],
 			includeSystemInfo: true,
@@ -26,7 +26,7 @@ suite('IssueReporter', () => {
 	});
 
 	test('serializes model skeleton when no data is provided', () => {
-		const issueReporterModel = new IssueReporterModel({});
+		const issueReporterModel = store.add(new IssueReporterModel({}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -42,7 +42,7 @@ Extensions: none
 	});
 
 	test('serializes GPU information when data is provided', () => {
-		const issueReporterModel = new IssueReporterModel({
+		const issueReporterModel = store.add(new IssueReporterModel({
 			issueType: 0,
 			systemInfo: {
 				os: 'Darwin',
@@ -57,7 +57,7 @@ Extensions: none
 					'checker_imaging': 'disabled_off'
 				}
 			}
-		});
+		}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -85,7 +85,7 @@ Modes:
 	});
 
 	test('serializes experiment info when data is provided', () => {
-		const issueReporterModel = new IssueReporterModel({
+		const issueReporterModel = store.add(new IssueReporterModel({
 			issueType: 0,
 			systemInfo: {
 				os: 'Darwin',
@@ -101,7 +101,7 @@ Modes:
 				}
 			},
 			experimentInfo: 'vsliv695:30137379\nvsins829:30139715'
-		});
+		}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -138,7 +138,7 @@ vsins829:30139715
 	});
 
 	test('serializes Linux environment information when data is provided', () => {
-		const issueReporterModel = new IssueReporterModel({
+		const issueReporterModel = store.add(new IssueReporterModel({
 			issueType: 0,
 			systemInfo: {
 				os: 'Darwin',
@@ -156,7 +156,7 @@ vsins829:30139715
 					xdgSessionType: 'x11'
 				}
 			}
-		});
+		}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -188,7 +188,7 @@ Modes:
 	});
 
 	test('serializes remote information when data is provided', () => {
-		const issueReporterModel = new IssueReporterModel({
+		const issueReporterModel = store.add(new IssueReporterModel({
 			issueType: 0,
 			systemInfo: {
 				os: 'Darwin',
@@ -213,7 +213,7 @@ Modes:
 					}
 				]
 			}
-		});
+		}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -250,7 +250,7 @@ Remote OS version: Linux x64 4.18.0
 	});
 
 	test('escapes backslashes in processArgs', () => {
-		const issueReporterModel = new IssueReporterModel({
+		const issueReporterModel = store.add(new IssueReporterModel({
 			issueType: 0,
 			systemInfo: {
 				os: 'Darwin',
@@ -262,7 +262,7 @@ Remote OS version: Linux x64 4.18.0
 				remoteData: [],
 				gpuStatus: {}
 			}
-		});
+		}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -290,10 +290,10 @@ Modes:
 	});
 
 	test('should supply mode if applicable', () => {
-		const issueReporterModel = new IssueReporterModel({
+		const issueReporterModel = store.add(new IssueReporterModel({
 			isInstallationPure: false,
 			restrictedMode: true
-		});
+		}));
 		assert.strictEqual(issueReporterModel.serialize(),
 			`
 Type: <b>Bug</b>
@@ -327,10 +327,10 @@ Extensions: none
 			IssueType.FeatureRequest,
 			IssueType.PerformanceIssue
 		].forEach(type => {
-			const issueReporterModel = new IssueReporterModel({
+			const issueReporterModel = store.add(new IssueReporterModel({
 				issueType: type,
 				fileOnExtension: true
-			});
+			}));
 
 			assert.strictEqual(issueReporterModel.fileOnExtension(), true);
 		});

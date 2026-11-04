@@ -10,6 +10,8 @@ import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles, osProxyResolverPlatforms } from '../osProxyResolver.ts';
+import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
+import { parsePackageKey, readPnpmLockfile } from '../pnpmLock.ts';
 
 suite('osProxyResolver', () => {
 	test('selects the target platform package', () => {
@@ -38,18 +40,48 @@ suite('osProxyResolver', () => {
 		]);
 	});
 
+	test('excludes the musl packages from the glibc linux targets', () => {
+		assert.deepStrictEqual(getOSProxyResolverExcludeFilter('linux', 'x64'), [
+			'**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-arm64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-x64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm-gnueabihf/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm64-gnu/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-x64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-arm64-msvc/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-x64-msvc/**',
+		]);
+		assert.deepStrictEqual(getOSProxyResolverExcludeFilter('linux', 'arm64'), [
+			'**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-arm64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-x64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm-gnueabihf/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-x64-gnu/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-x64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-arm64-msvc/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-x64-msvc/**',
+		]);
+	});
+
+	// Fails when a version bump adds a platform package, which is how the musl binaries first leaked into the RPM.
+	test('accounts for every platform package in the lockfile', () => {
+		const lockFile = readPnpmLockfile(path.join(import.meta.dirname, '..', '..', '..', 'pnpm-lock.yaml'));
+		const lockedPlatforms = Object.keys(lockFile.packages ?? {})
+			.map(key => /^@vscode\/os-proxy-resolver-(?<platform>.+)@/.exec(parsePackageKey(key).name + '@')?.groups?.platform)
+			.filter(platform => platform !== undefined)
+			.sort();
+
+		assert.deepStrictEqual(lockedPlatforms, [...osProxyResolverPlatforms].sort());
+	});
+
 	test('materializes a missing target platform package', () => {
 		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-os-proxy-resolver-platform-test-'));
 		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
 		try {
 			fs.mkdirSync(nodeModulesRoot, { recursive: true });
-			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
-				packages: {
-					'node_modules/@vscode/os-proxy-resolver-darwin-x64': {
-						version: '0.2.0',
-					}
-				}
-			}));
+			writePnpmLockfile(path.join(repoRoot, 'pnpm-lock.yaml'), { '@vscode/os-proxy-resolver-darwin-x64': { version: '0.2.0' } });
 
 			ensureOSProxyResolverPlatformPackage('darwin', 'x64', nodeModulesRoot, {
 				packPackage: (_packageName, _version, tempDir) => {

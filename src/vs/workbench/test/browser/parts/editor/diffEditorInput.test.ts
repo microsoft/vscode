@@ -7,7 +7,7 @@ import assert from 'assert';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,12 +16,13 @@ suite('Diff editor input', () => {
 
 	class MyEditorInput extends EditorInput {
 
-		constructor(public resource: URI | undefined = undefined) {
+		constructor(public resource: URI | undefined = undefined, private readonly _description?: string) {
 			super();
 		}
 
 		override get typeId(): string { return 'myEditorInput'; }
 		override resolve(): any { return null; }
+		override getDescription(): string | undefined { return this._description; }
 
 		override toUntyped() {
 			return { resource: this.resource, options: { override: this.typeId } };
@@ -71,6 +72,26 @@ suite('Diff editor input', () => {
 
 		diffInput.dispose();
 		assert.strictEqual(counter, 0);
+	});
+
+	test('forces descriptions only when they distinguish identical names', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const hasForceDescription = (originalDescription: string | undefined, modifiedDescription: string | undefined) => {
+			const input = disposables.add(new MyEditorInput(undefined, originalDescription));
+			const otherInput = disposables.add(new MyEditorInput(undefined, modifiedDescription));
+			const diffInput = disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, input, otherInput, undefined));
+			return diffInput.hasCapability(EditorInputCapabilities.ForceDescription);
+		};
+
+		assert.deepStrictEqual({
+			identical: hasForceDescription('folder', 'folder'),
+			different: hasForceDescription('folder-a', 'folder-b'),
+			missing: hasForceDescription(undefined, undefined),
+		}, {
+			identical: false,
+			different: true,
+			missing: false,
+		});
 	});
 
 	test('toUntyped', () => {

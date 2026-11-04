@@ -377,6 +377,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			if (!this.optionsDisposable.value) {
 				this.optionsDisposable.value = this.enforcePartOptions({
 					showTabs: 'none',
+					showBreadcrumbs: false,
 					closeEmptyGroups: true
 				});
 			}
@@ -450,7 +451,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// First close all editors that are non-confirming
 			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true });
+				group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
 			// Then merge remaining to main part
@@ -461,35 +462,6 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		}
 
 		this._onWillClose.fire();
-
-		return result;
-	}
-
-	private mergeGroupsToMainPart(): boolean {
-		if (!this.groups.some(group => group.count > 0)) {
-			return true; // skip if we have no editors opened
-		}
-
-		// Find the most recent group that is not locked
-		let targetGroup: IEditorGroupView | undefined = undefined;
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (!group.isLocked) {
-				targetGroup = group;
-				break;
-			}
-		}
-
-		if (!targetGroup) {
-			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
-		}
-
-		const result = this.mergeAllGroups(targetGroup, {
-			// Try to reduce the impact of closing the auxiliary window
-			// as much as possible by not changing existing editors
-			// in the main window.
-			preserveExistingIndex: true
-		});
-		targetGroup.focus();
 
 		return result;
 	}

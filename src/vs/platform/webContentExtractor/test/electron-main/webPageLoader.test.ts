@@ -9,14 +9,31 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { isURLDomainTrusted } from '../../../url/common/trustedDomains.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
 
 interface MockElectronEvent {
 	preventDefault?: sinon.SinonStub;
+}
+
+type MockWillFrameNavigateEvent = Electron.Event<Electron.WebContentsWillFrameNavigateEventParams> & {
+	preventDefault: sinon.SinonStub;
+};
+
+function createWillFrameNavigateEvent(url: string): MockWillFrameNavigateEvent {
+	return {
+		url,
+		isSameDocument: false,
+		isMainFrame: false,
+		frame: null,
+		preventDefault: sinon.stub(),
+	} as MockWillFrameNavigateEvent;
 }
 
 class MockWebContents {
@@ -26,9 +43,11 @@ class MockWebContents {
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
 	public executeJavaScript = sinon.stub().resolves(undefined);
+	public setWindowOpenHandler = sinon.stub();
 
 	public session = {
 		webRequest: {
+			onBeforeRequest: sinon.stub(),
 			onBeforeSendHeaders: sinon.stub(),
 			onHeadersReceived: sinon.stub()
 		},
@@ -124,6 +143,7 @@ suite('WebPageLoader', () => {
 		const agentNetworkFilterService: IAgentNetworkFilterService = {
 			_serviceBrand: undefined,
 			onDidChange: Event.None,
+			isEnabled: () => true,
 			isUriAllowed: isDomainAllowed ?? (() => true),
 			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
 		};
@@ -525,6 +545,30 @@ suite('WebPageLoader', () => {
 		}
 	});
 
+	test('redirect with encoded user information does not inherit trusted domain approval', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://example.com%2F@evil.example/redirected';
+		const loader = createWebPageLoader(
+			uri,
+			{ followRedirects: false },
+			uri => isURLDomainTrusted(uri, ['https://example.com'])
+		);
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+		const event = { preventDefault: sinon.stub() };
+		window.webContents.emit('will-redirect', event, redirectUrl);
+		const result = await loadPromise;
+
+		assert.deepStrictEqual({
+			prevented: event.preventDefault.calledOnce,
+			status: result.status,
+		}, {
+			prevented: true,
+			status: 'redirect',
+		});
+	});
+
 	test('redirect to wildcard subdomain trusted domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const redirectUrl = 'https://sub.trusted-domain.com/redirected';
@@ -601,6 +645,268 @@ suite('WebPageLoader', () => {
 		const result = await loadPromise;
 		assert.strictEqual(result.status, 'ok');
 	}));
+
+	test('network policy cancels denied subframe requests and allows trusted requests', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => uri.authority === 'allowed.example'
+		);
+
+		assert.ok(window.webContents.session.webRequest.onBeforeRequest.calledOnce);
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const deniedCallback = sinon.stub();
+		const allowedCallback = sinon.stub();
+
+		listener({ url: 'https://denied.example/private', resourceType: 'subFrame' }, deniedCallback);
+		listener({ url: 'https://allowed.example/frame', resourceType: 'subFrame' }, allowedCallback);
+
+		assert.deepStrictEqual({
+			denied: deniedCallback.firstCall?.args[0],
+			allowed: allowedCallback.firstCall?.args[0],
+		}, {
+			denied: { cancel: true },
+			allowed: { cancel: false },
+		});
+	});
+
+	test('network policy cancels reported parser-differential requests with the real filter', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['allowed.example']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['127.0.0.1', 'evil.com']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => networkFilterService.isUriAllowed(uri)
+		);
+
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const urls = [
+			'http://a@b@127.0.0.1/private',
+			'http://a%40b@127.0.0.1/private',
+			'http://[::1]/private',
+			'http://[::ffff:127.0.0.1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
+		];
+		const callbacks = urls.map(() => sinon.stub());
+		urls.forEach((url, index) => listener({ url, resourceType: 'subFrame' }, callbacks[index]));
+
+		assert.deepStrictEqual(
+			callbacks.map(callback => callback.firstCall?.args[0]),
+			urls.map(() => ({ cancel: true }))
+		);
+	});
+
+	test('network policy blocks reported parser-differential redirects with the real filter', async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['allowed.example']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['127.0.0.1', 'evil.com']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const urls = [
+			'http://a@b@127.0.0.1/private',
+			'http://a%40b@127.0.0.1/private',
+			'http://[::1]/private',
+			'http://[::ffff:127.0.0.1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
+		];
+		const results = [];
+		for (const url of urls) {
+			const loader = createWebPageLoader(
+				URI.parse('https://allowed.example/page'),
+				{ followRedirects: true },
+				undefined,
+				uri => networkFilterService.isUriAllowed(uri)
+			);
+			const loadPromise = loader.load();
+			const event = { preventDefault: sinon.stub() };
+			window.webContents.emit('will-redirect', event, url);
+			results.push({
+				prevented: event.preventDefault.called,
+				result: await loadPromise,
+			});
+		}
+
+		assert.deepStrictEqual(
+			results.map(({ prevented, result }) => ({ prevented, status: result.status })),
+			urls.map(() => ({ prevented: true, status: 'error' }))
+		);
+	});
+
+	test('denies all child window creation from fetched content', () => {
+		createWebPageLoader(URI.parse('https://allowed.example/page'));
+
+		assert.ok(window.webContents.setWindowOpenHandler.calledOnce);
+		const handler = window.webContents.setWindowOpenHandler.firstCall.args[0];
+
+		assert.deepStrictEqual([
+			handler({ url: 'about:blank' }),
+			handler({ url: 'https://allowed.example/popup' }),
+			handler({ url: 'vscode:mcp/install?test' }),
+			handler({ url: 'calculator:' }),
+		], [
+			{ action: 'deny' },
+			{ action: 'deny' },
+			{ action: 'deny' },
+			{ action: 'deny' },
+		]);
+	});
+
+	test('rejects unsafe schemes before domain filtering requests', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			() => true
+		);
+
+		assert.ok(window.webContents.session.webRequest.onBeforeRequest.calledOnce);
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const callbackResults = new Map<string, unknown>();
+		for (const url of [
+			'https://allowed.example/resource',
+			'http://allowed.example/resource',
+			'vscode:mcp/install?test',
+			'file:///private/file',
+			'calculator:',
+		]) {
+			listener({ url, resourceType: 'subFrame' }, (result: unknown) => callbackResults.set(url, result));
+		}
+
+		assert.deepStrictEqual(Object.fromEntries(callbackResults), {
+			'https://allowed.example/resource': { cancel: false },
+			'http://allowed.example/resource': { cancel: false },
+			'vscode:mcp/install?test': { cancel: true },
+			'file:///private/file': { cancel: true },
+			'calculator:': { cancel: true },
+		});
+	});
+
+	test('applies domain policy to WebSocket requests', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => uri.authority === 'allowed.example'
+		);
+
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const callbackResults = new Map<string, unknown>();
+		for (const url of [
+			'ws://allowed.example/socket',
+			'wss://allowed.example/socket',
+			'ws://denied.example/socket',
+			'wss://denied.example/socket',
+		]) {
+			listener({ url, resourceType: 'webSocket' }, (result: unknown) => callbackResults.set(url, result));
+		}
+
+		assert.deepStrictEqual(Object.fromEntries(callbackResults), {
+			'ws://allowed.example/socket': { cancel: false },
+			'wss://allowed.example/socket': { cancel: false },
+			'ws://denied.example/socket': { cancel: true },
+			'wss://denied.example/socket': { cancel: true },
+		});
+	});
+
+	test('fails closed for empty-authority WebSocket requests', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => networkFilterService.isUriAllowed(uri)
+		);
+
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const urls = [
+			String.raw`ws:\\evil.example/socket`,
+			String.raw`wss:\evil.example/socket`,
+		];
+		const callbackResults = new Map<string, unknown>();
+		for (const url of urls) {
+			listener({ url, resourceType: 'webSocket' }, (result: unknown) => callbackResults.set(url, result));
+		}
+
+		assert.deepStrictEqual(
+			[...callbackResults.values()],
+			urls.map(() => ({ cancel: true }))
+		);
+	});
+
+	test('fails closed for malformed request and frame URLs', () => {
+		createWebPageLoader(URI.parse('https://allowed.example/page'));
+		const requestListener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const requestCallback = sinon.stub();
+		const frameEvent = createWillFrameNavigateEvent('not a uri');
+
+		requestListener({ url: 'not a uri', resourceType: 'subFrame' }, requestCallback);
+		window.webContents.emit('will-frame-navigate', frameEvent);
+
+		assert.deepStrictEqual({
+			request: requestCallback.firstCall?.args[0],
+			framePrevented: frameEvent.preventDefault.calledOnce,
+		}, {
+			request: { cancel: true },
+			framePrevented: true,
+		});
+	});
+
+	test('blocks unsafe frame navigation schemes and preserves browser content schemes', () => {
+		createWebPageLoader(URI.parse('https://allowed.example/page'));
+
+		const results = new Map<string, boolean>();
+		for (const url of [
+			'https://allowed.example/frame',
+			'http://allowed.example/frame',
+			'about:blank',
+			'data:text/html,frame',
+			'blob:https://allowed.example/frame-id',
+			'vscode:mcp/install?test',
+			'file:///private/file',
+			'mailto:test@example.com',
+			'calculator:',
+		]) {
+			const details = createWillFrameNavigateEvent(url);
+			window.webContents.emit('will-frame-navigate', details);
+			results.set(url, details.preventDefault.called);
+		}
+
+		assert.deepStrictEqual(Object.fromEntries(results), {
+			'https://allowed.example/frame': false,
+			'http://allowed.example/frame': false,
+			'about:blank': false,
+			'data:text/html,frame': false,
+			'blob:https://allowed.example/frame-id': false,
+			'vscode:mcp/install?test': true,
+			'file:///private/file': true,
+			'mailto:test@example.com': true,
+			'calculator:': true,
+		});
+	});
+
+	test('blocks unsafe main-frame schemes when redirects are enabled', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			{ followRedirects: true },
+			undefined,
+			() => true
+		);
+		const event = { preventDefault: sinon.stub() };
+
+		window.webContents.emit('will-navigate', event, 'vscode:mcp/install?test');
+
+		assert.ok(event.preventDefault.calledOnce);
+	});
 
 	//#endregion
 
@@ -997,6 +1303,73 @@ suite('WebPageLoader', () => {
 		const getFullAXTreeCalls = window.webContents.debugger.sendCommand.getCalls()
 			.filter(call => call.args[0] === 'Accessibility.getFullAXTree');
 		assert.strictEqual(getFullAXTreeCalls.length, 3, 'Should call getFullAXTree for all 3 frames');
+	}));
+
+	test('network policy skips denied frames and their descendants during extraction', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://allowed.example/page-with-iframes');
+		const frameTree = {
+			frame: { id: 'main-frame', url: uri.toString() },
+			childFrames: [
+				{
+					frame: { id: 'allowed-frame', url: 'https://allowed.example/frame' },
+					childFrames: []
+				},
+				{
+					frame: { id: 'denied-frame', url: 'https://denied.example/private' },
+					childFrames: [
+						{
+							frame: { id: 'denied-descendant', url: 'https://allowed.example/nested' },
+							childFrames: []
+						}
+					]
+				}
+			]
+		};
+		const contentByFrame = new Map<string, string>([
+			['main-frame', 'Allowed main frame content'],
+			['allowed-frame', 'Allowed child frame content'],
+			['denied-frame', 'DENIED_FRAME_SECRET_MARKER'],
+			['denied-descendant', 'DENIED_DESCENDANT_SECRET_MARKER'],
+		]);
+		const loader = createWebPageLoader(
+			uri,
+			undefined,
+			undefined,
+			frameUri => frameUri.authority === 'allowed.example'
+		);
+		setupDebuggerMock({
+			frameTree,
+			axNodes: frameId => [{
+				nodeId: `${frameId}-text`,
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: contentByFrame.get(frameId) ?? '' }
+			}]
+		});
+
+		const loadPromise = loader.load();
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'ok');
+		const extractedFrameIds = window.webContents.debugger.sendCommand.getCalls()
+			.filter(call => call.args[0] === 'Accessibility.getFullAXTree')
+			.map(call => call.args[1]?.frameId);
+		const content = result.status === 'ok' ? result.result : '';
+		assert.deepStrictEqual({
+			extractedFrameIds,
+			includesMainContent: content.includes('Allowed main frame content'),
+			includesAllowedFrameContent: content.includes('Allowed child frame content'),
+			includesDeniedFrameContent: content.includes('DENIED_FRAME_SECRET_MARKER'),
+			includesDeniedDescendantContent: content.includes('DENIED_DESCENDANT_SECRET_MARKER'),
+		}, {
+			extractedFrameIds: ['main-frame', 'allowed-frame'],
+			includesMainContent: true,
+			includesAllowedFrameContent: true,
+			includesDeniedFrameContent: false,
+			includesDeniedDescendantContent: false,
+		});
 	}));
 
 	//#endregion
