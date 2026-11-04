@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions, SESSIONS_FILES_VIEW_ID, VIEW_ID } from '../common/files.js';
 import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
+import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions, IFileCopyProgress } from '../../../../platform/files/common/files.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -19,7 +19,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IBulkEditService, ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IExplorerView, IExplorerService } from './files.js';
-import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from '../../../../platform/progress/common/progress.js';
+import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions, IProgress } from '../../../../platform/progress/common/progress.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Promises, RunOnceScheduler } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -256,7 +256,7 @@ export class ExplorerService implements IExplorerService {
 		return [...items];
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window; fileCopyProgress?: IProgress<IFileCopyProgress> }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
 		const location = options.progressLocation ?? ProgressLocation.Window;
 		let progressOptions;
@@ -280,6 +280,7 @@ export class ExplorerService implements IExplorerService {
 				label: options.undoLabel,
 				code: 'undoredo.explorerOperation',
 				progress,
+				fileCopyProgress: options.fileCopyProgress,
 				token: cancellationTokenSource.token,
 				confirmBeforeUndo: options.confirmBeforeUndo
 			});

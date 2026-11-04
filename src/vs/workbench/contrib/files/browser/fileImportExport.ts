@@ -88,7 +88,7 @@ export class BrowserFileUpload {
 		// Indicate progress globally
 		const uploadPromise = this.progressService.withProgress(
 			{
-				location: ProgressLocation.Window,
+				location: ProgressLocation.Notification,
 				delay: 800,
 				cancellable: true,
 				title: localize('uploadingFiles', "Uploading")
@@ -413,12 +413,18 @@ export class ExternalFileImport {
 		// Indicate progress globally
 		const importPromise = this.progressService.withProgress(
 			{
-				location: ProgressLocation.Window,
+				location: target.resource.scheme === Schemas.vscodeRemote ? ProgressLocation.Notification : ProgressLocation.Window,
 				delay: 800,
-				cancellable: true,
+				cancellable: false,
 				title: localize('copyingFiles', "Copying...")
 			},
-			async () => await this.doImport(target, source, targetWindow, cts.token),
+			async progress => {
+				try {
+					await this.doImport(target, source, targetWindow, progress, cts.token);
+				} finally {
+					cts.dispose();
+				}
+			},
 			() => cts.dispose(true)
 		);
 
@@ -428,7 +434,7 @@ export class ExternalFileImport {
 		return importPromise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, token: CancellationToken): Promise<void> {
+	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
 		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
@@ -496,17 +502,17 @@ export class ExternalFileImport {
 
 			// Copy resources
 			if (result === ImportChoice.Copy) {
-				return this.importResources(target, files, token);
+				return this.importResources(target, files, progress, token);
 			}
 		}
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, files, token);
+			return this.importResources(target, files, progress, token);
 		}
 	}
 
-	private async importResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
+	private async importResources(target: ExplorerItem, resources: URI[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
@@ -557,16 +563,31 @@ export class ExternalFileImport {
 			});
 
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
-			await this.explorerService.applyBulkEdit(resourceFileEdits, {
-				undoLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
-					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
-				progressLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
-					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window,
-				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
-			});
+			const startTime = Date.now();
+			let totalBytes = 0;
+			const progressScheduler = new RunOnceWorker<IProgressStep>(steps => progress.report(steps[steps.length - 1]), 1000);
+			try {
+				await this.explorerService.applyBulkEdit(resourceFileEdits, {
+					undoLabel: resourcesFiltered.length === 1 ?
+						localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+						localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
+					progressLabel: resourcesFiltered.length === 1 ?
+						localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
+						localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
+					progressLocation: ProgressLocation.Window,
+					confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
+					fileCopyProgress: {
+						report: ({ source, bytesWritten }) => {
+							totalBytes += bytesWritten;
+							const bytesPerSecond = totalBytes * 1000 / Math.max(1, Date.now() - startTime);
+							progressScheduler.work({ message: localize('importBytesProgress', "{0} ({1} copied, {2}/s)", basename(source), ByteSize.formatSize(totalBytes), ByteSize.formatSize(bytesPerSecond)) });
+						}
+					}
+				});
+				progressScheduler.flush();
+			} finally {
+				progressScheduler.dispose();
+			}
 
 			// if we only add one file, just open it directly
 			const autoOpen = this.configurationService.getValue<IFilesConfiguration>().explorer.autoOpenDroppedFile;
@@ -621,12 +642,18 @@ export class FileDownload {
 		// Indicate progress globally
 		const downloadPromise = this.progressService.withProgress(
 			{
-				location: ProgressLocation.Window,
+				location: isWeb || source.some(item => item.resource.scheme === Schemas.vscodeRemote) ? ProgressLocation.Notification : ProgressLocation.Window,
 				delay: 800,
 				cancellable: isWeb,
 				title: localize('downloadingFiles', "Downloading")
 			},
-			async progress => this.doDownload(source, progress, cts),
+			async progress => {
+				try {
+					await this.doDownload(source, progress, cts);
+				} finally {
+					cts.dispose();
+				}
+			},
 			() => cts.dispose(true)
 		);
 
@@ -821,7 +848,7 @@ export class FileDownload {
 		operation.progressScheduler.work({ message });
 	}
 
-	private async doDownloadNative(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	protected async doDownloadNative(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
@@ -850,11 +877,26 @@ export class FileDownload {
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 			// Perform download
-			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
-				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
-				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-				progressLocation: ProgressLocation.Window
-			});
+			const startTime = Date.now();
+			let totalBytes = 0;
+			const progressScheduler = new RunOnceWorker<IProgressStep>(steps => progress.report(steps[steps.length - 1]), 1000);
+			try {
+				await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
+					undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
+					progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
+					progressLocation: ProgressLocation.Window,
+					fileCopyProgress: {
+						report: ({ source, bytesWritten }) => {
+							totalBytes += bytesWritten;
+							const bytesPerSecond = totalBytes * 1000 / Math.max(1, Date.now() - startTime);
+							progressScheduler.work({ message: localize('downloadBytesProgress', "{0} ({1} downloaded, {2}/s)", basename(source), ByteSize.formatSize(totalBytes), ByteSize.formatSize(bytesPerSecond)) });
+						}
+					}
+				});
+				progressScheduler.flush();
+			} finally {
+				progressScheduler.dispose();
+			}
 		} else {
 			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 		}

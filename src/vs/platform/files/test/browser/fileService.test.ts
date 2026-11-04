@@ -13,7 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
+import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileCopyProgress, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileWriteOptions, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../common/inMemoryFilesystemProvider.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
@@ -25,9 +25,134 @@ class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class UnbufferedFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities & ~FileSystemProviderCapabilities.FileOpenReadWriteClose;
+	}
+}
+
 suite('File Service', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('copy byte progress', () => {
+		for (const sourceBuffered of [false, true]) {
+			for (const targetBuffered of [false, true]) {
+				for (const writeFails of [false, true]) {
+					test(`cross-provider (source buffered: ${sourceBuffered}, target buffered: ${targetBuffered}, write fails: ${writeFails})`, async () => {
+						const service = disposables.add(new FileService(new NullLogService()));
+						const sourceProvider = disposables.add(sourceBuffered ? new BufferedWriteFileSystemProvider() : new UnbufferedFileSystemProvider());
+						const events: string[] = [];
+						const targetProvider = disposables.add(new class extends InMemoryFileSystemProvider {
+							override get capabilities(): FileSystemProviderCapabilities {
+								return targetBuffered ? super.capabilities & ~FileSystemProviderCapabilities.FileReadWrite : super.capabilities & ~FileSystemProviderCapabilities.FileOpenReadWriteClose;
+							}
+
+							override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+								if (writeFails && pos >= 2) {
+									throw new Error('write failed');
+								}
+								const written = await super.write(fd, pos, data, offset, Math.min(2, length));
+								events.push(`write ${written}`);
+								return written;
+							}
+
+							override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+								if (writeFails) {
+									throw new Error('write failed');
+								}
+								await super.writeFile(resource, content, options);
+								events.push(`write ${content.byteLength}`);
+							}
+						}());
+						disposables.add(service.registerProvider('source', sourceProvider));
+						disposables.add(service.registerProvider('target', targetProvider));
+						const source = URI.parse('source:///file');
+						const target = URI.parse('target:///copied');
+						await service.writeFile(source, VSBuffer.fromString('aébc'));
+						const reports: IFileCopyProgress[] = [];
+						const copying = service.copy(source, target, false, {
+							report: progress => {
+								reports.push(progress);
+								events.push(`progress ${progress.bytesWritten}`);
+							}
+						});
+						if (writeFails) {
+							await assert.rejects(copying, /write failed/);
+						} else {
+							await copying;
+						}
+
+						const deltas = targetBuffered ? (writeFails ? [2] : [2, 2, 1]) : (writeFails ? [] : [5]);
+						assert.deepStrictEqual({ reports, events }, {
+							reports: deltas.map(bytesWritten => ({ source, target, bytesWritten })),
+							events: deltas.flatMap(bytesWritten => [`write ${bytesWritten}`, `progress ${bytesWritten}`])
+						});
+						if (!writeFails) {
+							assert.strictEqual(VSBuffer.wrap(await targetProvider.readFile(target)).toString(), 'aébc');
+						}
+					});
+				}
+			}
+		}
+
+		for (const buffered of [false, true]) {
+			test(`recursive copy reports child resources and skips empty files (buffered: ${buffered})`, async () => {
+				const service = disposables.add(new FileService(new NullLogService()));
+				const sourceProvider = disposables.add(buffered ? new BufferedWriteFileSystemProvider() : new UnbufferedFileSystemProvider());
+				const targetProvider = disposables.add(buffered ? new BufferedWriteFileSystemProvider() : new UnbufferedFileSystemProvider());
+				disposables.add(service.registerProvider('source', sourceProvider));
+				disposables.add(service.registerProvider('target', targetProvider));
+				const source = URI.parse('source:///folder');
+				const target = URI.parse('target:///copied');
+				await service.createFolder(URI.joinPath(source, 'nested'));
+				await service.writeFile(URI.joinPath(source, 'first'), VSBuffer.fromString('abc'));
+				await service.writeFile(URI.joinPath(source, 'nested', 'second'), VSBuffer.fromString('defgh'));
+				await service.writeFile(URI.joinPath(source, 'nested', 'empty'), VSBuffer.alloc(0));
+				const reports: IFileCopyProgress[] = [];
+
+				await service.copy(source, target, false, { report: progress => reports.push(progress) });
+
+				assert.deepStrictEqual(reports.sort((a, b) => a.source.path.localeCompare(b.source.path)).map(report => ({
+					source: report.source.toString(), target: report.target.toString(), bytesWritten: report.bytesWritten
+				})), [
+					{ source: URI.joinPath(source, 'first').toString(), target: URI.joinPath(target, 'first').toString(), bytesWritten: 3 },
+					{ source: URI.joinPath(source, 'nested', 'second').toString(), target: URI.joinPath(target, 'nested', 'second').toString(), bytesWritten: 5 }
+				]);
+				assert.deepStrictEqual({
+					first: VSBuffer.wrap(await targetProvider.readFile(URI.joinPath(target, 'first'))).toString(),
+					second: VSBuffer.wrap(await targetProvider.readFile(URI.joinPath(target, 'nested', 'second'))).toString(),
+					emptySize: (await service.stat(URI.joinPath(target, 'nested', 'empty'))).size
+				}, { first: 'abc', second: 'defgh', emptySize: 0 });
+			});
+		}
+
+		test('provider-native copy does not report byte progress', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			let copies = 0;
+			const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+				override get capabilities(): FileSystemProviderCapabilities {
+					return super.capabilities | FileSystemProviderCapabilities.FileFolderCopy;
+				}
+
+				async copy(source: URI, target: URI, options: IFileOverwriteOptions): Promise<void> {
+					copies++;
+					await this.writeFile(target, await this.readFile(source), { create: true, overwrite: options.overwrite, unlock: false, atomic: false });
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+			const source = URI.parse('test:///source');
+			const target = URI.parse('test:///target');
+			await service.writeFile(source, VSBuffer.fromString('content'));
+			const reports: IFileCopyProgress[] = [];
+
+			await service.copy(source, target, false, { report: progress => reports.push(progress) });
+
+			assert.deepStrictEqual({ copies, reports, content: VSBuffer.wrap(await provider.readFile(target)).toString() }, {
+				copies: 1, reports: [], content: 'content'
+			});
+		});
+	});
 
 	test('resolveAll does not trace missing resources', async () => {
 		const traces: (string | Error)[] = [];

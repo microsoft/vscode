@@ -10,8 +10,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { FileOperation } from '../../../../../platform/files/common/files.js';
-import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { FileOperation, IFileCopyProgress, IFileService } from '../../../../../platform/files/common/files.js';
+import { createFileStat, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ICopyOperation } from '../../common/workingCopyFileService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -96,6 +96,26 @@ suite('WorkingCopyFileService', () => {
 
 	test('copy - dirty file', async function () {
 		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false);
+	});
+
+	test('copy forwards byte progress for each operation', async function () {
+		const operations = [1, 2].map(index => ({
+			file: { source: toResource.call(this, `/path/source${index}`), target: toResource.call(this, `/path/target${index}`) },
+			overwrite: true
+		}));
+		const reports: IFileCopyProgress[] = [];
+		const progress = { report: (event: IFileCopyProgress) => reports.push(event) };
+		const fileService: IFileService = accessor.fileService;
+		fileService.copy = async (source, target, overwrite, reporter) => {
+			assert.strictEqual(reporter, progress);
+			assert.strictEqual(overwrite, true);
+			reporter.report({ source, target, bytesWritten: 3 });
+			return createFileStat(target);
+		};
+
+		await accessor.workingCopyFileService.copy(operations, CancellationToken.None, undefined, progress);
+
+		assert.deepStrictEqual(reports, operations.map(({ file }) => ({ ...file, bytesWritten: 3 })));
 	});
 
 	test('copy - source identical to target', async function () {
