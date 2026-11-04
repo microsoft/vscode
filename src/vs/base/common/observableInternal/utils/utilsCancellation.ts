@@ -6,7 +6,7 @@
 import { IReader, IObservable } from '../base.js';
 import { DebugOwner, DebugNameData } from '../debugName.js';
 import { CancellationError, CancellationToken, CancellationTokenSource } from '../commonFacade/cancellation.js';
-import { DisposableStore, strictEquals } from '../commonFacade/deps.js';
+import { IDisposable, strictEquals } from '../commonFacade/deps.js';
 import { autorun } from '../reactions/autorun.js';
 import { Derived } from '../observables/derivedImpl.js';
 import { DebugLocation } from '../debugLocation.js';
@@ -21,8 +21,8 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 	if (!predicate) {
 		predicate = state => state !== null && state !== undefined;
 	}
-	const cancellationStore = new DisposableStore();
-	return new Promise<T>((resolve, reject) => {
+	let cancellationListener: IDisposable | undefined;
+	const result = new Promise<T>((resolve, reject) => {
 		let isImmediateRun = true;
 		let shouldDispose = false;
 		const stateObs = observable.map(state => {
@@ -51,14 +51,14 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 			}
 		});
 		if (cancellationToken) {
-			const dc = cancellationStore.add(cancellationToken.onCancellationRequested(() => {
+			cancellationListener = cancellationToken.onCancellationRequested(() => {
 				d.dispose();
-				dc.dispose();
+				cancellationListener?.dispose();
 				reject(new CancellationError());
-			}));
+			});
 			if (cancellationToken.isCancellationRequested) {
 				d.dispose();
-				dc.dispose();
+				cancellationListener.dispose();
 				reject(new CancellationError());
 				return;
 			}
@@ -67,7 +67,8 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 		if (shouldDispose) {
 			d.dispose();
 		}
-	}).finally(() => cancellationStore.dispose());
+	});
+	return cancellationToken ? result.finally(() => cancellationListener?.dispose()) : result;
 }
 
 export function derivedWithCancellationToken<T>(computeFn: (reader: IReader, cancellationToken: CancellationToken) => T): IObservable<T>;
