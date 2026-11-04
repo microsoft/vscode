@@ -11,6 +11,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { withLatestTurnAgent } from '../common/agentSessionMessage.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import type { ChatTurnStartedAction } from '../common/state/protocol/actions.js';
 import { createErrorResponsePart, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -92,7 +93,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			this._deferredTurns.delete(channel);
 			return false;
 		}
-		this.handleTurnStarted(channel, { ...action, message }, undefined, undefined, turn.credentials);
+		this.handleTurnStarted(channel, { ...action, message: withLatestTurnAgent(message, this._stateManager.getChatState(channel)) }, undefined, undefined, turn.credentials);
 		this._deferredTurns.delete(channel);
 		return true;
 	}
@@ -176,7 +177,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			type: ActionType.ChatTurnStarted,
 			turnId: generateUuid(),
 			startedAt: new Date().toISOString(),
-			message,
+			message: withLatestTurnAgent(message, this._stateManager.getChatState(channel)),
 		};
 		this._stateManager.dispatchServerAction(channel, action);
 		return action;

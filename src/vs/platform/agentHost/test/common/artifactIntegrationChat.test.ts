@@ -120,6 +120,18 @@ suite('Artifact Integration Chat', () => {
 				_meta: { [AgentHostArtifactRunMetaKey]: request.requestId, [AgentHostArtifactRunInitiatorMetaKey]: 'user', [AgentHostArtifactRequestMetaKey]: presentation },
 			});
 		});
+
+		test(`${admission} delivery keeps the custom agent the chat runs with`, async () => {
+			const f = fixture(admission);
+			const reviewer = { uri: 'file:///agents/reviewer.agent.md' };
+			const started = chatTurnStarted('human-turn', 'Review this');
+			f.apply({ ...started, message: { ...started.message, agent: reviewer } }, false);
+			f.apply(chatTurnComplete('human-turn', 1), false);
+			await submit(f);
+			const action = f.dispatches[0];
+			assert.ok(action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatPendingMessageSet);
+			assert.deepStrictEqual(action.message.agent, reviewer);
+		});
 	}
 
 	test('artifact request metadata validates nested presentation and never classifies human or unmarked messages', () => {

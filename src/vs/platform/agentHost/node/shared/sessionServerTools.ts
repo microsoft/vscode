@@ -7,7 +7,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { findAgentSessionMessage, getLatestTurnAgent, getPendingSteeringMessages, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
+import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage, withLatestTurnAgent } from '../../common/agentSessionMessage.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
@@ -1627,9 +1627,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		revision,
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
-	// Keep the target chat's agent: a message without one switches the chat to the default agent.
-	const agent = getLatestTurnAgent(targetState);
-	const message = { ...createAgentSessionMessage(args.message, delegation), ...(agent ? { agent } : {}) };
+	const message = withLatestTurnAgent(createAgentSessionMessage(args.message, delegation), targetState);
 	if (args.delivery === 'steer') {
 		if (!stateManager || !targetState?.activeTurn) {
 			return JSON.stringify({
