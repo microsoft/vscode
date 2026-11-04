@@ -89,7 +89,7 @@ export interface ITabbedModelPickerContext {
 		readonly show: boolean;
 		readonly currentVSCodeVersion: string;
 		readonly manageSettingsUrl: string | undefined;
-		/** When set, "Contact your admin" opens the organization's help page instead of GitHub's settings. */
+		/** When set, "Contact Admin" opens the organization's help page instead of GitHub's settings. */
 		readonly organizationSupport?: IModelPickerOrganizationSupport;
 		readonly updateStateType: StateType;
 	};

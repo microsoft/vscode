@@ -373,7 +373,7 @@ suite('AccountPolicyGateContribution', () => {
 			));
 			await clock.tickAsync(5000);
 			const actions = notificationPromptSpy.firstCall.args[2];
-			actions.find(action => action.label === 'Contact Your Administrator')?.run();
+			actions.find(action => action.label === 'Contact Admin')?.run();
 			store.dispose();
 			return { labels: actions.map(action => action.label), opened };
 		};
@@ -384,7 +384,7 @@ suite('AccountPolicyGateContribution', () => {
 		}, {
 			withoutUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
 			invalidUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
-			withUrl: { labels: ['Sign In', 'Contact Your Administrator', 'Learn More'], opened: [{ target: 'https://example.com/copilot-help', openExternal: true }] },
+			withUrl: { labels: ['Sign In', 'Contact Admin', 'Learn More'], opened: [{ target: 'https://example.com/copilot-help', openExternal: true }] },
 		});
 	});
 

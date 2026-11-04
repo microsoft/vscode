@@ -17,6 +17,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { withSeverityPrefix } from '../../../../../../../platform/notification/common/notification.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { getOrganizationSupportActionLabel } from '../../../../../../services/policies/common/organizationSupport.js';
 import { getLanguageModelProviderDisplayName, getLanguageModelProviderIcon, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
@@ -210,11 +211,11 @@ export function createUnavailableModelItem(
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
-		const label = localize('chat.modelPicker.adminDescription', "Contact your admin");
+		const label = getOrganizationSupportActionLabel();
 		description = organizationSupport
 			? createOrganizationSupportLink(label, organizationSupport)
 			: manageSettingsUrl
-				? new MarkdownString(localize('chat.modelPicker.adminLink', "[Contact your admin]({0})", manageSettingsUrl), { isTrusted: true })
+				? new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${manageSettingsUrl})`, { isTrusted: true })
 				: label;
 	}
 

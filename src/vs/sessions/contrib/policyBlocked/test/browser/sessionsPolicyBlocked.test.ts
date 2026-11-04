@@ -138,15 +138,15 @@ suite('Sessions policy update explanation', () => {
 			states: {
 				agentDisabledWithoutUrl: ['Open VS Code'],
 				agentDisabledInvalidUrl: ['Open VS Code'],
-				agentDisabled: ['Contact Your Administrator', 'Open VS Code'],
-				accountGate: ['Sign In', 'Contact Your Administrator'],
-				[ManagedSettingsFreshnessFailure.NoUrl]: ['Contact Your Administrator', 'Open VS Code'],
+				agentDisabled: ['Contact Admin', 'Open VS Code'],
+				accountGate: ['Sign In', 'Contact Admin'],
+				[ManagedSettingsFreshnessFailure.NoUrl]: ['Contact Admin', 'Open VS Code'],
 				[ManagedSettingsFreshnessFailure.NoToken]: ['Sign In', 'Open VS Code'],
 				[ManagedSettingsFreshnessFailure.RateLimited]: ['Retry', 'Open VS Code'],
-				[ManagedSettingsFreshnessFailure.Network]: ['Retry', 'Contact Your Administrator', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.Network]: ['Retry', 'Contact Admin', 'Open VS Code'],
 				refreshFailedWithoutUrl: ['Retry', 'Open VS Code'],
 			},
-			contactAdministratorAriaLabel: 'Contact Your Administrator',
+			contactAdministratorAriaLabel: 'Contact Admin',
 			openedExternally: ['https://example.com/copilot-help'],
 		});
 	});

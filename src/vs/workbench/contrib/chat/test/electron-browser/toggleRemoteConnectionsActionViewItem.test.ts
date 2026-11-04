@@ -370,7 +370,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			openSettings: openSettings.callCount,
 			sharing: sharing.calls,
 		}, {
-			footer: 'GitHub Environments is disabled by your organization. Contact Your Administrator',
+			footer: 'GitHub Environments is disabled by your organization. Contact Admin',
 			action: { id: 'remoteConnections.organizationSupport', tooltip: 'Opens your organization\'s help page (example.com)' },
 			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
 			openSettings: 0,

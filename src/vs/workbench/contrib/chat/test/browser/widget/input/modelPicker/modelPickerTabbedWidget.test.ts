@@ -167,6 +167,7 @@ suite('TabbedModelPicker', () => {
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		organizationSupport?: IModelPickerOrganizationSupport;
+		manageSettingsUrl?: string;
 		showManageModels?: boolean;
 		manageModelsDisabledReason?: string;
 		comparisonKeybinding?: number;
@@ -288,7 +289,7 @@ suite('TabbedModelPicker', () => {
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
-			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
+			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: options.manageSettingsUrl, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
@@ -2022,13 +2023,14 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('an admin-locked model links Contact your admin to the organization help page when one is set', () => {
-		const adminLink = (organizationSupport?: IModelPickerOrganizationSupport) => {
+	test('an admin-locked model links Contact Admin to the organization help page when one is set, else to GitHub settings', () => {
+		const adminLink = (organizationSupport?: IModelPickerOrganizationSupport, manageSettingsUrl?: string) => {
 			const result = createPicker({
 				entitlement: ChatEntitlement.Business,
 				showUnavailable: true,
 				controlModels: { locked: { label: 'Locked', featured: true, exists: false } },
 				organizationSupport,
+				manageSettingsUrl,
 			});
 			const row = element(result.popup, '.chat-model-picker-unavailable');
 			const link = row.querySelector<HTMLElement>('.description a');
@@ -2036,12 +2038,15 @@ suite('TabbedModelPicker', () => {
 			result.picker.hide();
 			return state;
 		};
+		const support = { url: 'https://example.com/help(copilot)', tooltip: 'Opens your organization\'s help page (example.com)' };
 		assert.deepStrictEqual({
-			withoutSupport: adminLink(),
-			withSupport: adminLink({ url: 'https://example.com/help(copilot)', tooltip: 'Opens your organization\'s help page (example.com)' }),
+			noLink: adminLink(),
+			githubFallback: adminLink(undefined, 'https://github.com/settings/copilot/features'),
+			withSupport: adminLink(support, 'https://github.com/settings/copilot/features'),
 		}, {
-			withoutSupport: { text: 'Contact your admin', href: undefined, title: undefined },
-			withSupport: { text: 'Contact your admin', href: 'https://example.com/help%28copilot%29', title: 'Opens your organization\'s help page (example.com)' },
+			noLink: { text: 'Contact Admin', href: undefined, title: undefined },
+			githubFallback: { text: 'Contact Admin', href: 'https://github.com/settings/copilot/features', title: 'https://github.com/settings/copilot/features' },
+			withSupport: { text: 'Contact Admin', href: 'https://example.com/help%28copilot%29', title: 'Opens your organization\'s help page (example.com)' },
 		});
 	});
 

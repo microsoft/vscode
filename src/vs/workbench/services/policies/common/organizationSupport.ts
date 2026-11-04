@@ -11,7 +11,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
  * but it is where the organization tells users who administers Copilot and how to reach them.
  */
 export function getOrganizationSupportActionLabel(): string {
-	return localize('organizationSupport.contactAdministrator', "Contact Your Administrator");
+	return localize('organizationSupport.contactAdmin', "Contact Admin");
 }
 
 /** Names the organization-controlled destination so it is not mistaken for VS Code or GitHub help. */
