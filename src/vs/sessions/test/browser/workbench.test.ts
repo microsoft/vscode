@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
 import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
@@ -69,18 +70,22 @@ class TestDockedEditorInput extends DockedEditorInput {
 suite('Sessions - Workbench', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('the editor parts of other windows, such as chat windows, show while the editor part of the main window hides', () => {
+	test('the editor parts of a window of content parts, such as a chat window, show while the editor part of the main window hides; those of an editor window follow it', () => {
+		// A chat window is built of content parts; an editor window has an editor part of its own.
+		const chatWindow = { vscodeWindowId: 2 } as Window & { vscodeWindowId: number };
+		const editorWindow = { vscodeWindowId: 3 } as Window & { vscodeWindowId: number };
 		const workbench: { isVisible(part: Parts, targetWindow?: Window): boolean } = Object.assign(Object.create(Workbench.prototype), {
 			_effectiveVisible: () => false,
 			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			editorGroupService: { parts: [Object.assign(Object.create(ContentPart.prototype), { windowId: 2 }), { windowId: 3 }] },
 		});
-		const otherWindow = {} as Window;
 		assert.deepStrictEqual({
 			mainEditor: workbench.isVisible(Parts.EDITOR_PART, mainWindow),
 			mainEditorWithoutWindow: workbench.isVisible(Parts.EDITOR_PART),
-			otherWindowEditor: workbench.isVisible(Parts.EDITOR_PART, otherWindow),
-			otherWindowPanel: workbench.isVisible(Parts.PANEL_PART, otherWindow),
-		}, { mainEditor: false, mainEditorWithoutWindow: false, otherWindowEditor: true, otherWindowPanel: false });
+			chatWindowEditor: workbench.isVisible(Parts.EDITOR_PART, chatWindow),
+			chatWindowPanel: workbench.isVisible(Parts.PANEL_PART, chatWindow),
+			editorWindowEditor: workbench.isVisible(Parts.EDITOR_PART, editorWindow),
+		}, { mainEditor: false, mainEditorWithoutWindow: false, chatWindowEditor: true, chatWindowPanel: false, editorWindowEditor: false });
 	});
 
 	test('leaves native resize to the host window while retaining iOS and phone viewport listeners', () => {
