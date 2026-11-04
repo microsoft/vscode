@@ -1900,7 +1900,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const active = this.activeSession.get();
 		// A window session is another wrapper of a session the grid may show too; only then does the wrapper matter.
-		const windowInvolved = this._visibility.isWindowSession(session) || this._visibility.isWindowSession(active);
+		const windowInvolved = this._visibility.isWindowSession(active);
 		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== active?.sessionId || (windowInvolved && session !== active)) {
 			this._cancelRestore();
 			this._startOpenSession();

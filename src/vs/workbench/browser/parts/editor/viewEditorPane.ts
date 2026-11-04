@@ -26,15 +26,19 @@ import { ViewEditorInput } from './viewEditorInput.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from './viewEditorRegistry.js';
 
 /**
- * An editor pane that hosts the view of a {@link ViewEditorInput}. The view
- * opens other editors in the main part of its window, not beside itself.
+ * A view of a {@link ViewEditorPane} kept alive, out of the DOM, while its editor
+ * stays in the group and another editor of the group shows, such as another tab,
+ * with what it holds.
  */
-/** A view of the pane, and what it holds, such as while another editor shows in its group. */
 interface IHiddenView extends IDisposable {
 	readonly view: IViewEditorView;
 	readonly disposables: DisposableStore;
 }
 
+/**
+ * An editor pane that hosts the view of a {@link ViewEditorInput}. The view
+ * opens other editors in the main part of its window, not beside itself.
+ */
 export class ViewEditorPane extends EditorPane {
 
 	static readonly ID = 'workbench.editor.viewEditor';

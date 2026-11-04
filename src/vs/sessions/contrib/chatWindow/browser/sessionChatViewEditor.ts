@@ -375,11 +375,12 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 		this.sessionView.focus();
 	}
 
-	/** Saves what the chat shows, such as where it is scrolled to, before its editor moves: the view where it moves to shows the same. */
+	/** Hides the chat while another editor of its group, as a tab, shows, and shows it again. */
 	setVisible(visible: boolean): void {
 		this._visible.set(visible, undefined);
 	}
 
+	/** Saves what the chat shows, such as where it is scrolled to, before its editor moves: the view where it moves to shows the same. */
 	saveViewState(): void {
 		this.sessionView.primaryChatView.get()?.saveViewState();
 	}
