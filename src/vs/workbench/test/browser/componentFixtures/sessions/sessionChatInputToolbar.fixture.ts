@@ -45,6 +45,8 @@ import { ISessionChangesService } from '../../../../../sessions/contrib/changes/
 // eslint-disable-next-line local/code-import-patterns
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionScope } from '../../../../../sessions/services/sessions/browser/sessionScope.js';
+// eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
@@ -284,6 +286,8 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 					override getFeedback() { return []; }
 					override getFeedbackSessionResource() { return undefined; }
 				}());
+				// The banners show the session of their window.
+				reg.defineInstance(ISessionScope, { _serviceBrand: undefined, session: constObservable<IActiveSession | undefined>(sessionMock.session) });
 			}
 			options?.additionalServices?.(reg);
 		},

@@ -63,13 +63,15 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
+	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
+	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
+	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
-	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
-	Memory = 'memory',
-	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
+	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
@@ -127,6 +129,8 @@ export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Promp
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
+export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
+
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
@@ -136,8 +140,6 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
  * with `DYNAMIC_AUTO_TIERS`. Current hosts always do; clients keep sending `true` so older hosts present Auto the same way.
  */
 export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
-
-export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
 export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
@@ -330,6 +332,18 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPrompt.title', "Progress Updates Prompt"),
+		description: localize('agentHost.config.progressUpdatesPrompt.description', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send brief user-visible progress updates before and between tool calls."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPromptDefaultControlled.title', "Progress Updates Prompt Default Control"),
+		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
@@ -342,16 +356,10 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
 	}),
-	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.memory.title', "Copilot Memory"),
-		description: localize('agentHost.config.memory.description', "When enabled, Copilot SDK sessions can store and recall Copilot Memory. GitHub Copilot Memory settings and policies still apply."),
-		default: false,
-	}),
 	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
-		description: localize('agentHost.config.localMemory.description', "When enabled together with Copilot Memory, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
+		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

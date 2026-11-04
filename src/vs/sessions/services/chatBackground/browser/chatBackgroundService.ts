@@ -7,10 +7,11 @@ import * as css from '../../../../base/browser/cssValue.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +26,8 @@ export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING = 'cha
 export const AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.preferredDarkBackgroundImageLayout';
 export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.preferredLightBackgroundImageLayout';
 export const AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET = 'codicons';
-export type SessionsChatBackgroundPreset = typeof AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET;
+export const chatBackgroundPresets = [AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'koi-light', 'koi-dark'] as const;
+export type SessionsChatBackgroundPreset = typeof chatBackgroundPresets[number];
 const RECENT_BACKGROUND_IMAGES_STORAGE_KEY = 'chat.agentSessions.recentBackgroundImages';
 const MAX_RECENT_BACKGROUND_IMAGES = 5;
 
@@ -33,11 +35,16 @@ const MAX_RECENT_BACKGROUND_IMAGES = 5;
 export const chatBackgroundImageExtensions: readonly string[] = ['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'];
 
 /** The configured background, whether or not the theme shows it. */
-export type ISessionsChatConfiguredBackground = { readonly kind: 'codicons' } | { readonly kind: 'image'; readonly image: URI };
+export type ISessionsChatConfiguredBackground = { readonly kind: 'codicons' } | {
+	readonly kind: 'image';
+	readonly image: URI;
+	readonly preset?: Exclude<SessionsChatBackgroundPreset, 'codicons'>;
+};
 
 export interface ISessionsChatImageBackground {
 	readonly kind: 'image';
 	readonly backgroundImage: string;
+	readonly backgroundImageReducedMotion?: string;
 	readonly backgroundRepeat: string;
 	readonly backgroundSize: string;
 	readonly backgroundPosition: string;
@@ -84,7 +91,7 @@ type ChatBackgroundChangedEvent = {
 type ChatBackgroundChangedClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What made the change: agent for the Set Chat Background tool, backgroundPicker or layoutPicker for the Agents window quick picks, or settings for anything else, such as the Settings editor, settings.json, or Settings Sync.' };
 	change: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the background changed, or only the layout of its image.' };
-	background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The background after the change: userImage for an image file from the user or an agent, builtin for the built-in Codicons pattern, or none when the background was removed.' };
+	background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The background after the change: userImage for an image file from the user or an agent, builtin for a built-in background, or none when the background was removed.' };
 	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The image layout after the change, when the background is an image.' };
 	colorScheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the background of dark or light themes changed.' };
 	owner: 'benibenj';
@@ -194,6 +201,9 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		return configuredBackground ? {
 			kind: 'image',
 			backgroundImage: css.asCSSUrl(configuredBackground.image),
+			...(configuredBackground.preset ? {
+				backgroundImageReducedMotion: css.asCSSUrl(FileAccess.asFileUri(`vs/sessions/services/chatBackground/browser/media/${configuredBackground.preset}-static.webp`)),
+			} : {}),
 			...backgroundImageStyles[this.getBackgroundImageLayout()],
 		} : undefined;
 	}
@@ -205,9 +215,9 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 
 	getRecentBackgroundImages(): readonly URI[] {
 		const images = this.getStoredRecentBackgroundImages();
-		const current = this.getConfiguredBackgroundImage();
-		if (current && !images.some(image => isEqual(image, current))) {
-			images.unshift(current);
+		const current = this.getConfiguredBackground();
+		if (current?.kind === 'image' && !current.preset && !images.some(image => isEqual(image, current.image))) {
+			images.unshift(current.image);
 		}
 		return images.slice(0, MAX_RECENT_BACKGROUND_IMAGES);
 	}
@@ -216,7 +226,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		const images = this.getStoredRecentBackgroundImages();
 		for (const setting of [AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]) {
 			const background = this.readConfiguredBackground(setting);
-			if (background?.kind === 'image' && !images.some(image => isEqual(image, background.image))) {
+			if (background?.kind === 'image' && !background.preset && !images.some(image => isEqual(image, background.image))) {
 				images.push(background.image);
 			}
 		}
@@ -294,7 +304,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			this.telemetryService.publicLog2<ChatBackgroundChangedEvent, ChatBackgroundChangedClassification>('vscodeAgents.chatBackground/changed', {
 				source: this.pendingChangeSources.get(backgroundChanged ? backgroundSetting : layoutSetting) ?? 'settings',
 				change: backgroundChanged ? 'background' : 'layout',
-				background: background?.kind === 'image' ? 'userImage' : background?.kind === 'codicons' ? 'builtin' : 'none',
+				background: background?.kind === 'image' ? background.preset ? 'builtin' : 'userImage' : background?.kind === 'codicons' ? 'builtin' : 'none',
 				layout: background?.kind === 'image' ? layout : undefined,
 				colorScheme: colorScheme === ColorScheme.DARK ? 'dark' : 'light',
 			});
@@ -333,9 +343,16 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	}
 
 	private readConfiguredBackground(setting: string): ISessionsChatConfiguredBackground | undefined {
-		const value = this.configurationService.getValue<string>(setting);
-		if (value?.trim() === AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET) {
+		const value = this.configurationService.getValue<string>(setting)?.trim();
+		if (value === AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET) {
 			return { kind: 'codicons' };
+		}
+		if (value === 'koi-light' || value === 'koi-dark') {
+			return {
+				kind: 'image',
+				image: FileAccess.asFileUri(`vs/sessions/services/chatBackground/browser/media/${value}.webp`),
+				preset: value,
+			};
 		}
 		const image = this.resolveBackgroundImage(value);
 		return image ? { kind: 'image', image } : undefined;
@@ -384,6 +401,17 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 
 		const uri = URI.parse(candidate);
 		return uri.scheme === Schemas.file ? uri : undefined;
+	}
+}
+
+export function getChatBackgroundPresetLabel(preset: SessionsChatBackgroundPreset): string {
+	switch (preset) {
+		case 'codicons':
+			return localize('chat.agentSessions.backgroundType.codicons.label', "Codicons");
+		case 'koi-light':
+			return localize('chat.agentSessions.backgroundType.koiLight.label', "Koi Light");
+		case 'koi-dark':
+			return localize('chat.agentSessions.backgroundType.koiDark.label', "Koi Dark");
 	}
 }
 

@@ -14,6 +14,8 @@ import { copilotDiscoveryRetryDelays, CopilotDiscoveryReason, CopilotSessionDire
 export interface ICopilotChatDiscoveryScan {
 	readonly id: number;
 	readonly sessionIds: ReadonlySet<string> | undefined;
+	/** A client named these sessions explicitly; the scan is not part of startup discovery. */
+	readonly explicit?: boolean;
 	isCurrent(sessionId: string): boolean;
 	/** Capture metadata fingerprints for candidates without a watcher. */
 	prepare(sessionId: string): Promise<boolean>;

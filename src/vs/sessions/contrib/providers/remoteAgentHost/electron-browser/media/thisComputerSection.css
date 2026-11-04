@@ -1,0 +1,106 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.remotes-this-computer {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-foreground);
+}
+
+.remotes-this-computer-header,
+.remotes-this-computer-name-group {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.remotes-this-computer-header {
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.remotes-this-computer-name-group {
+	gap: var(--vscode-spacing-size60);
+	margin-inline-start: var(--vscode-spacing-size40);
+}
+
+.remotes-this-computer-header > .codicon {
+	flex-shrink: 0;
+}
+
+.remotes-this-computer-title {
+	flex-shrink: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.remotes-this-computer-name-label {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.remotes-this-computer-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.remotes-this-computer-actions {
+	flex-shrink: 0;
+}
+
+.remotes-this-computer .monaco-custom-radio {
+	max-width: 100%;
+}
+
+.remotes-this-computer .monaco-custom-radio > .monaco-button {
+	display: block;
+	width: auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 16px;
+	white-space: nowrap;
+}
+
+/* Keep the short Off and Dev Tunnels labels whole; the GitHub Environments label between them ellipsizes when narrow. */
+.remotes-this-computer .monaco-custom-radio > .monaco-button:first-child,
+.remotes-this-computer .monaco-custom-radio > .monaco-button:last-child {
+	flex-shrink: 0;
+}
+
+.remotes-this-computer-status,
+.remotes-this-computer-policy,
+.remotes-this-computer-description {
+	margin: 0;
+}
+
+.remotes-this-computer-policy:not([hidden]) {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+}
+
+.remotes-this-computer-policy > .codicon {
+	flex-shrink: 0;
+	align-self: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-this-computer-description {
+	color: var(--vscode-descriptionForeground);
+}

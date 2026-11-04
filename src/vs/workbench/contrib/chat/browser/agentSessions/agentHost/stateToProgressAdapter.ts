@@ -18,7 +18,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -1343,7 +1343,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const completedAt = startedAt !== undefined && Number.isFinite(startedAt) && typeof turn.duration === 'number' && Number.isFinite(turn.duration) && turn.duration >= 0
 			? startedAt + turn.duration
 			: undefined;
-		history.push({ type: 'response', parts, participant: participantId, details, elapsedMs: turn.duration, completedAt, ...(errorDetails ? { errorDetails } : {}) });
+		history.push({ type: 'response', parts, participant: participantId, details, elapsedMs: turn.duration, completedAt, ...(turn.state === TurnState.Cancelled ? { isCanceled: true } : {}), ...(errorDetails ? { errorDetails } : {}) });
 	}
 	return history;
 }
@@ -2905,6 +2905,8 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			safety: riskAssessment.safety,
 		};
 	}
+	const meta = readToolCallMeta(tc);
+	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
 	return {
 		title: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
@@ -2913,7 +2915,15 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
 			: stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority),
 		approvalReason,
+		...(assistedApprovalNotice ? { disclaimer: assistedApprovalNotice } : {}),
 		...(tc.options ? { customOptions: tc.options } : {}),
+		...(meta['vscode.assistedApprovalFeedbackAccepted'] ? {
+			feedback: {
+				label: localize('agentHost.assistedApprovalFeedback.label', "Help improve Assisted permissions (optional)"),
+				placeholder: localize('agentHost.assistedApprovalFeedback.placeholder', "What should the approval system have understood?"),
+				description: localize('agentHost.assistedApprovalFeedback.description', "Feedback is sent with your decision. It won't change the decision or teach Copilot a rule."),
+			},
+		} : {}),
 	};
 }
 

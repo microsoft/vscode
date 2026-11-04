@@ -5,7 +5,6 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -25,7 +24,7 @@ import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithheldClientTool, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
@@ -60,6 +59,7 @@ import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.j
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
+import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
@@ -374,6 +374,12 @@ export interface ICopilotSessionRuntime {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[];
 	configureClientTools?(configuration: ICopilotClientToolConfiguration): void;
+	/**
+	 * Whether the system message this launch resolved gets the progress-update guidance when its experiment
+	 * enables it: the family-aliased model is GPT or Auto, and no prompt override replaces the registry.
+	 * Independent of the experiment arm, so both arms report the same exposure.
+	 */
+	setProgressUpdatesPromptEligible?(eligible: boolean): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
@@ -449,8 +455,6 @@ interface ICopilotSessionLaunchBase {
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
 	readonly autoTierSupport?: () => IAutoModeTierSupport;
-	/** Settles once {@link autoTierSupport} reflects the chat's catalog, joining a scoped caller's in-flight model discovery. Never rejects. */
-	readonly whenAutoTierSupportReady?: () => Promise<void>;
 	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
 
 	/**
@@ -703,8 +707,8 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
- * The Auto routing preference ("Optimize for"), only when the chat's catalog offers that tier: without provider tiers
- * Auto has no picker, and a preference saved from an earlier one would apply unseen. Profiles left on concrete models are ignored.
+ * The Auto routing preference ("Optimize for"), when the chat's catalog offers that tier or its tiers are not known yet,
+ * in which case the runtime validates it. Profiles left on concrete models are ignored.
  */
 export function getCopilotAutoTier(model: ModelSelection | undefined, support = getAdvertisedAutoModeTierSupport()): string | undefined {
 	if (!isAutoModel(model?.id)) {
@@ -795,6 +799,11 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	const forced = resolveForcedAutoTier(model, configurationService, logService, sessionId, isInlineChat, support);
 	if (forced !== undefined) {
 		return forced ?? undefined;
+	}
+	// Inline chat pins Fusion's fast tier, which needs the provider's tiers; until they are known, it runs at the runtime's
+	// default rather than at a deeper saved preference.
+	if (isInlineChat && !support.tiers) {
+		return undefined;
 	}
 	const tier = getCopilotAutoTier(model, support);
 	if (tier === undefined) {
@@ -1269,7 +1278,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (nativeAgent) {
 				await raw.rpc.agent.select({ name: nativeAgent.id });
 			}
-			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
 		} catch (err) {
@@ -1290,7 +1298,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.enableSessionTelemetry !== false, config.featureFlags?.MCP_SKILLS === true, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
@@ -1316,46 +1324,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			return true;
 		}
 		return false;
-	}
-
-	/**
-	 * Enables the runtime's shell-script safety classifier, which managed permissions
-	 * depend on to govern shell operations.
-	 *
-	 * Without it the runtime short-circuits the classifier, so a shell command reaches
-	 * the permission layer with an empty `possiblePaths` and `hasWriteFileRedirection:
-	 * false`. Managed `Read(...)`/`Edit(...)` rules then cannot match a redirect target,
-	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
-	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
-	 * is applied here to cover both created and resumed sessions.
-	 *
-	 * This fails the launch closed unconditionally. The host cannot tell whether a
-	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
-	 * supported legacy VS Code settings bridge restrictions, while server and MDM
-	 * policy is discovered by the runtime itself under `enableManagedSettings`.
-	 * Gating a security control on that signal
-	 * would leave exactly the enterprise sessions it protects unprotected, so the
-	 * option is treated as required for every session.
-	 *
-	 * The client-level `managedSettings.read` is not a usable substitute: it discovers
-	 * only device sources (MDM and managed-file), so a session governed solely by
-	 * GitHub org policy would still read as unmanaged. Approximating the boundary is
-	 * worse than not drawing one.
-	 */
-	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
-		try {
-			const result = await session.rpc.options.update({ enableScriptSafety: true });
-			if (!result.success) {
-				throw new Error('SDK rejected enabling script safety');
-			}
-		} catch (err) {
-			// The runtime reports success for any patch it accepts and signals real
-			// problems by failing the request, so this is the path a genuine failure
-			// takes. Log the reason before it propagates: the launch is aborted below
-			// and the raw RPC error alone would not say which option was refused.
-			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety; managed permissions cannot govern shell paths`, err);
-			throw err;
-		}
 	}
 
 	/** Sets output verbosity after session creation. */
@@ -1419,16 +1387,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}
-		// A scoped caller's Auto tiers come from its own model discovery, which may still be running. A cancelled launch
-		// stops waiting without cancelling the shared discovery; the launch then throws.
-		if (plan.whenAutoTierSupportReady) {
-			await raceCancellation(plan.whenAutoTierSupportReady(), runtime.cancellationToken ?? CancellationToken.None);
-		}
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
-		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
+		const memoryEnabled = !plan.isEphemeral;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
@@ -1438,6 +1401,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			AUTO_APPROVAL: true,
 			...catalogInstallationFeatureFlags,
 			CONNECTORS: copilotConnectorsEnabled,
+			MCP_SKILLS: this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsEnabledConfigKey) === true,
 			TGREP: true,
 			CONTENT_EXCLUSION: true,
 			// Attached long-lived services prevent the runtime from reaching session idle.
@@ -1621,6 +1585,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 		});
 		const systemMessage = toolConfiguration.sessionConfig.systemMessage;
+		runtime.setProgressUpdatesPromptEligible?.(isProgressUpdatesPromptModel(effectiveModel) && applyToolOverrides([]).systemPrompt === undefined);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		const additionalDisabledMcpServers = plan.isEphemeral ? [
 			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -1710,7 +1675,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			additionalDirectories,
 			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),
 			largeOutput: {
-				maxSizeBytes: 8 * 1024,
+				// The SDK also uses this as `view`'s full-read limit, whose schema promises 20KB; lower values make `view` refuse ordinary files (#342977).
+				maxSizeBytes: 20 * 1024,
 			},
 			managedSettings: {
 				permissions: managedSettingsPermissions,
