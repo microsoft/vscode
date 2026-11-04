@@ -15887,6 +15887,35 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('keeps stored title sources when the session database lacks them (#345377)', async () => {
+				const orchestratorDatabase = disposables.add(new DirtyCountingDatabase(':memory:'));
+				const session = AgentSession.uri('copilot', 'outdated-renamed');
+				const defaultChat = buildDefaultChatUri(session);
+				await seedOutdatedCatalogRow(orchestratorDatabase, session, {
+					...centralData(session, 10, 'Renamed'),
+					titleSource: 'user',
+					chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Renamed', titleSource: 'user' }],
+				});
+				await orchestratorDatabase.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const sessionData = createPerSessionDataService();
+				await sessionData.database(session).createTurn('turn-1');
+				const svc = await createCrashedService(orchestratorDatabase, sessionData.service);
+
+				await listAndReconcile(svc, orchestratorDatabase);
+				const migrated = await orchestratorDatabase.getSessionV2(session.toString());
+				const decoded = migrated && decodeAgentHostCatalogPayload(migrated.payload);
+
+				assert.deepStrictEqual(decoded?.ok && {
+					payloadVersion: migrated?.payloadVersion,
+					titleSource: decoded.value.data.titleSource,
+					chats: decoded.value.data.chats.map(chat => ({ summary: chat.summary, titleSource: chat.titleSource })),
+				}, {
+					payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+					titleSource: 'user',
+					chats: [{ summary: 'Renamed', titleSource: 'user' }],
+				});
+			});
+
 			test('a listing does not wake a parked repair: an outdated row waiting for its provider catalog is marked dirty once (#345377)', async () => {
 				// Claude before its SDK is downloaded: its catalog is unreadable, so its outdated rows wait for it to become readable.
 				class UnreadableCatalogAgent extends DeferredBackingAgent {
@@ -15957,6 +15986,34 @@ suite('AgentService (node dispatcher)', () => {
 						{ listed: 0, metadataCalls: 0 },
 					],
 					listedAfterRestore: [session.toString()],
+				});
+			});
+
+			test('rediscovering a provisional session forgets its recorded provider miss (#345377)', async () => {
+				let describes = false;
+				class RediscoveredAgent extends TimedExternalAgent {
+					override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+						return describes ? { chat, startTime: 10, modifiedTime: 10, summary: 'Real conversation' } : undefined;
+					}
+					override async listSessions() {
+						return [];
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new CentralCatalogDatabase(), 'rediscovered-provisional');
+				const agent = disposables.add(new RediscoveredAgent('copilot'));
+				const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(), agent);
+
+				const listedBefore = await svc.listSessions();
+				describes = true;
+				await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session, false, 10)]);
+				const listedAfter = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					listedBefore: listedBefore.map(metadata => metadata.session.toString()),
+					listedAfter: listedAfter.map(metadata => metadata.session.toString()),
+				}, {
+					listedBefore: [],
+					listedAfter: [session.toString()],
 				});
 			});
 

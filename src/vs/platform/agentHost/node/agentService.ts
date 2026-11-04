@@ -161,7 +161,7 @@ import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/title
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking, readPersistedSessionOrigin } from './agentHostCatalogSourceResolver.js';
+import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, type IAgentHostCatalogMetadataReference, isAgentHostChatBacking, readPersistedSessionOrigin } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat, type IOlderBuildEditsImport } from './agentHostPeerChatStore.js';
 import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
@@ -3985,6 +3985,20 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		const data = decoded.value;
+		// A key the local database lacks reads back as `undefined`, which would mask the stored value; an explicit clear is '' and still wins.
+		const definedDatabase: IAgentHostCatalogMetadataReference | undefined = database && {
+			object: {
+				getMetadataObject: async keys => {
+					const values = await database.object.getMetadataObject(keys);
+					for (const key in values) {
+						if (values[key] === undefined) {
+							delete values[key];
+						}
+					}
+					return values;
+				},
+			},
+		};
 		return this._catalogSourceResolver.buildCatalogSyncRequest(session, {
 			modifiedTime: data.modifiedTime,
 			title: data.summary,
@@ -4006,7 +4020,7 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectories: chat.workingDirectories,
 				changes: chat.changes,
 			})),
-		}, {}, true, database, this._catalogMetadataFallbacks(data));
+		}, {}, true, definedDatabase, this._catalogMetadataFallbacks(data));
 	}
 
 	/**
@@ -4511,6 +4525,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let alreadyRegistered = 0;
 		let registryChanged = false;
 		let surfacedMetadataChanged = false;
+		let rediscoveredUnmaterialized = false;
 		const changedMetadataSessions: string[] = [];
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
@@ -4525,6 +4540,11 @@ export class AgentService extends Disposable implements IAgentService {
 				// Registered identities retain provenance; only changed restored titles need per-session I/O.
 				if (resolution?.registered || registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
+					// The provider just described it, so a recorded miss for it no longer holds.
+					if (this._unmaterializedProvisionalSessionKeys.has(session.toString())) {
+						this._forgetUnmaterializedProvisionalSessions(session.toString());
+						rediscoveredUnmaterialized = true;
+					}
 					const live = this._stateManager.getSessionSummary(session.toString());
 					if (live && readSessionExternal(live._meta) && !this._stateManager.hasActiveTurn(session.toString())) {
 						await this._refreshDiscoveredSessionMetadata(sessionMetadata, live);
@@ -4686,11 +4706,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._forgetUnmaterializedProvisionalSessions(session);
 			}
 		}
-		if (registryChanged || surfacedMetadataChanged) {
+		if (registryChanged || surfacedMetadataChanged || rediscoveredUnmaterialized) {
 			this._invalidateSessionList();
 			this._catalogReconciliationService.schedule();
 		}
-		if (registeredExternal || surfacedMetadataChanged || (modifiedTimeAdvances.length > 0 && !this._hidesAllExternalSessions(this._getExternalSessionsMode()))) {
+		if (registeredExternal || surfacedMetadataChanged || rediscoveredUnmaterialized || (modifiedTimeAdvances.length > 0 && !this._hidesAllExternalSessions(this._getExternalSessionsMode()))) {
 			this._queueSessionListReconciliation();
 			if (awaitReconciliation && (registeredExternal || surfacedMetadataChanged)) {
 				await this._sessionListReconciliation;
