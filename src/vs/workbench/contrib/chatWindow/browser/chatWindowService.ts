@@ -144,6 +144,8 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose: Event<void> = this._onWillClose.event;
+	private readonly _onWillCloseParts = this._register(new Emitter<void>());
+	readonly onWillCloseParts: Event<void> = this._onWillCloseParts.event;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
@@ -414,7 +416,12 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		// part did. The main part closes first: when an editor cannot move to the main window, the window stays as it was,
 		// its chat too, and the editors that moved go back beside the chat.
 		const moved = this._moveEditorsBesideChatToMainPart();
-		if (!this._chatPartHoldsOnlyChat() || !this.mainPart.close()) {
+		const chatPartHoldsOnlyChat = this._chatPartHoldsOnlyChat();
+		if (chatPartHoldsOnlyChat) {
+			// What leaves the window rather than closing with its parts, such as terminals beside the chat, leaves it now
+			this._onWillCloseParts.fire();
+		}
+		if (!chatPartHoldsOnlyChat || !this.mainPart.close()) {
 			moved.moveBack();
 			this._closing = false;
 			this._host.setClosing?.(false);
