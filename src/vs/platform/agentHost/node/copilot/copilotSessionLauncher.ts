@@ -772,28 +772,31 @@ function toFusionTier(tier: string, logService: ILogService, sessionId: string, 
 
 /**
  * The tier inline chat, editor or terminal, runs Copilot Fusion at, whatever effort level the picker
- * holds, as latency matters more than routing depth there. Matches the Copilot extension's inline chat tier.
+ * holds, as latency matters more than routing depth there. Inline chat offers no Fusion effort level.
+ * Matches the Copilot extension's inline chat tier.
  */
 const InlineChatFusionAutoTier = 'fast';
 
 /**
  * The tier inline chat runs Copilot Fusion at, or `undefined` when Auto is not presented as Fusion or the
- * provider does not accept the tier. Advertised on Fusion's model, so clients hide its effort level in
- * inline chat only while the host pins it.
+ * provider does not accept the tier, in which case inline chat runs at the runtime's default.
  */
 export function getInlineChatFusionAutoTier(support = getAdvertisedAutoModeTierSupport()): string | undefined {
 	return isAutoAdvertisedAsFusion(support) && isSupportedAutoModeTier(InlineChatFusionAutoTier, support) ? InlineChatFusionAutoTier : undefined;
 }
 
-/** Fusion's tier for inline chat, or `undefined` when the model is not Fusion or the provider does not accept the tier. */
-function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | undefined {
+/**
+ * Fusion's tier for inline chat, or `undefined` when the model is not Fusion. When the provider does not
+ * accept the tier, `null` leaves the tier to the runtime rather than to a deeper saved effort level.
+ */
+function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | null | undefined {
 	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion(support)) {
 		return undefined;
 	}
 	const tier = getInlineChatFusionAutoTier(support);
 	if (tier === undefined) {
-		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers(support).join(', ')}]`);
-		return undefined;
+		logService.warn(`[Copilot:${sessionId}] Leaving inline chat on Fusion to the runtime's default, since the provider does not accept Fusion's '${InlineChatFusionAutoTier}' tier; expected one of [${getSupportedAutoModeTiers(support).join(', ')}]`);
+		return null;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Fusion's '${tier}' tier for inline chat`);
 	return tier;
@@ -801,7 +804,7 @@ function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logS
 
 /**
  * Resolves the tiers that take precedence over the picker: the shared override, then inline chat's
- * Fusion tier. `null` applies the override by leaving the tier to the runtime.
+ * Fusion tier. `null` leaves the tier to the runtime.
  */
 function resolveForcedAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat: boolean, support: IAutoModeTierSupport): string | null | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId, support);
@@ -821,7 +824,7 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	if (forced !== undefined) {
 		return forced ?? undefined;
 	}
-	// Inline chat pins Fusion's fast tier, which needs the provider's tiers; until they are known, it runs at the runtime's
+	// Inline chat offers no Fusion effort level, so until the provider's tiers are known, it runs at the runtime's
 	// default rather than at a deeper saved preference.
 	if (isInlineChat && !support.tiers) {
 		return undefined;

@@ -3525,7 +3525,7 @@ suite('getCopilotAutoTier', () => {
 			inlineConcreteModel: undefined,
 			inlineWithOverride: 'balance',
 			panel: 'hydrafusion',
-			fastNotAccepted: 'hydrafusion',
+			fastNotAccepted: undefined,
 			inlineNotFusion: 'efficiency',
 			inlineTiersUnknown: undefined,
 			panelTiersUnknown: 'hydrafusion',
