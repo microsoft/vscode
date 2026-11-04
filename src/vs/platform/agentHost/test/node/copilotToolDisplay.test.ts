@@ -1257,6 +1257,30 @@ suite('skill events', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not link empty or root skill paths', () => {
+		assert.deepStrictEqual(['', ' ', '/'].map(path => {
+			const skill = synthesizeSkillToolCall({ name: 'plan', path, content: '' }, 'skill-event');
+			return { invocationMessage: skill.invocationMessage, pastTenseMessage: skill.pastTenseMessage };
+		}), [
+			{ invocationMessage: { markdown: 'Read skill plan' }, pastTenseMessage: { markdown: 'Read skill plan' } },
+			{ invocationMessage: { markdown: 'Read skill plan' }, pastTenseMessage: { markdown: 'Read skill plan' } },
+			{ invocationMessage: { markdown: 'Read skill plan' }, pastTenseMessage: { markdown: 'Read skill plan' } },
+		]);
+	});
+
+	test('never treats an unresolved MCP skill as a file or exposes its qualified name', () => {
+		const name = 'mcp1:6673:0123456789abcdef';
+		const withOrigin = synthesizeSkillToolCall({ name, path: '/not-a-skill', content: '', mcpOrigin: { serverName: 'fs', uri: 'skill://review/SKILL.md' } }, 'with-origin');
+		const withoutOrigin = synthesizeSkillToolCall({ name, path: '', content: '', source: 'mcp' }, 'without-origin');
+		assert.deepStrictEqual({
+			withOrigin: withOrigin.invocationMessage,
+			withoutOrigin: withoutOrigin.invocationMessage,
+		}, {
+			withOrigin: { markdown: 'Read skill fs:review' },
+			withoutOrigin: { markdown: 'Read skill' },
+		});
+	});
+
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
 		const withPath = synthesizeSkillToolCall(
 			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
