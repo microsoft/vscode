@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -46,6 +46,7 @@ import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsCons
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
+	const completionStartTimeStorageKey = 'sessions.inboxNotifications.completionStartTime';
 	const disposables = new DisposableStore();
 	const passingChecks: readonly IGitHubCICheck[] = [{
 		id: 1, name: 'CI', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success,
@@ -170,6 +171,7 @@ suite('InboxNotificationsService', () => {
 			readonly onDidChangeLanguageModels?: Event<string>;
 			readonly onDidChangeContentProviderSchemes?: IChatSessionsService['onDidChangeContentProviderSchemes'];
 			readonly telemetryLevel?: TelemetryLevel;
+			readonly completionStartTime?: number | null;
 		} = {},
 	): {
 		readonly service: InboxNotificationsService;
@@ -193,6 +195,9 @@ suite('InboxNotificationsService', () => {
 			getSession: (resource: URI) => sessions.find(candidate => candidate.resource.toString() === resource.toString()),
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
+		if (effectiveStorageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION) === undefined && options.completionStartTime !== null) {
+			effectiveStorageService.store(completionStartTimeStorageKey, options.completionStartTime ?? 0, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
 		const effectiveGitHubService = gitHubService ?? new TestGitHubService();
 		const effectiveChatService = chatService ?? new TestChatService();
 		const effectiveAgentHostProvider = agentHostProvider ?? new TestAgentHostProvider();
@@ -289,15 +294,22 @@ suite('InboxNotificationsService', () => {
 				description: '',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
+			{
+				kind: InboxNotificationKind.Completed,
+				priority: InboxNotificationPriority.Later,
+				description: '',
+				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+			},
 		]);
 	});
 
-	test('does not resurrect historical read completions when sessions arrive after an update', () => {
-		const fixture = createFixture([]);
+	test('does not resurrect historical completions when sessions arrive after an update', () => {
+		const fixture = createFixture([], undefined, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
 		const old = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const oldUnread = createSession({ id: 'old-unread', status: SessionStatus.Completed, updatedAt: 50 });
 		const unread = createSession({ id: 'unread', status: SessionStatus.Completed, updatedAt: 200 });
 		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: 300, isRead: true });
-		fixture.setSessions([old, unread, pending]);
+		fixture.setSessions([old, oldUnread, unread, pending]);
 		const snapshot = (service: InboxNotificationsService) => ({
 			notifications: service.notifications.get().map(item => item.id),
 			rows: service.sessionRows.get().map(row => [row.sessionTitle, row.tab]),
@@ -305,16 +317,16 @@ suite('InboxNotificationsService', () => {
 		});
 		const initial = snapshot(fixture.service);
 		(old.updatedAt as ISettableObservable<Date>).set(new Date(400), undefined);
-		const restored = createFixture([old, unread, pending], fixture.storageService);
+		const restored = createFixture([old, oldUnread, unread, pending], fixture.storageService);
 		assert.deepStrictEqual({ initial, restored: snapshot(restored.service) }, {
 			initial: {
 				notifications: ['pending:needsInput:300', 'unread:completed:200'],
-				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done]],
+				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done], ['old-unread', InboxTab.Done]],
 				count: 2,
 			},
 			restored: {
 				notifications: ['pending:needsInput:300', 'unread:completed:200'],
-				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done]],
+				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done], ['old-unread', InboxTab.Done]],
 				count: 2,
 			},
 		});
@@ -322,16 +334,14 @@ suite('InboxNotificationsService', () => {
 
 	test('a historical read session returns to the inbox when another turn completes', () => {
 		const session = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
-		const fixture = createFixture([session]);
+		const fixture = createFixture([session], undefined, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
 		const initial = fixture.service.sessionRows.get()[0].tab;
 		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
 		const working = fixture.service.sessionRows.get()[0].tab;
 		transaction(tx => {
 			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), tx);
-			(session.isRead as ISettableObservable<boolean>).set(false, tx);
 		});
-		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
 		const restored = createFixture([session], fixture.storageService);
 		assert.deepStrictEqual({
 			initial, working,
@@ -342,6 +352,35 @@ suite('InboxNotificationsService', () => {
 			tab: InboxTab.ReadyForYou, notifications: ['old:completed:200'],
 		});
 	});
+
+	test('starts completion tracking on first enablement and preserves it across restarts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const old = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: Date.now() - 1 });
+		const fixture = createFixture([old], undefined, undefined, undefined, undefined, true, [], false, { completionStartTime: null });
+		const disabledStartTime = fixture.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION);
+		await fixture.configurationService.setUserConfiguration(CHAT_INBOX_ENABLED_SETTING, true);
+		fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === CHAT_INBOX_ENABLED_SETTING,
+		}));
+		const startTime = fixture.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION)!;
+		const atBoundary = createSession({ id: 'boundary', status: SessionStatus.Completed, updatedAt: startTime, isRead: true });
+		const after = createSession({ id: 'after', status: SessionStatus.Completed, updatedAt: startTime + 1 });
+		fixture.setSessions([old, atBoundary, after]);
+		const initial = fixture.service.notifications.get().map(item => item.id);
+		fixture.service.dispose();
+		await timeout(1000);
+		const offline = createSession({ id: 'offline', status: SessionStatus.Completed, updatedAt: startTime + 500, isRead: true });
+		const restored = createFixture([old, atBoundary, after, offline], fixture.storageService, undefined, undefined, undefined, true, [], true, { completionStartTime: null });
+		assert.deepStrictEqual({
+			disabledStartTime, initial,
+			preservedStartTime: restored.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION) === startTime,
+			restored: restored.service.notifications.get().map(item => item.id),
+		}, {
+			disabledStartTime: undefined,
+			initial: [`after:completed:${startTime + 1}`, `boundary:completed:${startTime}`],
+			preservedStartTime: true,
+			restored: [`offline:completed:${startTime + 500}`, ...initial],
+		});
+	}));
 
 	test('switches between priority and recency sorting', () => {
 		const fixture = createFixture([

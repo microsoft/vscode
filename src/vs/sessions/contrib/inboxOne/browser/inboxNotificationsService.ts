@@ -74,6 +74,7 @@ import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceComman
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
 const MAX_DISMISSED_NOTIFICATION_IDS = 1000;
 const WORKFLOW_STORAGE_KEY = 'sessions.inboxNotifications.workflow';
+const COMPLETION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.completionStartTime';
 
 /** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
@@ -412,12 +413,6 @@ interface INeedsInputPartCandidate {
 	readonly part: IInboxNotificationNeedsInputPart;
 }
 
-interface IInboxWorkflowState {
-	readonly hold?: boolean;
-	readonly done?: string;
-	readonly pendingCompletion?: number;
-}
-
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -474,7 +469,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
 	readonly attentionCount: IObservable<number>;
-	private readonly _workflow = observableValue<ReadonlyMap<string, IInboxWorkflowState>>(this, new Map());
+	private readonly _workflow = observableValue<ReadonlyMap<string, { hold?: boolean; done?: string }>>(this, new Map());
+	private readonly _completionStartTime = observableValue(this, Number.POSITIVE_INFINITY);
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _enabled: IObservable<boolean>;
@@ -519,28 +515,19 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, COMPLETION_START_TIME_STORAGE_KEY, this._store)(event => {
+			if (event.external) {
+				this._completionStartTime.set(this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION, Number.POSITIVE_INFINITY), undefined);
+			}
+		}));
 		this._register(autorun(reader => {
 			if (!this._enabled.read(reader)) {
 				return;
 			}
-			sessionsChanged.read(reader);
-			const state = new Map(this._workflow.read(undefined));
-			let changed = false;
-			for (const session of this.sessionsManagementService.getSessions()) {
-				if (session.isArchived.read(reader) || session.status.read(reader) !== SessionStatus.Completed || session.isRead.read(reader)) {
-					continue;
-				}
-				const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
-				const id = `session:${session.sessionId}`;
-				const saved = state.get(id);
-				if (saved?.pendingCompletion !== turnEnd) {
-					state.set(id, { ...saved, pendingCompletion: turnEnd });
-					changed = true;
-				}
-			}
-			if (changed) {
-				this.persistWorkflow(state);
-			}
+			// Enabling Inbox must not backfill completed history, even when it is still unread.
+			const startTime = this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION) ?? Date.now();
+			this.storageService.store(COMPLETION_START_TIME_STORAGE_KEY, startTime, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this._completionStartTime.set(startTime, undefined);
 		}));
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
 			for (const type of removed) {
@@ -1532,17 +1519,16 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			if (!Array.isArray(entries)) {
 				throw new Error('Invalid Inbox workflow state');
 			}
-			const state = new Map<string, IInboxWorkflowState>();
+			const state = new Map<string, { hold?: boolean; done?: string }>();
 			for (const entry of entries) {
 				if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'object' || !entry[1]) {
 					throw new Error('Invalid Inbox workflow entry');
 				}
 				const value = entry[1];
-				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')
-					|| (value.pendingCompletion !== undefined && (typeof value.pendingCompletion !== 'number' || !Number.isFinite(value.pendingCompletion)))) {
+				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')) {
 					throw new Error('Invalid Inbox workflow value');
 				}
-				state.set(entry[0], { hold: value.hold, done: value.done, pendingCompletion: value.pendingCompletion });
+				state.set(entry[0], { hold: value.hold, done: value.done });
 			}
 			this._workflow.set(state, undefined);
 		} catch (error) {
@@ -1550,16 +1536,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private saveWorkflow(id: string, value: IInboxWorkflowState): void {
+	private saveWorkflow(id: string, value: { hold?: boolean; done?: string }): void {
 		const state = new Map(this._workflow.get());
 		state.delete(id);
-		if (value.hold || value.done || value.pendingCompletion !== undefined) {
+		if (value.hold || value.done) {
 			state.set(id, value);
 		}
-		this.persistWorkflow(state);
-	}
-
-	private persistWorkflow(state: Map<string, IInboxWorkflowState>): void {
 		while (state.size > MAX_DISMISSED_NOTIFICATION_IDS) {
 			state.delete(state.keys().next().value!);
 		}
@@ -1568,11 +1550,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void {
-		this.saveWorkflow(row.id, { ...this._workflow.get().get(row.id), hold: onHold, done: undefined });
+		this.saveWorkflow(row.id, { hold: onHold });
 	}
 
 	markSessionDone(row: IInboxSessionRow): void {
-		this.saveWorkflow(row.id, { ...this._workflow.get().get(row.id), hold: undefined, done: row.occurrence });
+		this.saveWorkflow(row.id, { done: row.occurrence });
 	}
 
 	publishExternalNotification(notification: IExternalInboxNotification): void {
@@ -1728,8 +1710,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	private hasPendingCompletion(session: ISession, reader: IReader): boolean {
 		const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
-		// Reading an admitted completion must not clear it, including after a restart.
-		return !session.isRead.read(reader) || this._workflow.read(reader).get(`session:${session.sessionId}`)?.pendingCompletion === turnEnd;
+		return turnEnd >= this._completionStartTime.read(reader);
 	}
 
 	private ensureGitHubModels(session: ISession, reader: IReaderWithStore): void {
