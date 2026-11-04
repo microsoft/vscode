@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../../nls.js';
-import { EditorPartModalVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IsNewChatSessionContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
+import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep, getNewSessionViewMentalModelWorkspaceCopy } from './newSessionViewTourShared.js';
 
 export const NEW_SESSION_VIEW_V2_TOUR_ID = 'sessions.onboarding.newSessionViewV2';
+export const NEW_SESSION_VIEW_V2_VARIATION_TREATMENT = 'onb.newSessionViewV2.variation';
+export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel', 'mentalModelAndModels'] as const;
+export type NewSessionViewV2Variation = typeof NEW_SESSION_VIEW_V2_VARIATIONS[number];
+
+onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V2_TOUR_ID, developerModeVariations: NEW_SESSION_VIEW_V2_VARIATIONS });
 
 const NEW_SESSION_VIEW_V2_EXPERIMENT = {
 	behaviorFlag: 'onb.newSessionViewV2.show',
@@ -23,20 +26,20 @@ const NEW_SESSION_VIEW_V2_EXPERIMENT = {
 
 const WAIT_FOR_PICKER = { kind: 'wait', timeoutMs: 5_000 } as const;
 
+const modelPickerStep: ISpotlightStep = {
+	id: 'modelPicker',
+	targetId: 'sessions.newSession.modelPicker',
+	title: localize('sessions.onboarding.newSessionViewV2.model.title', "Choose a model"),
+	description: localize('sessions.onboarding.newSessionViewV2.model.description', "The model powers your agent's reasoning. Choose one based on the balance of speed and capability your task needs."),
+	placement: 'below',
+	missingTarget: WAIT_FOR_PICKER,
+	openTarget: true,
+	allowTargetInteraction: true,
+};
+
 const newSessionViewV2Payload: ISpotlightPayload = {
 	steps: [
-		{
-			id: 'workspacePicker',
-			targetId: 'sessions.newSession.workspacePicker',
-			title: localize('sessions.onboarding.newSessionViewV2.workspace.title', "Choose a workspace"),
-			description: localize('sessions.onboarding.newSessionViewV2.workspace.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files."),
-			placement: 'above',
-			when: ContextKeyExpr.and(SessionWorkspacePickerVisibleContext, SessionHasWorkspaceContext.toNegated()),
-			missingTarget: { kind: 'skip' },
-			openTarget: true,
-			allowTargetInteraction: true,
-			advanceWhen: SessionHasWorkspaceContext,
-		},
+		createNewSessionViewWorkspaceStep({ requireSelection: false }),
 		{
 			id: 'harnessPicker',
 			targetId: 'sessions.newSession.harnessPicker',
@@ -45,38 +48,71 @@ const newSessionViewV2Payload: ISpotlightPayload = {
 			placement: 'above',
 			missingTarget: WAIT_FOR_PICKER,
 			openTarget: false,
+			when: SessionHarnessPickerVisibleContext,
 			allowTargetInteraction: true,
 		},
+		modelPickerStep,
+	],
+};
+
+const workspaceAndModelWorkspaceStep: ISpotlightStep = {
+	...createNewSessionViewWorkspaceStep({ requireSelection: false }),
+	when: SessionWorkspacePickerVisibleContext,
+	openTarget: 'ifUnselected',
+	advanceOnTargetSelection: true,
+};
+
+const workspaceAndModelPayload: ISpotlightPayload = {
+	steps: [
+		workspaceAndModelWorkspaceStep,
 		{
-			id: 'modelPicker',
-			targetId: 'sessions.newSession.modelPicker',
-			title: localize('sessions.onboarding.newSessionViewV2.model.title', "Choose a model"),
-			description: localize('sessions.onboarding.newSessionViewV2.model.description', "The model powers your agent's reasoning. Choose one based on the balance of speed and capability your task needs."),
-			placement: 'below',
-			missingTarget: WAIT_FOR_PICKER,
-			openTarget: true,
-			allowTargetInteraction: true,
+			...modelPickerStep,
+			openTarget: false,
 		},
 	],
 };
 
+const mentalModelAndModelsPayload: ISpotlightPayload = {
+	steps: [
+		{
+			...workspaceAndModelWorkspaceStep,
+			...getNewSessionViewMentalModelWorkspaceCopy(),
+		},
+		{
+			...modelPickerStep,
+			openTarget: false,
+			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.title', "All your favorite models, one place"),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more. The best models from across the industry are ready to go. Pick your favorite or switch anytime."),
+		},
+	],
+};
+
+const newSessionViewV2VariationPayloads: Record<NewSessionViewV2Variation, ISpotlightPayload> = {
+	default: newSessionViewV2Payload,
+	workspaceAndModel: workspaceAndModelPayload,
+	mentalModelAndModels: mentalModelAndModelsPayload,
+};
+
 /** Builds the interactive new-session view tour. */
-export function createNewSessionViewV2Tour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
+export function createNewSessionViewV2Tour(
+	signal: IObservable<boolean>,
+	resolveVariation?: () => Promise<NewSessionViewV2Variation>,
+	options: { enabledByDefault?: boolean } = {},
+): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_VIEW_V2_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(
-			ChatContextKeys.enabled,
-			IsNewChatSessionContext,
-			ChatEntitlementContextKeys.Entitlement.signedOut.toNegated(),
-			EditorPartModalVisibleContext.toNegated(),
-		),
+		developerModeVariations: NEW_SESSION_VIEW_V2_VARIATIONS,
+		when: createNewSessionViewRecentTourWhen(),
 		trigger: { kind: 'observable', signal },
 		priority: 110,
-		experiment: NEW_SESSION_VIEW_V2_EXPERIMENT,
+		experiment: options.enabledByDefault ? undefined : NEW_SESSION_VIEW_V2_EXPERIMENT,
 		presentation: {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
-			payload: newSessionViewV2Payload,
+			payload: {
+				...newSessionViewV2Payload,
+				resolveSteps: resolveVariation ? async () => newSessionViewV2VariationPayloads[await resolveVariation()].steps : undefined,
+			},
 		},
 	};
 }

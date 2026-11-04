@@ -39,9 +39,9 @@ mkdir -p %{buildroot}%{_datadir}/zsh/site-functions
 cp -r usr/share/%{name}/* %{buildroot}%{_datadir}/%{name}
 ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}
 # Support files
-cp -r usr/share/applications/%{name}.desktop %{buildroot}%{_datadir}/applications
-cp -r usr/share/applications/%{name}-url-handler.desktop %{buildroot}%{_datadir}/applications
-cp -r usr/share/appdata/%{name}.appdata.xml %{buildroot}%{_datadir}/appdata
+cp -r usr/share/applications/@@DESKTOP_NAME@@.desktop %{buildroot}%{_datadir}/applications
+cp -r usr/share/applications/@@DESKTOP_NAME@@.UrlHandler.desktop %{buildroot}%{_datadir}/applications
+cp -r usr/share/appdata/@@DESKTOP_NAME@@.appdata.xml %{buildroot}%{_datadir}/appdata
 cp -r usr/share/mime/packages/%{name}-workspace.xml %{buildroot}%{_datadir}/mime/packages/%{name}-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}%{_datadir}/pixmaps
 # Shell completions
@@ -49,10 +49,14 @@ cp usr/share/bash-completion/completions/%{name} %{buildroot}%{_datadir}/bash-co
 cp usr/share/zsh/site-functions/_%{name} %{buildroot}%{_datadir}/zsh/site-functions/_%{name}
 
 %post
+@@COPILOT_LINK_HELPER@@
+
 # Remove the legacy bin command if this is the stable build
 if [ "%{name}" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
+
+vscode_copilot_link install "%{name}" || :
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
@@ -71,6 +75,12 @@ update-desktop-database &> /dev/null || :
 update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %postun
+@@COPILOT_LINK_HELPER@@
+
+if [ "$1" = 0 ]; then
+	vscode_copilot_link remove "%{name}" || :
+fi
+
 # Uninstall the desktop entry
 update-desktop-database &> /dev/null || :
 
@@ -83,9 +93,9 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %{_bindir}/%{name}
 %{_datadir}/%{name}/
-%{_datadir}/applications/%{name}.desktop
-%{_datadir}/applications/%{name}-url-handler.desktop
-%{_datadir}/appdata/%{name}.appdata.xml
+%{_datadir}/applications/@@DESKTOP_NAME@@.desktop
+%{_datadir}/applications/@@DESKTOP_NAME@@.UrlHandler.desktop
+%{_datadir}/appdata/@@DESKTOP_NAME@@.appdata.xml
 %{_datadir}/mime/packages/%{name}-workspace.xml
 %{_datadir}/pixmaps/@@ICON@@.png
 %{_datadir}/bash-completion/completions/%{name}

@@ -118,6 +118,20 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		return this.bracketPairsTree.value?.object.getBracketsInRange(range, onlyColorizedBrackets) || CallbackIterable.empty;
 	}
 
+	public hasUnmatchedClosingBracketAfter(_position: IPosition, openingBracket: string): boolean {
+		const position = this.textModel.validatePosition(_position);
+		const languageId = this.textModel.getLanguageIdAtPosition(position.lineNumber, position.column);
+		const openingBracketInfo = this.languageConfigurationService
+			.getLanguageConfiguration(languageId)
+			.bracketsNew.getOpeningBracketInfo(openingBracket);
+		if (!openingBracketInfo) {
+			return false;
+		}
+		this.bracketsRequested = true;
+		this.updateBracketPairsTree();
+		return this.bracketPairsTree.value?.object.hasUnmatchedClosingBracketAfter(position, openingBracketInfo) ?? false;
+	}
+
 	public findMatchingBracketUp(_bracket: string, _position: IPosition, maxDuration?: number): Range | null {
 		const position = this.textModel.validatePosition(_position);
 		const languageId = this.textModel.getLanguageIdAtPosition(position.lineNumber, position.column);

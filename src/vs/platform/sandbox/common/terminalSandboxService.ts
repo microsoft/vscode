@@ -12,6 +12,11 @@ import { TerminalCapability } from '../../terminal/common/capabilities/capabilit
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
+export function getSandboxTempDir(userHome: URI, dataFolderName: string, windowId?: number): URI {
+	const sandboxRoot = URI.joinPath(userHome, dataFolderName, 'tmp');
+	return typeof windowId === 'number' ? URI.joinPath(sandboxRoot, `tmp_vscode_${windowId}`) : sandboxRoot;
+}
+
 export interface ITerminalSandboxResolvedNetworkDomains {
 	allowedDomains: string[];
 	deniedDomains: string[];
@@ -122,6 +127,7 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
+	/** Returns canonical allow/deny patterns, or a deny-all policy if a configured pattern cannot be normalized. */
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
 	getMissingSandboxDependencies(): Promise<string[]>;
 	installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;

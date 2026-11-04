@@ -96,14 +96,14 @@ gh run download <RUN_ID> --pattern '*' --dir /dev/null 2>&1 || gh run view <RUN_
 
 # Download log artifacts for a specific failed job
 # Artifact naming convention: logs-<platform>-<arch>-<test-type>-<attempt>
-# Examples: logs-linux-x64-electron-1, logs-linux-x64-remote-1
-gh run download <RUN_ID> -n "logs-linux-x64-electron-1" -D /tmp/ci-logs
+# Examples: logs-linux-x64-electron-extension-host-1, logs-linux-x64-remote-smoke-1
+gh run download <RUN_ID> -n "logs-linux-x64-electron-extension-host-1" -D /tmp/ci-logs
 
 # Download crash dumps if available
-gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-1" -D /tmp/ci-crashes
+gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-extension-host-1" -D /tmp/ci-crashes
 ```
 
-> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" → `electron`, "Linux / Remote" → `remote`) and platform map ("Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`) to construct the artifact name.
+> **Tip**: The `<test-type>` is the `ARTIFACT_NAME` in the `env` of the failed job in `.github/workflows/pr-<linux|darwin|win32>-test.yml` (e.g., "Linux / Electron (extension host)" → `electron-extension-host`, "Linux / Remote (integration)" → `remote`, "macOS / Electron" → `electron`). Map the platform with "Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`.
 
 > **Warning**: Log artifacts may be empty if the test runner crashed before producing output (e.g., Electron download failure). In that case, fall back to **Option C**.
 
@@ -138,7 +138,7 @@ grep -n -E 'HTTPError|ECONNRESET|ETIMEDOUT|502|exit code|Process completed|node:
 
 Downloaded log artifacts typically contain:
 ```
-logs-linux-x64-electron-1/
+logs-linux-x64-electron-extension-host-1/
   main.log              # Main process log
   terminal.log          # Terminal/pty host log (key for run_in_terminal issues)
   window1/
@@ -190,7 +190,7 @@ Before fixing, determine if the failure is caused by the PR changes or is a pre-
 2. **Check the test name** — does it relate to the feature area you modified?
 3. **Look at the failure output** — does it reference code paths your PR touches?
 4. **Check if the same tests fail on main** — if identical failures exist on recent main commits, it's a pre-existing issue
-5. **Look for infrastructure failures** — network timeouts, npm registry errors, and machine-level issues are not caused by code changes
+5. **Look for infrastructure failures** — network timeouts, npm registry errors (pnpm fetches from it as well), and machine-level issues are not caused by code changes
 
 ```bash
 # Check recent runs on main for the same workflow
@@ -202,7 +202,7 @@ gh run list --branch main --workflow pr-linux-test.yml --limit 5 --json database
 Not all CI failures are caused by code changes. Common infrastructure failures:
 
 **Network / Registry issues**:
-- `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` — npm registry unreachable
+- `ERR_PNPM_META_FETCH_FAIL`, `ERR_PNPM_FETCH_*`, `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` — npm registry unreachable
 - `error: RPC failed; curl 56`, `fetch-pack: unexpected disconnect` — git network failure
 - `Error: unable to get local issuer certificate` — TLS/certificate issues
 - `rate limit exceeded` — GitHub API rate limiting
@@ -237,7 +237,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
 ## Step 7: Fix and Iterate
 
 1. Make the fix locally
-2. Verify compilation: check the `VS Code - Build` task or run `npm run typecheck-client`
+2. Verify compilation: check the `VS Code - Build` task or run `pnpm run typecheck-client`
 3. Run relevant unit tests locally: `./scripts/test.sh --grep "<pattern>"`
 4. Commit and push:
    ```bash

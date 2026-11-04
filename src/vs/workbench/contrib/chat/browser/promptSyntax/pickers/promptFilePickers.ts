@@ -15,7 +15,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName, getSkillFolderName } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
+import { getDocumentationUrl, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID, GENERATE_AGENT_COMMAND_ID } from '../../actions/chatActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -74,35 +74,36 @@ export interface ISelectPromptResult {
  */
 function newHelpButton(type: PromptsType): IQuickInputButton & { helpURI: URI } {
 	const iconClass = ThemeIcon.asClassName(Codicon.question);
+	const helpURI = URI.parse(getDocumentationUrl(type));
 	switch (type) {
 		case PromptsType.prompt:
 			return {
 				tooltip: localize('help.prompt', "Show help on prompt files"),
-				helpURI: URI.parse(PROMPT_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.instructions:
 			return {
 				tooltip: localize('help.instructions', "Show help on instruction files"),
-				helpURI: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.agent:
 			return {
 				tooltip: localize('help.agent', "Show help on custom agent files"),
-				helpURI: URI.parse(AGENT_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.skill:
 			return {
 				tooltip: localize('help.skill', "Show help on skill files"),
-				helpURI: URI.parse(SKILL_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.hook:
 			return {
 				tooltip: localize('help.hook', "Show help on hook files"),
-				helpURI: URI.parse(HOOK_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 	}

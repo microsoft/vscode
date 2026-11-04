@@ -73,6 +73,10 @@ export class MarkedKatexSupport {
 			const prop = style[i];
 			if (allowedProperties.includes(prop)) {
 				const value = style.getPropertyValue(prop);
+				// KaTeX only positions elements relative to their normal position.
+				if (prop === 'position' && value !== 'relative') {
+					continue;
+				}
 				// Allow through lists of numbers with units or bare words like 'block'
 				// Main goal is to block things like 'url()'.
 				if (/^(([\d\.\-]+\w*\s?)+|\w+)$/.test(value)) {
@@ -226,7 +230,6 @@ const trustedMathMlTags = Object.freeze([
 	'radialgradient',
 	'rect',
 	'stop',
-	'style',
 	'switch',
 	'symbol',
 	'text',
@@ -237,4 +240,3 @@ const trustedMathMlTags = Object.freeze([
 	'view',
 	'vkern',
 ]);
-

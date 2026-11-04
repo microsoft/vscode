@@ -59,8 +59,18 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	provider: 'claude',
 	scheme: 'claude',
 	shellToolName: 'Bash',
+	fileOperationStrategy: 'fileTools',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
+	streamingFileCreateToolName: 'Write',
+	modelSwitchTarget: 'claude-opus-5',
+	modelSwitchReturnTarget: 'claude-opus-5.5',
+	interactiveInputPrompt: 'Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.',
+	cancelledInputPrompt: 'Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
+	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
+	supportsRuntimeSlashCommandsE2E: true,
+	supportsAttachmentsE2E: true,
+	supportsWorktreeIncludeFilesE2E: true,
 	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,
 	// Worktree isolation is now shared across agents via the host-owned
@@ -72,19 +82,15 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: true,
 	supportsSideChats: true,
-	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
-	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
-	subagentReplayUnstableOnWindows: true,
+	supportsSideChatsE2E: true,
+	fileDeleteReplayUnstableOnWindows: true,
 	// Plan mode is wired (`ExitPlanMode` interactive tool exists) but the
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.
-	supportsPlanMode: false,
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsChatFork: true,
-	// The Claude SDK currently receives the AHP turn id as upToMessageId and
-	// rejects it as invalid when the fork is exercised against a real transcript.
-	supportsChatForkE2E: false,
-	supportsFileTools: true,
+	supportsChatForkE2E: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

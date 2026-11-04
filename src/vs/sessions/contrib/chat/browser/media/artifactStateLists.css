@@ -1,0 +1,178 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.artifact-tabbed-state-widget {
+	min-width: 0;
+	flex-shrink: 0;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+}
+
+.artifact-tabbed-state-widget.has-lists {
+	border: 0;
+}
+
+.artifact-tabbed-state-widget.has-lists.lists-collapsed {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+}
+
+.artifact-tabbed-header,
+.artifact-list-tab-item {
+	background: var(--vscode-editorWidget-background);
+}
+
+.artifact-tabbed-header {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.artifact-tabbed-content {
+	background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+	color: var(--vscode-dropdown-foreground, var(--vscode-editorWidget-foreground));
+}
+
+.artifact-tabbed-state-widget.has-lists .artifact-tabbed-content {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+	border-top: 0;
+	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+}
+
+.artifact-tabbed-state-widget.has-lists.lists-collapsed .artifact-tabbed-content {
+	border: 0;
+	border-radius: 0;
+}
+
+.artifact-tabbed-state-widget.lists-collapsed .artifact-list-tab-item {
+	border-bottom-color: transparent;
+}
+
+.artifact-tabbed-state-widget.lists-collapsed .artifact-list-tab-item + .artifact-list-tab-item {
+	border-left-color: var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+}
+
+.artifact-list-tabs-scrollable {
+	flex: 1;
+	min-width: 0;
+}
+
+.artifact-list-tabs {
+	display: flex;
+	width: max-content;
+	min-width: 100%;
+	height: var(--vscode-spacing-size360);
+}
+
+.artifact-list-tab-item {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+	min-width: 0;
+	box-sizing: border-box;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-bottom-color: var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+	cursor: pointer;
+}
+
+.artifact-list-tab-item.selected {
+	border-color: var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+	border-bottom-color: transparent;
+	border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+	background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+	color: var(--vscode-dropdown-foreground, var(--vscode-editorWidget-foreground));
+}
+
+.artifact-list-tabs .monaco-button.artifact-list-tab {
+	flex: 0 1 auto;
+	width: auto;
+	min-width: 0;
+	height: 100%;
+	gap: var(--vscode-spacing-size80);
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.artifact-list-tab .monaco-button-mdlabel {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.artifact-list-tab-item.selected .artifact-list-tab {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.artifact-list-tab-focus {
+	display: none;
+	position: absolute;
+	inset: var(--vscode-spacing-size20);
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	pointer-events: none;
+}
+
+.artifact-list-tab:is(:focus-visible, .synthetic-focus) ~ .artifact-list-tab-focus {
+	display: block;
+}
+
+.monaco-workbench .artifact-list-tabs .artifact-list-tab:is(:focus, .synthetic-focus) {
+	outline: 0 !important;
+}
+
+.artifact-list-tab-item .monaco-button.artifact-list-tab-info:not([hidden]) {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.artifact-state-list {
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	height: 100%;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.artifact-state-list .artifact-details-list {
+	flex: 1;
+	min-height: 0;
+}
+
+.artifact-state-list-message {
+	white-space: pre-wrap;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 var(--vscode-spacing-size80);
+}
+
+.artifact-tabbed-state-widget .artifact-state-actions {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+.artifact-tabbed-state-widget.has-lists .artifact-state-actions {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+}
+
+.artifact-list-tab-info:focus-visible,
+.artifact-state-list:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}

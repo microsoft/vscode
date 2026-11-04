@@ -28,6 +28,7 @@ import { DocumentDropEdit, DocumentPasteEdit } from '../../../common/languages.j
 import { TrackedRangeStickiness } from '../../../common/model.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { createCombinedWorkspaceEdit } from './edit.js';
+import { PasteEditSession } from './pasteEditSession.js';
 import './postEditWidget.css';
 
 
@@ -47,6 +48,8 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
 
+	private readonly _editSession: PasteEditSession | undefined;
+
 	private domNode!: HTMLElement;
 	private button!: Button;
 
@@ -59,14 +62,16 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		private readonly showCommand: ShowCommand,
 		private readonly range: Range,
 		private readonly edits: EditSet<T>,
-		private readonly onSelectNewEdit: (editIndex: number) => void,
+		private readonly onSelectNewEdit: (editIndex: number, editSession: PasteEditSession | undefined) => void,
 		private readonly additionalActions: readonly IAction[],
+		editSessionOwner: PasteEditSession | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 	) {
 		super();
 
+		this._editSession = editSessionOwner ? this._register(editSessionOwner.take()) : undefined;
 		this.create();
 
 		this.visibleContext = visibleContext.bindTo(contextKeyService);
@@ -140,7 +145,8 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 
 				const i = this.edits.allEdits.findIndex(edit => edit === item);
 				if (i !== this.edits.activeEditIndex) {
-					return this.onSelectNewEdit(i);
+					// Transfer the edits before undo disposes this widget.
+					return this.onSelectNewEdit(i, this._editSession?.take());
 				}
 			},
 		}, anchor, this.editor.getDomNode() ?? undefined, this.additionalActions);
@@ -169,7 +175,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken) {
+	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken, editSessionOwner?: PasteEditSession) {
 		if (!ranges.length || !this._editor.hasModel()) {
 			return;
 		}
@@ -180,14 +186,19 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 			return;
 		}
 
-		const onDidSelectEdit = async (newEditIndex: number) => {
-			const model = this._editor.getModel();
-			if (!model) {
-				return;
-			}
+		const onDidSelectEdit = async (newEditIndex: number, editSession: PasteEditSession | undefined) => {
+			try {
+				this.clear();
+				const model = this._editor.getModel();
+				if (!model) {
+					return;
+				}
 
-			await model.undo();
-			this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token);
+				await model.undo();
+				await this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token, editSession);
+			} finally {
+				editSession?.dispose();
+			}
 		};
 
 		const handleError = (e: Error, message: string) => {
@@ -197,7 +208,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 
 			this._notificationService.error(message);
 			if (canShowWidget) {
-				this.show(ranges[0], edits, onDidSelectEdit);
+				this.show(ranges[0], edits, onDidSelectEdit, editSessionOwner);
 			}
 		};
 
@@ -241,15 +252,15 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		}
 
 		if (canShowWidget && editResult.isApplied && edits.allEdits.length > 1) {
-			this.show(editRange ?? primaryRange, edits, onDidSelectEdit);
+			this.show(editRange ?? primaryRange, edits, onDidSelectEdit, editSessionOwner);
 		}
 	}
 
-	public show(range: Range, edits: EditSet<T>, onDidSelectEdit: (newIndex: number) => void) {
+	public show(range: Range, edits: EditSet<T>, onDidSelectEdit: (newIndex: number, editSession: PasteEditSession | undefined) => void, editSessionOwner?: PasteEditSession) {
 		this.clear();
 
 		if (this._editor.hasModel()) {
-			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit, this._getAdditionalActions());
+			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit, this._getAdditionalActions(), editSessionOwner);
 		}
 	}
 

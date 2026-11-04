@@ -14,8 +14,9 @@ import { ChangesetStatus, type ChangesetFile, type ChangesetOperation, type Chan
 
 /**
  * The {@link ChangesetState.status} for this changeset transitioned (e.g.
- * `computing → ready`). The error payload is set together with `status`
- * whenever it transitions to {@link ChangesetStatus.Error | Error}.
+ * `computing → ready` or `recomputing → ready`). The error payload is set
+ * together with `status` whenever it transitions to
+ * {@link ChangesetStatus.Error | Error}.
  *
  * @category Changeset Actions
  * @version 2
@@ -63,8 +64,9 @@ export interface ChangesetFileRemovedAction {
  * Targets files by their {@link ChangesetFile.id}. Ids in {@link files} that
  * do not match a file currently present in the changeset are ignored; if none
  * match, the action is a no-op. Only the {@link ChangesetFile.reviewed} field
- * of each matched file is affected; the files' {@link ChangesetFile.edit | edit}
- * and {@link ChangesetFile._meta | _meta} are left untouched.
+ * of each matched file is affected; the files' {@link ChangesetFile.edit | edit},
+ * {@link ChangesetFile.nonce | nonce}, and {@link ChangesetFile._meta | _meta}
+ * are left untouched.
  *
  * Only meaningful on a changeset that advertises
  * {@link ChangesetCapabilities.review}. Unlike every other `changeset/*` action
@@ -73,8 +75,8 @@ export interface ChangesetFileRemovedAction {
  * server echo it back on the normal `action` envelope stream. The server MAY
  * also originate it (e.g. an agent marking its own output reviewed).
  *
- * There is no protocol-level content version, so review is not reset
- * automatically when a file's contents change under a stable id. The server,
+ * Review is not reset automatically when a file's contents or nonce change
+ * under a stable id. The server,
  * which is the authority on what changed, resets review explicitly — either by
  * re-emitting the file without `reviewed: true`, or by dispatching this action
  * with `reviewed: false`.
@@ -109,8 +111,6 @@ export interface ChangesetContentChangedAction {
 	files: ChangesetFile[];
 	/** Full replacement operation list. Omit when operations are unchanged. */
 	operations?: ChangesetOperation[];
-	/** Error information, if the changeset content change failed. */
-	error?: ErrorInfo;
 }
 
 /**

@@ -11,8 +11,10 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { FileEditorInput } from './fileEditorInput.js';
 import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from '../../common/files.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { EditorResolution, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from '../../../../services/editor/common/editorResolverService.js';
+import { OpenWithEditorPicker } from '../../../../services/editor/browser/openWithEditorPicker.js';
 import { isEditorInputWithOptions } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
@@ -29,7 +31,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -59,12 +62,17 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			}
 
 			// Try to let the user pick an editor
+			const pickedOptions = await this.instantiationService.createInstance(OpenWithEditorPicker).pick({
+				...untypedActiveEditor,
+				options: { ...options }
+			});
+			if (!pickedOptions) {
+				return;
+			}
+
 			let resolvedEditor: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({
 				...untypedActiveEditor,
-				options: {
-					...options,
-					override: EditorResolution.PICK
-				}
+				options: pickedOptions
 			}, this.group);
 
 			if (resolvedEditor === ResolvedStatus.NONE) {

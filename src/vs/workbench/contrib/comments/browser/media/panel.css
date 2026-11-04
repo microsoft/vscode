@@ -87,6 +87,11 @@
 	opacity: 0.8;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata > .user,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata > .timestamp-container > .timestamp {
+	font-size: var(--vscode-fontSize-body1);
+}
+
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .text *,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .range * {
 	margin: 0;

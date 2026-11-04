@@ -30,6 +30,7 @@ import { RemoteAgentService } from '../services/remote/electron-browser/remoteAg
 import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
 import { FileService } from '../../platform/files/common/fileService.js';
 import { IFileService } from '../../platform/files/common/files.js';
+import { BrowserResourceService, IBrowserResourceService } from '../../platform/files/browser/browserResourceService.js';
 import { RemoteFileSystemProviderClient } from '../services/remote/common/remoteFileSystemProviderClient.js';
 import { ConfigurationCache } from '../services/configuration/common/configurationCache.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
@@ -43,6 +44,8 @@ import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { NativeLogService } from '../services/log/electron-browser/logService.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../services/workspaces/common/workspaceTrust.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
+import { CanonicalUriService } from '../services/workspaces/common/canonicalUriService.js';
+import { ICanonicalUriService } from '../../platform/workspace/common/canonicalUri.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
 import { isCI, isMacintosh, isTahoeOrNewer } from '../../base/common/platform.js';
@@ -53,14 +56,14 @@ import { IUserDataProfilesService, reviveProfile } from '../../platform/userData
 import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
 import { NativeManagedSettingsChannelClient } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { FileManagedSettingsChannelClient } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
 import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
-import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
+import { createBrowserResourceUriProvider, ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
@@ -219,11 +222,12 @@ export class DesktopMain extends Disposable {
 		// Policies
 		let policyService: IPolicyService;
 		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
-		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings')));
+		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings'), logService));
 		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
 		const fileManagedSettings = this._register(new FileManagedSettingsChannelClient(mainProcessService.getChannel('fileManagedSettings')));
 		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
 		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel, nativeManagedSettings, fileManagedSettings));
+		serviceCollection.set(IManagedSettingsService, accountPolicy);
 		if (policyChannel) {
 			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {
@@ -259,7 +263,9 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, new ElectronRemoteResourceLoader(environmentService.window.id, mainProcessService, fileService));
+		const browserResourceService = this._register(new BrowserResourceService(createBrowserResourceUriProvider(environmentService.window.id), fileService));
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, this._register(new ElectronRemoteResourceLoader(environmentService.window.id, mainProcessService, fileService, browserResourceService)));
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Local Files
@@ -331,10 +337,13 @@ export class DesktopMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
+		const canonicalUriService = this._register(new CanonicalUriService());
+		serviceCollection.set(ICanonicalUriService, canonicalUriService);
+
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService, canonicalUriService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

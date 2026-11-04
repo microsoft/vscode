@@ -38,8 +38,8 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	const document = editor.document;
 
 	args = args || {};
-	if (!args['language']) {
-		args['language'] = document.languageId;
+	if (!args.language) {
+		args.language = document.languageId;
 	}
 	// we know it's not stylesheet due to the validate(false) call above
 	const syntax = getSyntaxFromArgs(args) || 'html';
@@ -249,8 +249,8 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	}
 
 	const prompt = vscode.l10n.t("Enter Abbreviation");
-	const inputAbbreviation = (args && args['abbreviation'])
-		? (args['abbreviation'] as string)
+	const inputAbbreviation = (args && args.abbreviation)
+		? (args.abbreviation as string)
 		: await vscode.window.showInputBox({ prompt, validateInput: inputChanged });
 
 	const changesWereMade = await makeChanges(inputAbbreviation, false);
@@ -285,10 +285,10 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	}
 
 	args = args || {};
-	if (!args['language']) {
-		args['language'] = vscode.window.activeTextEditor.document.languageId;
+	if (!args.language) {
+		args.language = vscode.window.activeTextEditor.document.languageId;
 	} else {
-		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+		const excludedLanguages = vscode.workspace.getConfiguration('emmet').excludeLanguages ? vscode.workspace.getConfiguration('emmet').excludeLanguages : [];
 		if (excludedLanguages.includes(vscode.window.activeTextEditor.document.languageId)) {
 			return fallbackTab();
 		}
@@ -301,7 +301,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	const editor = vscode.window.activeTextEditor;
 
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
-	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
+	if (vscode.workspace.getConfiguration('emmet').triggerExpansionOnTab === true && editor.selections.find(x => !x.isEmpty)) {
 		return fallbackTab();
 	}
 
@@ -357,7 +357,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 			return rootNode;
 		}
 
-		const usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+		const usePartialParsing = vscode.workspace.getConfiguration('emmet').optimizeStylesheetParsing === true;
 		if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
 			rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
 		} else {
@@ -418,7 +418,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 }
 
 function fallbackTab(): Thenable<boolean | undefined> {
-	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
+	if (vscode.workspace.getConfiguration('emmet').triggerExpansionOnTab === true) {
 		return vscode.commands.executeCommand('tab');
 	}
 	return Promise.resolve(true);
@@ -670,7 +670,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 				return line.replace(trimRegex, '').trim();
 			});
 		}
-		expandOptions['text'] = input.textToWrap;
+		expandOptions.text = input.textToWrap;
 
 		if (expandOptions.options) {
 			// Below fixes https://github.com/microsoft/vscode/issues/29898
@@ -701,9 +701,9 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 export function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
-	const language: string = args['language'];
-	const parentMode: string = args['parentMode'];
-	const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+	const language: string = args.language;
+	const parentMode: string = args.parentMode;
+	const excludedLanguages = vscode.workspace.getConfiguration('emmet').excludeLanguages ? vscode.workspace.getConfiguration('emmet').excludeLanguages : [];
 	if (excludedLanguages.includes(language)) {
 		return;
 	}

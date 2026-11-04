@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
+import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
 import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 
 suite('codexGuardianReview', () => {
@@ -80,6 +80,47 @@ suite('codexGuardianReview', () => {
 		});
 	});
 
+	const deniedWriteStdinReview: ItemGuardianApprovalReviewCompletedNotification = {
+		...deniedNetworkReview,
+		review: { ...deniedNetworkReview.review, rationale: 'The requested input was denied.' },
+		action: {
+			type: 'writeStdin',
+			approvalId: 'approval-stdin-1',
+			processId: '42',
+			stdin: '/bin/bash -lc \'echo hello\'\n',
+			cwd: '/workspace',
+		},
+	};
+
+	test('toGuardianAssessmentEventJson converts writeStdin payloads without changing terminal input', () => {
+		assert.deepStrictEqual(toGuardianAssessmentEventJson(deniedWriteStdinReview), {
+			id: 'review-1',
+			turn_id: 'turn-1',
+			started_at_ms: 1234,
+			completed_at_ms: 2345,
+			status: 'denied',
+			risk_level: 'critical',
+			user_authorization: 'unknown',
+			rationale: 'The requested input was denied.',
+			decision_source: 'agent',
+			action: {
+				type: 'write_stdin',
+				approval_id: 'approval-stdin-1',
+				process_id: '42',
+				stdin: '/bin/bash -lc \'echo hello\'\n',
+				cwd: '/workspace',
+			},
+		});
+	});
+
+	test('summarizeGuardianReviewAction preserves writeStdin input rather than unwrapping it as a command', () => {
+		assert.deepStrictEqual(summarizeGuardianReviewAction(deniedWriteStdinReview.action), {
+			title: 'Send input to program',
+			detail: '/bin/bash -lc \'echo hello\'\n',
+			toolKind: 'terminal',
+		});
+	});
+
 	const deniedPermissionsReview: ItemGuardianApprovalReviewCompletedNotification = {
 		threadId: 'thread-2',
 		turnId: 'turn-2',
@@ -142,6 +183,19 @@ suite('codexGuardianReview', () => {
 			[
 				'\n\n> ⚠️ **Auto-review denied** — Network access: `https://example.com`\n>\n> Blocked for safety.\n',
 				'\n\n> ⚠️ **Auto-review denied** — Elevated permissions\n',
+			]
+		);
+	});
+
+	test('formatGuardianReviewStatusNotification separates the compact title from review details', () => {
+		assert.deepStrictEqual(
+			[
+				formatGuardianReviewStatusNotification({ title: 'Network access', detail: 'https://example.com' }, 'timedOut', 'The reviewer did not respond in time.'),
+				formatGuardianReviewStatusNotification({ title: 'Elevated permissions', detail: '' }, 'aborted', null),
+			],
+			[
+				'Auto-review timed out\nRequested action: Network access `https://example.com`\n\nThe reviewer did not respond in time.',
+				'Auto-review stopped\nRequested action: Elevated permissions',
 			]
 		);
 	});

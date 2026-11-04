@@ -3,205 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentFeedbackEditorOverlay.css';
-import { Disposable, DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableSignalFromEvent, observableValue, type IObservable } from '../../../../base/common/observable.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
+import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentEditorCommentsOverlayWidget } from '../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
+import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
-import { assertType } from '../../../../base/common/types.js';
-import { localize } from '../../../../nls.js';
-import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
-class SubmitFeedbackActionRunner extends ActionRunner {
-
-	constructor(private readonly _editorGroup: IEditorGroup) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		const editorToClose = action.id === submitFeedbackActionId ? this._editorGroup.activeEditor : undefined;
-		const didSubmit = await action.run(context);
-		if (didSubmit === true && editorToClose) {
-			await this._editorGroup.closeEditor(editorToClose);
-		}
-	}
+export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
+	readonly editorPaneContainer: HTMLElement;
 }
 
-class AgentFeedbackActionViewItem extends ActionViewItem {
-
-	constructor(
-		action: IAction,
-		options: IBaseActionViewItemOptions,
-		private readonly _keybindingService: IKeybindingService,
-		private readonly _acceptedFeedbackCount?: IObservable<number>,
-		private readonly _editorGroup?: IEditorGroup,
-		private readonly _primaryActionIds: readonly string[] = [submitFeedbackActionId],
-	) {
-		const isIconOnly = action.id === navigatePreviousFeedbackActionId || action.id === navigateNextFeedbackActionId;
-		super(undefined, action, { ...options, icon: isIconOnly, label: !isIconOnly, keybindingNotRenderedWithLabel: true });
-
-		if (this._editorGroup && this._action.id === submitFeedbackActionId) {
-			this.actionRunner = this._register(new SubmitFeedbackActionRunner(this._editorGroup));
-		}
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		if (this._primaryActionIds.includes(this._action.id)) {
-			this.element?.classList.add('primary');
-		}
-
-		const acceptedFeedbackCount = this._acceptedFeedbackCount;
-		if (this._action.id === submitFeedbackActionId && acceptedFeedbackCount) {
-			this._store.add(autorun(r => {
-				acceptedFeedbackCount.read(r);
-				this.updateLabel();
-				this.updateTooltip();
-			}));
-		}
-	}
-
-	protected override updateLabel(): void {
-		if (this._action.id === submitFeedbackActionId && this.label) {
-			this.label.textContent = this._getSubmitLabel();
-			return;
-		}
-		super.updateLabel();
-	}
-
-	protected override getTooltip(): string | undefined {
-		const value = this._action.id === submitFeedbackActionId ? this._getSubmitLabel() : super.getTooltip();
-		if (!value || this.options.keybinding) {
-			return value;
-		}
-		return this._keybindingService.appendKeybinding(value, this._action.id);
-	}
-
-	private _getSubmitLabel(): string {
-		const acceptedFeedbackCount = this._acceptedFeedbackCount?.get();
-		if (acceptedFeedbackCount === undefined) {
-			return this._action.label;
-		}
-		return localize('agentFeedback.submitCountShort', 'Submit {0}', acceptedFeedbackCount);
-	}
+/**
+ * The files whose feedback the overlay of an editor shows: none for an editor that shows no file, such as the empty
+ * Files editor, or a view shown as an editor, such as the chat of a chat window, which is a view of the main window.
+ */
+export function getAgentFeedbackOverlayResourceCandidates(input: Parameters<typeof getActiveResourceCandidates>[0]): ReturnType<typeof getActiveResourceCandidates> {
+	return input instanceof EmptyFileEditorInput || input instanceof ViewEditorInput ? [] : getActiveResourceCandidates(input);
 }
 
-export class AgentFeedbackOverlayWidget extends Disposable {
-
-	private readonly _domNode: HTMLElement;
-	private readonly _toolbarNode: HTMLElement;
-	private readonly _showStore = this._store.add(new DisposableStore());
-	private readonly _navigationBearings = observableValue<{ activeIdx: number; totalCount: number }>(this, { activeIdx: -1, totalCount: 0 });
-	private readonly _acceptedFeedbackCount = observableValue<number>(this, 0);
-
-	constructor(
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-	) {
-		super();
-
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('agent-feedback-editor-overlay-widget');
-
-		this._toolbarNode = document.createElement('div');
-		this._toolbarNode.classList.add('agent-feedback-editor-overlay-toolbar');
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	show(navigationBearings: { activeIdx: number; totalCount: number }, acceptedFeedbackCount: number, editorGroup?: IEditorGroup): void {
-		this._showStore.clear();
-		this._navigationBearings.set(navigationBearings, undefined);
-		this._acceptedFeedbackCount.set(acceptedFeedbackCount, undefined);
-
-		if (!this._domNode.contains(this._toolbarNode)) {
-			this._domNode.appendChild(this._toolbarNode);
-		}
-
-		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, Menus.AgentFeedbackEditorContent, {
-			telemetrySource: 'agentFeedback.overlayToolbar',
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			},
-			menuOptions: { renderShortTitle: true },
-			actionViewItemProvider: (action, options) => {
-				if (action.id === navigationBearingFakeActionId) {
-					const that = this;
-					return new class extends ActionViewItem {
-						constructor() {
-							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
-						}
-
-						override render(container: HTMLElement): void {
-							super.render(container);
-							container.classList.add('label-item');
-
-							this._store.add(autorun(r => {
-								assertType(this.label);
-								const { activeIdx, totalCount } = that._navigationBearings.read(r);
-								if (totalCount > 0) {
-									const current = activeIdx === -1 ? 1 : activeIdx + 1;
-									this.label.innerText = localize('nOfM', '{0}/{1}', current, totalCount);
-								} else {
-									this.label.innerText = localize('zero', '0/0');
-								}
-							}));
-						}
-					};
-				}
-
-				return new AgentFeedbackActionViewItem(action, options, this._keybindingService, this._acceptedFeedbackCount, editorGroup);
-			},
-		}));
-		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
-	}
-
-	hide(): void {
-		this._showStore.clear();
-		this._navigationBearings.set({ activeIdx: -1, totalCount: 0 }, undefined);
-		this._acceptedFeedbackCount.set(0, undefined);
-		this._toolbarNode.remove();
-	}
-}
-
-class AgentFeedbackOverlayController {
+export class AgentFeedbackOverlayController {
 
 	private readonly _store = new DisposableStore();
 	private readonly _domNode = document.createElement('div');
 
 	constructor(
-		container: HTMLElement,
-		group: IEditorGroup,
+		group: IAgentFeedbackOverlayEditorGroup,
+		/** The session of the window that owns the group if it shows a session of its own, such as a chat window. */
+		hostSession: IObservable<ISession | undefined> | undefined,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
 	) {
+		const container = group.editorPaneContainer;
+		container.classList.add('agent-feedback-editor-overlay-host');
+		this._store.add(toDisposable(() => container.classList.remove('agent-feedback-editor-overlay-host')));
+
 		this._domNode.classList.add('agent-feedback-editor-overlay');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = '24px';
 		this._domNode.style.right = '24px';
 		this._domNode.style.zIndex = '100';
 
-		const widget = this._store.add(instaService.createInstance(AgentFeedbackOverlayWidget));
+		const widget = this._store.add(instaService.createInstance(AgentEditorCommentsOverlayWidget, {
+			menuId: Menus.AgentFeedbackEditorContent,
+			submitActionId: submitFeedbackActionId,
+			previousActionId: navigatePreviousFeedbackActionId,
+			nextActionId: navigateNextFeedbackActionId,
+			navigationBearingActionId: navigationBearingFakeActionId,
+			telemetrySource: 'agentFeedback.overlayToolbar',
+		}));
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		const hasCommentsContext = hasSessionEditorComments.bindTo(contextKeyService);
@@ -224,6 +91,7 @@ class AgentFeedbackOverlayController {
 			group.onDidActiveEditorChange,
 			group.onDidModelChange,
 			agentFeedbackService.onDidChangeFeedback,
+			agentFeedbackService.onDidChangeFeedbackVisibility,
 			agentFeedbackService.onDidChangeNavigation,
 			agentFeedbackService.onDidChangeFeedbackScope,
 		));
@@ -231,19 +99,19 @@ class AgentFeedbackOverlayController {
 		this._store.add(autorun(r => {
 			activeSignal.read(r);
 
-			const candidates = getActiveResourceCandidates(group.activeEditorPane?.input);
+			const activeInput = group.activeEditorPane?.input;
+			const candidates = getAgentFeedbackOverlayResourceCandidates(activeInput);
+			// In a window that shows a session of its own, such as a chat window, its files are that session's, whichever is active.
+			const host = hostSession?.read(r);
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
-			for (const candidate of candidates) {
-				const sessionResource = agentFeedbackService.getFeedbackSessionResource(candidate);
-				if (!sessionResource) {
-					continue;
-				}
-
+			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate, host))) {
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
+					agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+					shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
 				);
 				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);
@@ -280,6 +148,7 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 	constructor(
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		const editorGroups = observableFromEvent(
 			this,
@@ -305,7 +174,12 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
 					);
 
-					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group.element, group);
+					// The session of the window that owns a part other than the main one, if it shows a session of its own, such
+					// as a chat window: not the main window's session scope, which floating editor windows have too.
+					const part = editorGroupsService.getPart(group);
+					const hostScope = part === editorGroupsService.mainPart ? undefined : editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(ISessionScope));
+					const hostSession = hostScope && hostScope.session !== sessionsService.mainWindowActiveSession ? hostScope.session : undefined;
+					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group, hostSession);
 					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
 				}
 			}

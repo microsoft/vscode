@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ISSHResolvedConfig } from './sshRemoteAgentHost.js';
+import { isSSHStrictHostKeyChecking, type ISSHResolvedConfig } from './sshRemoteAgentHost.js';
 
 /** Strip inline comments from an SSH config value. */
 export function stripSSHComment(s: string): string {
@@ -34,6 +34,20 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 	return hosts;
 }
 
+/** Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
+export function tokenizeSSHPathList(value: string): { path: string; start: number; end: number; quoted: boolean }[] {
+	const paths: { path: string; start: number; end: number; quoted: boolean }[] = [];
+	const pattern = /"(?<quoted>[^"]*)"|(?<unquoted>\S+)/g;
+	let match: RegExpExecArray | null;
+	while ((match = pattern.exec(value)) !== null) {
+		const path = match.groups?.quoted ?? match.groups?.unquoted;
+		if (path) {
+			paths.push({ path, start: match.index, end: pattern.lastIndex, quoted: match.groups?.quoted !== undefined });
+		}
+	}
+	return paths;
+}
+
 /**
  * Parse `ssh -G` output into a resolved config object.
  */
@@ -54,12 +68,26 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		}
 	}
 
+	const strictHostKeyCheckingValue = map.get('stricthostkeychecking')?.toLowerCase();
+	const strictHostKeyChecking = strictHostKeyCheckingValue === 'true'
+		? 'yes'
+		: strictHostKeyCheckingValue === 'false'
+			? 'no'
+			: strictHostKeyCheckingValue;
+
 	return {
 		hostname: map.get('hostname') ?? '',
+		...(map.get('hostkeyalias') ? { hostKeyAlias: map.get('hostkeyalias') } : {}),
 		user: map.get('user') || undefined,
 		port: parseInt(map.get('port') ?? '22', 10),
 		identityFile: identityFiles,
 		identityAgent: map.get('identityagent') || undefined,
+		...(map.get('proxycommand') && map.get('proxycommand')?.toLowerCase() !== 'none' ? { proxyCommand: map.get('proxycommand') } : {}),
 		forwardAgent: map.get('forwardagent') === 'yes',
+		userKnownHostsFiles: tokenizeSSHPathList(map.get('userknownhostsfile') ?? '').map(token => token.path),
+		globalKnownHostsFiles: tokenizeSSHPathList(map.get('globalknownhostsfile') ?? '').map(token => token.path),
+		strictHostKeyChecking: strictHostKeyChecking && isSSHStrictHostKeyChecking(strictHostKeyChecking)
+			? strictHostKeyChecking
+			: undefined,
 	};
 }
