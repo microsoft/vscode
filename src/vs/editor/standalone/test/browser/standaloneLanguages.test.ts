@@ -48,7 +48,11 @@ suite('TokenizationSupport2Adapter', () => {
 			super(null!, null!);
 		}
 		public override match(languageId: LanguageId, token: string): number {
-			return (
+			return (			[
+				new Token(0, 'foo', languageId),
+				new Token(5, 'bar', languageId),
+				new Token(5, 'foo', languageId),
+			],
 				((this.counter++) << MetadataConsts.FOREGROUND_OFFSET)
 				| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
 			) >>> 0;
@@ -193,6 +197,11 @@ suite('TokenizationSupport2Adapter', () => {
 				{ startIndex: 0, scopes: 'foo' },
 				{ startIndex: 5, scopes: 'bar' },
 				{ startIndex: 3, scopes: 'foo' },
+			],
+			[
+				new Token(0, 'foo', languageId),
+				new Token(5, 'bar', languageId),
+				new Token(5, 'foo', languageId),
 			],
 			[
 				0, (0 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
