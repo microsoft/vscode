@@ -2663,6 +2663,29 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
+	 * Apply the host's last-modified time to the session, its last turn end and,
+	 * for a single-chat session, its default chat. Returns `true` iff a
+	 * user-visible field changed.
+	 */
+	setModifiedTime(modifiedTime: number, tx: ITransaction, hasMultipleChats = this._hasMultipleChats.get()): boolean {
+		let didChange = false;
+		if (this.updatedAt.get().getTime() !== modifiedTime) {
+			this.updatedAt.set(new Date(modifiedTime), tx);
+			didChange = true;
+		}
+		if (!hasMultipleChats && this._defaultChatUpdatedAt.get()?.getTime() !== modifiedTime) {
+			this._defaultChatUpdatedAt.set(new Date(modifiedTime), tx);
+		}
+		const currentLastTurnEndTime = this.lastTurnEnd.get()?.getTime();
+		const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
+		if (currentLastTurnEndTime !== nextLastTurnEndTime) {
+			this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, tx);
+			didChange = true;
+		}
+		return didChange;
+	}
+
+	/**
 	 * Update fields from a refreshed metadata snapshot. Returns `true` iff
 	 * any user-visible field changed.
 	 */
@@ -2683,22 +2706,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			}
 
-			const modifiedTime = metadata.modifiedTime;
-			if (this.updatedAt.get().getTime() !== modifiedTime) {
-				this.updatedAt.set(new Date(modifiedTime), tx);
-				didChange = true;
-			}
 			const hasMultipleChats = metadata.chats?.some(chat => chat.kind === 'peer') ?? this._hasMultipleChats.get();
-			if (!hasMultipleChats && this._defaultChatUpdatedAt.get()?.getTime() !== modifiedTime) {
-				this._defaultChatUpdatedAt.set(new Date(modifiedTime), tx);
-			}
-
-			const currentLastTurnEndTime = this.lastTurnEnd.get()?.getTime();
-			const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
-			if (currentLastTurnEndTime !== nextLastTurnEndTime) {
-				this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, tx);
-				didChange = true;
-			}
+			didChange = this.setModifiedTime(metadata.modifiedTime, tx, hasMultipleChats) || didChange;
 
 			this._project = metadata.project;
 			this._workingDirectories = metadata.workingDirectories;
@@ -4467,6 +4476,13 @@ interface IChatConfigSubscription extends IDisposable {
 	readonly resolving: IObservable<boolean>;
 }
 
+/** A `listSessions()` refresh in flight on {@link connection}, and the refresh coalesced behind it. */
+interface ISessionRefresh {
+	readonly connection: IAgentConnection;
+	promise: Promise<void>;
+	trailing: { readonly announceExistingAsAdded: boolean } | undefined;
+}
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -4878,9 +4894,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Current backoff delay (ms) for the session-refresh retry. */
 	private _sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 
-	/** True while a {@link _refreshSessions} call is awaiting `listSessions()`. */
-	private _sessionRefreshInFlight = false;
-	private _sessionRefreshGeneration = 0;
+	/**
+	 * The {@link _refreshSessions} listing in flight, if any. Refreshes requested
+	 * while it is in flight coalesce into its single trailing refresh.
+	 */
+	private _sessionRefresh: ISessionRefresh | undefined;
 
 	private readonly _activeSessionScope = this._register(new MutableDisposable<IAgentCustomizationScope>());
 	private readonly _activeClientSyncCancellation = this._register(new MutableDisposable<ActiveClientSyncCancellationTokenSource>());
@@ -9949,26 +9967,79 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// scheduled — otherwise every synchronous `getSessions()` during the
 		// failure window would hammer the agent/auth path and bypass the
 		// backoff.
-		if (this._sessionRefreshInFlight || this._sessionRefreshRetry.value) {
+		if (this._currentSessionRefresh() || this._sessionRefreshRetry.value) {
 			return;
 		}
 		this._refreshSessions();
 	}
 
-	protected async _refreshSessions(announceExistingAsAdded = false): Promise<void> {
+	/**
+	 * Reconcile the session cache with the host's full listing. A call made
+	 * while a listing is in flight on the current connection supersedes that
+	 * listing's result and waits for one trailing listing shared by every call
+	 * made in the meantime, so the applied result is never older than the call.
+	 */
+	protected _refreshSessions(announceExistingAsAdded = false): Promise<void> {
+		const current = this._currentSessionRefresh();
+		if (!current) {
+			return this._startSessionRefresh(announceExistingAsAdded);
+		}
+		current.trailing = { announceExistingAsAdded: announceExistingAsAdded || !!current.trailing?.announceExistingAsAdded };
+		return current.promise;
+	}
+
+	/**
+	 * Like {@link _refreshSessions}, but shares a listing already in flight on
+	 * the current connection instead of queueing a trailing one. For callers
+	 * that need any listing from the current connection, such as startup.
+	 * Resolves once the effective listing, including any trailing one, is applied.
+	 */
+	protected _joinSessionRefresh(): Promise<void> {
+		return this._currentSessionRefresh()?.promise ?? this._startSessionRefresh(false);
+	}
+
+	private _currentSessionRefresh(): ISessionRefresh | undefined {
+		const refresh = this._sessionRefresh;
+		return refresh && refresh.connection === this.connection ? refresh : undefined;
+	}
+
+	private _startSessionRefresh(announceExistingAsAdded: boolean): Promise<void> {
 		const connection = this.connection;
 		if (!connection) {
-			return;
+			return Promise.resolve();
 		}
+		if (this._sessionRefresh?.trailing?.announceExistingAsAdded) {
+			announceExistingAsAdded = true;
+		}
+		const refresh: ISessionRefresh = { connection, promise: Promise.resolve(), trailing: undefined };
+		this._sessionRefresh = refresh;
+		refresh.promise = this._listSessions(refresh, announceExistingAsAdded).finally(() => {
+			if (this._sessionRefresh !== refresh) {
+				return this._sessionRefresh?.promise;
+			}
+			this._sessionRefresh = undefined;
+			if (!refresh.trailing || this._store.isDisposed) {
+				return undefined;
+			}
+			return this._startSessionRefresh(refresh.trailing.announceExistingAsAdded);
+		});
+		return refresh.promise;
+	}
+
+	/** Whether a newer listing supersedes {@link refresh}, so its result must not be applied. */
+	private _isSessionRefreshSuperseded(refresh: ISessionRefresh): boolean {
+		return this._sessionRefresh !== refresh || !!refresh.trailing || this._store.isDisposed;
+	}
+
+	private async _listSessions(refresh: ISessionRefresh, announceExistingAsAdded: boolean): Promise<void> {
 		// Cancel any pending retry; this attempt supersedes it.
 		this._sessionRefreshRetry.clear();
-		this._sessionRefreshInFlight = true;
-		const generation = ++this._sessionRefreshGeneration;
+		const connection = refresh.connection;
 		let didList = false;
 		try {
 			const sessions = await connection.listSessions();
 			didList = true;
-			if (generation !== this._sessionRefreshGeneration || this._store.isDisposed) {
+			if (this._isSessionRefreshSuperseded(refresh)) {
 				return;
 			}
 			// A successful return (even an empty list) means the cache is
@@ -10084,7 +10155,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				(cached as AgentHostSessionAdapter).dispose();
 			}
 		} catch (err) {
-			if (generation !== this._sessionRefreshGeneration || this._store.isDisposed) {
+			if (this._isSessionRefreshSuperseded(refresh)) {
 				return;
 			}
 			if (didList) {
@@ -10102,10 +10173,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// list. Instead, retry silently in the background with backoff.
 			this._logService.trace(`[AgentHostSessionsProvider] listSessions failed; scheduling retry: ${err}`);
 			this._scheduleSessionRefreshRetry(announceExistingAsAdded);
-		} finally {
-			if (generation === this._sessionRefreshGeneration) {
-				this._sessionRefreshInFlight = false;
-			}
 		}
 	}
 
@@ -10139,13 +10206,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
-	 * Cancel any pending session-refresh retry and reset the backoff. Called
-	 * by subclasses when the connection goes away (the stale timer would
-	 * otherwise fire against a dead connection and no-op).
+	 * Cancel any pending session-refresh retry, reset the backoff and abandon
+	 * the listing in flight. Called by subclasses when the connection goes away
+	 * (the stale timer would otherwise fire against a dead connection and no-op).
 	 */
 	protected _cancelSessionRefreshRetry(): void {
 		this._sessionRefreshRetry.clear();
 		this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
+		this._abandonSessionRefresh();
+	}
+
+	/**
+	 * Discard the listing in flight, if any, so the next refresh lists afresh
+	 * instead of sharing a response from a host that went away.
+	 */
+	protected _abandonSessionRefresh(): void {
+		this._sessionRefresh = undefined;
 	}
 
 
@@ -10225,7 +10301,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
 				this._keepChatSessionStateAlive(e.channel);
-				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);
 			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
@@ -10429,14 +10504,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (changes.title !== undefined && cached.setTitleFromHost(changes.title, tx)) {
 				didChange = true;
 			}
-			if (changes.modifiedAt !== undefined) {
-				const modifiedTime = Date.parse(changes.modifiedAt);
-				if (Number.isFinite(modifiedTime) && cached.updatedAt.get().getTime() !== modifiedTime) {
-					cached.updatedAt.set(new Date(modifiedTime), tx);
-					didChange = true;
-				}
-			}
-
 			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
@@ -10449,6 +10516,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// Omitted summary fields retain their cached values, including opaque default chat URIs.
 				const defaultChat = changes.defaultChat ?? cached.getBackendChatResource(cached.resource)?.toString();
 				if (cached.applyChatMetadata(chatMetadataFromSummary(changes, defaultChat), tx)) {
+					didChange = true;
+				}
+			}
+
+			// After the chats, so a summary that adds or removes the only peer chat decides by the new chat list.
+			if (changes.modifiedAt !== undefined) {
+				const modifiedTime = Date.parse(changes.modifiedAt);
+				if (Number.isFinite(modifiedTime) && cached.setModifiedTime(modifiedTime, tx)) {
 					didChange = true;
 				}
 			}
