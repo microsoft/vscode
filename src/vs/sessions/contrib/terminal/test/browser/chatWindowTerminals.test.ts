@@ -333,4 +333,23 @@ suite('Chat window terminals', () => {
 		// Nor does it listen to the part that holds its terminals, for terminals to take as its own.
 		assert.deepStrictEqual({ shown, calls, shownInChatWindow, listens: terminalsGroup.onModelChange.hasListeners() }, { shown: false, calls: ['createPart', 'terminalOf:session-1:{"viewColumn":0}'], shownInChatWindow: ['5:false'], listens: false });
 	});
+
+	test('a terminal created as an editor for a window that closed meanwhile goes into the background of the panel, rather than staying in an editor of another group', async () => {
+		const pending = new DeferredPromise<ITerminalInstance | undefined>();
+		const { terminals, window, calls, shownInChatWindow, onWillClose } = createEnvironment({ pendingTerminal: pending.p });
+
+		const showing = terminals.show(window, true);
+		await timeout(0);
+		onWillClose.fire();
+		const instance = terminal(5, { target: TerminalLocation.Editor });
+		pending.complete(instance);
+		const shown = await showing;
+
+		assert.deepStrictEqual({ shown, calls, shownInChatWindow, target: instance.target }, {
+			shown: false,
+			calls: ['createPart', 'terminalOf:session-1:{"viewColumn":0}', 'toBackground'],
+			shownInChatWindow: ['5:false'],
+			target: TerminalLocation.Panel,
+		});
+	});
 });

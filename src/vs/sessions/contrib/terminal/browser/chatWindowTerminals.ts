@@ -147,7 +147,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			}
 			// Hidden meanwhile, or the window closed: the terminal stays with its session, in the panel.
 			if (!this._isCurrent(window, generation)) {
-				this._source.setShownInChatWindow(instance, false);
+				this._releaseToPanel(instance);
 				return false;
 			}
 			terminals.add(instance);
@@ -178,16 +178,24 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			if (instance.isDisposed) {
 				continue;
 			}
-			if (instance.target === TerminalLocation.Editor) {
-				// Into the background of the panel, rather than of the editors, which would reveal it in an editor.
-				this._terminalService.moveToBackground(instance);
-				instance.target = TerminalLocation.Panel;
-			}
-			this._source.setShownInChatWindow(instance, false);
+			this._releaseToPanel(instance);
 		}
 		if (hadFocus) {
 			window.focus();
 		}
+	}
+
+	/**
+	 * Lets the window's terminal `instance` go with its session, to the panel: one in an editor, such as one created for
+	 * the window's terminals after the window closed, at a column of a group that may now be another window's, goes into
+	 * the background of the panel, rather than of the editors, which would reveal it in an editor.
+	 */
+	private _releaseToPanel(instance: ITerminalInstance): void {
+		if (instance.target === TerminalLocation.Editor) {
+			this._terminalService.moveToBackground(instance);
+			instance.target = TerminalLocation.Panel;
+		}
+		this._source.setShownInChatWindow(instance, false);
 	}
 
 	/** Adds a terminal to the terminals of `window` while they show one, else shows them. */
@@ -208,7 +216,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			return;
 		}
 		if (!this._isCurrent(window, generation)) {
-			this._source.setShownInChatWindow(instance, false);
+			this._releaseToPanel(instance);
 			return;
 		}
 		this._getTerminals(window).add(instance);
