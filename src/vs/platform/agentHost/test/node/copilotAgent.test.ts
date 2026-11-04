@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
@@ -148,7 +149,8 @@ import { modelConfigurationSourceKey } from '../../common/agentModelConfiguratio
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase as InMemorySessionDatabase } from '../common/sessionTestHelpers.js';
+import { IMPORTED_TURN_DURATIONS_DB_KEY } from '../../node/copilot/buildSessionEvents.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
@@ -26755,6 +26757,59 @@ suite('CopilotAgent', () => {
 				providerData: { sdkSessionId: 'import-backing' },
 				recordedBacking: { sdkSessionId: 'import-backing' },
 				backingSession: undefined,
+			});
+		}).timeout(30_000);
+
+		test('an imported conversation saves each turn\'s reported usage and original duration for restore', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-usage-home-`));
+			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-usage-cwd-`));
+			const database = new InMemorySessionDatabase();
+			const client = new TestCopilotClient([]);
+			client.resumeSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: createSessionDataService(database), userHome });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'import-usage');
+			const turn = (id: string, usage: Turn['usage']): Turn => ({
+				id,
+				state: TurnState.Complete,
+				message: { text: id, origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage,
+			});
+			const withUsage = generateUuid();
+			const creditsOnly = generateUuid();
+			const noUsage = generateUuid();
+			const usage = { inputTokens: 1200, outputTokens: 300, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } };
+
+			await provisionSession(agent, {
+				session,
+				workingDirectories: [workingDirectory],
+				importConversation: {
+					turns: [
+						{ ...turn(withUsage, usage), duration: 4_000 },
+						turn(creditsOnly, { _meta: { copilotUsage: { totalNanoAiu: 0 } } }),
+						turn(noUsage, undefined),
+						turn('not-a-uuid', usage),
+					],
+				},
+			});
+
+			const usages = [...(await database.getTurnUsages()).entries()].sort(([a], [b]) => a.localeCompare(b));
+			assert.deepStrictEqual({
+				usages,
+				durations: JSON.parse(await database.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY) ?? 'null'),
+			}, {
+				usages: [
+					[withUsage, JSON.stringify(usage)],
+					[creditsOnly, JSON.stringify({ _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
+				].sort(([a], [b]) => a.localeCompare(b)),
+				// Recorded so a replay does not invent durations from the synthesized event times.
+				durations: { [withUsage]: 4_000, [creditsOnly]: null, [noUsage]: null },
 			});
 		}).timeout(30_000);
 
