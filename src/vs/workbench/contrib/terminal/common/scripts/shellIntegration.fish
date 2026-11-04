@@ -223,6 +223,17 @@ function __vsc_fish_has_mode_prompt -d "Returns true if fish_mode_prompt is defi
 	functions fish_mode_prompt | string match -rvq '^ *(#|function |end$|$)'
 end
 
+# Print the lines captured from a prompt function the same way fish prints a
+# prompt: every line but the last is followed by a newline.
+function __vsc_fish_print_prompt
+	if set -q argv[2]
+		builtin printf '%s\n' $argv[1..-2]
+	end
+	if set -q argv[1]
+		builtin printf '%s' $argv[-1]
+	end
+end
+
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
@@ -231,8 +242,12 @@ function __init_vscode_shell_integration
 		functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
 		function fish_mode_prompt
+			# Run the user's prompt first so it sees the real $status and
+			# $pipestatus of the last command, before our helpers overwrite them.
+			set -l __vsc_prompt (__vsc_fish_mode_prompt)
 			__vsc_fish_prompt_start
-			__vsc_fish_mode_prompt
+			# fish joins the lines of the mode prompt without newlines.
+			builtin printf '%s' $__vsc_prompt
 		end
 
 		function fish_prompt
@@ -242,8 +257,11 @@ function __init_vscode_shell_integration
 	else
 		# No fish_mode_prompt, so put everything in fish_prompt.
 		function fish_prompt
+			# Run the user's prompt first so it sees the real $status and
+			# $pipestatus of the last command, before our helpers overwrite them.
+			set -l __vsc_prompt (__vsc_fish_prompt)
 			__vsc_fish_prompt_start
-			__vsc_fish_prompt
+			__vsc_fish_print_prompt $__vsc_prompt
 			__vsc_fish_cmd_start
 		end
 	end
