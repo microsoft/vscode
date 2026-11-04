@@ -11872,7 +11872,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const owner = this._chatOwnership.requireChatOwner(chat.toString());
 		const provider = this._providerService.getProviderForChat(URI.parse(owner), chat);
-		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
+		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork || provider?.watchChatCanvases) {
 			const watches = new DisposableStore();
 			this._chatWatches.set(chat, watches);
 			this._chatWatchOwners.set(chat, owner);
@@ -11883,6 +11883,25 @@ export class AgentService extends Disposable implements IAgentService {
 			const backgroundWork = provider.watchChatBackgroundWork?.(chat, () => this._stateManager.getChatState(chat.toString())?.backgroundWork ?? []);
 			if (backgroundWork) {
 				watches.add(backgroundWork);
+			}
+			const canvases = provider.watchChatCanvases?.(chat, {
+				published: () => this._stateManager.getChatState(chat.toString())?.canvases?.map(canvas => canvas.resource),
+				resolveContext: async () => {
+					while (true) {
+						const owner = this._chatOwnership.requireChatOwner(chat.toString());
+						const credentials = await this._resolveExecutionCredentials(owner);
+						if (this._chatOwnership.requireChatOwner(chat.toString()) === owner) {
+							const session = URI.parse(owner);
+							return {
+								...this._chatContext(session, chat, this._chatStorageResource(session, chat)),
+								...(credentials ? { credentials } : {}),
+							};
+						}
+					}
+				},
+			});
+			if (canvases) {
+				watches.add(canvases);
 			}
 		}
 	}

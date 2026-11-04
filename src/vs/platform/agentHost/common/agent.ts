@@ -1833,6 +1833,11 @@ export interface IAgentSessionPlan {
 	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
 }
 
+export interface IAgentChatCanvasWatchHost {
+	readonly published: () => readonly string[] | undefined;
+	resolveContext(): Promise<IAgentChatContext>;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1878,6 +1883,12 @@ export interface IAgent {
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Observe one hydrated chat's canvas projection and restore provider-owned continuity when needed. */
+	watchChatCanvases?(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable;
+
+	/** Invalidate retained canvas continuity when a chat or session is archived or removed. */
+	clearCanvasContinuity?(session: URI, chat?: URI): void;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
