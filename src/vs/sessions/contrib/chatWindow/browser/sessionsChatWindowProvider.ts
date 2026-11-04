@@ -392,11 +392,15 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		// the window, and its chat while the chat shows: focusing it while only the main part shows would not show it.
 		store.add(this._sessionsPartService.registerWindowSessionView(view, {
 			focus: () => {
+				// Its window shows and focuses the chat, also where another editor beside it, as a tab, shows
+				const window = this.window.get();
+				if (window) {
+					window.focus();
+					return;
+				}
 				const targetWindow = getWindow(view.element);
 				focusChatWindowUnlessFocused(targetWindow, () => void this._hostService.focus(targetWindow));
-				if (this.window.get()?.layoutMode.get() !== ChatWindowLayoutMode.EditorOnly) {
-					view.focus();
-				}
+				view.focus();
 			},
 		}));
 		return store;

@@ -111,6 +111,7 @@ export class ViewEditorPane extends EditorPane {
 		const hidden = this.hiddenViews.get(input);
 		if (hidden) {
 			this.hiddenViews.deleteAndLeak(input);
+			hidden.view.setVisible?.(true);
 		}
 		const { view, disposables } = hidden ?? this.createView(input);
 		this.view = view;
@@ -170,6 +171,7 @@ export class ViewEditorPane extends EditorPane {
 		if (view && input && disposables && this.group.contains(input, { strictEquals: true })) {
 			this.viewDisposables.clearAndLeak();
 			view.element.remove();
+			view.setVisible?.(false);
 			this.hiddenViews.set(input, { view, disposables, dispose: () => disposables.dispose() });
 		} else {
 			this.viewDisposables.clear();

@@ -17,7 +17,7 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { ViewEditorPane } from '../../../../workbench/browser/parts/editor/viewEditorPane.js';
+import { CLOSE_EDITOR_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ActiveEditorCannotCloseContext, ActiveEditorContext, EditorPartMultipleEditorGroupsContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
@@ -27,7 +27,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IsQuickChatSessionContext, SessionActivityBarLayoutActionsContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
@@ -42,7 +42,8 @@ import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.
 export const CLOSE_CHAT_WINDOW_COMMAND_ID = 'workbench.action.chatWindow.close';
 
 // Closing the chat closes its window. While other editors are beside the chat in its group, as tabs, the chat cannot be
-// closed as an editor, so that its tab offers no close action: the key that closes an editor closes the window then.
+// closed as an editor, so that its tab offers no close action: the key that closes an editor closes the window then. Its
+// view binds the active editor of its window's main part in its context, so the chat is recognized when the command runs.
 registerAction2(class CloseChatWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -54,13 +55,19 @@ registerAction2(class CloseChatWindowAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				when: ContextKeyExpr.and(ChatWindowLayoutCommandsContext, ActiveEditorContext.isEqualTo(ViewEditorPane.ID), ActiveEditorCannotCloseContext),
+				when: ContextKeyExpr.and(ChatWindowLayoutCommandsContext, ActiveEditorCannotCloseContext),
 			},
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		resolveChatWindow(accessor, args)?.close();
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const window = resolveChatWindow(accessor, args);
+		if (window && accessor.get(IEditorGroupsService).activeGroup.activeEditor === window.chatEditor) {
+			window.close();
+			return;
+		}
+		// Another editor that cannot close, such as a docked one: as the key does elsewhere
+		await accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID);
 	}
 });
 

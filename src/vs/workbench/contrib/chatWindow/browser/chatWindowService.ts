@@ -318,7 +318,13 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	focus(): void {
 		this._host.focusWindow();
 		if (this.chatVisible) {
-			this.chatPart.activeGroup.focus();
+			// The chat, also where another editor beside it, as a tab, shows: opening its editor there shows and focuses it
+			const group = this._findChatGroup() ?? this.chatPart.activeGroup;
+			if (group.activeEditor !== this.content.input && group.contains(this.content.input)) {
+				void group.openEditor(this.content.input);
+			} else {
+				group.focus();
+			}
 		} else {
 			this.mainPart.activeGroup.focus();
 		}

@@ -491,6 +491,14 @@ suite('Chat window', () => {
 		assert.deepStrictEqual(leads, [true, false, true]);
 	});
 
+	test('focusing it shows and focuses the chat, also where another editor beside it, as a tab, shows', () => {
+		const { window, chat, chatInput, events } = createWindow();
+		chat.group.open(editor());
+		window.focus();
+
+		assert.deepStrictEqual({ active: chat.group.activeEditor === chatInput, events }, { active: true, events: ['focus window'] });
+	});
+
 	test('a layout that shows the chat shows it where another editor beside it, as a tab, shows; one that shows only the main part does not', () => {
 		const { window, chat, chatInput } = createWindow();
 		const tab = editor();

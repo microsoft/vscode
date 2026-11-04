@@ -52,6 +52,13 @@ export interface IViewEditorView extends IDisposable {
 	 * before the pane clears its input.
 	 */
 	saveViewState?(): void;
+
+	/**
+	 * Called as the view hides while its editor stays in its group, such
+	 * as while another editor of the group shows as a tab, and as it shows
+	 * again: a hidden view should not render or act as if seen.
+	 */
+	setVisible?(visible: boolean): void;
 }
 
 /**

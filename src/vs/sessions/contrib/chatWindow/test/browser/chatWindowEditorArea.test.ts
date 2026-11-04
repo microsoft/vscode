@@ -14,7 +14,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorCannotCloseContext, ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
 import { IEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -30,7 +30,9 @@ import { ISessionScope } from '../../../../services/sessions/browser/sessionScop
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { CLOSE_CHAT_WINDOW_EDITOR_AREA_COMMAND_ID, chatWindowTabEntries } from '../../browser/chatWindowActions.js';
+import { CLOSE_CHAT_WINDOW_COMMAND_ID, CLOSE_CHAT_WINDOW_EDITOR_AREA_COMMAND_ID, chatWindowTabEntries } from '../../browser/chatWindowActions.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { TestEditorInput } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import '../../../sessions/browser/sessionsActions.js';
 import '../../../../browser/actions/vscodeActions.js';
 import '../../../chat/browser/runScriptAction.js';
@@ -83,6 +85,36 @@ suite('Chat window editor area', () => {
 		}());
 		return instantiationService;
 	}
+
+	test('Cmd+W with the chat, which cannot close while tabs are beside it, as the active editor closes its window, also with focus in the chat, whose context has the active editor of the main part; on another editor that cannot close, it does what Close Editor does', async () => {
+		const keybinding = KeybindingsRegistry.getDefaultKeybindings().find(item => item.command === CLOSE_CHAT_WINDOW_COMMAND_ID);
+		// In the chat view, the active editor is that of the main part of the window
+		const inChat = evaluate(keybinding?.when ?? undefined, { ...chatWindowKeys, [ActiveEditorContext.key]: 'workbench.editors.files.textFileEditor', [ActiveEditorCannotCloseContext.key]: true });
+		const closable = evaluate(keybinding?.when ?? undefined, { ...chatWindowKeys, [ActiveEditorCannotCloseContext.key]: false });
+
+		// The active editor of the active group: the chat, else `activeEditor`
+		const run = async (activeEditor?: EditorInput) => {
+			const events: string[] = [];
+			const chatEditor = disposables.add(new TestEditorInput(URI.parse('test:/chat'), 'chat'));
+			const window = new class extends mock<IChatWindow>() {
+				override readonly chatEditor = chatEditor;
+				override close() { events.push('close window'); return true; }
+			}();
+			const instantiationService = createInstantiationService(window);
+			instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly activeGroup = new class extends mock<IEditorGroup>() { override readonly activeEditor = activeEditor ?? chatEditor; }();
+			}());
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string): Promise<R | undefined> { events.push(id); return undefined; }
+			}());
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(CLOSE_CHAT_WINDOW_COMMAND_ID)!.handler(accessor));
+			return events;
+		};
+		const onChat = await run();
+		const onDocked = await run(disposables.add(new TestEditorInput(URI.parse('test:/docked'), 'docked')));
+
+		assert.deepStrictEqual({ inChat, closable, onChat, onDocked }, { inChat: true, closable: false, onChat: ['close window'], onDocked: ['workbench.action.closeActiveEditor'] });
+	});
 
 	test('an empty main part has one close button: in a chat window, its own, which shows only the chat of the window that has focus; in the main window, as before', async () => {
 		const closes = (values: Record<string, ContextKeyValue>) => [MenuId.EmptyEditorGroup, MenuId.EditorGroupWatermarkToolbar].flatMap(menu => MenuRegistry.getMenuItems(menu)

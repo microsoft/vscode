@@ -7,7 +7,7 @@ import { registerContentDropTarget } from '../../../../workbench/browser/dnd.js'
 import { $ } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -181,6 +181,9 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	readonly sessionView: SessionView;
 	readonly providesTitle = true;
 
+	/** Whether the view shows: not while another editor of its group, as a tab, shows. */
+	private readonly _visible = observableValue(this, true);
+
 	/** The title of the session header drags the chat, also while the header shows in the title row of its window. */
 	get dragHandle(): HTMLElement { return this.sessionView.headerTitleElement; }
 
@@ -261,10 +264,11 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 				sessionView.openSession(session, {});
 			}
 		}));
-		// Without the chat, such as while its window shows only its main part, its view is hidden.
+		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
+		// shows, its view is hidden.
 		this._register(autorun(reader => {
 			const mode = host.window.read(reader)?.layoutMode.read(reader);
-			sessionView.setPartVisible(mode !== ChatWindowLayoutMode.EditorOnly);
+			sessionView.setPartVisible(mode !== ChatWindowLayoutMode.EditorOnly && this._visible.read(reader));
 		}));
 		// Its own title row, at the top of its card, while it shows; the title row of its window otherwise.
 		const title = derived(this, reader => {
@@ -312,6 +316,10 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	}
 
 	/** Saves what the chat shows, such as where it is scrolled to, before its editor moves: the view where it moves to shows the same. */
+	setVisible(visible: boolean): void {
+		this._visible.set(visible, undefined);
+	}
+
 	saveViewState(): void {
 		this.sessionView.primaryChatView.get()?.saveViewState();
 	}

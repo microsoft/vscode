@@ -58,6 +58,10 @@ class TestView implements IViewEditorView {
 		this.log.push(`save ${this.name}`);
 	}
 
+	setVisible(visible: boolean): void {
+		this.log.push(`${visible ? 'show' : 'hide'} ${this.name}`);
+	}
+
 	setMaximumHeight(height: number): void {
 		this.maximumHeight = height;
 		this._onDidChange.fire(undefined);
@@ -244,10 +248,11 @@ suite('View Editors', () => {
 		const titled = createViewInput('test.titled', '/chat/a');
 		const file = disposables.add(new TestFileEditorInput(URI.file('/tab.txt'), TEST_EDITOR_INPUT_ID));
 		await part.activeGroup.openEditor(titled, { pinned: true });
+		log.length = 0;
 		await part.activeGroup.openEditor(file, { pinned: true });
 		const whileTabShows = { views: views.length, disposed: views[0].disposed, inDom: views[0].element.isConnected };
 		await part.activeGroup.openEditor(titled);
-		const shownAgain = { views: views.length, disposed: views[0].disposed, inDom: views[0].element.isConnected };
+		const shownAgain = { views: views.length, disposed: views[0].disposed, inDom: views[0].element.isConnected, log: [...log] };
 
 		await part.activeGroup.openEditor(file);
 		await part.activeGroup.closeEditor(titled);
@@ -261,7 +266,8 @@ suite('View Editors', () => {
 
 		assert.deepStrictEqual({ whileTabShows, shownAgain, closedWhileHidden, movedWhileHidden: views[1].disposed, createdForMove: views.length }, {
 			whileTabShows: { views: 1, disposed: false, inDom: false },
-			shownAgain: { views: 1, disposed: false, inDom: true },
+			// It is told it hides and shows, so that it does not render or act as seen meanwhile
+			shownAgain: { views: 1, disposed: false, inDom: true, log: ['save view1', 'hide view1', 'show view1'] },
 			closedWhileHidden: true,
 			movedWhileHidden: true,
 			createdForMove: 3,
@@ -372,7 +378,7 @@ suite('View Editors', () => {
 
 		assert.deepStrictEqual({ onMove, onClear }, {
 			onMove: ['create view1', 'save view1', 'create view2'],
-			onClear: ['save view2']
+			onClear: ['save view2', 'hide view2']
 		});
 	});
 
