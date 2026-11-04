@@ -402,6 +402,29 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ content: style.content, shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim() }, { content: '""', shadow: '0px -6px 0px 0px, 0px 6px 0px 0px' });
 	});
 
+	test('with no gap between the cards, the grabber of the lower part takes the pointer over the sash on its edge within its span; the sash keeps the rest of the edge', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		// The grabber is as tall as this size token of the workbench
+		container.style.setProperty('--vscode-spacing-size40', '8px');
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [top, bottom] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(top, '/top.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('top', top);
+		grid.addPart('bottom', bottom, { reference: 'top', direction: Direction.Down });
+		grid.layout(1000, 800);
+
+		const handle = container.querySelector<HTMLElement>('[data-part-grid-cell="bottom"] .part-grid-drag-handle')!;
+		const edge = container.querySelector<HTMLElement>('[data-part-grid-cell="bottom"]')!.getBoundingClientRect().top;
+		const grabber = handle.getBoundingClientRect();
+		const at = (x: number) => {
+			const element = mainWindow.document.elementFromPoint(x, edge + 1);
+			return element === handle ? 'grabber' : element?.closest('.monaco-sash') ? 'sash' : element?.className;
+		};
+
+		assert.deepStrictEqual({ onTheGrabber: at(grabber.left + grabber.width / 2), besideIt: at(grabber.left - 50) }, { onTheGrabber: 'grabber', besideIt: 'sash' });
+	});
+
 	test('a cell keeps its hidden state when it swaps places, and its part is told when it hides or shows', async () => {
 		const parts = await createParts();
 		const grid = createGrid();

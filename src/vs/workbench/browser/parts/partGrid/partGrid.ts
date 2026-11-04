@@ -356,6 +356,12 @@ function collectLeaves(node: ISerializedNode, into: ISerializedNode[] = []): ISe
  * and shows again when an editor opens in it. Once no part has editors,
  * {@link onDidBecomeEmpty} fires, so that the owner can close the window.
  */
+/**
+ * The class of a grid whose cards are flush: the sash between two cards is on the top edge of the lower one, where its
+ * grabber is, which then takes the pointer over the sash.
+ */
+const PART_GRID_GAPLESS_CLASS = 'part-grid-gapless';
+
 export class PartGrid extends Disposable {
 
 	private readonly gridDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -418,6 +424,7 @@ export class PartGrid extends Disposable {
 		super();
 
 		PartGrid.grids.add(this);
+		container.classList.add(PART_GRID_GAPLESS_CLASS);
 		this._register(toDisposable(() => PartGrid.grids.delete(this)));
 
 		this.motion = this._register(new PartGridMotion({
@@ -1298,6 +1305,7 @@ export class PartGrid extends Disposable {
 		}
 
 		this.gap = gap;
+		this.container.classList.toggle(PART_GRID_GAPLESS_CLASS, gap === 0);
 		this.applyLook();
 	}
 
