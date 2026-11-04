@@ -6,6 +6,7 @@
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { stripUTF8BOM } from '../../../../base/common/strings.js';
 import { isString, isStringArray } from '../../../../base/common/types.js';
 import type { URI } from '../../../../base/common/uri.js';
 import type { IFileService } from '../../../files/common/files.js';
@@ -77,8 +78,8 @@ async function readManifestName(manifest: URI, fileService: IFileService): Promi
 		return { exists: false };
 	}
 	try {
-		// JSON can hold any value; reading `name` off a primitive yields `undefined`.
-		const parsed: { readonly name?: unknown } | null = JSON.parse((await fileService.readFile(manifest)).value.toString());
+		// The runtime skips a byte order mark too. JSON can hold any value; reading `name` off a primitive yields `undefined`.
+		const parsed: { readonly name?: unknown } | null = JSON.parse(stripUTF8BOM((await fileService.readFile(manifest)).value.toString()));
 		const name = parsed?.name;
 		return { exists: true, name: isString(name) && name ? name : undefined };
 	} catch {

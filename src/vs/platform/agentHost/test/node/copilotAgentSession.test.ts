@@ -12216,9 +12216,11 @@ suite('CopilotAgentSession', () => {
 			const conflicting = URI.file('/plugins/conflicting');
 			const unnamed = URI.file('/plugins/unnamed');
 			const standalone = URI.file('/plugins/standalone');
-			const snapshot = createPluginSnapshot(agreeing, conflicting, unnamed);
+			const byteOrderMarked = URI.file('/plugins/byte-order-marked');
+			const snapshot = createPluginSnapshot(agreeing, conflicting, unnamed, byteOrderMarked);
 			const answered = await answerConsentDuringLaunch({
 				agreeing: extensionConsent('plugin:agreeing:canvas', ['register hooks']),
+				byteOrderMarked: extensionConsent('plugin:byte-order-marked:canvas', ['register hooks']),
 				conflicting: extensionConsent('plugin:conflicting:canvas', ['register hooks']),
 				conflictingAlternative: extensionConsent('plugin:other:canvas', ['register hooks']),
 				unnamed: extensionConsent('plugin:unnamed:canvas', ['register hooks']),
@@ -12229,6 +12231,7 @@ suite('CopilotAgentSession', () => {
 				fileContents: {
 					[URI.joinPath(agreeing, 'plugin.json').fsPath]: JSON.stringify({ name: 'agreeing' }),
 					[URI.joinPath(agreeing, '.claude-plugin', 'plugin.json').fsPath]: JSON.stringify({ name: 'agreeing' }),
+					[URI.joinPath(byteOrderMarked, '.plugin', 'plugin.json').fsPath]: '\uFEFF' + JSON.stringify({ name: 'byte-order-marked' }),
 					[URI.joinPath(conflicting, '.plugin', 'plugin.json').fsPath]: JSON.stringify({ name: 'conflicting' }),
 					[URI.joinPath(conflicting, 'plugin.json').fsPath]: JSON.stringify({ name: 'other' }),
 					[URI.joinPath(unnamed, '.plugin', 'plugin.json').fsPath]: JSON.stringify({ description: 'Named after its directory by the runtime' }),
@@ -12239,6 +12242,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(answered, {
 				results: {
 					agreeing: 'approve-once',
+					byteOrderMarked: 'approve-once',
 					conflicting: 'reject',
 					conflictingAlternative: 'reject',
 					unnamed: 'reject',
