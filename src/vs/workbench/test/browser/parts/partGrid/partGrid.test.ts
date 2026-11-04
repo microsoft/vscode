@@ -546,6 +546,40 @@ suite('Part Grid', () => {
 		mainWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 	}
 
+	test('the grabber of a part shows while the pointer is over the part, also over what draws over it outside its card, such as a webview, until the pointer leaves the window', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [left, right] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(left, '/left.txt'), openEditor(right, '/right.txt')]);
+		grid.addPart('left', left);
+		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
+		grid.layout(1000, 800);
+
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		// A webview draws over the left part from outside the grid
+		const anchor = cellOf('left').querySelector('.part-grid-card')!.appendChild(mainWindow.document.createElement('div'));
+		const overlay = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const iframe = overlay.appendChild(mainWindow.document.createElement('iframe'));
+		disposables.add(toDisposable(() => overlay.remove()));
+		disposables.add(registerOverlayAnchor(anchor, { setHidden: () => { }, element: overlay }));
+		const showing = () => ['left', 'right'].filter(id => cellOf(id).querySelector('.part-grid-card')!.classList.contains('part-grid-pointer-over'));
+		const over = (target: Element) => { target.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, relatedTarget: null })); return showing(); };
+
+		const overWebview = over(iframe);
+		const overOtherPart = over(cellOf('right').querySelector('.part-grid-card')!);
+		const outsideTheGrid = over(mainWindow.document.body);
+		over(iframe);
+		iframe.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null }));
+
+		assert.deepStrictEqual({ overWebview, overOtherPart, outsideTheGrid, outOfTheWindow: showing() }, {
+			overWebview: ['left'],
+			overOtherPart: ['right'],
+			outsideTheGrid: [],
+			outOfTheWindow: []
+		});
+	});
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);

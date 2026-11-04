@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { findOverlayAnchorOf } from '../../../../base/browser/overlayLayoutElement.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -29,6 +30,12 @@ import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapS
  * as the top row of a window, which moves the window.
  */
 export const PART_GRID_TOP_EDGE_CLASS = 'part-grid-cell-top-edge';
+
+/**
+ * The class of the card of the part the pointer is over, also over what draws over the part, such as a webview, for its
+ * grabber to show.
+ */
+const PART_GRID_POINTER_OVER_CLASS = 'part-grid-pointer-over';
 
 /**
  * The class of an editor group whose title is at the top edge of its grid: a group at the top of a part in a cell at the
@@ -442,6 +449,47 @@ export class PartGrid extends Disposable {
 			previewArrangement: (id, drop) => this.previewArrangement(id, drop),
 			drop: (id, drop) => this.dropCell(id, drop)
 		}));
+
+		// The grabber of a part shows while the pointer is over the part, also over what draws over it outside its card,
+		// such as a webview, which the card's own hover does not see
+		const targetWindow = getWindow(container);
+		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => this.setPointerOverCell(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined), true));
+		this._register(addDisposableListener(targetWindow.document, 'pointerout', e => {
+			if (!e.relatedTarget) {
+				this.setPointerOverCell(undefined); // out of the window
+			}
+		}, true));
+	}
+
+	private pointerOverCard: HTMLElement | undefined;
+
+	private setPointerOverCell(cell: PartGridCell | undefined): void {
+		const card = cell?.part ? cell.cardElement : undefined;
+		if (card === this.pointerOverCard) {
+			return;
+		}
+
+		this.pointerOverCard?.classList.remove(PART_GRID_POINTER_OVER_CLASS);
+		this.pointerOverCard = card;
+		card?.classList.add(PART_GRID_POINTER_OVER_CLASS);
+	}
+
+	/**
+	 * The cell that `target` is in, or that what `target` is in draws over.
+	 */
+	private findCellAt(target: HTMLElement): PartGridCell | undefined {
+		const element = this.container.contains(target) ? target : findOverlayAnchorOf(target);
+		if (!element) {
+			return undefined;
+		}
+
+		for (const cell of this.cells.values()) {
+			if (cell.element.contains(element)) {
+				return cell;
+			}
+		}
+
+		return undefined;
 	}
 
 	private readonly cardDrag: PartGridCardDrag;

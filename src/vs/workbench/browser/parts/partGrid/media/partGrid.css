@@ -103,6 +103,7 @@
 }
 
 .part-grid-card:hover > .part-grid-drag-handle,
+.part-grid-card.part-grid-pointer-over > .part-grid-drag-handle,
 .part-grid-card > .part-grid-drag-handle:focus-visible {
 	opacity: 1;
 }

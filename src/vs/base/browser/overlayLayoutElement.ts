@@ -17,6 +17,12 @@ export interface IOverlayAnchorHost {
 	 * Hides or shows what draws over the element.
 	 */
 	setHidden(hidden: boolean): void;
+
+	/**
+	 * The element that draws over the anchor, if it is in the DOM, such as
+	 * the root of an overlay: what happens over it happens over the anchor.
+	 */
+	readonly element?: HTMLElement;
 }
 
 interface IOverlayAnchorRegistration {
@@ -56,6 +62,20 @@ export function registerOverlayAnchor(anchor: HTMLElement, host: IOverlayAnchorH
 export function findOverlayAnchors(container: HTMLElement): HTMLElement[] {
 	const anchors = new Set(Array.from(overlayHosts.values(), registration => registration.anchor));
 	return Array.from(anchors).filter(anchor => anchor.isConnected && container.contains(anchor) && anchor.getClientRects().length > 0);
+}
+
+/**
+ * The element that `target` draws over, if `target` is in what draws over
+ * an element, such as an overlay positioned over it.
+ */
+export function findOverlayAnchorOf(target: Node): HTMLElement | undefined {
+	for (const [host, registration] of overlayHosts) {
+		if (host.element?.contains(target)) {
+			return registration.anchor;
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -151,7 +171,10 @@ export class OverlayLayoutElement implements IDisposable {
 	}
 
 	private _hidden = false;
-	private readonly _anchorHost: IOverlayAnchorHost = { setHidden: hidden => this.setHidden(hidden) };
+	private readonly _anchorHost: IOverlayAnchorHost = (() => {
+		const layout = this;
+		return { setHidden: (hidden: boolean) => layout.setHidden(hidden), get element() { return layout._root; } };
+	})();
 
 	/**
 	 * Hides or shows the overlay, whatever else its content shows or hides.
