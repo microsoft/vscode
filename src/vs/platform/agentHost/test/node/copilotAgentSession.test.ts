@@ -200,6 +200,8 @@ class MockCopilotSession {
 	/** Invoked inside `send` once the request is recorded, before {@link sendGate} is awaited. */
 	onSend: (() => void) | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	/** The agent mode `rpc.mode.get` reports. */
+	currentMode: 'interactive' | 'plan' | 'autopilot' = 'interactive';
 	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
 	/** Per-call `setMode` success results, consumed in order before falling back to {@link permissionModeSetSuccess}. */
@@ -624,7 +626,7 @@ class MockCopilotSession {
 			},
 		},
 		mode: {
-			get: async () => ({ mode: 'interactive' as const }),
+			get: async () => this.currentMode,
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
 				this.operationLog.push('mode.set');
 				this.modeSetCalls.push({ mode: params.mode });
@@ -828,6 +830,7 @@ class MockCopilotSession {
 			},
 			apps: {
 				listTools: async (_params: { serverName: string; originServerName: string }) => this.mcpListToolsResult,
+				callTool: async (_params: Parameters<CopilotSession['rpc']['mcp']['apps']['callTool']>[0]): ReturnType<CopilotSession['rpc']['mcp']['apps']['callTool']> => ({ content: [] }),
 				readResource: async (_params: Parameters<CopilotSession['rpc']['mcp']['apps']['readResource']>[0]): ReturnType<CopilotSession['rpc']['mcp']['apps']['readResource']> => ({ contents: [] }),
 			},
 			list: async () => {
@@ -14354,6 +14357,26 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({ calls: mockSession.permissionModeSetCalls, updates: sessionConfigUpdates }, { calls: [], updates: [] });
 		});
 
+		test('adopts the permission and agent modes the runtime restored, as far as policy allows', async () => {
+			const results = [];
+			for (const bypassPermissionsDisabled of [false, true]) {
+				const { session, runtime, mockSession, chatConfigUpdates } = await createAgentSession(disposables);
+				runtime.setApprovalPolicy?.({
+					source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled, managedKeys: ['permissions'],
+					settings: { permissions: bypassPermissionsDisabled ? { disableBypassPermissionsMode: 'disable' } : {} },
+				}, {});
+				mockSession.rpc.permissions.getMode = async () => ({ mode: 'allow-all' as const });
+				mockSession.currentMode = 'plan';
+				await session.adoptRuntimeModes();
+				await session.applyMode('plan');
+				results.push({ patches: chatConfigUpdates.map(update => update.patch), modeSetCalls: mockSession.modeSetCalls.length });
+			}
+			assert.deepStrictEqual(results, [
+				{ patches: [{ autoApprove: 'autoApprove', mode: 'plan' }], modeSetCalls: 0 },
+				{ patches: [{ autoApprove: 'default', mode: 'plan' }], modeSetCalls: 0 },
+			]);
+		});
+
 		test('native mode policy preserves global toggle behavior and legacy fallback', async () => {
 			const { session, runtime, mockSession, setRootValue, fireRootConfigChange, sessionConfigUpdates } = await createAgentSession(disposables, {
 				configValues: { autoApprove: 'assisted' },
@@ -18732,6 +18755,22 @@ Use the attached image as context.
 			assert.deepStrictEqual(calls, [
 				{ proxy: 'apps', serverName: 'everything', uri: 'demo://resource/1' },
 				{ proxy: 'apps', serverName: 'app', uri: 'ui://example/app' },
+			]);
+		});
+
+		test('MCP Apps tool calls preserve request metadata separately from arguments', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const calls: Parameters<typeof mockSession.rpc.mcp.apps.callTool>[0][] = [];
+			mockSession.rpc.mcp.apps.callTool = async params => {
+				calls.push(params);
+				return { content: [] };
+			};
+			const meta = { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } };
+			await session.handleMcpRequest('app', 'tools/call', { name: 'correlation_probe', arguments: { value: 42 }, _meta: meta });
+			await session.handleMcpRequest('app', 'tools/call', { name: 'correlation_probe' });
+			assert.deepStrictEqual(calls, [
+				{ serverName: 'app', toolName: 'correlation_probe', originServerName: 'app', arguments: { value: 42 }, _meta: meta },
+				{ serverName: 'app', toolName: 'correlation_probe', originServerName: 'app', arguments: undefined, _meta: undefined },
 			]);
 		});
 

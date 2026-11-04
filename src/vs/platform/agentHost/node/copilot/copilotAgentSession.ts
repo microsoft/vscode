@@ -5828,6 +5828,39 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
+	/**
+	 * Takes the permission and agent modes the runtime restored for this chat, so a
+	 * chat that another client drove keeps them instead of receiving this host's
+	 * configured defaults on its next turn. A permission mode the policy does not
+	 * allow falls back as a configured one would.
+	 */
+	adoptRuntimeModes(): Promise<void> {
+		return this._permissionModeSequencer.queue(async () => {
+			const [permissions, mode] = await Promise.all([
+				this._wrapper.session.rpc.permissions.getMode(),
+				this._wrapper.session.rpc.mode.get(),
+			]);
+			const { configuredLevel } = this._approvalPolicy.resolveSelection({
+				...this._getApprovalInputs(), requested: fromCopilotPermissionMode(permissions.mode), globalAutoApprove: false,
+			});
+			this._logService.info(`[Copilot:${this.sessionId}] Adopting runtime modes: sdkPermissionMode=${permissions.mode}, configuredLevel=${configuredLevel}, sdkMode=${mode}`);
+			this._lastAppliedMode = mode;
+			this._configurationService.updateChatConfig(this._configWriteTarget(), {
+				[SessionConfigKey.AutoApprove]: configuredLevel,
+				[SessionConfigKey.Mode]: mode,
+			});
+		});
+	}
+
+	/** The model selection and custom agent the runtime runs this chat with. */
+	async readRuntimeSelection(): Promise<{ readonly model: Awaited<ReturnType<CopilotSession['rpc']['model']['getCurrent']>>; readonly agentName: string | undefined }> {
+		const [model, agent] = await Promise.all([
+			this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent()),
+			this._awaitControlPlaneRpc('rpc.agent.getCurrent', this._wrapper.session.rpc.agent.getCurrent()),
+		]);
+		return { model, agentName: agent.agent?.name };
+	}
+
 	setSessionApproveAll(enabled: boolean): Promise<void> {
 		return this._permissionModeSequencer.queue(async () => {
 			if (!this._wrapper || this._store.isDisposed) {
@@ -7281,7 +7314,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const rawArgs = params ? params['arguments'] : undefined;
 				const args = isObject(rawArgs) ? rawArgs as Record<string, JsonValue> : undefined;
-				return apps.callTool({ serverName, toolName: name, arguments: args, originServerName: serverName });
+				const callParams = { serverName, toolName: name, arguments: args, originServerName: serverName, _meta: params?.['_meta'] };
+				// TODO: Remove the cast once the SDK exposes request metadata.
+				return apps.callTool(callParams as Parameters<typeof apps.callTool>[0]);
 			}
 			case 'resources/read': {
 				const uri = params && typeof params['uri'] === 'string' ? params['uri'] : undefined;

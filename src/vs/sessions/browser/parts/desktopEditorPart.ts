@@ -53,6 +53,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
+				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,

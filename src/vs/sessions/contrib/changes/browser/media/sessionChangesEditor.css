@@ -15,6 +15,20 @@
 	position: relative;
 }
 
+/* While the changed files list shows, the header above the diffs gets a bottom border that the list's separator continues.
+ * It sits on the last row of the header, so the first diff card keeps the full gap of the cards below it. */
+.session-changes-editor-body.file-list-visible::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--vscode-strokeThickness));
+	left: 0;
+	right: 0;
+	z-index: 10;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-multiDiffEditor-border);
+	pointer-events: none;
+}
+
 .session-changes-editor-empty-state {
 	position: absolute;
 	inset: 0;
@@ -363,9 +377,4 @@
 	position: relative;
 	flex: 1;
 	min-height: 0;
-}
-
-.session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
-	margin-top: 0;
-	height: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size40));
 }

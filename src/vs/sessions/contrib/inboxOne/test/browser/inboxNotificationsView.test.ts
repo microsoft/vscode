@@ -205,7 +205,7 @@ suite('InboxNotificationsView', () => {
 				sessionsVisible = !hidden;
 			},
 		});
-		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, setSessionReadState: async () => { } });
+		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, setSessionReadState: async () => { }, markChatRead: async () => { } });
 		instantiationService.stubInstance(InboxEvidenceWidget, { element: document.createElement('div'), getAccessibleContent: () => '', dispose: () => { } });
 		instantiationService.stubInstance(InboxCanvases, { element: document.createElement('div'), layout: () => { }, setVisible: () => { }, createAccessibleProvider: () => undefined, dispose: () => { } });
 		const chatViews: TestChatView[] = [];
@@ -266,6 +266,47 @@ suite('InboxNotificationsView', () => {
 		document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
 		return { view, container, instantiationService, chatViews, chatOptions, newChatViews, newChatOptions, hovers, navigationRequest, sessionsVisible: () => sessionsVisible };
+	}
+
+	for (const interaction of ['click', 'keyboard'] as const) {
+		test(`${interaction} opens evidence without marking the session read or completing it`, async () => {
+			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+			const session = upcastPartial<ISession>({
+				sessionId: 'session', resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]),
+			});
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Finished', description: 'Summary', timestamp: 1, actions: [], sessionResource: session.resource,
+			};
+			const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
+			const { view, container, instantiationService } = createView(items);
+			const read = stub().resolves();
+			const done = spy();
+			const dismiss = spy();
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', read);
+			instantiationService.stub(ISessionsManagementService, 'markChatRead', read);
+			instantiationService.stub(IInboxNotificationsService, 'markSessionDone', done);
+			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+			view.render(container);
+			const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+			card.focus();
+			card.dispatchEvent(new mainWindow.MouseEvent('mouseover', { bubbles: true }));
+			items.set([{ ...item, description: 'Updated summary' }], undefined);
+			const passiveReads = read.callCount;
+			const updatedCard = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+			if (interaction === 'click') {
+				updatedCard.click();
+			} else {
+				updatedCard.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				passiveReads, read: read.args, done: done.callCount, dismissed: dismiss.callCount,
+				selected: container.querySelector('.inbox-notifications-item.selected')?.getAttribute('data-notification-id'),
+				stillPresent: !!container.querySelector('[data-notification-id="item"]'),
+			}, { passiveReads: 0, read: [], done: 0, dismissed: 0, selected: 'item', stillPresent: true });
+		});
 	}
 
 	for (const { categories, expected } of [
@@ -1016,7 +1057,7 @@ suite('InboxNotificationsView', () => {
 			}));
 			const active = observableValue<readonly IInboxNotificationItem[]>('active', items);
 			const { view, container, instantiationService, chatViews } = createView(active);
-			const markRead = stub().callsFake(async () => active.set(items.slice(1), undefined));
+			const markRead = stub().resolves();
 			const dismiss = spy();
 			const openSession = spy();
 			const archiveSession = spy();
@@ -1591,6 +1632,66 @@ suite('InboxNotificationsView', () => {
 		});
 	}
 
+	test('Done marks a needs-input session read without requiring evidence to be opened', async () => {
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:///chat'), updatedAt: constObservable(new Date(1)), lastTurnEnd: constObservable(undefined),
+		});
+		const session = upcastPartial<ISession>({
+			resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]),
+		});
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: 'Question', description: 'Answer needed', timestamp: 1, actions: [], sessionResource: session.resource,
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]));
+		const read = stub().resolves();
+		const done = spy();
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		instantiationService.stub(ISessionsManagementService, 'markChatRead', read);
+		instantiationService.stub(IInboxNotificationsService, 'markSessionDone', done);
+		view.render(container);
+		await accessView(view).runAction(item, { id: 'done', label: 'Done', kind: InboxNotificationActionKind.MarkDone });
+		assert.deepStrictEqual({ read: read.args, done: done.callCount }, { read: [[session, chat]], done: 1 });
+	});
+
+	for (const target of ['main', 'chatResource', 'needsInputPart', 'missing'] as const) {
+		test(`Done acknowledges only the notification chat in a multi-chat session: ${target}`, async () => {
+			const mainRead = observableValue('mainRead', false);
+			const peerRead = observableValue('peerRead', false);
+			const main = upcastPartial<IChat>({
+				resource: URI.parse('test:///main'), isRead: mainRead,
+				updatedAt: constObservable(new Date(1)), lastTurnEnd: constObservable(undefined),
+			});
+			const peer = upcastPartial<IChat>({
+				resource: URI.parse('test:///peer'), isRead: peerRead,
+				updatedAt: constObservable(new Date(1)), lastTurnEnd: constObservable(undefined),
+			});
+			const session = upcastPartial<ISession>({
+				resource: URI.parse('test:///session'), mainChat: constObservable(main), chats: constObservable([main, peer]),
+			});
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+				title: 'Question', description: '', timestamp: 1, actions: [], sessionResource: session.resource,
+				chatResource: target === 'chatResource' ? peer.resource : target === 'missing' ? URI.parse('test:///missing') : undefined,
+				needsInputPart: target === 'main' ? undefined : {
+					kind: 'confirmation', chatResource: target === 'chatResource' ? main.resource : peer.resource,
+					requestId: 'request', data: {}, title: 'Continue?', message: '',
+				},
+			};
+			const { view, instantiationService } = createView(constObservable([item]));
+			const sessionRead = spy();
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', sessionRead);
+			instantiationService.stub(ISessionsManagementService, 'markChatRead', async (_session: ISession, chat: IChat) => {
+				(chat === main ? mainRead : peerRead).set(true, undefined);
+			});
+			await accessView(view).runAction(item, { id: 'done', label: 'Done', kind: InboxNotificationActionKind.MarkDone });
+			assert.deepStrictEqual({
+				mainRead: mainRead.get(), peerRead: peerRead.get(), aggregateReads: sessionRead.callCount,
+			}, { mainRead: target === 'main', peerRead: target === 'chatResource' || target === 'needsInputPart', aggregateReads: 0 });
+		});
+	}
+
 	test('Done clears the selected interpretation even when the notification moves to Completed', async () => {
 		const item: IInboxNotificationItem = {
 			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
@@ -1629,7 +1730,9 @@ suite('InboxNotificationsView', () => {
 		InboxNotificationActionKind.ArchiveSession, InboxNotificationActionKind.DeleteSession, InboxNotificationActionKind.Command,
 	]) {
 		test(`successful ${kind} dismisses only the addressed notification without resetting an unchanged row`, async () => {
-			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+			const chat = upcastPartial<IChat>({
+				resource: URI.parse('test:///chat'), updatedAt: constObservable(new Date(1)), lastTurnEnd: constObservable(undefined),
+			});
 			const session = upcastPartial<ISession>({ sessionId: 'session', providerId: 'provider', resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]) });
 			const action = { id: kind, kind, label: kind, commandId: 'test.command' };
 			const item: IInboxNotificationItem = {
@@ -1647,7 +1750,7 @@ suite('InboxNotificationsView', () => {
 			const markRead = spy(async () => { });
 			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
 			instantiationService.stub(IInboxNotificationsService, 'markSessionDone', done);
-			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', markRead);
+			instantiationService.stub(ISessionsManagementService, 'markChatRead', markRead);
 			view.render(container);
 			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
 			await accessView(view).runAction(item, action);
@@ -1656,7 +1759,7 @@ suite('InboxNotificationsView', () => {
 				dismissed: dismiss.args, read: markRead.args, replyDisposed: chatViews[0].disposed,
 				selected: !!container.querySelector('.inbox-notifications-item.selected'), done: done.callCount,
 			}, {
-				dismissed: dismisses ? [[item.id, item]] : [], read: dismisses && kind !== InboxNotificationActionKind.Dismiss ? [[session, true]] : [], replyDisposed: false, selected: kind !== InboxNotificationActionKind.MarkDone,
+				dismissed: dismisses ? [[item.id, item]] : [], read: kind !== InboxNotificationActionKind.OpenSession && kind !== InboxNotificationActionKind.Dismiss ? [[session, chat]] : [], replyDisposed: false, selected: kind !== InboxNotificationActionKind.MarkDone,
 				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0
 			});
 		});
@@ -1755,6 +1858,58 @@ suite('InboxNotificationsView', () => {
 				}, { dismissed: succeeds ? [[item.id, item]] : [], evidence: true });
 			});
 		}
+	}
+
+	for (const changedActivity of ['none', 'updatedAt', 'lastTurnEnd'] as const) {
+		test(`delayed confirmation dismisses its notification without reading newer activity: ${changedActivity}`, async () => {
+			const updatedAt = observableValue<Date | undefined>('updatedAt', new Date(1));
+			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', new Date(1));
+			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat'), updatedAt, lastTurnEnd });
+			const session = upcastPartial<ISession>({
+				resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]),
+			});
+			const confirmation = upcastPartial<IChatConfirmation>({ kind: 'confirmation', data: {}, isUsed: false });
+			const part: IInboxNotificationConfirmationPart = {
+				kind: 'confirmation', chatResource: chat.resource, requestId: 'request', data: confirmation.data, title: 'Continue?', message: '',
+			};
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Pending input', description: '', timestamp: 1, actions: [], sessionResource: session.resource, needsInputPart: part,
+			};
+			const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
+			const dispatch = new DeferredPromise<ChatSendResult>();
+			const { view, instantiationService } = createView(items, {
+				chatService: {
+					getSession: () => upcastPartial<IChatModel>({
+						getRequests: () => [upcastPartial<IChatRequestModel>({
+							response: upcastPartial<IChatResponseModel>({
+								requestId: 'request', response: upcastPartial<IChatResponseModel['response']>({ value: [confirmation] }),
+							}),
+						})],
+					}),
+					sendRequest: () => dispatch.p,
+				},
+			});
+			const read = stub().resolves();
+			const sessionRead = spy();
+			const dismiss = spy();
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			instantiationService.stub(ISessionsManagementService, 'markChatRead', read);
+			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', sessionRead);
+			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+			const submitting = accessView(view).submitConfirmationPart(item, part, 'Yes', 0);
+			if (changedActivity !== 'none') {
+				(changedActivity === 'updatedAt' ? updatedAt : lastTurnEnd).set(new Date(2), undefined);
+				items.set([{ ...item, timestamp: 2 }], undefined);
+			}
+			await dispatch.complete(upcastPartial<ChatSendResult>({ kind: 'sent' }));
+			await submitting;
+			assert.deepStrictEqual({
+				read: read.args, aggregateReads: sessionRead.callCount, dismissed: dismiss.args, used: confirmation.isUsed,
+			}, {
+				read: changedActivity === 'none' ? [[session, chat]] : [], aggregateReads: 0, dismissed: [[item.id, item]], used: true,
+			});
+		});
 	}
 
 	test('captures click correlation before handlers and does not select action targets', () => {
@@ -2131,6 +2286,15 @@ suite('InboxNotificationsView', () => {
 
 	test('tool confirmations mirror default, custom deny, and skip chat reasons', async () => {
 		const { view, instantiationService } = createView(constObservable([]));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:///chat'), updatedAt: constObservable(new Date(1)), lastTurnEnd: constObservable(undefined),
+		});
+		const session = upcastPartial<ISession>({
+			resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]),
+		});
+		const read = stub().resolves();
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		instantiationService.stub(ISessionsManagementService, 'markChatRead', read);
 		const confirm = stub(IChatToolInvocation, 'confirmWith').returns(true);
 		disposables.add({ dispose: () => confirm.restore() });
 		const state = observableValue('approvalState', upcastPartial<IChatToolInvocation.State>({ type: IChatToolInvocation.StateKind.WaitingForConfirmation }));
@@ -2147,7 +2311,7 @@ suite('InboxNotificationsView', () => {
 			})],
 		}));
 		instantiationService.stub(IInboxNotificationsService, 'dismissNotification', () => { });
-		const item: IInboxNotificationItem = { id: 'tool', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Tool', description: '', timestamp: 1, actions: [] };
+		const item: IInboxNotificationItem = { id: 'tool', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Tool', description: '', timestamp: 1, actions: [], sessionResource: session.resource };
 		const part: IInboxNotificationToolConfirmationPart = {
 			kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'tool', confirmationKind: 'execution', title: 'Tool', message: '',
 			buttons: [
@@ -2164,12 +2328,16 @@ suite('InboxNotificationsView', () => {
 		state.set(upcastPartial<IChatToolInvocation.State>({ type: IChatToolInvocation.StateKind.WaitingForPostApproval }), undefined);
 		await accessView(view).submitToolConfirmationPart(item, part, 0);
 		await accessView(view).submitToolConfirmationPart(item, { ...part, confirmationKind: 'result' }, 0);
-		assert.deepStrictEqual(confirm.getCalls().map(call => call.args[1]), [
-			{ type: ToolConfirmKind.UserAction },
-			{ type: ToolConfirmKind.UserAction, selectedButton: 'cancel', selectedButtonKind: ConfirmationOptionKind.Deny },
-			{ type: ToolConfirmKind.Skipped, source: 'user' },
-		]);
-		assert.strictEqual(notifyError.callCount, 2);
+		assert.deepStrictEqual({
+			reasons: confirm.getCalls().map(call => call.args[1]), read: read.args, errors: notifyError.callCount,
+		}, {
+			reasons: [
+				{ type: ToolConfirmKind.UserAction },
+				{ type: ToolConfirmKind.UserAction, selectedButton: 'cancel', selectedButtonKind: ConfirmationOptionKind.Deny },
+				{ type: ToolConfirmKind.Skipped, source: 'user' },
+			],
+			read: [[session, chat], [session, chat], [session, chat]], errors: 2,
+		});
 	});
 
 	test('question cards retain native chrome and keep the prompt inside the card', () => {

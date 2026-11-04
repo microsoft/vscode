@@ -147,6 +147,9 @@ suite_configuration_editing() {
 # estimated seconds, from the Linux CI runners, run the longest suites first in parallel.
 add_suite api api-folder 67 "API tests (folder)" suite_api_folder
 add_suite api api-workspace 6 "API tests (workspace)" suite_api_workspace
+# The API tests wait a fixed time for tools to register and for browser pages to respond, which
+# another VS Code instance competing for the CPU delays past that time.
+run_group_alone api
 add_suite typescript typescript 6 "TypeScript tests" suite_typescript
 add_suite markdown markdown 21 "Markdown tests" suite_markdown
 add_suite emmet emmet 37 "Emmet tests" suite_emmet

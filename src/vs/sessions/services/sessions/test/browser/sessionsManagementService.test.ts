@@ -5999,6 +5999,82 @@ suite('SessionsManagementService', () => {
 		completeSendRequest?.();
 	});
 
+	for (const background of [false, true]) {
+		test(`sendRequest ${background ? 'preserves' : 'discards'} a pending composer draft in the ${background ? 'background' : 'foreground'}`, async () => {
+			const session = stubSession({ sessionId: 'sent-session', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft-session', providerId: 'test' });
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace {
+					return { uri: URI.parse('test:///folder'), label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override createNewSession(): ISession { return draft; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const discarded: string[] = [];
+			disposables.add(service.onDidDiscardNewSession(session => discarded.push(session.sessionId)));
+			service.createNewSession(URI.parse('test:///folder'));
+			const sent = Event.toPromise(service.onDidSendRequest);
+
+			await service.sendRequest(session, session.mainChat.get(), { query: 'question', background });
+			await sent;
+
+			assert.deepStrictEqual({ draft: service.newSession.get()?.sessionId, discarded }, background
+				? { draft: 'draft-session', discarded: [] }
+				: { draft: undefined, discarded: ['draft-session'] });
+		});
+	}
+
+	for (const fail of [false, true]) {
+		test(`sendRequestInBackground awaits submission and ${fail ? 'propagates failure' : 'reports success'} without navigating or discarding drafts`, async () => {
+			const session = stubSession({ sessionId: 'sent-session', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft-session', providerId: 'test' });
+			const entered = new DeferredPromise<void>();
+			const released = new DeferredPromise<void>();
+			let background: boolean | undefined;
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace {
+					return { uri: URI.parse('test:///folder'), label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override createNewSession(): ISession { return draft; }
+				override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestSentEvent['options']): Promise<ISession> {
+					background = options.background;
+					entered.complete();
+					await released.p;
+					if (fail) {
+						throw new Error('Send failed');
+					}
+					return session;
+				}
+			}(session);
+			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			let willSend = 0;
+			let sent = 0;
+			let discarded = 0;
+			disposables.add(service.onWillSendRequest(() => willSend++));
+			disposables.add(service.onDidSendRequest(() => sent++));
+			disposables.add(service.onDidDiscardNewSession(() => discarded++));
+			service.createNewSession(URI.parse('test:///folder'));
+			const navigationRequest = view.navigationRequest.get();
+			let settled = false;
+			const sending = service.sendRequestInBackground(session, session.mainChat.get(), { query: 'question' }).finally(() => { settled = true; });
+			const completed = fail ? assert.rejects(sending, /Send failed/) : sending;
+			await entered.p;
+			const pending = !settled;
+			released.complete();
+			await completed;
+
+			assert.deepStrictEqual({
+				pending, settled, background, willSend, sent, discarded,
+				draft: service.newSession.get()?.sessionId,
+				navigated: view.navigationRequest.get() !== navigationRequest,
+			}, {
+				pending: true, settled: true, background: true, willSend: 0, sent: fail ? 0 : 1, discarded: 0,
+				draft: 'draft-session',
+				navigated: false,
+			});
+		});
+	}
+
 	test('mirrored follow-up requests preserve submitted attachments', () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
