@@ -42,7 +42,6 @@ export class CanvasEditor extends EditorPane {
 			logPrefix: '[CanvasEditor]',
 			notPresentableMessage: constObservable(localize('canvas.ownerUnavailable', "This canvas is only shown beside its owning conversation.")),
 			getHelpContent: () => this.getHelpContent(),
-			getEditorGroupId: () => this.group.id,
 		}));
 		this._register(this.view.onDidFocus(() => this._onDidFocus?.fire()));
 	}

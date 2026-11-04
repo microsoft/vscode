@@ -19,7 +19,6 @@ import { TestNotificationService } from '../../../../platform/notification/test/
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { ExternalUriOpenerService } from '../../../contrib/externalUriOpener/common/externalUriOpenerService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { TestExtensionService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
@@ -59,7 +58,6 @@ suite('ExtHostUriOpeners', () => {
 			openerService,
 			new TestNotificationService(),
 			new class extends mock<IHostService>() { override async focus() { } },
-			new class extends mock<IEditorGroupsService>() { },
 		)));
 		store.add(openerService.registerExternalUriResolver({
 			async resolveExternalUri() {

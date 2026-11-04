@@ -474,7 +474,7 @@ suite('CanvasEditor', () => {
 		assert.strictEqual(harness.created, 0);
 	});
 
-	test('routes external link requests through the workbench opener, from the window and group of the canvas', async () => {
+	test('routes external link requests through the workbench opener, from the window of the canvas', async () => {
 		const harness = createHarness();
 		await harness.open();
 		await harness.modelAttached.p;
@@ -487,7 +487,6 @@ suite('CanvasEditor', () => {
 				fromUserGesture: true,
 				allowContributedOpeners: true,
 				sourceWindowId: mainWindow.vscodeWindowId,
-				sourceEditorGroupId: 1,
 			},
 		}]);
 	});
