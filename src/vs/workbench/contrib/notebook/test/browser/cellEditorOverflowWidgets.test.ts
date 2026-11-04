@@ -199,7 +199,7 @@ suite('Notebook cell editor overflow widgets', () => {
 		return { root, overflowRoot, services, codeRenderer, markupRenderer };
 	}
 
-	async function showHover(editor: ICodeEditor, services: TestInstantiationService, store: DisposableStore) {
+	async function showHover(editor: ICodeEditor, services: TestInstantiationService, store: DisposableStore, source = HoverStartSource.Keyboard) {
 		if (!editor.getLayoutInfo().width) {
 			editor.layout({ width: 500, height: editor.getContentHeight() });
 		}
@@ -213,7 +213,7 @@ suite('Notebook cell editor overflow widgets', () => {
 				void shown.complete();
 			}
 		}));
-		hover.showContentHover(new Range(1, 1, 1, 4), HoverStartMode.Immediate, HoverStartSource.Keyboard, false);
+		hover.showContentHover(new Range(1, 1, 1, 4), HoverStartMode.Immediate, source, false);
 		await shown.p;
 		editor.render();
 		listener.dispose();
@@ -243,6 +243,59 @@ suite('Notebook cell editor overflow widgets', () => {
 
 	for (const kind of [CellKind.Code, CellKind.Markup]) {
 		const name = kind === CellKind.Code ? 'code' : 'Markdown';
+
+		test(`${name}: mouse can enter the edge of a detached hover and leave it normally`, async () => {
+			await withFixture(kind, async (fixture, cell, store) => {
+				cell.layoutChange({ outerWidth: 600 });
+				let editor: ICodeEditor;
+				if (cell instanceof CodeCellViewModel) {
+					const template = ownTemplate(fixture.codeRenderer.renderTemplate(DOM.append(fixture.root, DOM.$('.cell-row'))), store);
+					template.cellParts = template.templateDisposables.add(new CellPartsCollection(mainWindow, [], []));
+					fixture.codeRenderer.renderElement(cell, 0, template, { height: 100 });
+					editor = template.editor;
+				} else {
+					const markupCell = cell as MarkupCellViewModel;
+					markupCell.updateEditState(CellEditState.Editing, 'test');
+					const template = ownTemplate(fixture.markupRenderer.renderTemplate(DOM.append(fixture.root, DOM.$('.cell-row'))), store);
+					template.cellParts = template.templateDisposables.add(new CellPartsCollection(mainWindow, [], []));
+					fixture.markupRenderer.renderElement(markupCell, 0, template, { height: 100 });
+					editor = template.currentEditor!;
+				}
+				editor.setModel(await cell.resolveTextModel());
+				const hover = await showHover(editor, fixture.services, store, HoverStartSource.Mouse);
+				const editorNode = editor.getDomNode()!;
+				const popup = editor.getOverflowWidgetsDomNode()!.querySelector<HTMLElement>('.monaco-resizable-hover')!;
+				const editorBounds = editorNode.getBoundingClientRect();
+				const popupBounds = popup.getBoundingClientRect();
+				assert.ok(popupBounds.width > 0 && popupBounds.height > 0 && !editorNode.contains(popup));
+
+				editorNode.dispatchEvent(new MouseEvent('mousemove', {
+					bubbles: true, clientX: editorBounds.left + 100, clientY: editorBounds.top + 10
+				}));
+				const entry = { clientX: popupBounds.left + popupBounds.width / 2, clientY: popupBounds.bottom - 1 };
+				editorNode.dispatchEvent(new MouseEvent('mouseleave', { ...entry, relatedTarget: popup }));
+				const afterEditorLeave = hover.isHoverVisible;
+				// Exercise the document-level fallback when the browser misses the editor's mouseleave.
+				editorNode.dispatchEvent(new MouseEvent('mousemove', {
+					bubbles: true, clientX: editorBounds.left + 100, clientY: editorBounds.top + 10
+				}));
+				popup.dispatchEvent(new MouseEvent('mousemove', { ...entry, bubbles: true }));
+				const afterDocumentMove = hover.isHoverVisible;
+				popup.dispatchEvent(new MouseEvent('mousedown', { ...entry, bubbles: true }));
+				const afterMouseDown = hover.isHoverVisible;
+				popup.dispatchEvent(new MouseEvent('mouseleave', {
+					clientX: editorBounds.right + 100, clientY: editorBounds.bottom + 100, relatedTarget: mainWindow.document.body
+				}));
+				const afterHoverLeave = hover.isHoverVisible;
+				await showHover(editor, fixture.services, store, HoverStartSource.Mouse);
+				editorNode.dispatchEvent(new MouseEvent('mouseleave', {
+					clientX: editorBounds.right + 100, clientY: editorBounds.bottom + 100, relatedTarget: mainWindow.document.body
+				}));
+				assert.deepStrictEqual({
+					afterEditorLeave, afterDocumentMove, afterMouseDown, afterHoverLeave, afterEditorExit: hover.isHoverVisible
+				}, { afterEditorLeave: true, afterDocumentMove: true, afterMouseDown: true, afterHoverLeave: false, afterEditorExit: false });
+			});
+		});
 
 		test(`${name}: external content widgets inherit editor context and widget focus`, async () => {
 			await withFixture(kind, async (fixture, cell, store) => {

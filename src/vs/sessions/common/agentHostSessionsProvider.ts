@@ -155,6 +155,11 @@ export interface IAgentHostMcpServer {
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
 	readonly logOutputChannelId?: string;
+	/**
+	 * Skills this server serves in the session while it is effectively enabled. `id` is the server
+	 * customization's raw id, which identifies the server's skill bundle in the Skills list.
+	 */
+	readonly skillBundle?: { readonly id: string; readonly count: number };
 	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */

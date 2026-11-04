@@ -7,7 +7,7 @@ import type { CopilotClient, InstallationConfirmationRequest, McpInstallationRev
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { stableStringify } from '../../../../base/common/objects.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -30,6 +30,11 @@ type CustomizationClient = Awaited<ReturnType<ConstructorParameters<typeof Copil
 type GetSavedFeed = CopilotClient['rpc']['catalog']['getSavedFeed'];
 
 type PolicySessionFactory = ConstructorParameters<typeof CopilotCustomizationInstallations>[1];
+
+const cancellationToken: Parameters<CopilotCustomizationInstallations['confirmationHandler']>[1] = {
+	isCancellationRequested: false,
+	onCancellationRequested: () => Disposable.None,
+};
 
 /**
  * Records the hidden policy sessions a {@link CopilotCustomizationInstallations}
@@ -274,7 +279,7 @@ suite('CopilotCustomizationInstallations', () => {
 						expiresAt,
 						reviewFingerprint: `fingerprint-${decisions.length}`,
 						review: { resource: 'plugin', review },
-					}, CancellationToken.None));
+					}, cancellationToken));
 				}
 				return {
 					kind: 'outcome',
@@ -617,7 +622,7 @@ suite('CopilotCustomizationInstallations', () => {
 				`skills.list:${hidden}`,
 				`mcp.list:${hidden}`,
 			],
-			uninstall: 'The SDK no longer owns this customization installation.',
+			uninstall: 'This customization installation is no longer available.',
 		});
 	});
 
@@ -1188,7 +1193,7 @@ suite('CopilotCustomizationInstallations', () => {
 					['valid', sdkReview.effectiveConfiguration!],
 				];
 				for (const [id, effectiveConfiguration] of configurations) {
-					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), CancellationToken.None));
+					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), cancellationToken));
 				}
 				installed = true;
 				return {
@@ -1239,7 +1244,7 @@ suite('CopilotCustomizationInstallations', () => {
 						},
 					},
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
 				uninstallDecisions.push(decision);
 				installed = decision !== 'confirm';
 				return {
@@ -1832,7 +1837,7 @@ suite('CopilotCustomizationInstallations', () => {
 					reviewFingerprint: 'fingerprint',
 					review: { resource: 'skill', review: sdkReview },
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
 				decisions.push(decision);
 				return {
 					kind: 'outcome' as const,
@@ -1916,7 +1921,7 @@ suite('CopilotCustomizationInstallations', () => {
 			expiresAt,
 			reviewFingerprint: 'premature-fingerprint',
 			review: { resource: 'skill', review: sdkReview },
-		}, CancellationToken.None);
+		}, cancellationToken);
 		await service.apply(review.operationId);
 
 		assert.deepStrictEqual({
@@ -1958,7 +1963,7 @@ suite('CopilotCustomizationInstallations', () => {
 				fileCount: 1,
 				totalBytes: 12,
 			},
-			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Browse and try again.',
+			versionMismatch: 'The catalog version changed after discovery. Refresh Browse and try again.',
 			prematureDecision: 'cancel',
 			decisions: ['confirm'],
 		});
@@ -2007,7 +2012,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (refused: lifecycle-unavailable)',
+				error: 'Could not list installed MCP servers. (refused: lifecycle-unavailable)',
 				calls: ['mcp.list', 'skills.list'],
 			});
 		});
@@ -2048,7 +2053,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (recovery-required)',
+				error: 'Could not list installed MCP servers. (recovery-required)',
 				calls: ['mcp.list', 'mcp.recover', 'skills.list'],
 			});
 		});

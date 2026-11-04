@@ -195,6 +195,7 @@ export interface IExternalInboxNotification {
 export interface IInboxSessionRow extends IInboxNotificationItem {
 	readonly tab: InboxTab;
 	readonly sessionTitle: string;
+	readonly workTitle?: string;
 	readonly notifications: readonly IInboxNotificationItem[];
 	readonly hasImages: boolean;
 	readonly occurrence: string;
@@ -205,6 +206,7 @@ export interface IInboxNotificationsService {
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	readonly attentionCount: IObservable<number>;
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void;
 	markSessionDone(row: IInboxSessionRow): void;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;

@@ -418,6 +418,18 @@ suite('AhpJsonlLogger', () => {
 		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
 	});
 
+	test('redacts Assisted permissions feedback in dispatched confirmations without modifying the live action', () => {
+		const action = { type: 'chat/toolCallConfirmed', turnId: 't', toolCallId: 'tc', approved: true, _meta: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Private note' } };
+		const message = { jsonrpc: '2.0', method: 'dispatchAction', params: { channel: 'ahp-chat:/c', clientSeq: 1, action } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(message)).params.action._meta,
+			live: action._meta['vscode.assistedApprovalFeedback'],
+		}, {
+			logged: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': '<redacted permission feedback>' },
+			live: 'Private note',
+		});
+	});
+
 	test('preserves existing authentication redaction markers', () => {
 		assert.deepStrictEqual(['<redacted>', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
 			method: 'authenticate', params: { token },
@@ -585,6 +597,16 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	suite('stringifyAhpLogEntry', () => {
+		test('redacts proxy authorization results without changing the live value', () => {
+			const result = { jsonrpc: '2.0', id: 1, result: { authorization: 'Negotiate private-ticket' } };
+			assert.deepStrictEqual({
+				logged: JSON.parse(stringifyAhpLogEntry(result)),
+				live: result.result.authorization,
+			}, {
+				logged: { jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
+				live: 'Negotiate private-ticket',
+			});
+		});
 
 		test('serialises a top-level URI as its string form', () => {
 			const uri = URI.parse('file:///tmp/example.txt');

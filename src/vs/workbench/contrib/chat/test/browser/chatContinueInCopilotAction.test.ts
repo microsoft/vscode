@@ -33,7 +33,7 @@ import { IChatModel, IChatModelInputState, IChatRequestModel, IChatResponseModel
 import { LocalChatSessionUri, getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatViewModel } from '../../common/model/chatViewModel.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
@@ -45,15 +45,23 @@ suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'archived-unsupported', 'archived-remote', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
+		for (const scenario of ['local', 'selected-model', 'historical-model', 'unresolved-model', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'archived-unsupported', 'archived-remote', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
 				const source = scenario === SessionType.AgentHostClaude || scenario === SessionType.AgentHostCodex
 					? URI.from({ scheme: scenario, path: '/source' }) : LocalChatSessionUri.forSession('source');
 				const inputUri = URI.parse('vscode-chat-input:source');
+				// The request's model is resolved per turn; the input's selected model, else the last turn's, becomes the session model.
+				const requestModelId = scenario === 'selected-model' || scenario === 'historical-model' ? 'copilot/gpt-5' : scenario === 'unresolved-model' ? 'byok/llama' : undefined;
+				const selectedModelId = scenario === 'selected-model' ? 'copilot/claude-sonnet-5' : scenario === 'unresolved-model' ? 'byok/llama' : 'old-model';
+				const expected = {
+					turnModel: requestModelId === 'copilot/gpt-5' ? { id: 'gpt-5' } : undefined,
+					sessionModel: scenario === 'selected-model' ? { id: 'claude-sonnet-5' } : scenario === 'historical-model' ? { id: 'gpt-5' } : undefined,
+				};
 				const request = upcastPartial<IChatRequestModel>({
 					message: { text: 'Original question', parts: [] },
+					modelId: requestModelId,
 					response: upcastPartial<IChatResponseModel>({
 						entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }),
 						response: upcastPartial<IChatResponseModel['response']>({ getMarkdown: () => 'Original answer' }),
@@ -66,7 +74,7 @@ suite('Continue in Copilot policy recovery', () => {
 					viewModel: upcastPartial<ChatViewModel>({ sessionResource: source, model }),
 					viewContext: sidebar ? { viewId: ChatViewId } : {},
 					input: upcastPartial<ChatInputPart>({
-						selectedLanguageModel: constObservable(upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: 'old-model' })),
+						selectedLanguageModel: constObservable(upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: selectedModelId })),
 					}),
 					getInput: () => 'Unsent follow-up',
 					getInputState: () => upcastPartial<IChatModelInputState>({ inputText: 'Unsent follow-up', attachments: [attachment], selections: [] }),
@@ -199,6 +207,12 @@ suite('Continue in Copilot policy recovery', () => {
 				});
 				services.stub(ICustomizationHarnessService, {});
 				services.stub(ILanguageModelToolsService, {});
+				const languageModels: Record<string, Partial<ILanguageModelChatMetadata>> = {
+					'copilot/gpt-5': { id: 'gpt-5', vendor: 'copilot' },
+					'copilot/claude-sonnet-5': { id: 'claude-sonnet-5', vendor: 'copilot' },
+					'byok/llama': { id: 'llama', vendor: 'byok' },
+				};
+				services.stub(ILanguageModelsService, { lookupLanguageModel: identifier => languageModels[identifier] && upcastPartial<ILanguageModelChatMetadata>(languageModels[identifier]) });
 				services.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
 				services.stub(IEditorGroupsService, { groups: [] });
 				services.stub(IEditorService, {
@@ -293,13 +307,13 @@ suite('Continue in Copilot policy recovery', () => {
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					title: imported?.title,
-					history: imported?.turns.map(turn => ({ text: turn.message.text, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
+					history: imported?.turns.map(turn => ({ text: turn.message.text, model: turn.message.model, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
 					draft: draft && { ...draft, attachments: draft.attachments?.map(entry => entry.id.startsWith('chat-delegation-transcript-') ? { transcript: entry.value } : entry) },
 					preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
 				}, {
 					target: SessionType.AgentHostCopilot,
 					title: newChat ? undefined : 'Local conversation title',
-					history: newChat ? undefined : [{ text: 'Original question', response: [{ kind: 'markdown', content: 'Original answer' }] }],
+					history: newChat ? undefined : [{ text: 'Original question', model: expected.turnModel, response: [{ kind: 'markdown', content: 'Original answer' }] }],
 					draft: {
 						inputText: 'Unsent follow-up',
 						attachments: transcriptOnly ? [{ transcript: 'The following is the conversation history from a previous Local session. Continue working on it.\n\nUser: Original question\nAssistant: Original answer' }, attachment] : [attachment],
@@ -311,7 +325,7 @@ suite('Continue in Copilot policy recovery', () => {
 					backendExists: !newChat, listed: !newChat, deleted: [],
 					aliases: newChat ? [] : [real],
 					published: newChat ? [] : [real],
-					modelOverride: undefined, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
+					modelOverride: expected.sessionModel, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
 				});
 			});
 		}

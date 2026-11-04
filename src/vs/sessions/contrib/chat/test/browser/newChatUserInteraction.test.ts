@@ -83,6 +83,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			_widget: {
 				domNode: h.element,
 				getInput: () => query,
+				getContrib: () => undefined,
 				setInput: (value: string) => { query = value; },
 				inputEditor: { getModel: () => undefined },
 				attachmentModel: { attachments: [], addContext: () => { } },
@@ -118,7 +119,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			_isQuickChatComposer: constObservable(false),
 			_workspaceSupport: constObservable(undefined),
 			_comparisonSelection: { enabled: constObservable(false) },
-			_workspacePicker: { clearAttachedContext: () => { }, showPicker: () => { } },
+			_workspacePicker: { validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 			agentFeedbackService: { removeFeedback: () => { } },
 			_getWorkspaceRoots: () => [],
@@ -156,9 +157,11 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			const h = createHarness(newSession);
 			const handler = new DeferredPromise<boolean>();
 			const provider = new DeferredPromise<void>();
+			const providerStarted = new DeferredPromise<void>();
 			let sentOptions: ISendRequestOptions | undefined;
 			const { input, sourceOwner } = createInput(h, createSend(h, newSession, async options => {
 				sentOptions = options;
+				void providerStarted.complete();
 				await provider.p;
 			}), () => handler.p);
 			const send = input.submit();
@@ -166,7 +169,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			const id = h.starts[0];
 			h.setTime(175);
 			await handler.complete(false);
-			await Promise.resolve();
+			await providerStarted.p;
 			const unrelated = h.createResponse();
 			h.addWidget(unrelated.response);
 			unrelated.progress();

@@ -11,7 +11,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { Emitter, Event, Relay } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $ } from '../../../../base/browser/dom.js';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $, hide, show } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -638,6 +638,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Re-emit to outside
 		this._onDidModelChange.fire(e);
 
+		// The editors changed, which can change who provides the title
+		this.updateTitleProvidedByEditor();
+
 		// Handle within
 
 		switch (e.kind) {
@@ -961,7 +964,35 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
+		if (this.titleProvidedByEditor) {
+			return { total: 0, offset: 0 };
+		}
+
 		return this.titleControl.getHeight();
+	}
+
+	private titleProvidedByEditor = false;
+
+	/**
+	 * A group that holds exactly one editor whose pane renders its own title
+	 * does not show its title area. With more editors, it shows as usual.
+	 */
+	private updateTitleProvidedByEditor(): void {
+		const activeEditorPane = this.editorPane.activeEditorPane;
+		const titleProvidedByEditor = this.count === 1 && activeEditorPane instanceof EditorPane && activeEditorPane.input === this.activeEditor && activeEditorPane.providesTitle;
+		if (this.titleProvidedByEditor === titleProvidedByEditor) {
+			return;
+		}
+
+		this.titleProvidedByEditor = titleProvidedByEditor;
+		this.element.classList.toggle('title-provided-by-editor', titleProvidedByEditor);
+		if (titleProvidedByEditor) {
+			hide(this.titleContainer);
+		} else {
+			show(this.titleContainer);
+		}
+
+		this.relayout();
 	}
 
 	notifyIndexChanged(newIndex: number): void {
@@ -1312,6 +1343,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (cancelled) {
 					return undefined;
 				}
+
+				// The editor pane changed, which can change who provides the title
+				this.updateTitleProvidedByEditor();
 
 				// Editor change event
 				if (changed) {
@@ -2255,7 +2289,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
-		const titleControlSize = this.titleControl.layout({
+		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		}, contentWidth);

@@ -30,6 +30,14 @@
 	inset: 0;
 }
 
+.sessions-chat-background {
+	background-image: var(--sessions-chat-background-image, none);
+}
+
+.monaco-reduce-motion .sessions-chat-background {
+	background-image: var(--sessions-chat-background-reduced-motion-image, none);
+}
+
 .sessions-chat-background[hidden],
 .sessions-chat-background-replica-viewport[hidden] {
 	display: none;
