@@ -27,7 +27,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, ExtensionBlockingScope, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, IDeprecationInfo, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -183,6 +183,34 @@ suite('Extension Gallery Service', () => {
 		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
 		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, manifestService);
 	}
+
+	for (const { name, deprecation, expected } of [
+		{ name: 'absent', deprecation: undefined, expected: undefined },
+		{ name: 'null', deprecation: null, expected: undefined },
+		{ name: 'plain', deprecation: {}, expected: { source: 'marketplace', extension: undefined, additionalInfo: undefined } },
+		{ name: 'message', deprecation: { customMessage: '**Retired**' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: '**Retired**' } },
+		{ name: 'replacement and message', deprecation: { replacementExtension: { name: 'other.replacement', displayName: 'Replacement' }, customMessage: 'Please switch' }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'Replacement' }, additionalInfo: 'Please switch' } },
+		{ name: 'replacement without display name', deprecation: { replacementExtension: { name: 'other.replacement' } }, expected: { source: 'marketplace', extension: { id: 'other.replacement', displayName: 'other.replacement' }, additionalInfo: undefined } },
+		{ name: 'invalid replacement', deprecation: { replacementExtension: { name: 'invalid' }, customMessage: 'Retired' }, expected: { source: 'marketplace', extension: undefined, additionalInfo: 'Retired' } },
+	] satisfies { name: string; deprecation: object | null | undefined; expected: IDeprecationInfo | undefined }[]) {
+		for (const route of ['query', 'latest', 'version'] as const) {
+			test(`Marketplace deprecation ${name} through ${route}`, async () => {
+				const raw = { ...rawLatestExtension(), deprecation };
+				const requestService = new RecordingRequestService(options => requestContext(200, options.type === 'POST' ? galleryQueryResponse([raw]) : raw));
+				const galleryService = createExtensionGalleryService(requestService);
+				const extensions = route === 'query'
+					? (await galleryService.query({ text: 'extension' }, CancellationToken.None)).firstPage
+					: await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid', ...(route === 'version' ? { version: '1.0.0' } : {}) }], CancellationToken.None);
+				assert.deepStrictEqual({ records: extensions.map(e => e.deprecationInfo), requests: requestService.requests.length }, { records: [expected], requests: 1 });
+			});
+		}
+	}
+
+	test('deprecated flag alone does not bypass deprecation fallback', async () => {
+		const requestService = new RecordingRequestService(() => requestContext(200, { ...rawLatestExtension(), flags: 'deprecated' }));
+		const [extension] = await createExtensionGalleryService(requestService).getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		assert.strictEqual(extension.deprecationInfo, undefined);
+	});
 
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
