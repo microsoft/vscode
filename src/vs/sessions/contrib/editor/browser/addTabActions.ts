@@ -15,13 +15,13 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
+import { isWindowCommandContext, IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { EditorsOrder } from '../../../../workbench/common/editor.js';
+import { EditorsOrder, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
@@ -86,10 +86,11 @@ const searchTabCommandWhen = ContextKeyExpr.or(searchTabActionWhen, ContextKeyEx
 /**
  * The chat window an action runs in. Its menu entries name where they run, by their editor group or their window, which a
  * click in a window that does not have focus yet runs before it does: then only the chat window they name, never one in
- * the main window. Without arguments, as from a keybinding or the Command Palette, the chat window that has focus.
+ * the main window. Without such arguments, as from a keybinding, also one with arguments of its own, or the Command
+ * Palette, the chat window that has focus.
  */
 function resolveInvokingChatWindow(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
-	return args.length ? resolveChatWindowOfContext(accessor, args) : accessor.get(IChatWindowService).activeWindow;
+	return args.some(arg => isEditorCommandsContext(arg) || isWindowCommandContext(arg)) ? resolveChatWindowOfContext(accessor, args) : accessor.get(IChatWindowService).activeWindow;
 }
 
 /**

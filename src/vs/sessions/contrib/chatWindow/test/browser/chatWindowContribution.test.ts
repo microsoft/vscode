@@ -262,6 +262,7 @@ suite('Chat window contribution', () => {
 
 		assert.deepStrictEqual({
 			keyInChatWindow: await run('chat'),
+			keyWithArgumentsOfItsOwnInChatWindow: await run('chat', { reason: 'user' }),
 			entryOfChatWindowBeforeItHasFocus: await run('main', { windowId: 2 }),
 			groupOfChatWindowBeforeItHasFocus: await run('main', { groupId: 2 }),
 			keyInMainWindow: await run('main'),
@@ -269,6 +270,7 @@ suite('Chat window contribution', () => {
 			groupOfMainWindowWhileChatWindowHasFocus: await run('chat', { groupId: 1 }),
 		}, {
 			keyInChatWindow: inChatWindow,
+			keyWithArgumentsOfItsOwnInChatWindow: inChatWindow,
 			entryOfChatWindowBeforeItHasFocus: inChatWindow,
 			groupOfChatWindowBeforeItHasFocus: inChatWindow,
 			keyInMainWindow: inMainWindow,
