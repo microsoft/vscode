@@ -105,9 +105,16 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	readonly openedChats: URI[] = [];
+	readonly closedSessions: string[] = [];
 
 	override async openChat(_session: ISession, chatUri: URI): Promise<void> {
 		this.openedChats.push(chatUri);
+	}
+
+	override closeSession(session: ISession | undefined): void {
+		if (session) {
+			this.closedSessions.push(session.sessionId);
+		}
 	}
 }
 
@@ -1500,8 +1507,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		}]);
 	});
 
-	test('middle-click does not close the main chat and other auxiliary clicks are ignored', () => {
-		const { store, commandService, bar, tabs } = createHarness(disposables);
+	test('middle-click closes the main chat session and other auxiliary clicks are ignored', () => {
+		const { store, commandService, sessionsService, bar, tabs } = createHarness(disposables);
 		let bubbled = 0;
 		store.add(addDisposableListener(bar.element, EventType.AUXCLICK, () => bubbled++));
 		const mainMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
@@ -1512,11 +1519,13 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls,
+			closedSessions: sessionsService.closedSessions,
 			mainDefaultPrevented: mainMiddleClick.defaultPrevented,
 			secondaryDefaultPrevented: secondaryRightClick.defaultPrevented,
 			bubbled,
 		}, {
 			commandCalls: [],
+			closedSessions: ['session'],
 			mainDefaultPrevented: true,
 			secondaryDefaultPrevented: false,
 			bubbled: 1,
