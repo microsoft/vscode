@@ -28,6 +28,15 @@ export function serializeChatWindowEditors(group: IEditorGroup): ISerializedChat
 	});
 }
 
+/**
+ * The editors `window` shows besides its chat, serialized, such as to open them in the main window as it closes: those of
+ * its main part, those beside the chat in its chat part, such as tabs beside it, and those of the parts it created, such as
+ * for editors dropped on its edges. The chat itself has no serializer and stays out.
+ */
+export function serializeChatWindowEditorsBesideChat(window: IChatWindow, createdParts: readonly IContentPart[]): ISerializedChatWindowEditor[] {
+	return [...window.mainPart.groups, ...window.chatPart.groups, ...createdParts.flatMap(part => part.groups)].flatMap(group => serializeChatWindowEditors(group));
+}
+
 /** Deserializes what {@link serializeChatWindowEditors} serialized, skipping editors whose type is no longer available or that fail to deserialize. */
 export function deserializeChatWindowEditors(instantiationService: IInstantiationService, editors: readonly ISerializedChatWindowEditor[], onError?: (error: unknown) => void): { readonly editors: EditorInput[]; readonly activeEditor: EditorInput | undefined } {
 	const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
@@ -52,15 +61,22 @@ export function deserializeChatWindowEditors(instantiationService: IInstantiatio
 
 /**
  * Closes `window` to open its chat in a chat window of its own again, with what it showed besides its chat: the editors
- * of its main part and its terminals.
+ * of its main part, the groups of its chat part, such as editors beside the chat, the parts it created, such as for
+ * editors dropped on its edges, and its terminals.
  */
-export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>): Promise<void> {
+export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>, parts: { readonly chatPart: IChatWindowChatPart | undefined; readonly createdParts: readonly IContentPart[] }): Promise<void> {
 	const chat = window.chat.get();
 	// Serialized, as closing the window disposes them, and opened again in the new window.
 	const editors = window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group));
+	const createdParts = parts.createdParts.map(part => part.groups.flatMap(group => serializeChatWindowEditors(group))).filter(created => created.length > 0);
 	const showTerminals = window.terminalsVisible.get();
 	if (window.close()) {
-		await open(chat, { editors: deserializeChatWindowEditors(instantiationService, editors), showTerminals });
+		await open(chat, {
+			editors: deserializeChatWindowEditors(instantiationService, editors),
+			showTerminals,
+			chatPart: parts.chatPart,
+			createdParts: createdParts.length ? createdParts.map(created => deserializeChatWindowEditors(instantiationService, created)) : undefined,
+		});
 	}
 }
 

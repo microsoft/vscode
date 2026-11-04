@@ -27,6 +27,11 @@ class TestInput extends EditorInput {
 	override get resource() { return undefined; }
 }
 
+/** An editor that cannot move to another window, such as one whose model only that window has. */
+class ImmovableInput extends TestInput {
+	override canMove(): true | string { return 'cannot move'; }
+}
+
 suite('Chat window', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -138,6 +143,7 @@ suite('Chat window', () => {
 			closeWindow: () => events.push('close window'),
 			isUnloading: () => !!options?.unloading?.value,
 			setClosing: closing => closingStates.push(closing),
+			mainWindowGroup: () => 99,
 			createTerminalsPart: () => {
 				events.push('create terminals');
 				return createPart(events, 'terminals').part;
@@ -343,6 +349,26 @@ suite('Chat window', () => {
 			chatShows: true,
 			besideChat: true,
 			mainGroups: 1,
+		});
+	});
+
+	test('while an editor of the window cannot move to the main window, closing it does nothing at all: no editor moves or closes, also not those that would close without asking', () => {
+		const { window, main, chat, chatInput, events, closingStates } = createWindow();
+		const clean = editor();
+		const immovable = disposables.add(new ImmovableInput());
+		const tab = editor();
+		main.group.open(clean);
+		main.group.open(immovable);
+		chat.group.open(tab);
+
+		const closed = window.close();
+
+		assert.deepStrictEqual({ closed, events, closingStates, main: [main.group.contains(clean), main.group.contains(immovable)], chat: [chat.group.contains(chatInput), chat.group.contains(tab)] }, {
+			closed: false,
+			events: [],
+			closingStates: [],
+			main: [true, true],
+			chat: [true, true],
 		});
 	});
 

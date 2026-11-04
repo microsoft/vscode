@@ -20,7 +20,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
-import { EditorCloseContext, EditorsOrder, GroupModelChangeKind } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
@@ -31,7 +31,7 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
-import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditors } from './chatWindowEditors.js';
+import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindChatWindowPartsVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid, TERMINAL_EDITOR_TYPE_ID } from './chatWindowGrid.js';
@@ -78,6 +78,8 @@ export interface IChatWindowHost {
 	isUnloading(): boolean;
 	/** The window starts closing, or stays open after all: what arranges its parts waits meanwhile. */
 	setClosing?(closing: boolean): void;
+	/** The group of the main window that the editors of the window move to as it closes. */
+	mainWindowGroup?(): GroupIdentifier;
 	/** Creates the part that holds the window's terminals, in the window's grid. */
 	createTerminalsPart(): IContentPart;
 	/** Whether the part that holds the window's terminals shows in the window's grid. */
@@ -340,6 +342,11 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		if (this._closed) {
 			return true;
 		}
+		// All or nothing, from the start: while an editor cannot move to the main window, nothing moves or closes, also not
+		// the editors that would close without asking as their part closes.
+		if (!this._canEditorsLeave()) {
+			return false;
+		}
 		this._closing = true;
 		this._host.setClosing?.(true);
 		// All or nothing: what the chat part shows beside the chat, such as an editor dropped beside it, moves into the main
@@ -362,6 +369,23 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._closed = true;
 		this._host.closeWindow();
 		this._onDidClose.fire();
+		return true;
+	}
+
+	/** Whether every editor of the main part and the chat part, but the chat, can move to the main window; shows the first that cannot. */
+	private _canEditorsLeave(): boolean {
+		const target = this._host.mainWindowGroup?.();
+		if (target === undefined) {
+			return true;
+		}
+		for (const group of [...this.mainPart.groups, ...this.chatPart.groups]) {
+			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
+				if (editor !== this.content.input && typeof editor.canMove(group.id, target) === 'string') {
+					void group.openEditor(editor);
+					return false;
+				}
+			}
+		}
 		return true;
 	}
 
@@ -576,6 +600,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			},
 			isUnloading: () => unloading,
 			setClosing: closing => gridRef.get()?.setClosing(closing),
+			mainWindowGroup: () => this._editorGroupsService.mainPart.activeGroup.id,
 			didMoveChatOut: () => void this._didMoveChatOut(window),
 			resetLayout: () => {
 				this._chatLayouts.delete(content.chat.get());
@@ -751,7 +776,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (group?.windowId === mainWindow.vscodeWindowId) {
 			await this.moveToMainWindow(window);
 		} else {
-			await reopenChatWindow(window, this._instantiationService, (chat, options) => this.open(chat, options));
+			await reopenChatWindow(window, this._instantiationService, (chat, options) => this.open(chat, options), { chatPart: window.captureChatPart(), createdParts: this._grids.get(window)?.createdParts ?? [] });
 		}
 	}
 
@@ -762,8 +787,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			return;
 		}
 		const chat = chatWindow.chat.get();
-		// Serialized, as closing the chat window disposes them, and opened again in the main window.
-		const serialized = chatWindow.mainPart.groups.flatMap(group => serializeChatWindowEditors(group));
+		// Serialized, as closing the chat window disposes them, and opened again in the main window
+		const serialized = serializeChatWindowEditorsBesideChat(chatWindow, this._grids.get(chatWindow)?.createdParts ?? []);
 		if (!chatWindow.close()) {
 			return;
 		}

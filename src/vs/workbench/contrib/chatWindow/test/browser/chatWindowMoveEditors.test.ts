@@ -19,7 +19,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWindow } from '../../browser/chatWindow.js';
-import { captureChatPart, getRestoredChatGroup, reopenChatWindow } from '../../browser/chatWindowEditors.js';
+import { captureChatPart, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from '../../browser/chatWindowEditors.js';
 import { moveEditorsToChatWindow } from '../../browser/chatWindowParts.js';
 
 /** An editor that shows only in the main window, as a canvas does: it vetoes every move. */
@@ -129,7 +129,30 @@ suite('Chat window: moving editors', () => {
 		});
 	});
 
-	test('a chat window that opens again, such as after its chat moved to an editor window, keeps the editors of its main part and its terminals', async () => {
+	test('moving a chat window to the main window takes the editors of its main part, those beside the chat in its chat part, such as tabs beside it, and those of the parts it created, but not the chat', () => {
+		const disposables = store.add(new DisposableStore());
+		const typeId = 'chatWindowCarryEditorsInput';
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(typeId, class implements IEditorSerializer {
+			canSerialize() { return true; }
+			serialize(editor: EditorInput) { return editor.resource!.toString(); }
+			deserialize(_instantiationService: IInstantiationService, value: string) { return disposables.add(new TestFileEditorInput(URI.parse(value), typeId)); }
+		}));
+		// The chat's editor has no serializer
+		const chat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowCarryChatInput'));
+		const editor = (path: string) => disposables.add(new TestFileEditorInput(URI.file(path), typeId));
+		const group = (...editors: EditorInput[]) => upcastPartial<IEditorGroup>({ activeEditor: editors[0], getEditors: () => editors });
+		const [main, tab, beside, edge] = ['/main', '/tab', '/beside', '/edge'].map(editor);
+		const window = new class extends mock<IChatWindow>() {
+			override readonly mainPart = upcastPartial<IContentPart>({ groups: [group(main)] });
+			override readonly chatPart = upcastPartial<IContentPart>({ groups: [group(chat, tab), group(beside)] });
+		}();
+
+		const serialized = serializeChatWindowEditorsBesideChat(window, [upcastPartial<IContentPart>({ groups: [group(edge)] })]);
+
+		assert.deepStrictEqual(serialized.map(entry => URI.parse(entry.value).path), ['/main', '/tab', '/beside', '/edge']);
+	});
+
+	test('a chat window that opens again, such as after its chat moved to an editor window, keeps the editors of its main part, the groups of its chat part, such as tabs beside the chat, the editors of the parts it created, and its terminals', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const typeId = 'chatWindowReopenEditorsInput';
@@ -140,6 +163,10 @@ suite('Chat window: moving editors', () => {
 		}));
 		const first = disposables.add(new TestFileEditorInput(URI.file('/first'), typeId));
 		const second = disposables.add(new TestFileEditorInput(URI.file('/second'), typeId));
+		const edge = disposables.add(new TestFileEditorInput(URI.file('/edge'), typeId));
+		const chatPart = { state: { groups: 'captured' }, chatGroup: 0 };
+		const createdPart = upcastPartial<IContentPart>({ groups: [upcastPartial<IEditorGroup>({ activeEditor: edge, getEditors: () => [edge] })] });
+		const emptyCreatedPart = upcastPartial<IContentPart>({ groups: [upcastPartial<IEditorGroup>({ activeEditor: null, getEditors: () => [] })] });
 		const events: string[] = [];
 		const window = new class extends mock<IChatWindow>() {
 			override readonly chat = constObservable(URI.parse('test:/chat'));
@@ -148,10 +175,12 @@ suite('Chat window: moving editors', () => {
 			override close() { events.push('close'); return true; }
 		}();
 
+		// Captured before the window closes, which disposes its editors
 		await reopenChatWindow(window, instantiationService, async (chat, options) => {
 			events.push(`open ${chat.toString()} editors ${options.editors?.editors?.map(editor => editor.resource?.path).join(',')} active ${options.editors?.activeEditor?.resource?.path} terminals ${options.showTerminals}`);
-		});
+			events.push(`chat part ${options.chatPart === chatPart} created ${options.createdParts?.map(created => created.editors?.map(editor => editor.resource?.path).join(',')).join('|')}`);
+		}, { chatPart, createdParts: [createdPart, emptyCreatedPart] });
 
-		assert.deepStrictEqual(events, ['close', 'open test:/chat editors /first,/second active /first terminals true']);
+		assert.deepStrictEqual(events, ['close', 'open test:/chat editors /first,/second active /first terminals true', 'chat part true created /edge']);
 	});
 });
