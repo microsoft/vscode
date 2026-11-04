@@ -13,6 +13,7 @@ import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
 export const AgentHostDefaultCloneDirectorySettingId = 'chat.agentHost.defaultCloneDirectory';
 export const GitHubEnvironmentsEnabledSettingId = 'chat.agentHost.githubEnvironments.enabled';
+export const GITHUB_ENVIRONMENTS_DOCS_URL = 'https://aka.ms/vscode-agent-environments';
 export const GitHubEnvironmentsAvailabilityTreatment = 'githubEnvironmentsAvailable';
 export const GitHubEnvironmentsAvailableContext = new RawContextKey<boolean>('githubEnvironmentsAvailable', false);
 
@@ -56,6 +57,8 @@ export const IMissionControlEnvironmentService = createDecorator<IMissionControl
 export interface IMissionControlEnvironmentService {
 	readonly _serviceBrand: undefined;
 	readonly hosts: IObservable<readonly IMissionControlHost[]>;
+	/** The registration of the computer running this window, if known; it is included in {@link hosts}. */
+	readonly ownEnvironmentId: IObservable<string | undefined>;
 	readonly accountKey: string | undefined;
 	readonly enabled: boolean;
 	initialize(): Promise<void>;
