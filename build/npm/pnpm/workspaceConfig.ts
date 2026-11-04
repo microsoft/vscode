@@ -22,6 +22,7 @@ export const knownSettingNames = [
 	'packages',
 	'pnpmfile',
 	'nodeLinker',
+	'hoistWorkspacePackages',
 	'strictPeerDependencies',
 	'autoInstallPeers',
 	'dedupePeerDependents',
@@ -422,7 +423,8 @@ export interface InstallRootOptions {
 	/**
 	 * The root's postinstall installs other install roots. pnpm's optimistic repeat install skips
 	 * lifecycle scripts when the workspace itself is unchanged, which would miss changes in those
-	 * roots, so it is turned off; the postinstall has its own fast path (installStateHash.ts).
+	 * roots, so it is turned off: the postinstall runs on every install, and each of those roots
+	 * takes pnpm's own repeat-install check.
 	 */
 	readonly installsOtherRoots?: boolean;
 	/**

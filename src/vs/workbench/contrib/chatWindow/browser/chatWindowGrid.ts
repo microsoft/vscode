@@ -8,7 +8,7 @@ import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } f
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { IPartGridPartFactory, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridPartFactory, IPartGridPartOptions, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
 import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
@@ -32,6 +32,9 @@ const TERMINALS_SHARE = 0.3;
 
 /** The key of the sizes under which the terminals' last size is kept, whatever the arrangement it showed in. */
 const TERMINALS_SIZE_KEY = 'terminals';
+
+/** The terminals keep their height as the window is resized: the other parts take what it grows or shrinks by. */
+const TERMINALS_OPTIONS: IPartGridPartOptions = { keepsSize: true };
 
 /** A row or column of chrome in a chat window's grid, such as its title row or its strip. */
 export interface IChatWindowGridChrome {
@@ -391,19 +394,15 @@ export class ChatWindowGrid extends Disposable {
 		if (first) {
 			// Arranged once the window has its size, so that the parts take their shares of it.
 			this._update();
-		} else if (this._grid.value) {
-			// The terminals keep their height as the window is resized: the other parts take what it grows or shrinks by.
-			const grid = this._grid.value;
-			const terminalsHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined;
-			grid.layout(width, height);
-			if (terminalsHeight !== undefined) {
-				this._resizeTerminals(grid, terminalsHeight);
-			}
+		} else {
+			// The parts keep their shares of the window as it is resized, and the terminals their height (see `_contentOf`)
+			this._grid.value?.layout(width, height);
 		}
 	}
 
 	private _resizeTerminals(grid: PartGrid, height: number): void {
-		grid.resizeCell(ChatWindowGridCell.Terminals, { width: grid.getCellSize(ChatWindowGridCell.Terminals).width, height });
+		// Only the height: resizing the width too would save the shares of the parts beside the terminals again, rounded
+		grid.resizeCell(ChatWindowGridCell.Terminals, { height });
 	}
 
 	/**
@@ -573,7 +572,7 @@ export class ChatWindowGrid extends Disposable {
 				this._pendingTerminalsHeight = this._terminalsHeight();
 			} else {
 				const height = this._terminalsHeight();
-				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), height);
+				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), height, TERMINALS_OPTIONS);
 				this._terminalsInGrid = true;
 				this._terminalsFirstShowHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? undefined : height;
 			}
@@ -702,7 +701,7 @@ export class ChatWindowGrid extends Disposable {
 			case ChatWindowGridCell.Chat: return { part: this._cells.chat };
 			// Above the cards, as the title bar of a window is.
 			case ChatWindowGridCell.TitleRow: return { view: this._titleRow!, options: { keepsNoGap: true } };
-			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()! };
+			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()!, options: TERMINALS_OPTIONS };
 			default: return { view: this._strip! };
 		}
 	}

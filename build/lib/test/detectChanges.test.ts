@@ -163,7 +163,7 @@ suite('Detect Changes', () => {
 			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
 			['.vscode/settings.json', ['false', 'false', 'false']],
 			['.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts', ['false', 'false', 'false']],
-			['.vscode/extensions/vscode-extras/package.json', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-pr-pinger/package.json', ['false', 'false', 'false']],
 			['extensions/vscode-api-tests/testWorkspace/.vscode/settings.json', ['false', 'true', 'true']],
 			['eslint.config.js', ['false', 'false', 'false']],
 			['.eslint-plugin-local/code-no-any-casts.ts', ['false', 'false', 'false']],
@@ -230,7 +230,7 @@ suite('Detect Changes', () => {
 				{ filename: '.vscode/launch.json' },
 				{ filename: '.vscode/tasks.json' },
 				{ filename: '.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts' },
-				{ filename: '.vscode/extensions/vscode-extras/package-lock.json' },
+				{ filename: '.vscode/extensions/vscode-pr-pinger/package.json' },
 			]),
 			eslintConfiguration: await detect([
 				{ filename: 'eslint.config.js' },

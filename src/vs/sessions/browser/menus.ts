@@ -96,6 +96,8 @@ export const Menus = {
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
 	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
+	SessionItemOpenIn: new MenuId('SessionsSessionItemOpenIn'),
+	SessionChatItemOpenIn: new MenuId('SessionsSessionChatItemOpenIn'),
 	SessionChatItemToolbar: new MenuId('SessionsSessionChatItemToolbar'),
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
@@ -167,4 +169,17 @@ export const SessionActivityBarGroup = {
 	Panel: '2_panel',
 	/** Links to the active chat's pull requests and issues. */
 	GitHub: '3_github',
+} as const;
+
+/**
+ * The groups of the Canvas submenus, {@link Menus.SessionsEditorTabsBarAddTabCanvas} and
+ * {@link Menus.SessionActivityBarCanvas}, top to bottom, each shown under a title.
+ */
+export const SessionCanvasMenuGroup = {
+	/** The active chat's canvases whose tab was closed but which are still running. */
+	Running: '1_running',
+	/** The canvases that can be opened: the active chat's canvas types and the window's canvases. */
+	Available: '2_available',
+	/** Entries that create a canvas or find more canvas types. */
+	Discover: '3_discover',
 } as const;

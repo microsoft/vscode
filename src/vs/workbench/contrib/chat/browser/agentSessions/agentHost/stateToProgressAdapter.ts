@@ -18,8 +18,9 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
+import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -326,7 +327,23 @@ export function createInputRequestPlanReview(inputReq: ChatInputRequest, planRev
 	);
 }
 
-export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: string): { authority: string; message: MarkdownString } {
+export function isEmptyFormInputRequest(inputReq: ChatInputRequest): boolean {
+	return !inputReq.url
+		&& readChatInputRequestPurpose(inputReq) === ChatInputRequestPurpose.Elicitation
+		&& !inputReq.questions?.length;
+}
+
+export function getElicitationInputRequestPresentation(inputReq: ChatInputRequest, connectionAuthority: string): { title: string; message: MarkdownString; acceptButtonLabel: string; rejectButtonLabel: string } {
+	const url = inputReq.url;
+	if (!url) {
+		return {
+			title: localize('agentHost.elicit.form.title', "Confirmation Required"),
+			message: rawMarkdownToString(inputReq.message ?? '', connectionAuthority),
+			acceptButtonLabel: localize('agentHost.elicit.form.accept', "Accept"),
+			rejectButtonLabel: localize('agentHost.elicit.form.decline', "Decline"),
+		};
+	}
+
 	let authority = url;
 	try {
 		authority = URI.parse(url).authority || url;
@@ -341,7 +358,12 @@ export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: 
 	}
 	message.appendMarkdown(localize('agentHost.elicit.url.instruction', "Open this URL?"));
 	message.appendCodeblock('', url);
-	return { authority, message };
+	return {
+		title: localize('agentHost.elicit.url.title', "Authorization Required"),
+		message,
+		acceptButtonLabel: localize('agentHost.elicit.url.open', "Open {0}", authority),
+		rejectButtonLabel: localize('agentHost.elicit.url.cancel', "Cancel"),
+	};
 }
 
 export function inputRequestResponsePartToProgress(part: InputRequestResponsePart, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress {
@@ -356,11 +378,11 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 		return review;
 	}
 
-	if (inputReq.url) {
-		const presentation = getUrlInputRequestPresentation(inputReq, inputReq.url);
+	if (inputReq.url || isEmptyFormInputRequest(inputReq)) {
+		const presentation = getElicitationInputRequestPresentation(inputReq, connectionAuthority);
 		return {
 			kind: 'elicitationSerialized',
-			title: localize('agentHost.elicit.url.title', "Authorization Required"),
+			title: presentation.title,
 			message: presentation.message,
 			subtitle: '',
 			source: undefined,
@@ -1343,7 +1365,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const completedAt = startedAt !== undefined && Number.isFinite(startedAt) && typeof turn.duration === 'number' && Number.isFinite(turn.duration) && turn.duration >= 0
 			? startedAt + turn.duration
 			: undefined;
-		history.push({ type: 'response', parts, participant: participantId, details, elapsedMs: turn.duration, completedAt, ...(errorDetails ? { errorDetails } : {}) });
+		history.push({ type: 'response', parts, participant: participantId, details, elapsedMs: turn.duration, completedAt, ...(turn.state === TurnState.Cancelled ? { isCanceled: true } : {}), ...(errorDetails ? { errorDetails } : {}) });
 	}
 	return history;
 }

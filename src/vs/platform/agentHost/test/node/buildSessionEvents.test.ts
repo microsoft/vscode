@@ -11,8 +11,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
-import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
+import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, IMPORTED_TURN_DURATIONS_DB_KEY, parseImportedTurnDurations, serializeImportedTurnDurations, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
+import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import type { SessionEvent } from '@github/copilot-sdk';
@@ -27,7 +29,7 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 	const sessionId = 'test-session';
 
 	function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
-		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session);
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 	}
 
 	function markdown(content: string): ResponsePart {
@@ -437,7 +439,7 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		];
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
-		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, {
+		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))), {
 			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
 		});
 
@@ -448,6 +450,100 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 			{ text: 'cancelled', state: TurnState.Cancelled, parts: [ResponsePartKind.Markdown] },
 			{ text: 'last', state: TurnState.Complete, parts: [ResponsePartKind.Markdown] },
 		]);
+	});
+
+	test('restores an imported error turn as errored with its message, not as interrupted', async () => {
+		const failed = (text: string): Turn => ({
+			...userTurn(generateUuid(), text, [markdown('Partial'), { kind: ResponsePartKind.Error, error: { errorType: 'rate_limit', message: `${text} failed` } }]),
+			state: TurnState.Error,
+		});
+		const turns: Turn[] = [failed('first'), userTurn(generateUuid(), 'middle', [markdown('OK')]), failed('last')];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))), {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual(restored.map(turn => {
+			const error = getTurnError(turn);
+			return { text: turn.message.text, state: turn.state, error: error && { errorType: error.errorType, message: error.message } };
+		}), [
+			{ text: 'first', state: TurnState.Error, error: { errorType: 'rate_limit', message: 'first failed' } },
+			{ text: 'middle', state: TurnState.Complete, error: undefined },
+			{ text: 'last', state: TurnState.Error, error: { errorType: 'rate_limit', message: 'last failed' } },
+		]);
+	});
+
+	test('keeps each turn\'s original start and duration, and the log in order', async () => {
+		const at = (iso: string) => new Date(iso).toISOString();
+		const timed = (text: string, startedAt: string | undefined, duration: number | undefined, state = TurnState.Complete): Turn => ({
+			...userTurn(generateUuid(), text, [markdown(text)]),
+			...(startedAt ? { startedAt } : {}),
+			...(duration !== undefined ? { duration } : {}),
+			state,
+		});
+		const turns: Turn[] = [
+			timed('first', at('2026-01-05T10:00:00Z'), 30_000),
+			timed('no duration', at('2026-01-05T11:00:00Z'), undefined),
+			timed('cancelled', at('2026-01-06T09:00:00Z'), 5_000, TurnState.Cancelled),
+			// Earlier than its predecessor: kept in order rather than travelling back in time.
+			timed('out of order', at('2026-01-06T08:00:00Z'), 1_000),
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const database = new TestSessionDatabase();
+		await database.setMetadata(IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedTurnDurations(turns)!);
+		const replay = async (db: ISessionDatabase | undefined) => (await mapSessionEvents(session, db, events)).turns.map(turn => ({ text: turn.message.text, startedAt: turn.startedAt, duration: turn.duration }));
+		const times = events.map(e => Date.parse(e.timestamp));
+		const outOfOrderStart = new Date(Date.parse(at('2026-01-06T09:00:00Z')) + 5_001).toISOString();
+
+		assert.deepStrictEqual({
+			ordered: times.every((time, i) => i === 0 || time > times[i - 1]),
+			startsBeforeFirstTurn: times[0] < Date.parse(turns[0].startedAt!),
+			// Without the recorded durations, the replay infers them from the synthesized event times.
+			inferred: await replay(undefined),
+			restored: await replay(database),
+		}, {
+			ordered: true,
+			startsBeforeFirstTurn: true,
+			inferred: [
+				{ text: 'first', startedAt: at('2026-01-05T10:00:00Z'), duration: 30_000 },
+				{ text: 'no duration', startedAt: at('2026-01-05T11:00:00Z'), duration: 3 },
+				{ text: 'cancelled', startedAt: at('2026-01-06T09:00:00Z'), duration: 5_000 },
+				{ text: 'out of order', startedAt: outOfOrderStart, duration: 3 },
+			],
+			restored: [
+				{ text: 'first', startedAt: at('2026-01-05T10:00:00Z'), duration: 30_000 },
+				{ text: 'no duration', startedAt: at('2026-01-05T11:00:00Z'), duration: undefined },
+				{ text: 'cancelled', startedAt: at('2026-01-06T09:00:00Z'), duration: 5_000 },
+				{ text: 'out of order', startedAt: outOfOrderStart, duration: 1_000 },
+			],
+		});
+	});
+
+	test('reads recorded imported durations, ignoring malformed entries and leaving other turns inferred', async () => {
+		const known = generateUuid();
+		const unknown = generateUuid();
+		const later = generateUuid();
+		const turns: Turn[] = [{ ...userTurn(known, 'known', [markdown('A')]), duration: 2_000 }, userTurn(unknown, 'unknown', [markdown('B')])];
+		const events = buildSessionEventsFromTurns([...turns, userTurn(later, 'added later', [markdown('C')])], { sessionId });
+		const database = new TestSessionDatabase();
+		await database.setMetadata(IMPORTED_TURN_DURATIONS_DB_KEY, JSON.stringify({ ...JSON.parse(serializeImportedTurnDurations(turns)!), bogus: 'x', negative: -1 }));
+
+		const { turns: restored } = await mapSessionEvents(session, database, events);
+
+		assert.deepStrictEqual({
+			serialized: JSON.parse(serializeImportedTurnDurations(turns)!),
+			parsed: [...parseImportedTurnDurations(await database.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY))!],
+			malformed: parseImportedTurnDurations('not json'),
+			durations: restored.map(turn => turn.duration),
+		}, {
+			serialized: { [known]: 2_000, [unknown]: null },
+			parsed: [[known, 2_000], [unknown, undefined]],
+			malformed: undefined,
+			// The turn added after the import keeps its inferred duration.
+			durations: [2_000, undefined, 3],
+		});
 	});
 
 	test('round-trips message attachments and the model each turn used', async () => {

@@ -30,7 +30,8 @@ import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/c
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { IsQuickChatSessionContext, SessionActivityBarLayoutActionsContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { SessionActivityBarLayoutActionsContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { getChatWindowSession } from '../../../services/sessions/browser/sessionScope.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
@@ -208,9 +209,6 @@ for (const target of chatWindowLayoutButtonsMenus) {
 
 //#region Tabs of the main part
 
-/** Whether the session of the window has a workspace: the Changes and Files tabs need one. */
-const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
-
 /** An entry that opens a tab of the main part of a chat window, checked while the main part shows the tab. */
 interface IChatWindowTabEntry {
 	readonly id: string;
@@ -223,7 +221,7 @@ interface IChatWindowTabEntry {
 }
 
 export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
-	id: 'sessions.chatWindow.openChanges',
+	id: CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID,
 	title: localize2('chatWindowChanges', "Changes"),
 	icon: Codicon.diffMultiple,
 	editorId: SessionChangesEditorInput.EDITOR_ID,
@@ -244,7 +242,7 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 		}
 	},
 }, {
-	id: 'sessions.chatWindow.openFiles',
+	id: CHAT_WINDOW_OPEN_FILES_COMMAND_ID,
 	title: localize2('chatWindowFiles', "Files"),
 	icon: EmptyFileEditorInput.ICON,
 	editorId: EmptyFileEditorInput.EDITOR_ID,
@@ -256,7 +254,7 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 		await accessor.get(IEditorService).openEditor(accessor.get(IInstantiationService).createInstance(EmptyFileEditorInput, workspace), { pinned: true, index }, group);
 	},
 }, {
-	id: 'sessions.chatWindow.openBrowser',
+	id: CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID,
 	title: localize2('chatWindowBrowser', "Browser"),
 	icon: Codicon.globe,
 	editorId: BrowserEditorInput.EDITOR_ID,

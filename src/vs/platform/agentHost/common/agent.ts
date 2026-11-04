@@ -1534,6 +1534,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: AgentPermissionKind;
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * Host-only resource that {@link permissionPath} names, for providers whose
+	 * paths are not local disk paths (such as virtual workspaces). Defaults to
+	 * `URI.file(permissionPath)`.
+	 */
+	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
@@ -1832,6 +1838,8 @@ export interface IAgentSessionPlan {
  * the agent id.
  */
 export interface IAgent {
+	/** Host-internal opt-in to client-backed, non-file working directories. */
+	readonly supportsVirtualWorkspaces?: true;
 	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 

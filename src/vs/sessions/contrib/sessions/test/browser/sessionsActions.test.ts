@@ -289,7 +289,6 @@ suite('Sessions - Actions', () => {
 		disposables.add(registerAction2(ArchiveChatAction));
 		const actionIds = new Set([
 			'sessions.list.openParentSession',
-			'sessions.list.openChatToSide',
 			MARK_SESSION_READ_COMMAND_ID,
 			ARCHIVE_CHAT_COMMAND_ID,
 			'sessionsViewPane.moveChatUp',
@@ -307,7 +306,6 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.list.openParentSession', group: 'navigation', order: 1 },
-			{ id: 'sessions.list.openChatToSide', group: 'navigation', order: 2 },
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_state', order: 1 },
 			{ id: ARCHIVE_CHAT_COMMAND_ID, group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.moveChatUp', group: '2_organize', order: 1 },
@@ -322,7 +320,6 @@ suite('Sessions - Actions', () => {
 		const actionIds = new Set([
 			'sessions.chatCompositeBar.addChat',
 			'sessionsViewPane.importSession',
-			'sessionsViewPane.openToTheSide',
 			MARK_SESSION_READ_COMMAND_ID,
 			MARK_SESSION_UNREAD_COMMAND_ID,
 			'sessionsViewPane.markAllNestedRead',
@@ -343,7 +340,6 @@ suite('Sessions - Actions', () => {
 			}));
 
 		assert.deepStrictEqual(actions, [
-			{ id: 'sessionsViewPane.openToTheSide', group: 'navigation', order: 1 },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2 },
 			{ id: 'sessionsViewPane.importSession', group: 'navigation', order: 3 },
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_state', order: 1 },

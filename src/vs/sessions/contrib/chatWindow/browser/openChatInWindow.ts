@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
@@ -36,6 +36,18 @@ const InMainWindowContext = IsAuxiliaryWindowContext.toNegated();
 
 /** In a chat window: a window of the Agents window with layout modes. */
 const InChatWindowContext = ContextKeyExpr.and(IsSessionsWindowContext, IsAuxiliaryWindowContext, LayoutModeContext)!;
+
+for (const [menu, command, precondition, when] of [
+	[Menus.SessionItemOpenIn, OPEN_SESSION_IN_WINDOW_COMMAND_ID, ContextKeyExpr.and(ChatWindowsEnabledContext, SessionItemIsMultiSelectionContext.negate()), ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext)],
+	[Menus.SessionChatItemOpenIn, OPEN_CHAT_IN_WINDOW_COMMAND_ID, ChatWindowsEnabledContext, ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, ContextKeyExpr.has('sessionChatItem.isUntitled').negate())],
+] as const) {
+	MenuRegistry.appendMenuItem(menu, {
+		command: { id: command, title: localize2('newWindow', "New Window"), precondition },
+		group: 'navigation',
+		order: 2,
+		when,
+	});
+}
 
 /**
  * Moves the chat `session` shows in the main window, or its main chat, to a chat window of its own: the main window then
@@ -73,20 +85,14 @@ registerAction2(class OpenSessionInChatWindowAction extends Action2 {
 			id: OPEN_SESSION_IN_WINDOW_COMMAND_ID,
 			title: localize2('openSessionInNewWindow', "Open in New Window"),
 			icon: Codicon.openInWindow,
-			precondition: ChatWindowsEnabledContext,
-			menu: [{
-				id: Menus.SessionItemContextMenu,
-				// Right after Open to the Side.
-				group: '0_pin',
-				order: 1.5,
-				when: ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, SessionItemIsMultiSelectionContext.negate()),
-			}, ...SessionHeaderMenus.map(id => ({
+			precondition: ContextKeyExpr.and(ChatWindowsEnabledContext, SessionItemIsMultiSelectionContext.negate()),
+			menu: SessionHeaderMenus.map(id => ({
 				id,
 				// Before Close.
 				group: 'secondary/4_pin',
 				order: 14,
 				when: ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, SessionIsCreatedContext, InMainWindowContext),
-			}))],
+			})),
 		});
 	}
 
@@ -105,12 +111,6 @@ registerAction2(class OpenChatInChatWindowAction extends Action2 {
 			title: localize2('openChatInNewWindow', "Open in New Window"),
 			icon: Codicon.openInWindow,
 			precondition: ChatWindowsEnabledContext,
-			menu: [{
-				id: Menus.SessionChatItemContext,
-				group: '0_window',
-				order: 1,
-				when: ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, ContextKeyExpr.has('sessionChatItem.isUntitled').negate()),
-			}],
 		});
 	}
 

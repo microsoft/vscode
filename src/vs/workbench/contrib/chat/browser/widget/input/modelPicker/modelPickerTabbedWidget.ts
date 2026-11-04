@@ -45,7 +45,7 @@ import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummar
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
-import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
@@ -94,6 +94,8 @@ export interface ITabbedModelPickerContext {
 		readonly show: boolean;
 		readonly currentVSCodeVersion: string;
 		readonly manageSettingsUrl: string | undefined;
+		/** When set, "Contact Admin" opens the organization's help page instead of GitHub's settings. */
+		readonly organizationSupport?: IModelPickerOrganizationSupport;
 		readonly updateStateType: StateType;
 	};
 	/** Reports a click on an upgrade or contact-admin link in an unavailable model row. */
@@ -846,6 +848,9 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
+					? button => comparison.renderToggle!(button)
+					: undefined,
 				run: () => {
 					// Starting or leaving a comparison supersedes a pending selection.
 					this._selectionVersion++;
@@ -1017,6 +1022,7 @@ export class TabbedModelPicker extends Disposable {
 					unavailableEntry.entry,
 					this._getUnavailableReason(unavailableEntry, context),
 					unavailableContext.manageSettingsUrl,
+					unavailableContext.organizationSupport,
 					unavailableContext.updateStateType,
 					this._entitlementService,
 				));

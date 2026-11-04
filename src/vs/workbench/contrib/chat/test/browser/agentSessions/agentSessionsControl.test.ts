@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventType } from '../../../../../../base/browser/dom.js';
+import { EventType, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -133,6 +134,62 @@ suite('AgentSessionsControl', () => {
 		}));
 
 		assert.strictEqual(newChatCount, 1);
+	});
+
+	test('marks overflow below the viewport only while more sessions can be scrolled into view', async () => {
+		const sessions = Array.from({ length: 10 }, (_, index) => createSession(URI.parse(`test:/session-${index}`), `Session ${index}`));
+		const model: IAgentSessionsModel = {
+			sessions,
+			resolved: true,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None,
+			onDidResolve: Event.None,
+			onDidChangeSessions: Event.None,
+			onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
+			override resolveChatSessionItem = async () => undefined;
+		});
+		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const control = store.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+			overrideStyles: {},
+			filter: createFilter(),
+			source: 'test',
+			createNewChat: () => { },
+			getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+		}));
+		const canScrollDown = () => control.element!.classList.contains('can-scroll-down');
+		control.layout(100, 500);
+		await control.update();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		const overflowing = canScrollDown();
+		control.reveal(sessions[sessions.length - 1].resource);
+		const atBottom = canScrollDown();
+		control.scrollToTop();
+		const backAtTop = canScrollDown();
+		control.layout(2000, 500);
+		const allVisible = canScrollDown();
+		control.layout(100, 500);
+		const shrunk = canScrollDown();
+		sessions.splice(0);
+		await control.update();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+		assert.deepStrictEqual({ overflowing, atBottom, backAtTop, allVisible, shrunk, empty: canScrollDown() }, {
+			overflowing: true, atBottom: false, backAtTop: true, allVisible: false, shrunk: true, empty: false,
+		});
 	});
 
 	test('activating a session parent opens its main chat', async () => {

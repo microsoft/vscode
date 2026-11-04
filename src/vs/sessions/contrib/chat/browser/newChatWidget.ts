@@ -30,8 +30,6 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
-import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
@@ -81,7 +79,7 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../common/newSessionBanners.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -94,12 +92,13 @@ import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { WorktreeSuggestionController } from '../../worktreeSuggestion/browser/worktreeSuggestionController.js';
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { WelcomeName } from './welcomeName.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
+import { createSessionComparisonHarness } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
 
 // #region --- New Chat Widget ---
 
@@ -114,7 +113,6 @@ export function shouldShowNewSessionChatTip(hasAgentHost: boolean, foregroundSes
 }
 
 const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
-const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
 function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
 	if (!selectedFolderUri) {
@@ -212,8 +210,6 @@ export class NewChatWidget extends Disposable {
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _comparisonSelection: SessionComparisonModelSelection;
 	private readonly _welcomePhraseIndex: number;
-	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
-	private _githubProfileAccountKey: string | undefined;
 	private _welcomePhraseAnnounced = false;
 
 	private static _takeNextWelcomePhraseIndex(storageService: IStorageService): number {
@@ -247,8 +243,6 @@ export class NewChatWidget extends Disposable {
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IRequestService private readonly requestService: IRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -768,27 +762,17 @@ export class NewChatWidget extends Disposable {
 			});
 		}));
 
-		const configuredWelcomeNameChanged = observableSignalFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_NAME_SETTING)),
-		);
+		const welcomeName = this._register(this.instantiationService.createInstance(WelcomeName, this._showWelcomePhrases));
 		const configuredWelcomeMessagesChanged = observableSignalFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_MESSAGES_SETTING)),
 		);
 		this._register(autorun(reader => {
-			configuredWelcomeNameChanged.read(reader);
-			this._showWelcomePhrases.read(reader);
-			void this._refreshGitHubProfileName();
-		}));
-		this._register(autorun(reader => {
-			configuredWelcomeNameChanged.read(reader);
 			configuredWelcomeMessagesChanged.read(reader);
-			const profileName = this._githubProfileName.read(reader);
 			const inputVisible = this.options.inputVisible?.read(reader) ?? true;
 			const phrases = getNewSessionWelcomePhrases(
 				this.configurationService.getValue<INewSessionWelcomeMessagesConfiguration | undefined>(NEW_SESSION_WELCOME_MESSAGES_SETTING),
-				this._getWelcomeName(profileName),
+				welcomeName.name.read(reader),
 			);
 			const phrase = this._updateWelcomeMessage(
 				welcomeMessage,
@@ -801,7 +785,6 @@ export class NewChatWidget extends Disposable {
 			this._onDidChangeChatPetPlatform.fire();
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
 		if (this.options.renderAquarium !== false) {
 			this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
@@ -1034,92 +1017,6 @@ export class NewChatWidget extends Disposable {
 				onUnexpectedError(error);
 			}
 			return false;
-		}
-	}
-
-	private _getWelcomeName(gitHubName: string | undefined, configuredName = this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()): string | undefined {
-		return configuredName.trim() || this._getFirstName(gitHubName);
-	}
-
-	private _getFirstName(name: string | undefined): string | undefined {
-		return name?.trim().split(/\s+/u)[0] || undefined;
-	}
-
-	private async _refreshGitHubProfileName(): Promise<void> {
-		if (!areNewSessionWelcomePhrasesEnabled(this.configurationService) || this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()) {
-			this._githubProfileAccountKey = undefined;
-			this._githubProfileName.set(undefined, undefined);
-			return;
-		}
-
-		const account = this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount();
-		if (!areNewSessionWelcomePhrasesEnabled(this.configurationService) || this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()) {
-			this._githubProfileAccountKey = undefined;
-			this._githubProfileName.set(undefined, undefined);
-			return;
-		}
-		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
-			this._githubProfileAccountKey = undefined;
-			this._githubProfileName.set(undefined, undefined);
-			return;
-		}
-
-		const accountKey = `${account.authenticationProvider.id}:${account.sessionId}`;
-		if (this._githubProfileAccountKey !== accountKey) {
-			this._githubProfileAccountKey = accountKey;
-			this._githubProfileName.set(undefined, undefined);
-		}
-
-		let profileName = githubProfileNames.get(accountKey);
-		if (!profileName) {
-			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId);
-			githubProfileNames.set(accountKey, profileName);
-		}
-		const resolvedProfileName = await profileName;
-		const currentAccount = this.defaultAccountService.currentDefaultAccount;
-		if (
-			this._githubProfileAccountKey === accountKey
-			&& currentAccount?.authenticationProvider.id === account.authenticationProvider.id
-			&& currentAccount.sessionId === account.sessionId
-			&& areNewSessionWelcomePhrasesEnabled(this.configurationService)
-			&& !this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()
-		) {
-			this._githubProfileName.set(resolvedProfileName, undefined);
-		}
-	}
-
-	private async _fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined> {
-		try {
-			const enterpriseUri = enterprise ? this.defaultAccountService.resolveGitHubUrl('') : undefined;
-			if (enterprise && !enterpriseUri) {
-				this.logService.warn('Failed to fetch GitHub profile name because the enterprise URL is unavailable.');
-				return undefined;
-			}
-			const sessions = await this.authenticationService.getSessions(providerId, [], { silent: true });
-			const session = sessions.find(candidate => candidate.id === sessionId);
-			if (!session) {
-				return undefined;
-			}
-			const response = await this.requestService.request({
-				type: 'GET',
-				url: `${deriveGitHubEndpoints(enterpriseUri).apiBaseUri}/user`,
-				disableCache: true,
-				callSite: 'newChatWidget.fetchGitHubProfileName',
-				headers: {
-					'Authorization': `token ${session.accessToken}`,
-					'Accept': 'application/vnd.github.v3+json',
-					'User-Agent': 'VSCode-Sessions',
-				},
-			}, CancellationToken.None);
-			if (!isSuccess(response)) {
-				this.logService.warn(`Failed to fetch GitHub profile name: ${response.res.statusCode ?? 'unknown status'}`);
-				return undefined;
-			}
-			const profile = await asJson<{ readonly name?: string | null }>(response);
-			return profile?.name?.trim() || undefined;
-		} catch (error) {
-			this.logService.warn('Failed to fetch GitHub profile name:', error);
-			return undefined;
 		}
 	}
 
@@ -2032,17 +1929,7 @@ export class NewChatWidget extends Disposable {
 						modelConfiguration[key] = value;
 					}
 				}
-				return {
-					providerId: session.providerId,
-					sessionTypeId: resolved.sessionType.id,
-					label: resolved.sessionType.label,
-					modelId: resolved.model.identifier,
-					modelLabel: resolved.model.metadata.name,
-					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
-					permissionId: harnessPermission.id,
-					permissionLabel: harnessPermission.label,
-					modeId: harnessPermission.comparisonModeId,
-				};
+				return createSessionComparisonHarness(session.providerId, resolved.sessionType, resolved.model, modelConfiguration, harnessPermission);
 			};
 			const judgeModelId = this._comparisonSelection.judgeModelId.get();
 			const synthesisModelId = this._comparisonSelection.synthesizerModelId.get();
@@ -2414,6 +2301,10 @@ export class NewChatWidget extends Disposable {
 
 	setHostVisible(visible: boolean): void {
 		this._aquariumToggle?.setHostVisible(visible);
+		// Another composer can consume the shared draft while this host is hidden.
+		if (visible && this._preserveCustomView && !this._session.get() && !this._newSessionCreation.value) {
+			this._seedWorkspaceDraft();
+		}
 	}
 
 	sendQuery(text: string): Promise<boolean> {

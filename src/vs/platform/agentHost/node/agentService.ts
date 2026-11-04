@@ -119,7 +119,7 @@ import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorkt
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, type AgentHostCatalogSyncResult, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, decodeUpgradableAgentHostCatalogPayloadData, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
@@ -162,7 +162,7 @@ import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/title
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking, readPersistedSessionOrigin } from './agentHostCatalogSourceResolver.js';
+import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, type IAgentHostCatalogMetadataReference, isAgentHostChatBacking, readPersistedSessionOrigin } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat, type IOlderBuildEditsImport } from './agentHostPeerChatStore.js';
 import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
@@ -1057,6 +1057,14 @@ export class AgentService extends Disposable implements IAgentService {
 	 * expose provisional sessions.
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
+	/**
+	 * Provisional sessions their provider answered, with a readable catalog, it cannot describe. Listing hides them
+	 * without asking again until there is evidence it might now: a provider registers or its catalog becomes readable,
+	 * the session restores, or the session itself changes (#345377).
+	 */
+	private readonly _unmaterializedProvisionalSessionKeys = new Set<string>();
+	/** Advances with every invalidation of {@link _unmaterializedProvisionalSessionKeys}, so an answer that raced one is not recorded. */
+	private _unmaterializedProvisionalSessionGeneration = 0;
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
 	private _hiddenSessionsAtStartup: ReturnType<AgentSessionRegistry['listHidden']> | undefined;
 	private _movedChatOriginsLoaded: Promise<void> | undefined;
@@ -2014,6 +2022,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// A newly registered provider may resolve sessions that were parked
 			// while it was absent or still downloading its SDK.
 			this._catalogReconciliationService.wakeParkedSessions();
+			this._forgetUnmaterializedProvisionalSessions();
 			this._catalogReconciliationService.schedule();
 			provider.setServerToolHost?.(this._serverToolHost);
 			provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(provider.id, sessions));
@@ -3081,6 +3090,17 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _clearSessionProvisional(session: URI): Promise<void> {
 		await this._sessionRegistry.setProvisional(session, false);
 		this._provisionalSessionKeys.delete(session.toString());
+		this._forgetUnmaterializedProvisionalSessions(session.toString());
+	}
+
+	/** Forgets recorded provider misses for provisional sessions (all of them without `session`), so listing asks again. */
+	private _forgetUnmaterializedProvisionalSessions(session?: string): void {
+		this._unmaterializedProvisionalSessionGeneration++;
+		if (session === undefined) {
+			this._unmaterializedProvisionalSessionKeys.clear();
+		} else {
+			this._unmaterializedProvisionalSessionKeys.delete(session);
+		}
 	}
 
 	/**
@@ -3104,10 +3124,23 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!entry) {
 				return;
 			}
+			if (this._unmaterializedProvisionalSessionKeys.has(key)) {
+				unmaterialized.add(key);
+				return;
+			}
 			const agent = this._providerService.getProvider(entry.provider);
+			// Only a readable catalog makes a miss authoritative; an unreadable one can confirm later without a signal. Both
+			// are taken before asking, so an answer racing the catalog becoming readable, or any other invalidation, is not kept.
+			const authoritative = this._readableProviderCatalogs.has(entry.provider);
+			const generation = this._unmaterializedProvisionalSessionGeneration;
 			try {
-				if (!agent || !await this._registeredSessionMetadata(agent, entry.session, entry.external)) {
+				if (!agent) {
 					unmaterialized.add(key);
+				} else if (!await this._registeredSessionMetadata(agent, entry.session, entry.external)) {
+					unmaterialized.add(key);
+					if (authoritative && generation === this._unmaterializedProvisionalSessionGeneration) {
+						this._unmaterializedProvisionalSessionKeys.add(key);
+					}
 				}
 			} catch (err) {
 				// An erroring provider is not evidence that the backing is missing; hide the row until confirmation succeeds.
@@ -3932,7 +3965,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// there is nothing authoritative to project. Reported distinctly from
 			// an unregistered provider so reconciliation can park it instead of
 			// re-opening its storage on every pass.
-			return { status: 'sourceUnresolvable' };
+			return { status: 'sourceUnresolvable', storedRequest: await this._outdatedStoredCatalogSyncRequest(registered.session, database) };
 		}
 		let status = metadata.status ?? SessionStatus.Idle;
 		let metadataFallbacks: Readonly<Record<string, string>> = {};
@@ -3996,6 +4029,59 @@ export class AgentService extends Disposable implements IAgentService {
 				snapshot?.authorityVersion === 2 ? chatCatalogV2ToCatalogChats(snapshot) : undefined,
 				snapshot?.authorityVersion === 2 ? snapshot.header?.revision : undefined),
 		};
+	}
+
+	/**
+	 * Re-projects a verified catalog row of an older payload version from its stored data, so a session its provider
+	 * can no longer describe still migrates rather than staying outdated and being repaired on every listing (#345377).
+	 * Local session metadata still wins over the stored values, as in any re-projection.
+	 */
+	private async _outdatedStoredCatalogSyncRequest(session: URI, database: AgentHostCatalogDatabaseReference | undefined): Promise<IAgentHostCatalogSyncRequest | undefined> {
+		const stored = await this._orchestratorDatabase.getSessionV2(session.toString());
+		if (!stored?.verified || stored.payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			return undefined;
+		}
+		const decoded = decodeUpgradableAgentHostCatalogPayloadData(stored.payload);
+		if (!decoded.ok) {
+			return undefined;
+		}
+		const data = decoded.value;
+		// A key the local database lacks reads back as `undefined`, which would mask the stored value; an explicit clear is '' and still wins.
+		const definedDatabase: IAgentHostCatalogMetadataReference | undefined = database && {
+			object: {
+				getMetadataObject: async keys => {
+					const values = await database.object.getMetadataObject(keys);
+					for (const key in values) {
+						if (values[key] === undefined) {
+							delete values[key];
+						}
+					}
+					return values;
+				},
+			},
+		};
+		return this._catalogSourceResolver.buildCatalogSyncRequest(session, {
+			modifiedTime: data.modifiedTime,
+			title: data.summary,
+			status: (data.isRead ? SessionStatus.IsRead : SessionStatus.Idle) | (data.isArchived ? SessionStatus.IsArchived : SessionStatus.Idle),
+			project: data.project,
+			workingDirectories: data.workingDirectories,
+			changes: data.changes,
+			meta: data._meta,
+			origin: data.origin,
+			chats: data.chats.map(chat => ({
+				uri: chat.uri,
+				kind: chat.kind,
+				title: chat.summary,
+				origin: fromCatalogChatOrigin(chat.origin),
+				interactivity: chat.interactivity,
+				archived: chat.archived,
+				isRead: chat.isRead,
+				inheritedTurnId: chat.inheritedTurnId,
+				workingDirectories: chat.workingDirectories,
+				changes: chat.changes,
+			})),
+		}, {}, true, definedDatabase, this._catalogMetadataFallbacks(data));
 	}
 
 	/**
@@ -4500,6 +4586,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let alreadyRegistered = 0;
 		let registryChanged = false;
 		let surfacedMetadataChanged = false;
+		let rediscoveredUnmaterialized = false;
 		const changedMetadataSessions: string[] = [];
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
@@ -4514,6 +4601,11 @@ export class AgentService extends Disposable implements IAgentService {
 				// Registered identities retain provenance; only changed restored titles need per-session I/O.
 				if (resolution?.registered || registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
+					// The provider just described it, so a recorded miss for it no longer holds.
+					if (this._unmaterializedProvisionalSessionKeys.has(session.toString())) {
+						this._forgetUnmaterializedProvisionalSessions(session.toString());
+						rediscoveredUnmaterialized = true;
+					}
 					const live = this._stateManager.getSessionSummary(session.toString());
 					if (live && readSessionExternal(live._meta) && !this._stateManager.hasActiveTurn(session.toString())) {
 						await this._refreshDiscoveredSessionMetadata(sessionMetadata, live);
@@ -4672,13 +4764,14 @@ export class AgentService extends Disposable implements IAgentService {
 			// Wake after marking dirty so a concurrent parking decision observes the newer revision.
 			for (const session of changedMetadataSessions) {
 				this._catalogReconciliationService.wakeParkedSessions(session);
+				this._forgetUnmaterializedProvisionalSessions(session);
 			}
 		}
-		if (registryChanged || surfacedMetadataChanged) {
+		if (registryChanged || surfacedMetadataChanged || rediscoveredUnmaterialized) {
 			this._invalidateSessionList();
 			this._catalogReconciliationService.schedule();
 		}
-		if (registeredExternal || surfacedMetadataChanged || (modifiedTimeAdvances.length > 0 && !this._hidesAllExternalSessions(this._getExternalSessionsMode()))) {
+		if (registeredExternal || surfacedMetadataChanged || rediscoveredUnmaterialized || (modifiedTimeAdvances.length > 0 && !this._hidesAllExternalSessions(this._getExternalSessionsMode()))) {
 			this._queueSessionListReconciliation();
 			if (awaitReconciliation && (registeredExternal || surfacedMetadataChanged)) {
 				await this._sessionListReconciliation;
@@ -4780,6 +4873,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const readableTransition = !this._readableProviderCatalogs.has(provider.id);
 		this._readableProviderCatalogs.add(provider.id);
 		if (readableTransition) {
+			this._forgetUnmaterializedProvisionalSessions();
 			this._queuePublishedSessionListRefresh(provider.id);
 			// The provider can vouch for its sessions now: those parked while it could not are re-projected (and converted).
 			if (this._catalogReconciliationService.wakeParkedProviderSessions(provider.id)) {
@@ -5475,7 +5569,9 @@ export class AgentService extends Disposable implements IAgentService {
 					return undefined;
 				}
 				providerFallback++;
-				if (!central.error) {
+				// A listing is no evidence the source of a parked row now resolves: re-attempting it on every listing is what
+				// kept an unresolvable row's storage churning (#345377). Wake signals and the periodic verification retry it.
+				if (!central.error && !this._catalogReconciliationService.isParked(session.toString())) {
 					repairSessions.add(session.toString());
 				}
 				if (central.error) {
@@ -6240,6 +6336,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${config?.provider ?? '(none)'}`);
 		}
+		if (!provider.supportsVirtualWorkspaces && config?.workingDirectories?.some(directory => directory.scheme !== Schemas.file)) {
+			throw new Error(localize('agentHost.virtualWorkspaceUnsupported', "Agent '{0}' does not support virtual workspaces.", provider.id));
+		}
 		if (config?.credentials) {
 			this._requireProviderCredentials(provider, config.credentials);
 		}
@@ -6306,7 +6405,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const agentMergeEnabled = isAnyAgentMergeEnabled(sessionConfig?.values, config?.workingDirectories?.[0] ? getWorkingDirectoryKey(config.workingDirectories[0].toString()) : undefined);
 		// A pull request session always gets a worktree, and fails rather than
 		// falling back to the folder when its working directory is not a repository.
-		const deferWorktreeCreation = (sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' || getSessionPullRequestUrl(sessionConfig?.values) !== undefined) && !config?.importConversation;
+		const deferWorktreeCreation = (sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' || getSessionPullRequestUrl(sessionConfig?.values) !== undefined) && !config?.importConversation && !config?.workingDirectories?.some(directory => directory.scheme !== Schemas.file);
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
@@ -11443,6 +11542,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// The durable marker is dropped with the registration itself; keep the
 			// mirror listing reads in step with it.
 			this._provisionalSessionKeys.delete(sessionKey);
+			this._forgetUnmaterializedProvisionalSessions(sessionKey);
 			if (isHidden) {
 				traceStage('clearHiddenTombstone');
 				await this._retryRegistryMutation(
@@ -14040,6 +14140,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
+			this._forgetUnmaterializedProvisionalSessions(sessionStr);
 			// A restore is evidence its source resolves: the provider vouched for the session through its own lookup, which
 			// can succeed while the provider's whole catalog stays unreadable. A session parked meanwhile is released, so its
 			// catalog is re-projected (and converted) from its live state.
@@ -15839,6 +15940,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// wake follows the dirty write so a pass that is concurrently deciding to
 		// park this session observes the newer revision and declines.
 		this._catalogReconciliationService.wakeParkedSessions(session);
+		this._forgetUnmaterializedProvisionalSessions(session);
 	}
 
 	private _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {

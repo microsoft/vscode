@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -30,7 +31,7 @@ import { ISessionScope } from '../../../../services/sessions/browser/sessionScop
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService, IShowSessionInWindowOptions } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SessionChangesEditorFileListContext } from '../../../changes/common/changes.js';
@@ -119,7 +120,7 @@ suite('Sessions chat window provider', () => {
 					override readonly isCreated = constObservable(true);
 					override readonly sticky = constObservable(false);
 					override readonly shouldShowChatTabs = constObservable(false);
-					override readonly visibleChatTabs = constObservable([]);
+					override readonly visibleChatTabs = session.chats;
 				}();
 				windowSessions.set([...windowSessions.get(), windowSession], undefined);
 				return windowSession;
@@ -129,6 +130,10 @@ suite('Sessions chat window provider', () => {
 				windowSessions.set(windowSessions.get().filter(candidate => candidate !== session), undefined);
 			}
 			override setActive(session: IActiveSession | undefined, preserveFocus?: boolean) { events.push(`active ${session?.sessionId}${preserveFocus ? ' preserving focus' : ''}`); }
+			override async openChat(session: ISession, chat: URI) { events.push(`open ${session.sessionId} ${chat.path}`); }
+			override async openChatToSide(session: ISession, chat: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }) {
+				events.push(`open ${session.sessionId} ${chat.path} beside ${options?.referenceChatResource?.path}${options?.preserveFocus ? ' preserving focus' : ''}`);
+			}
 		}());
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		const onDidChangeActiveWindow = store.add(new Emitter<number>());
@@ -204,6 +209,37 @@ suite('Sessions chat window provider', () => {
 			beforeBind: { chat: '/second', title: 'second', events: [] },
 			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'], changesFileList: true },
 			events: ['show session /second', 'active session', 'close session'],
+		});
+	});
+
+	test('Move to Main Window shows the subagent chats the window showed beside its chat beside that chat in the main window, once', async () => {
+		const store = disposables.add(new DisposableStore());
+		const main = createChat('main');
+		const subagent = Object.assign(createChat('subagent'), { origin: { kind: ChatOriginKind.Tool, parentChat: main.resource } });
+		const session = createSession('session', [main, createChat('second'), subagent]);
+		const { provider, events, window, windowInstantiationService } = createProvider(store, [session]);
+
+		const content = (await provider.resolveContent(main.resource))!;
+		store.add(content.bind!(window, windowInstantiationService));
+		// The window closes as its chat moves to the main window.
+		content.dispose();
+		await provider.moveToMainWindow(main.resource, {});
+		const moved = [...events];
+		await provider.moveToMainWindow(main.resource, {});
+		const again = events.slice(moved.length);
+
+		// A window that just closes, without moving its chat, forgets them.
+		const reopened = (await provider.resolveContent(main.resource))!;
+		store.add(reopened.bind!(window, windowInstantiationService));
+		reopened.dispose();
+		await timeout(0);
+		const beforeLaterMove = events.length;
+		await provider.moveToMainWindow(main.resource, {});
+
+		assert.deepStrictEqual({ moved, again, laterMove: events.slice(beforeLaterMove) }, {
+			moved: ['show session /main', 'close session', 'open session /main', 'open session /subagent beside /main preserving focus'],
+			again: ['open session /main'],
+			laterMove: ['open session /main'],
 		});
 	});
 

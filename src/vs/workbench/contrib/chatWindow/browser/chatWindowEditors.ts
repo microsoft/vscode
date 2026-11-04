@@ -10,6 +10,7 @@ import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../..
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { GroupsOrder, IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowOpenOptions } from './chatWindow.js';
+import { TERMINAL_EDITOR_TYPE_ID } from './chatWindowGrid.js';
 
 /** An editor of a chat window's main part, serialized with the serializer of its editor type. */
 export interface ISerializedChatWindowEditor {
@@ -18,14 +19,33 @@ export interface ISerializedChatWindowEditor {
 	readonly active?: boolean;
 }
 
-/** Serializes the editors of `group` that can be, in their order, marking the active one. */
-export function serializeChatWindowEditors(group: IEditorGroup): ISerializedChatWindowEditor[] {
+/**
+ * Serializes the editors of `group` that can be, in their order, marking the active one. `onlyThoseThatClose`: those
+ * that close as the window closes, not those that leave it: ones that ask before they close, such as dirty ones, which
+ * move to the main window, and terminals, which go to its panel.
+ */
+export function serializeChatWindowEditors(group: IEditorGroup, options?: { readonly onlyThoseThatClose?: boolean }): ISerializedChatWindowEditor[] {
 	const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-	return group.getEditors(EditorsOrder.SEQUENTIAL).flatMap(editor => {
+	return group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => !options?.onlyThoseThatClose || (!confirmsClose(editor) && editor.typeId !== TERMINAL_EDITOR_TYPE_ID)).flatMap(editor => {
 		const serializer = registry.getEditorSerializer(editor);
 		const value = serializer?.canSerialize(editor) ? serializer.serialize(editor) : undefined;
 		return value === undefined ? [] : [{ typeId: editor.typeId, value, active: editor === group.activeEditor }];
 	});
+}
+
+/**
+ * Whether `editor` asks before it closes, such as one that is dirty, as a group decides as its part closes: such an editor
+ * does not close with the part, but moves to the main window with what the part merges into it.
+ */
+function confirmsClose(editor: EditorInput): boolean {
+	if (editor.closeHandler) {
+		try {
+			return editor.closeHandler.showConfirm();
+		} catch {
+			// As the group does: then as any editor
+		}
+	}
+	return editor.isDirty() && !editor.isSaving();
 }
 
 /**
@@ -34,7 +54,8 @@ export function serializeChatWindowEditors(group: IEditorGroup): ISerializedChat
  * for editors dropped on its edges. The chat itself has no serializer and stays out.
  */
 export function serializeChatWindowEditorsBesideChat(window: IChatWindow, createdParts: readonly IContentPart[]): ISerializedChatWindowEditor[] {
-	return [...window.mainPart.groups, ...window.chatPart.groups, ...createdParts.flatMap(part => part.groups)].flatMap(group => serializeChatWindowEditors(group));
+	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself
+	return [...window.mainPart.groups, ...window.chatPart.groups, ...createdParts.flatMap(part => part.groups)].flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }));
 }
 
 /** Deserializes what {@link serializeChatWindowEditors} serialized, skipping editors whose type is no longer available or that fail to deserialize. */
@@ -67,14 +88,19 @@ export function deserializeChatWindowEditors(instantiationService: IInstantiatio
 export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>, parts: { readonly chatPart: IChatWindowChatPart | undefined; readonly createdParts: readonly IContentPart[] }): Promise<void> {
 	const chat = window.chat.get();
 	// Serialized, as closing the window disposes them, and opened again in the new window.
-	const editors = window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group));
-	const createdParts = parts.createdParts.map(part => part.groups.flatMap(group => serializeChatWindowEditors(group))).filter(created => created.length > 0);
+	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself.
+	// The groups of its chat part are captured as a whole, which would open such an editor twice: with one there, those
+	// that close go to the main part of the new window instead.
+	const chatPartConfirms = window.chatPart.groups.some(group => group.getEditors(EditorsOrder.SEQUENTIAL).some(confirmsClose));
+	const chatPart = chatPartConfirms ? undefined : parts.chatPart;
+	const editors = [...window.mainPart.groups, ...(chatPartConfirms ? window.chatPart.groups : [])].flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }));
+	const createdParts = parts.createdParts.map(part => part.groups.flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }))).filter(created => created.length > 0);
 	const showTerminals = window.terminalsVisible.get();
 	if (window.close()) {
 		await open(chat, {
 			editors: deserializeChatWindowEditors(instantiationService, editors),
 			showTerminals,
-			chatPart: parts.chatPart,
+			chatPart,
 			createdParts: createdParts.length ? createdParts.map(created => deserializeChatWindowEditors(instantiationService, created)) : undefined,
 		});
 	}

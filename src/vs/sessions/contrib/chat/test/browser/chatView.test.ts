@@ -1040,7 +1040,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('summarizes only comparison evaluators in their main chat', () => {
+	test('summarizes only the exact comparison evaluator chat, or its legacy main chat', () => {
 		const attempt = URI.parse('test:/attempt');
 		const judge = URI.parse('test:/judge');
 		const synthesis = URI.parse('test:/synthesis');
@@ -1069,6 +1069,13 @@ suite('Sessions - Chat View', () => {
 			attempt: undefined, judge: 'Judge Instructions', synthesis: 'Synthesis Instructions',
 			ordinary: undefined, secondary: undefined, unresolvedChat: undefined, unresolvedSession: undefined, unresolvedComparison: undefined,
 		});
+		const nested = comparisons.map(comparison => ({
+			...comparison, sessionResource: attempt,
+			participants: comparison.participants.map(participant => ({ ...participant, sessionResource: attempt, chatResource: participant.sessionResource })),
+		}));
+		assert.deepStrictEqual([attempt, judge, synthesis, secondaryChat].map(chat =>
+			getSessionComparisonRequestSummary(nested, attempt, chat, attempt),
+		), [undefined, 'Judge Instructions', 'Synthesis Instructions', undefined]);
 	});
 
 	test('does not render the running-session secondary toolbar for the experimental composer', () => {
