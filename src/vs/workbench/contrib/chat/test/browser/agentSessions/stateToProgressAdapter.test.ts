@@ -530,6 +530,15 @@ suite('stateToProgressAdapter', () => {
 
 	suite('turnsToHistory', () => {
 
+		test('marks only cancelled turns\' responses as cancelled', () => {
+			const history = turnsToHistory(URI.parse('ahp-session:/cancel'), [
+				createTurn({ state: TurnState.Cancelled }),
+				createTurn({ state: TurnState.Complete }),
+			], 'participant');
+
+			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.isCanceled), [true, undefined]);
+		});
+
 		const planDecisions: { response?: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; expected?: IChatPlanReviewResult }[] = [
 			{ response: ChatInputResponseKind.Accept, answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' } } }, expected: { rejected: false, action: 'Implement Plan', actionId: 'interactive' } },
 			{ response: ChatInputResponseKind.Decline, answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } }, expected: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' } },

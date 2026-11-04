@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
 import { withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
@@ -448,6 +448,64 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 			{ text: 'cancelled', state: TurnState.Cancelled, parts: [ResponsePartKind.Markdown] },
 			{ text: 'last', state: TurnState.Complete, parts: [ResponsePartKind.Markdown] },
 		]);
+	});
+
+	test('restores an imported error turn as errored with its message, not as interrupted', async () => {
+		const failed = (text: string): Turn => ({
+			...userTurn(generateUuid(), text, [markdown('Partial'), { kind: ResponsePartKind.Error, error: { errorType: 'rate_limit', message: `${text} failed` } }]),
+			state: TurnState.Error,
+		});
+		const turns: Turn[] = [failed('first'), userTurn(generateUuid(), 'middle', [markdown('OK')]), failed('last')];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual(restored.map(turn => {
+			const error = getTurnError(turn);
+			return { text: turn.message.text, state: turn.state, error: error && { errorType: error.errorType, message: error.message } };
+		}), [
+			{ text: 'first', state: TurnState.Error, error: { errorType: 'rate_limit', message: 'first failed' } },
+			{ text: 'middle', state: TurnState.Complete, error: undefined },
+			{ text: 'last', state: TurnState.Error, error: { errorType: 'rate_limit', message: 'last failed' } },
+		]);
+	});
+
+	test('keeps each turn\'s original start and duration, and the log in order', async () => {
+		const at = (iso: string) => new Date(iso).toISOString();
+		const timed = (text: string, startedAt: string | undefined, duration: number | undefined, state = TurnState.Complete): Turn => ({
+			...userTurn(generateUuid(), text, [markdown(text)]),
+			...(startedAt ? { startedAt } : {}),
+			...(duration !== undefined ? { duration } : {}),
+			state,
+		});
+		const turns: Turn[] = [
+			timed('first', at('2026-01-05T10:00:00Z'), 30_000),
+			timed('no duration', at('2026-01-05T11:00:00Z'), undefined),
+			timed('cancelled', at('2026-01-06T09:00:00Z'), 5_000, TurnState.Cancelled),
+			// Earlier than its predecessor: kept in order rather than travelling back in time.
+			timed('out of order', at('2026-01-06T08:00:00Z'), 1_000),
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: restored } = await mapSessionEvents(session, undefined, events);
+		const times = events.map(e => Date.parse(e.timestamp));
+
+		assert.deepStrictEqual({
+			ordered: times.every((time, i) => i === 0 || time > times[i - 1]),
+			startsBeforeFirstTurn: times[0] < Date.parse(turns[0].startedAt!),
+			turns: restored.map(turn => ({ text: turn.message.text, startedAt: turn.startedAt, duration: turn.duration })),
+		}, {
+			ordered: true,
+			startsBeforeFirstTurn: true,
+			turns: [
+				{ text: 'first', startedAt: at('2026-01-05T10:00:00Z'), duration: 30_000 },
+				{ text: 'no duration', startedAt: at('2026-01-05T11:00:00Z'), duration: 3 },
+				{ text: 'cancelled', startedAt: at('2026-01-06T09:00:00Z'), duration: 5_000 },
+				{ text: 'out of order', startedAt: new Date(Date.parse(at('2026-01-06T09:00:00Z')) + 5_001).toISOString(), duration: 3 },
+			],
+		});
 	});
 
 	test('round-trips message attachments and the model each turn used', async () => {

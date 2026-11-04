@@ -2000,7 +2000,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 
-	cancel(): void {
+	/** Cancels the response, as of `completedAt` when restoring a recorded cancellation. */
+	cancel(completedAt = Date.now()): void {
+		this._cancel(completedAt, completedAt);
+	}
+
+	/** Cancels a restored response whose cancellation time was not recorded. */
+	cancelWithoutTimestamp(): void {
+		this._cancel(Date.now(), undefined);
+	}
+
+	private _cancel(completedAt: number, completionTimestamp: number | undefined): void {
 		this._response.finalizeReasoningDuration();
 		// Transition any tool invocations that are still streaming partial
 		// input from the LM into the Cancelled state so that UI consumers
@@ -2016,9 +2026,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			}
 		}
 
-		const completedAt = Date.now();
 		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
-		this._completionTimestamp = completedAt;
+		this._completionTimestamp = completionTimestamp;
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}

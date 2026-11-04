@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { readAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { MessageAttachmentKind, type MessageAttachment, type TextRange } from '../../common/state/protocol/state.js';
-import { getInlineToolInput, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ReasoningResponsePart, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
+import { getInlineToolInput, getTurnError, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ReasoningResponsePart, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 
 /**
@@ -79,8 +79,10 @@ export interface IBuildSessionEventsOptions {
  * Only completed tool calls are translated; streaming / pending tool states and
  * file-edit content (which lives in the session database) are not yet emitted.
  * A cancelled turn ({@link TurnState.Cancelled}) emits a trailing `abort` event
- * so it reconstructs as cancelled. Content refs and system notifications are
- * skipped.
+ * so it reconstructs as cancelled, and an errored turn ({@link TurnState.Error})
+ * a `session.error` carrying its error. Content refs and system notifications
+ * are skipped. The event log has no per-turn custom agent, so a turn's
+ * `message.agent` is not recorded; the session's agent applies on resume.
  *
  * Each user message carries its translated attachments. Each turn runs on the
  * model its message records, or on {@link IBuildSessionEventsOptions.model}
@@ -99,9 +101,22 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 	let currentModel = options.model;
 
 	// Synthesize strictly increasing ISO timestamps so the event order on disk
-	// is unambiguous even for turns that were originally seconds apart.
-	let clock = (options.startTime ?? new Date()).getTime();
+	// is unambiguous even for turns that were originally seconds apart. A turn
+	// that records when it started and how long it took is stamped at those
+	// times instead, so the reconstructed turn keeps its original timing; the
+	// clock never runs backwards, so the order stays intact either way.
+	const startedAtMs = (turn: Turn): number | undefined => {
+		const ms = turn.startedAt === undefined ? NaN : Date.parse(turn.startedAt);
+		return Number.isFinite(ms) ? ms : undefined;
+	};
+	const firstStartedAt = turns.length ? startedAtMs(turns[0]) : undefined;
+	let clock = options.startTime?.getTime() ?? (firstStartedAt !== undefined ? firstStartedAt - 10 : Date.now());
 	const nextTimestamp = (): string => new Date(clock++).toISOString();
+	const advanceTo = (ms: number | undefined): void => {
+		if (ms !== undefined) {
+			clock = Math.max(clock, ms);
+		}
+	};
 
 	const push = (event: SessionEvent): void => {
 		events.push(event);
@@ -213,6 +228,8 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		// a matching protocol turn; otherwise mint a fresh UUID.
 		const turnId = isUUID(turn.id) ? turn.id : generateUuid();
 		const attachments = toSdkAttachments(turn.message.attachments);
+		const turnStartedAt = startedAtMs(turn);
+		advanceTo(turnStartedAt);
 		push({
 			id: turnId,
 			parentId,
@@ -294,6 +311,8 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		}
 		flushAssistantMessage();
 
+		// The turn's last event marks when it finished.
+		advanceTo(turnStartedAt !== undefined && turn.duration !== undefined && Number.isFinite(turn.duration) ? turnStartedAt + turn.duration : undefined);
 		// A cancelled turn reconstructs as `TurnState.Cancelled` only if the event
 		// stream ends without a finalizing assistant message (the reverse mapper
 		// defaults to cancelled and upgrades to complete on a final message). Emit
@@ -306,6 +325,28 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				timestamp: nextTimestamp(),
 				type: 'abort',
 				data: { reason: 'user_initiated' },
+			});
+		} else if (turn.state === TurnState.Error) {
+			// The error ends the turn, so no finalizing assistant message is needed.
+			const error = getTurnError(turn);
+			push({
+				id: generateUuid(),
+				parentId,
+				timestamp: nextTimestamp(),
+				type: 'session.error',
+				data: {
+					errorType: error?.errorType ?? 'error',
+					message: error?.message ?? '',
+					...(error?.stack ? { stack: error.stack } : {}),
+					originatingMessageId: turnId,
+				},
+			});
+			push({
+				id: generateUuid(),
+				parentId,
+				timestamp: nextTimestamp(),
+				type: 'assistant.turn_end',
+				data: { turnId: sdkTurnId, ...(currentModel ? { model: currentModel } : {}) },
 			});
 		} else {
 			// A finished turn must end on an assistant message (an empty one when it
