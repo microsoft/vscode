@@ -10,7 +10,7 @@ import * as ExtensionsActions from '../../browser/extensionsActions.js';
 import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IAllowedExtensionsService
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IAllowedExtensionsService, MarketplaceDeprecationConfigKey, IDeprecationInfo
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -68,6 +68,15 @@ import { UserDataProfileService } from '../../../../services/userDataProfile/com
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { IDialogService, IPrompt } from '../../../../../platform/dialogs/common/dialogs.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ExtensionHoverWidget, ExtensionStatusWidget } from '../../browser/extensionsWidgets.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -186,6 +195,132 @@ suite('ExtensionsActions', () => {
 		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
 
 		assert.ok(!testObject.enabled);
+	});
+
+	test('Marketplace deprecation status keeps publisher markdown separate from replacement commands', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		instantiationService.stub(IMarkdownRendererService, { render: renderMarkdown });
+		const status = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionStatusAction));
+		const container = document.createElement('div');
+		disposables.add(instantiationService.createInstance(ExtensionStatusWidget, container, status));
+		const publisherMessage = '**Publisher advice** [unsafe](command:extension.open?%5B%22other.extension%22%5D) <b>HTML</b>';
+		const replacement = { id: 'pub.replacement', displayName: 'Replacement [safe] <https://example.test>' };
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', {
+			deprecationInfo: { source: 'marketplace', extension: replacement, additionalInfo: publisherMessage }
+		}), undefined);
+		status.extension = extension;
+		await status.recomputeStatus();
+
+		let showHover: IHoverDelegate['showHover'] | undefined;
+		let hoverContent: HTMLElement | undefined;
+		instantiationService.stub(IHoverService, {
+			setupManagedHover: (delegate: IHoverDelegate) => {
+				showHover = delegate.showHover;
+				return { show: () => { }, hide: () => { }, update: () => { }, dispose: () => { } };
+			},
+			showInstantHover: (options: IHoverOptions) => {
+				if (options.content instanceof HTMLElement) {
+					hoverContent = options.content;
+				}
+				return undefined;
+			}
+		});
+		const hover = disposables.add(instantiationService.createInstance(ExtensionHoverWidget, { target: container, position: () => HoverPosition.RIGHT }, status));
+		hover.extension = extension;
+		showHover!({ content: new MarkdownString(status.status[0].message.value, { isTrusted: true }), target: container });
+
+		assert.deepStrictEqual({
+			text: Array.from(container.children, element => element.textContent?.replace(/\u00a0/g, ' ').trim()),
+			links: Array.from(container.querySelectorAll('a'), link => URI.parse(link.dataset.href!).path),
+			bold: container.querySelector('strong')?.textContent,
+			htmlElements: container.querySelectorAll('b').length,
+			publisherTrusted: status.status[0].additionalMessage?.isTrusted,
+			publisherHtml: status.status[0].additionalMessage?.supportHtml,
+			hoverLinks: Array.from(hoverContent!.querySelectorAll('a'), link => URI.parse(link.dataset.href!).path),
+			hoverBold: hoverContent?.querySelector('strong')?.textContent,
+			hoverHtmlElements: hoverContent?.querySelectorAll('b').length
+		}, {
+			text: [`This extension is deprecated. Use the ${replacement.displayName} extension instead.`, 'Publisher advice unsafe HTML'],
+			links: ['extension.open'],
+			bold: 'Publisher advice',
+			htmlElements: 0,
+			publisherTrusted: false,
+			publisherHtml: false,
+			hoverLinks: ['extension.open'],
+			hoverBold: 'Publisher advice',
+			hoverHtmlElements: 0
+		});
+	});
+
+	test('Marketplace install confirmation includes the publisher message and preserves replacement navigation', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const publisherMessage = '**Publisher advice** [unsafe](command:unsafe.command) <b>HTML</b>';
+		const replacement = { id: 'pub.replacement', displayName: 'Replacement' };
+		let opened: string | undefined;
+		instantiationService.stubPromise(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'getExtensions', [{ identifier: { id: replacement.id } }]);
+		instantiationService.stub(IExtensionsWorkbenchService, 'open', async (extension: Extension) => { opened = extension.identifier.id; });
+		instantiationService.stub(IDialogService, {
+			prompt: async <T>(prompt: IPrompt<T>) => {
+				const details = prompt.custom && typeof prompt.custom !== 'boolean' ? prompt.custom.markdownDetails : undefined;
+				const rendered = details?.map(detail => disposables.add(renderMarkdown(detail.markdown)).element);
+				assert.deepStrictEqual({
+					buttons: prompt.buttons?.map(button => button.label),
+					text: rendered?.map(element => element.textContent?.replace(/\u00a0/g, ' ').trim()),
+					publisherLinks: rendered?.[1].querySelectorAll('a').length,
+					publisherHtml: rendered?.[1].querySelectorAll('b').length
+				}, {
+					buttons: ['Install Anyway', '&&Open Replacement'],
+					text: ['This extension is deprecated. Use the Replacement extension instead.', 'Publisher advice unsafe HTML'],
+					publisherLinks: 0,
+					publisherHtml: 0
+				});
+				return { result: await prompt.buttons![1].run({}) };
+			}
+		});
+		const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		action.extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', {
+			deprecationInfo: { source: 'marketplace', extension: replacement, additionalInfo: publisherMessage }
+		}), undefined);
+		await action.run();
+		assert.strictEqual(opened, replacement.id);
+	});
+
+	test('deprecation confirmation preserves Install Anyway and legacy replacement presentation', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const confirmations: { detail?: string; markdown?: string[]; buttons?: string[] }[] = [];
+		let installs = 0;
+		instantiationService.stub(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'install', async () => { installs++; });
+		instantiationService.stubPromise(IExtensionsWorkbenchService, 'open', undefined);
+		instantiationService.stub(IDialogService, {
+			prompt: async <T>(prompt: IPrompt<T>) => {
+				confirmations.push({
+					detail: typeof prompt.detail === 'string' ? prompt.detail : prompt.detail?.value,
+					markdown: prompt.custom && typeof prompt.custom !== 'boolean' ? prompt.custom.markdownDetails?.map(detail => detail.markdown.value.replace(/&nbsp;/g, ' ')) : undefined,
+					buttons: prompt.buttons?.map(button => button.label)
+				});
+				return { result: await prompt.buttons![0].run({}) };
+			}
+		});
+		const cases: IDeprecationInfo[] = [
+			{ source: 'marketplace' },
+			{ source: 'marketplace', additionalInfo: '**Advice**' },
+			{ extension: { id: 'pub.replacement', displayName: 'Replacement' }, additionalInfo: 'Legacy message' }
+		];
+		for (const deprecation of cases) {
+			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { deprecationInfo: deprecation.source ? deprecation : undefined }), undefined);
+			extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: deprecation.source ? {} : { [extension.identifier.id]: deprecation } });
+			action.extension = extension;
+			await action.run();
+		}
+		assert.deepStrictEqual({ installs, confirmations }, {
+			installs: 3,
+			confirmations: [
+				{ detail: 'This extension is deprecated as it is no longer being maintained.', markdown: undefined, buttons: ['Install Anyway'] },
+				{ detail: undefined, markdown: ['This extension is deprecated as it is no longer being maintained.', '**Advice**'], buttons: ['Install Anyway'] },
+				{ detail: 'This extension is deprecated. Use the Replacement extension instead.', markdown: undefined, buttons: ['Install Anyway', '&&Open Replacement'] }
+			]
+		});
 	});
 
 	test('Auto update action is disabled for blocked extensions', () => {
