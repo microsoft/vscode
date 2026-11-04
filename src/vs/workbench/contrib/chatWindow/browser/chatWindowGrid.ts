@@ -6,7 +6,7 @@
 import { addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IPartGridPartFactory, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
@@ -228,6 +228,10 @@ export class ChatWindowGrid extends Disposable {
 	/** Whether the part that holds the window's terminals shows: it is in the grid and has editors. */
 	readonly terminalsVisible: IObservable<boolean> = this._terminalsVisible;
 
+	private readonly _resizing = observableValue<boolean>(this, false);
+	/** Whether the user resizes the cells, dragging a sash between them, from the press on the sash until it lets go. */
+	readonly resizing: IObservable<boolean> = this._resizing;
+
 	private readonly _chatLeads = observableValue<boolean>(this, false);
 	/**
 	 * Whether the chat part leads the window: it shows, with no part before it, to its left or above it, as where its
@@ -295,10 +299,13 @@ export class ChatWindowGrid extends Disposable {
 			}
 			const before = this._cellSizes();
 			const window = getWindow(_container);
-			const up = this._userResize.value = addDisposableListener(window, EventType.MOUSE_UP, () => {
+			// Set before the sash takes the press, so that what the resize allows, such as a chat that shows only its
+			// input growing to show its conversation, is what the sash drags within
+			this._resizing.set(true, undefined);
+			const up = this._userResize.value = combinedDisposable(addDisposableListener(window, EventType.MOUSE_UP, () => {
 				up.dispose();
 				this._rememberUserSizes(before);
-			});
+			}), toDisposable(() => this._resizing.set(false, undefined)));
 		}, true));
 		this._register(addDisposableListener(_container, EventType.DBLCLICK, e => {
 			if (this._sashOf(e)) {

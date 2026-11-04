@@ -460,6 +460,46 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('the grid is resizing from the press on a sash until it lets go, already as the sash takes the press: a chat that shows only its input, and grows only while its window resizes, is dragged taller, and back to its input once let go', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.Stacked);
+		const container = createAttachedContainer();
+		const onDidChangeChat = disposables.add(new Emitter<IViewSize | undefined>());
+		const resizing = observableValue('resizing', false);
+		const heights: number[] = [];
+		const chat = new class extends mock<IContentPart>() {
+			override readonly element = $('.chat');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 100;
+			override get maximumHeight() { return resizing.get() ? Number.POSITIVE_INFINITY : 101; }
+			override readonly onDidChange = onDidChangeChat.event;
+			override readonly groups = [createPart('chatGroup').groups[0]];
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout(_width: number, height: number) { heights.push(height); }
+			override setVisible() { }
+		}();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		// As the chat view does, the chat follows its window resizing
+		disposables.add(autorun(reader => {
+			resizing.set(grid.resizing.read(reader), undefined);
+			onDidChangeChat.fire(undefined);
+		}));
+		grid.layout(1000, 800);
+		const atRest = grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height;
+		heights.length = 0;
+		drag(container, grid, ChatWindowGridCell.Chat, 'top', 300);
+
+		assert.deepStrictEqual({ atRest, dragged: Math.max(...heights), resizing: grid.resizing.get(), letGo: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height }, {
+			atRest: 101,
+			dragged: 300,
+			resizing: false,
+			letGo: 101,
+		});
+	});
+
 	test('a part does not merge into the terminals, whose groups stay locked to terminals, as it does not into the chat', () => {
 		const { grid, open } = setupWithTerminals();
 		open();

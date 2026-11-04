@@ -82,6 +82,8 @@ export interface IChatWindowHost {
 	readonly terminalsVisible: IObservable<boolean>;
 	/** Whether the chat part leads the window's grid: it shows, with no part before it, to its left or above it. */
 	readonly chatPartLeads: IObservable<boolean>;
+	/** Whether the user resizes the parts of the window's grid, dragging a sash between them. */
+	readonly resizing: IObservable<boolean>;
 	/** The chat's editor moved out of the window, such as into the main window or into an editor window. */
 	didMoveChatOut(): void;
 	/** Forgets the layout and sizes remembered for the window's chat, and arranges its parts again as in a new window. */
@@ -219,6 +221,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	get inputOnly(): IObservable<boolean> { return this.state.inputOnly; }
 	get terminalPosition(): IObservable<ChatWindowTerminalPosition> { return this.state.terminalPosition; }
 	get terminalsVisible(): IObservable<boolean> { return this._host.terminalsVisible; }
+	get resizing(): IObservable<boolean> { return this._host.resizing; }
 
 	getOrCreateTerminalsPart(): IContentPart {
 		let part = this._terminalsPart.get();
@@ -593,6 +596,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			},
 			terminalsVisible: derived(this, reader => gridRef.read(reader)?.terminalsVisible.read(reader) ?? false),
 			chatPartLeads: derived(this, reader => gridRef.read(reader)?.chatLeads.read(reader) ?? false),
+			resizing: derived(this, reader => gridRef.read(reader)?.resizing.read(reader) ?? false),
 		}));
 		disposables.add(bindWindowTerminalsContext(windowContextKeyService, { terminalsVisible: window.terminalsVisible, terminalPosition: state.terminalPosition }));
 

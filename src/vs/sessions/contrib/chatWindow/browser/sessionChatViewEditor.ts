@@ -6,6 +6,7 @@
 import { registerContentDropTarget } from '../../../../workbench/browser/dnd.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -17,6 +18,7 @@ import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/view
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
 import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/contrib/chatWindow/common/chatWindowInputOnly.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
@@ -97,9 +99,10 @@ export interface IInputOnlySessionView {
 
 /**
  * Lets the chat of a chat window show only its input below the main part (Stacked), as its window's state says: the chat
- * view collapses to its input, and the chat reports its input's height as its most height, which its part and the window
- * respect. What the chat shows is what its view shows, which shows the conversation when it needs it, such as for a
- * confirmation its input cannot show; what the user chose in the chat is kept for its window.
+ * view collapses to its input, and the chat reports its input's height as its least and, but a pixel, its most height,
+ * which its part and the window respect. Dragged taller by the sash above it, it shows its conversation, and dragged
+ * back down to its input, only its input again. What the chat shows is what its view shows, which shows the conversation
+ * when it needs it, such as for a confirmation its input cannot show; what the user chose in the chat is kept for its window.
  */
 export class SessionChatViewInputOnly extends Disposable {
 
@@ -109,17 +112,25 @@ export class SessionChatViewInputOnly extends Disposable {
 	/** The height of the chat when it shows only its input, or 0 while that is not known. */
 	readonly collapsedHeight: IObservable<number>;
 
-	/** The most height of the chat: its collapsed height while it shows only its input. */
+	/**
+	 * The most height of the chat: about its collapsed height while it shows only its input, a pixel more so that the sash
+	 * above it can be dragged, which then lets it grow, to show its conversation (see {@link layout}).
+	 */
 	readonly maximumHeight: IObservable<number>;
 
-	/** The least height of the chat: down to its input, never below, while it is below the main part. */
+	/** The least height of the chat: its input while it shows only its input; down to its input while it is below the main part. */
 	readonly minimumHeight: IObservable<number>;
+
+	private readonly _window: IObservable<Pick<IChatWindow, 'layoutMode' | 'inputOnly' | 'toggleConversation' | 'resizing'> | undefined>;
+	private _resizedHeight = 0;
+	private readonly _resizeScheduler = this._register(new RunOnceScheduler(() => this._showWhatResizeShows(), 0));
 
 	constructor(
 		sessionView: IInputOnlySessionView,
-		window: IObservable<Pick<IChatWindow, 'layoutMode' | 'inputOnly' | 'toggleConversation'> | undefined>,
+		window: IObservable<Pick<IChatWindow, 'layoutMode' | 'inputOnly' | 'toggleConversation' | 'resizing'> | undefined>,
 	) {
 		super();
+		this._window = window;
 
 		const stacked = derived(this, reader => window.read(reader)?.layoutMode.read(reader) === ChatWindowLayoutMode.Stacked);
 		const view = sessionView.primaryChatView;
@@ -130,10 +141,16 @@ export class SessionChatViewInputOnly extends Disposable {
 		});
 		this.maximumHeight = derived(this, reader => {
 			const collapsed = this.collapsedHeight.read(reader);
-			return this.shownInputOnly.read(reader) && collapsed ? collapsed : Number.POSITIVE_INFINITY;
+			if (!this.shownInputOnly.read(reader) || !collapsed || window.read(reader)?.resizing.read(reader)) {
+				return Number.POSITIVE_INFINITY;
+			}
+			return collapsed + 1;
 		});
 		this.minimumHeight = derived(this, reader => {
 			const collapsed = this.collapsedHeight.read(reader);
+			if (this.shownInputOnly.read(reader) && collapsed) {
+				return collapsed;
+			}
 			return stacked.read(reader) && collapsed ? Math.min(collapsed, SESSION_CHAT_VIEW_MINIMUM_HEIGHT) : SESSION_CHAT_VIEW_MINIMUM_HEIGHT;
 		});
 
@@ -167,6 +184,31 @@ export class SessionChatViewInputOnly extends Disposable {
 				chatWindow.toggleConversation();
 			}
 		}));
+	}
+
+	/**
+	 * The chat is laid out at `height`. While the user drags the sash beside it, it shows its conversation once dragged up
+	 * past its input, and only its input once dragged back down to it: a snap, with a little room between the two so
+	 * that a height at either does not flicker. What shows changes once the layout is done.
+	 */
+	layout(height: number): void {
+		this._resizedHeight = height;
+		const window = this._window.get();
+		if (window?.layoutMode.get() === ChatWindowLayoutMode.Stacked && this.collapsedHeight.get() && window.resizing.get()) {
+			this._resizeScheduler.schedule();
+		}
+	}
+
+	private _showWhatResizeShows(): void {
+		const window = this._window.get();
+		const collapsedHeight = this.collapsedHeight.get();
+		if (!window?.resizing.get() || !collapsedHeight || window.layoutMode.get() !== ChatWindowLayoutMode.Stacked) {
+			return;
+		}
+		const inputOnly = window.inputOnly.get();
+		if (decideStackedChatInputOnlyWhileDragging({ groupHeight: this._resizedHeight, collapsedHeight, inputOnly }) !== inputOnly) {
+			window.toggleConversation();
+		}
 	}
 }
 
@@ -309,6 +351,7 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 		const titleHeight = Math.min(this._titleHeight, height);
 		this._title?.layout(width, titleHeight);
 		this.sessionView.layout(width, height - titleHeight, top + titleHeight, left);
+		this._inputOnly.layout(height - titleHeight);
 	}
 
 	focus(): void {

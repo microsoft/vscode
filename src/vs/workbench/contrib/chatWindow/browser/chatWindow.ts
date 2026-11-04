@@ -170,6 +170,11 @@ export interface IChatWindow {
 	readonly splitLayout: IObservable<ChatWindowSplitLayout>;
 	/** In {@link ChatWindowLayoutMode.Stacked}: whether the chat shows only its input. */
 	readonly inputOnly: IObservable<boolean>;
+	/**
+	 * Whether the user resizes its parts, dragging a sash between them: the chat showing only its input can then grow and
+	 * show its conversation.
+	 */
+	readonly resizing: IObservable<boolean>;
 	/** The window's main part, where what it opens goes by default. */
 	readonly mainPart: IContentPart;
 	/** The part that shows the chat. */

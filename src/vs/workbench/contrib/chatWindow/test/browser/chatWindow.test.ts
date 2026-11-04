@@ -141,6 +141,7 @@ suite('Chat window', () => {
 			},
 			terminalsVisible: constObservable(false),
 			chatPartLeads: constObservable(true),
+			resizing: constObservable(false),
 			didMoveChatOut: () => events.push('moved out'),
 			resetLayout: () => events.push('reset layout'),
 			windowGroups: options?.otherPart ? {
