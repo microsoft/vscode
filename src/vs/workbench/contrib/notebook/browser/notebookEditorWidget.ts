@@ -38,7 +38,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { FontInfo, sanitizeFontFamily } from '../../../../editor/common/config/fontInfo.js';
 import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
@@ -675,7 +675,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._generateFontInfo();
 		}
 
-		const fontFamily = this._generateFontFamily();
+		const fontFamily = sanitizeFontFamily(this._generateFontFamily());
 
 		styleSheets.push(`
 		.notebook-editor {
