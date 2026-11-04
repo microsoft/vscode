@@ -264,13 +264,13 @@ suite('ChatInlineAttachments', () => {
 		const escaped = disposed;
 		input.controller.refresh();
 		await settle();
-		assert.strictEqual(shown, 1, 'Rerender must not reopen an Escape-dismissed preview');
+		assert.strictEqual(shown, 1, 'Rerender must not reopen a dismissed preview');
 		input.editor.setPosition(new Position(1, 8), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
 		focusPreview(input);
 		input.controller.refresh();
 		await settle();
-		assert.strictEqual(shown, 3, 'Rerender must reopen a previously visible preview');
+		assert.strictEqual(shown, 2, 'Rerender must preserve a focused preview rather than reopening it');
 		input.editor.setPosition(new Position(1, 10), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
 		focusPreview(input);
@@ -291,7 +291,7 @@ suite('ChatInlineAttachments', () => {
 			closedOnBlur, shown, disposed, unchanged: input.state(),
 		}, {
 			opened: 1, linkFocused: true, backTabConsumed: true, inputFocused: true, escaped: 1,
-			closedOnBlur: 4, shown: 5, disposed: 5, unchanged: before,
+			closedOnBlur: 3, shown: 4, disposed: 4, unchanged: before,
 		});
 	});
 
@@ -443,6 +443,52 @@ suite('ChatInlineAttachments', () => {
 			visibleAfterBlur: false,
 		});
 	});
+
+	for (const trigger of ['mouse', 'keyboard']) {
+		test(`${trigger} preview preserves focused controls through a composer refresh`, async () => {
+			const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
+			store.add(toDisposable(() => fixture.remove()));
+			const previews: HTMLElement[] = [];
+			const input = createInput('review ', true, () => {
+				const preview = dom.$('div');
+				dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+				previews.push(preview);
+				return preview;
+			}, createRealHoverService(fixture));
+			const host = input.editor.getContainerDomNode();
+			fixture.appendChild(host);
+			input.editor.focus();
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext(file('a.ts'));
+			await settle();
+			host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
+			input.editor.setPosition(new Position(1, 2), 'keyboard');
+			if (trigger === 'mouse') {
+				input.attachmentElements[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			} else {
+				input.editor.setPosition(new Position(1, 9), 'keyboard');
+			}
+			await settle();
+			focusPreview(input);
+			const link = previews[0].querySelector('a')!;
+			const before = input.state();
+			input.controller.refresh();
+			await settle();
+			const refreshed = {
+				linkFocused: dom.getActiveElement() === link,
+				previewRetained: previews[0].isConnected,
+				ownerRetained: ChatInlineAttachments.getPreviewOwner(link) === input.controller,
+				widgetsRendered: input.attachmentElements.length,
+				state: input.state(),
+			};
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			await settle();
+			assert.deepStrictEqual({ refreshed, widgetsAfterDismiss: input.attachmentElements.length }, {
+				refreshed: { linkFocused: true, previewRetained: true, ownerRetained: true, widgetsRendered: 1, state: before },
+				widgetsAfterDismiss: 2,
+			});
+		});
+	}
 
 	for (const state of ['loading', 'unavailable']) {
 		test(`${state} hover uses passive shared presentation without a focusable placeholder`, async () => {

@@ -1117,9 +1117,11 @@ export class ChatInlineAttachments extends Disposable {
 		if (!this._needsRender && ![...this._pills].some(pill => pill.needsRender(this._resolveEntry(pill.data)))) {
 			return;
 		}
-		const preservedPreview = this._previewPill && (this._previewInAccessibleView || this._deferredPreviewRender) ? this._previewPill : undefined;
+		const previewElement = this._activePillHoverContent?.element;
+		const previewHasFocus = previewElement && dom.isAncestorOfActiveElement(previewElement.closest('.monaco-hover') ?? previewElement);
+		const preservedPreview = this._previewPill && (this._previewInAccessibleView || this._deferredPreviewRender || previewHasFocus) ? this._previewPill : undefined;
 		if (preservedPreview) {
-			// Keep the accessible reader's DOM owner stable until its preview closes.
+			// Keep the reader's DOM owner stable until its preview closes.
 			this._deferredPreviewRender = true;
 		} else {
 			this._restorePillPreview = this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed && this._previewPill && (this._previewShown || this._previewFromKeyboard)
