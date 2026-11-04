@@ -104,6 +104,11 @@ export function showChatWindowLayout(window: IChatWindow, mode: ChatWindowLayout
 		return;
 	}
 	window.setLayoutMode(mode);
+	announceChatWindowLayout(mode);
+}
+
+/** Announces the layout a chat window shows now. */
+function announceChatWindowLayout(mode: ChatWindowLayoutMode): void {
 	const choice = chatWindowLayoutModeChoices.find(candidate => candidate.mode === mode);
 	if (choice) {
 		status(localize('chatWindowLayoutChanged', "Layout: {0}", choice.title.value));
@@ -224,8 +229,8 @@ registerAction2(class ToggleChatWindowConversationAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
-		accessor.get(IChatWindowService).activeWindow?.toggleConversation();
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		resolveChatWindow(accessor, args)?.toggleConversation();
 	}
 });
 
@@ -237,6 +242,7 @@ registerAction2(class ToggleChatWindowConversationAction extends Action2 {
 export function toggleChatWindowEditorAsSidePanel(window: IChatWindow): void {
 	if (window.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
 		window.showEditor();
+		announceChatWindowLayout(window.layoutMode.get());
 	} else {
 		showChatWindowLayout(window, ChatWindowLayoutMode.ChatOnly);
 	}
