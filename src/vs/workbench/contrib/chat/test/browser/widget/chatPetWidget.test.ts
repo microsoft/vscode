@@ -156,6 +156,8 @@ suite('ChatPetWidget', () => {
 		const secondHost: IChatPetWidgetHost = {
 			...createHost(secondParent, 'fall'),
 			model: constObservable(new class extends mock<IChatModel>() {
+				override readonly onDidChange = Event.None;
+				override getRequests(): IChatRequestModel[] { return []; }
 				override readonly hasActiveRequest = constObservable(true);
 				override readonly lastRequestObs = constObservable(undefined);
 			}()),
@@ -2253,6 +2255,69 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('shows one mini pet per active subagent and removes it when it stops', async () => {
+		const { widget, firstHost, button } = createHostTransitionHarness();
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		const response = new class extends mock<IChatResponseModel>() {
+			override readonly onDidChange = responseChanged.event;
+			override readonly isPendingConfirmation = constObservable(undefined);
+			override readonly response = new class extends mock<IResponse>() { override readonly value = parts; }();
+		}();
+		const request = new class extends mock<IChatRequestModel>() { override readonly response = response; }();
+		const model = new class extends mock<IChatModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly hasActiveRequest = constObservable(true);
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests(): IChatRequestModel[] { return [request]; }
+		}();
+		const modelValue = observableValue<IChatModel | undefined>('model', model);
+		widget.setHost({ ...firstHost, model: modelValue });
+		const createSubagent = (id: string) => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			parts.push(tool);
+			responseChanged.fire({ reason: 'other' });
+			return tool;
+		};
+		const first = createSubagent('first');
+		createSubagent('second');
+		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent').length, 2);
+		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent.arriving').length, 2);
+		first.toolSpecificData = { kind: 'subagent', isActive: false };
+		responseChanged.fire({ reason: 'other' });
+		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent').length, 1);
+		assert.ok(button.querySelector('.chat-pet-subagent-despawning img')?.getAttribute('src')?.includes('buddy-respawn-'));
+		modelValue.set(undefined, undefined);
+		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent').length, 0);
+		await timeout(900);
+		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent-despawning').length, 0);
+	});
+
+	test('mini pets use the reduced-motion disappearance sprite', () => {
+		const { widget, firstHost, button } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const response = new class extends mock<IChatResponseModel>() {
+			override readonly onDidChange = changed.event;
+			override readonly isPendingConfirmation = constObservable(undefined);
+			override readonly response = new class extends mock<IResponse>() { override readonly value = [tool]; }();
+		}();
+		const request = new class extends mock<IChatRequestModel>() { override readonly response = response; }();
+		const model = new class extends mock<IChatModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly hasActiveRequest = constObservable(true);
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests(): IChatRequestModel[] { return [request]; }
+		}();
+		widget.setHost({ ...firstHost, model: constObservable(model) });
+		assert.ok(button.querySelector('.chat-pet-subagent:not(.arriving)'));
+		tool.toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		assert.ok(button.querySelector('.chat-pet-subagent-despawning img')?.getAttribute('src')?.endsWith('-96.png'));
+	});
+
 	for (const variant of ['stable', 'insiders'] as const) {
 		for (const reducedMotion of [false, true]) {
 			test(`paints only while a visible image-generation tool is active (${variant}, ${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
@@ -2271,6 +2336,8 @@ suite('ChatPetWidget', () => {
 					override readonly response = response;
 				}();
 				const model = new class extends mock<IChatModel>() {
+					override readonly onDidChange = Event.None;
+					override getRequests(): IChatRequestModel[] { return [request]; }
 					override readonly hasActiveRequest = hasActiveRequest;
 					override readonly lastRequestObs = constObservable(request);
 				}();

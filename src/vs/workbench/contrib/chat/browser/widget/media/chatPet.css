@@ -170,6 +170,36 @@
 	pointer-events: none;
 }
 
+.chat-pet-subagent,
+.chat-pet-subagent-despawning {
+	position: absolute;
+	bottom: 0;
+	width: 48px;
+	height: 48px;
+	transform: scale(0.5);
+	transform-origin: bottom left;
+	pointer-events: none;
+}
+
+.chat-pet-subagent.arriving {
+	animation: chat-pet-subagent-fall var(--chat-pet-subagent-fall-duration) cubic-bezier(0.42, 0, 1, 1) both;
+}
+
+@keyframes chat-pet-subagent-fall {
+	from { transform: translateY(calc(-1 * var(--chat-pet-subagent-fall-distance))) scale(0.5); }
+	to { transform: translateY(0) scale(0.5); }
+}
+
+.monaco-workbench.monaco-reduce-motion .chat-pet-subagent.arriving {
+	animation: none;
+}
+
+.chat-pet-subagent-canvas {
+	width: 48px;
+	height: 48px;
+	image-rendering: pixelated;
+}
+
 .chat-pet-sprite {
 	position: absolute;
 	bottom: 0;

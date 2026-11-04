@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+import { getSubagentIsActive, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
 import { CHAT_PET_DEFAULT_SCALE, ChatPetHorizontalAnchor, ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, getChatPetColoredSprite, getChatPetColorVariant, getChatPetEyeColor, setChatPetImageSource } from '../chatPetColors.js';
@@ -1245,6 +1246,8 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
+	private readonly _subagentPets: { element: HTMLElement; canvas: HTMLCanvasElement }[] = [];
+	private readonly _subagentEffects = this._register(new DisposableStore());
 	private parent: HTMLElement;
 	private dragBounds: HTMLElement;
 	private movementBounds: HTMLElement;
@@ -1475,6 +1478,34 @@ export class ChatPetWidget extends Disposable {
 			const eye = dom.append(this._eyes, dom.$(`.chat-pet-eye.${side}`));
 			this._pupils.push(dom.append(eye, dom.$('.chat-pet-pupil')));
 		}
+		this._register(autorun(reader => {
+			const model = this._host.read(reader).model.read(reader);
+			if (!model) {
+				this._updateSubagentPets(0);
+				return;
+			}
+			observableSignalFromEvent(this, model.onDidChange).read(reader);
+			let count = 0;
+			for (const request of model.getRequests()) {
+				const response = request.response;
+				if (!response) {
+					continue;
+				}
+				observableSignalFromEvent(this, response.onDidChange).read(reader);
+				for (const part of response.response.value) {
+					if (part.kind !== 'toolInvocation') {
+						continue;
+					}
+					part.toolSpecificDataKind.read(reader);
+					part.state.read(reader);
+					const data = part.toolSpecificData;
+					if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
+						count++;
+					}
+				}
+			}
+			this._updateSubagentPets(count);
+		}));
 		this._propellerPoseContainer = dom.append(this._visual, dom.$('.chat-pet-propeller-pose', { 'aria-hidden': 'true' }));
 		this._propellerContainer = dom.append(this._propellerPoseContainer, dom.$('.chat-pet-propeller.hidden'));
 		this._propeller = dom.append(this._propellerContainer, dom.$('canvas.chat-pet-propeller-canvas')) as HTMLCanvasElement;
@@ -2811,6 +2842,64 @@ export class ChatPetWidget extends Disposable {
 		return this._button.element.offsetLeft;
 	}
 
+	private _updateSubagentPets(count: number): void {
+		while (this._subagentPets.length > count) {
+			this._despawnSubagentPet(this._subagentPets.pop()!);
+		}
+		while (this._subagentPets.length < count) {
+			const element = dom.append(this._visual, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
+			element.style.left = `${-24 * (this._subagentPets.length + 1)}px`;
+			const distance = Math.max(0, this._visual.getBoundingClientRect().bottom / (this._scale || 1));
+			element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
+			element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
+			if (!this._motionReduced) {
+				element.classList.add('arriving');
+			}
+			const canvas = dom.append(element, dom.$('canvas.chat-pet-subagent-canvas')) as HTMLCanvasElement;
+			canvas.width = CHAT_PET_SOURCE_SIZE;
+			canvas.height = CHAT_PET_SOURCE_SIZE;
+			element.appendChild(this._eyes.cloneNode(true));
+			this._subagentPets.push({ element, canvas });
+		}
+		if (this._activeSprite) {
+			this._drawSubagentPets(this._activeSprite.canvas);
+		}
+	}
+
+	private _despawnSubagentPet(pet: { element: HTMLElement; canvas: HTMLCanvasElement }): void {
+		pet.element.classList.remove('chat-pet-subagent', 'arriving');
+		pet.element.classList.add('chat-pet-subagent-despawning');
+		pet.element.querySelector('.chat-pet-eyes')?.remove();
+		const effects = this._subagentEffects.add(new DisposableStore());
+		const image = dom.append(pet.element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
+		image.alt = '';
+		const sources = getRespawnSpriteSources(this._variant);
+		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
+		const animation = effects.add(new MutableDisposable<IDisposable>());
+		const sprite: ChatPetSpriteElement = { container: pet.element, canvas: pet.canvas, image, color: this._color };
+		const finish = () => {
+			pet.element.remove();
+			this._subagentEffects.delete(effects);
+		};
+		effects.add(toDisposable(() => pet.element.remove()));
+		effects.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation, finish, true)));
+		effects.add(dom.addDisposableListener(image, 'error', finish));
+		const targetWindow = dom.getWindow(pet.element);
+		const timer = targetWindow.setTimeout(finish, this._motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
+		effects.add(toDisposable(() => targetWindow.clearTimeout(timer)));
+		setChatPetImageSource(image, source.url);
+	}
+
+	private _drawSubagentPets(source: HTMLCanvasElement): void {
+		for (const pet of this._subagentPets) {
+			const context = pet.canvas.getContext('2d');
+			if (context) {
+				context.clearRect(0, 0, pet.canvas.width, pet.canvas.height);
+				context.drawImage(source, 0, 0, pet.canvas.width, pet.canvas.height);
+			}
+		}
+	}
+
 	private _getDisplaySize(): number {
 		return CHAT_PET_SOURCE_SIZE / 2 * this._scale;
 	}
@@ -3829,6 +3918,7 @@ export class ChatPetWidget extends Disposable {
 			}
 			if (sprite === this._activeSprite) {
 				this._activeFrameIndex = frameIndex;
+				this._drawSubagentPets(canvas);
 			}
 			onFrame?.(frameIndex);
 		};
