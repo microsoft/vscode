@@ -277,9 +277,11 @@ export interface IBrowserViewNetworkResolver {
 	/**
 	 * Called synchronously when a browser view is created, before any
 	 * asynchronous work, so the network reflects the context the view was
-	 * opened from. Returns `undefined` for the local network.
+	 * opened from. Returns `undefined` for the local network, or `null` when
+	 * the owner is unknown (e.g. its session is gone): tabs then use the local
+	 * network, while embedded views, which require their owner's network, fail.
 	 */
-	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined;
 	/**
 	 * Selects shared workspace storage on another network (e.g. by agent host
 	 * and folder roots), or in-memory storage when absent.
@@ -417,8 +419,13 @@ export interface IBrowserViewWorkbenchService {
 	 * redirected to the main editor area so the browser docks instead of opening
 	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
 	 * specific group) are left untouched.
+	 *
+	 * @param sourceWindowId The window the open was requested from, such as a link
+	 * in a page of that window: without an explicit or configured placement, the
+	 * browser opens in that window's active group rather than in the one of the
+	 * window that appears to have focus.
 	 */
-	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
+	getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined>;
 
 	/**
 	 * Register a handler that decides whether an editor should be opened for a
@@ -432,7 +439,8 @@ export interface IBrowserViewWorkbenchService {
 
 	/**
 	 * Creates an unlisted user-owned ephemeral view for embedding outside the browser editor.
-	 * When `networkOwner` is given, the view uses the network resolved for that owner.
+	 * When `networkOwner` is given, the view uses the network resolved for that owner, and
+	 * fails rather than load from the local network when it cannot use that network.
 	 */
 	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource, networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel>;
 

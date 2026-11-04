@@ -206,6 +206,62 @@ suite('SessionComparisonTool', () => {
 		});
 	});
 
+	for (const scenario of [
+		{ name: 'changed model', initialModelId: 'original', currentModelId: 'replacement', sessionAvailable: true, differs: true },
+		{ name: 'unchanged model', initialModelId: 'original', currentModelId: 'original', sessionAvailable: true, differs: false },
+		{ name: 'unavailable current model', initialModelId: 'original', currentModelId: undefined, sessionAvailable: true, differs: undefined },
+		{ name: 'unavailable initial model', initialModelId: undefined, currentModelId: 'replacement', sessionAvailable: true, differs: undefined },
+		{ name: 'unavailable session', initialModelId: 'original', currentModelId: undefined, sessionAvailable: false, differs: undefined },
+	]) {
+		test(`reports the current attempt model without changing its launch configuration: ${scenario.name}`, async () => {
+			const base = stubComparison();
+			const comparison: ISessionComparison = {
+				...base,
+				participants: base.participants.map(participant => participant.role === SessionComparisonParticipantRole.Attempt ? {
+					...participant,
+					harness: { ...participant.harness, modelId: scenario.initialModelId, modelConfiguration: { thinkingLevel: 'high' } },
+				} : participant),
+			};
+			const session = stubAttemptSession();
+			const currentModelId = observableValue<string | undefined>('currentModelId', scenario.initialModelId);
+			const attemptSession: ISession = {
+				...session,
+				modelId: constObservable('another-chat-model'),
+				mainChat: constObservable({ ...session.mainChat.get(), modelId: currentModelId }),
+			};
+			const tool = new ReadSessionComparisonTool(
+				upcastPartial<ISessionComparisonService>({ getComparison: () => comparison }),
+				upcastPartial<ISessionsManagementService>({
+					getSession: resource => resource.toString() === attemptResource.toString() && scenario.sessionAvailable ? attemptSession : undefined,
+					getSessionContextReference: () => undefined,
+				}),
+			);
+			currentModelId.set(scenario.currentModelId, undefined);
+
+			const result = JSON.parse(getText(await invoke(tool, { comparisonId: comparison.id }, judgeResource)));
+			const harness = result.attempts[0].harness;
+			assert.deepStrictEqual({
+				model: harness.model,
+				modelId: harness.modelId,
+				currentModelId: harness.currentModelId,
+				reasoningEffort: harness.reasoningEffort,
+				modelSelectionDiffers: harness.modelSelectionDiffers,
+				warnsAboutAttribution: harness.modelSelectionWarning?.includes('avoid attributing the entire attempt to one model'),
+				distinguishesSelectionFromUsage: harness.modelSelectionWarning?.includes('not a history of models actually used'),
+				launchModelId: comparison.participants[0].harness.modelId,
+			}, {
+				model: 'Claude',
+				modelId: scenario.initialModelId,
+				currentModelId: scenario.currentModelId,
+				reasoningEffort: 'high',
+				modelSelectionDiffers: scenario.differs,
+				warnsAboutAttribution: scenario.differs ? true : undefined,
+				distinguishesSelectionFromUsage: scenario.differs ? true : undefined,
+				launchModelId: scenario.initialModelId,
+			});
+		});
+	}
+
 	test('returns the user synthesis plan to the synthesis participant', async () => {
 		const base = stubComparison();
 		const comparison = {
@@ -578,6 +634,7 @@ function stubComparison(): ISessionComparison {
 function stubAttemptSession(): ISession {
 	const chat = upcastPartial<IChat>({
 		resource: attemptChatResource,
+		modelId: constObservable(undefined),
 		changes: constObservable([{
 			uri: URI.file('/workspace/src/example.ts'),
 			insertions: 3,

@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -342,6 +343,21 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 		return SessionWorkspaceKind.Folder;
 	}
 	return SessionWorkspaceKind.Worktree;
+}
+
+/**
+ * The workspace that session-wide presentation (list row, hover, session picker) describes: the
+ * session folder, which is the main chat's. When the session spans more than one folder, the first
+ * folder of {@link ISession.workspace} can be a folder the main chat moved away from or another
+ * chat's, so the main chat's workspace is used, falling back to the session workspace while the
+ * main chat's is unavailable.
+ */
+export function getSessionPresentationWorkspace(session: ISession, reader: IReader | undefined): ISessionWorkspace | undefined {
+	const sessionWorkspace = session.workspace.read(reader);
+	if ((sessionWorkspace?.folders.length ?? 0) <= 1) {
+		return sessionWorkspace;
+	}
+	return session.mainChat.read(reader).workspace.read(reader) ?? sessionWorkspace;
 }
 
 /**
@@ -837,6 +853,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Keep canvas channels observed while this chat's session is inactive. Dispose when the external presentation closes. */
+	observeCanvases?(): IDisposable;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */

@@ -362,6 +362,37 @@ suite('Sessions - Set Chat Background tool', () => {
 		});
 	});
 
+	test('sets bundled koi presets without importing images and describes them for undo', async () => {
+		const t = setup(undefined);
+		const dark = await t.invoke({ preset: 'koi-dark' });
+		const layout = await t.invoke({ layout: 'center' });
+		t.themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
+		const light = await t.invoke({ preset: 'koi-light' });
+		const removed = await t.invoke({ preset: 'none' });
+
+		assert.deepStrictEqual({
+			results: [dark, layout, light, removed].map(({ message, output }) => ({ message, output })),
+			darkSetting: t.configurationService.getValue(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING),
+			store: await t.listStore(),
+		}, {
+			results: [{
+				message: 'Set the chat background to Koi Dark',
+				output: { colorScheme: 'dark', background: { kind: 'koi-dark', layout: 'repeat' }, previous: { kind: 'none' } },
+			}, {
+				message: 'Changed the chat background layout',
+				output: { colorScheme: 'dark', background: { kind: 'koi-dark', layout: 'center' }, previous: { kind: 'koi-dark', layout: 'repeat' } },
+			}, {
+				message: 'Set the chat background to Koi Light',
+				output: { colorScheme: 'light', background: { kind: 'koi-light', layout: 'repeat' }, previous: { kind: 'none' } },
+			}, {
+				message: 'Removed the chat background',
+				output: { colorScheme: 'light', background: { kind: 'none' }, previous: { kind: 'koi-light', layout: 'repeat' } },
+			}],
+			darkSetting: 'koi-dark',
+			store: [],
+		});
+	});
+
 	test('rejects invalid requests with actionable errors and leaves the background unchanged', async () => {
 		const t = setup();
 		await t.writeFile(URI.file('/work/notes.txt'), 'text');
@@ -397,7 +428,7 @@ suite('Sessions - Set Chat Background tool', () => {
 			errors: [
 				'Pass "image", "preset", or "layout".',
 				'"image" must be a non-empty file path.',
-				'"preset" must be one of: codicons, none.',
+				'"preset" must be one of: codicons, koi-light, koi-dark, none.',
 				'"layout" must be one of: repeat, stretch, center, top, top-right, top-left, bottom, bottom-right, bottom-left, left, right.',
 				'Pass either "image" or "preset", not both.',
 				'"layout" applies only to images; omit it when passing "preset".',

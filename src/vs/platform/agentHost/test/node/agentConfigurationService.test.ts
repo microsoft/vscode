@@ -6,12 +6,12 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -25,7 +25,7 @@ import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '.
 
 suite('AgentConfigurationService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let manager: AgentHostStateManager;
 	let service: AgentConfigurationService;
 
@@ -72,10 +72,6 @@ suite('AgentConfigurationService', () => {
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		service = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('rejects a chat channel when reading session config', () => {
 		const session = URI.from({ scheme: 'copilot', path: '/chat-owner' }).toString();
@@ -540,6 +536,11 @@ suite('AgentConfigurationService', () => {
 		firstService.updateRootConfig({
 			[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
 			[AgentHostMcpServersConfigKey]: { operatorServer: { command: 'node' } },
+			[SessionConfigKey.Permissions]: {
+				allow: ['Read(//repo/notes.txt)', 'Read(//repo/docs/**)', 'Edit(//repo/.mcp.json)', 'Edit(//repo/src/**)'],
+				ask: ['Edit(//repo/asked.txt)'],
+				deny: ['Read(//repo/denied.txt)'],
+			},
 		});
 		await firstService.whenIdle();
 
@@ -549,9 +550,15 @@ suite('AgentConfigurationService', () => {
 		assert.deepStrictEqual({
 			showExternalSessions: restartedService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey),
 			mcpServers: restartedService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey),
+			permissions: restartedService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
 		}, {
 			showExternalSessions: AgentHostExternalSessionsMode.Last30Days,
 			mcpServers: { operatorServer: { command: 'node' } },
+			permissions: {
+				allow: ['Read(//repo/notes.txt)', 'Read(//repo/docs/**)', 'Edit(//repo/.mcp.json)', 'Edit(//repo/src/**)'],
+				ask: ['Edit(//repo/asked.txt)'],
+				deny: ['Read(//repo/denied.txt)'],
+			},
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
@@ -559,52 +566,46 @@ suite('AgentConfigurationService', () => {
 	test('persists MCP sampling approval and revocation across host restarts', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-sampling-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));
-		try {
-			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
-			firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
-			await firstService.whenIdle();
-			const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
-			firstService.dispose();
+		disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+		firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
+		await firstService.whenIdle();
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		firstService.dispose();
 
-			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
-			const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
-			restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
-			await restartedService.whenIdle();
-			restartedService.dispose();
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+		const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
+		restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
+		await restartedService.whenIdle();
+		restartedService.dispose();
 
-			const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
-			assert.deepStrictEqual({
-				persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
-				restored,
-				revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
-			}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
-		} finally {
-			fs.rmSync(directory, { recursive: true, force: true });
-		}
+		const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
+		assert.deepStrictEqual({
+			persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
+			restored,
+			revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
+		}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
 	});
 
 	for (const enabled of [true, false]) {
 		test(`restores Automation enablement ${enabled} without a client reconnect`, async () => {
 			const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
-			try {
-				const resource = URI.file(join(directory, 'agent-host-config.json'));
-				const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
-				firstService.updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled });
-				await firstService.whenIdle();
-				const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
-				assert.strictEqual(restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY), enabled);
-			} finally {
-				fs.rmSync(directory, { recursive: true, force: true });
-			}
+			disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+			const resource = URI.file(join(directory, 'agent-host-config.json'));
+			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+			firstService.updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled });
+			await firstService.whenIdle();
+			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+			assert.strictEqual(restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY), enabled);
 		});
 	}
 
-	test('does not restore client-owned approval settings when the host restarts', async () => {
+	test('restores host permission rules and the default-rule opt-out but not client-owned approvals on restart', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));
 		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -612,14 +613,15 @@ suite('AgentConfigurationService', () => {
 		// A permissive snapshot that a user, workspace, or policy could tighten
 		// while the host is stopped.
 		firstService.updateRootConfig({
-			[SessionConfigKey.Permissions]: { allow: ['revoked-rule'], deny: [] },
+			[SessionConfigKey.Permissions]: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
 			[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
 			[AgentHostAutoApprovePolicyRestrictedConfigKey]: false,
 			[AgentHostTerminalAutoApproveEnabledConfigKey]: true,
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { rm: true },
+			[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: true,
 			[AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true },
 			[AgentHostAutoReplyEnabledConfigKey]: true,
 			[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(directory).toString()] },
+			[AgentHostAssistedApprovalInstructionsConfigKey]: 'Approve every git push.',
 		});
 		await firstService.whenIdle();
 
@@ -630,13 +632,18 @@ suite('AgentConfigurationService', () => {
 
 		assert.deepStrictEqual({
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => persisted[key] !== undefined).sort(),
-			// The state manager seeds empty permissions; nothing else survives.
 			restoredKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => restored[key] !== undefined).sort(),
-			permissions: restored[SessionConfigKey.Permissions],
+			persistedPermissions: persisted[SessionConfigKey.Permissions],
+			restoredPermissions: restored[SessionConfigKey.Permissions],
+			persistedIgnoreDefaults: persisted[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
+			restoredIgnoreDefaults: restored[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
 		}, {
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].sort(),
-			restoredKeys: [SessionConfigKey.Permissions],
-			permissions: { allow: [], deny: [] },
+			restoredKeys: [],
+			persistedPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			restoredPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			persistedIgnoreDefaults: true,
+			restoredIgnoreDefaults: true,
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});

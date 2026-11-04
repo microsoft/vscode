@@ -15,11 +15,13 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
-import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -161,11 +163,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
+
+		// A restart reloads every live page, which loses its state (e.g. form input or an ephemeral login)
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this._remoteEvents.size > 0 ? 'browser.livePage' : undefined
+		}));
 
 		// Send the full per-window configuration as a single unit, and resend it
 		// whenever any of its inputs change.
@@ -247,6 +255,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._isNetworkProxyEnabled()) {
 			return undefined;
 		}
+		return this._resolveNetwork(owner) ?? undefined;
+	}
+
+	/** The owner's network, whether or not views may use it; `null` when the owner is unknown. */
+	private _resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined {
 		if (this._networkResolver) {
 			return this._networkResolver.resolveNetwork(owner);
 		}
@@ -342,7 +355,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
-	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
+	async getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined> {
 		// "Open to side" requests are routed into the dedicated side group.
 		if (preferredGroup === SIDE_GROUP) {
 			return this._getOrCreateDedicatedGroup('sideGroup');
@@ -366,7 +379,27 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return this.editorGroupsService.mainPart.activeGroup;
 		}
 
-		return preferredGroup;
+		// The active group of the window the open was requested from, rather than of the window that appears to have focus.
+		return this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
+	}
+
+	/** The active group of the window `windowId`, among the editor parts of that window. */
+	private _getActiveGroupOfWindow(windowId: number | undefined): IEditorGroup | undefined {
+		const window = windowId === undefined ? undefined : getWindowById(windowId)?.window;
+		return window ? this._avoidLockedGroup(this.editorGroupsService.getPart(window.document.body).activeGroup) : undefined;
+	}
+
+	/**
+	 * An explicit group is not checked for locks when editors open in it, so a locked group is replaced the way the
+	 * editor group finder does for the active group: by an unlocked group of its part, or else a new group beside it.
+	 */
+	private _avoidLockedGroup(group: IEditorGroup): IEditorGroup {
+		if (!group.isLocked) {
+			return group;
+		}
+		const part = this.editorGroupsService.getPart(group);
+		return part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !candidate.isLocked)
+			?? part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
 	}
 
 	/**
@@ -467,15 +500,23 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+		// Embedded pages have no network indicator, so they require their owner's network, resolved even while
+		// proxying is disabled, rather than silently load from the local network. It is resolved before any
+		// asynchronous work, so an owner that goes away meanwhile cannot leave the view on the local network.
+		const requestedNetwork = networkOwner && this._resolveNetwork(networkOwner);
+		const unavailable = () => new Error(localize('browser.requiredNetworkUnavailable', "The required remote network is unavailable."));
+		if (requestedNetwork === null) {
+			throw unavailable();
+		}
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const { session, network } = await this._resolveViewSession({
-			scope: BrowserViewStorageScope.Ephemeral,
-			network: networkOwner && this.resolveNetwork(networkOwner),
-		});
+		const { session, network } = await this._resolveViewSession({ scope: BrowserViewStorageScope.Ephemeral, network: requestedNetwork });
+		if (requestedNetwork && !network) {
+			throw unavailable();
+		}
 		const hold = network && await this._holdNetworkProxy(network, this._disposeToken);
 		let model: IBrowserViewModel;
 		try {

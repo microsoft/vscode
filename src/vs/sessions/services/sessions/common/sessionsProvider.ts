@@ -19,6 +19,7 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IAgentModelPreferences } from '../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
@@ -273,6 +274,7 @@ export interface ISessionModelPickerOptions {
 }
 
 export interface ISessionModelsSnapshot {
+	readonly agentModelPreferences?: IAgentModelPreferences;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
@@ -510,8 +512,12 @@ export interface ISessionsProvider {
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
 	 * @param workspaceUri The URI of the repository to resolve the workspace for.
+	 * @param options Skip optional metadata allocation and discovery when enumerating a search catalog.
 	 */
-	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined;
+
+	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
+	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
 
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
@@ -617,6 +623,21 @@ export interface ISessionsProvider {
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
 
 	/**
+	 * Observe one live canvas of a chat, whether or not its session is active. Holding
+	 * the reference keeps the canvas live, which may keep its session resident; the
+	 * value is `undefined` once the provider can no longer reach the canvas.
+	 */
+	observeCanvas?(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>>;
+
+	/**
+	 * Observe the live canvases of a chat whether or not its session is active, unlike
+	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
+	 * reference may keep the session resident. Returns `undefined` when the provider
+	 * cannot resolve the chat.
+	 */
+	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
+
+	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 * @param chat The chat whose models to resolve, when its harness may differ from the session's ({@link IChat.harness}).
@@ -717,9 +738,10 @@ export interface ISessionsProvider {
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
-	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	readonly supportsForceWorktreeCleanup?: boolean;
+	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
-	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree): Promise<void>;
+	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
 
 	/**
@@ -742,6 +764,14 @@ export interface ISessionsProvider {
 	 * @param isRead `true` to mark the session read, `false` to mark it unread.
 	 */
 	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
+
+	/**
+	 * Set the read/unread state of multiple sessions in one provider operation.
+	 * Providers may use this to publish one {@link onDidChangeSessions} event for
+	 * the whole batch instead of one per session. Providers without it receive a
+	 * {@link setSessionReadState} call per session.
+	 */
+	setSessionsReadState?(sessionIds: readonly string[], isRead: boolean): Promise<void>;
 
 	/**
 	 * Set the read/unread state of a chat independently of its owning session.

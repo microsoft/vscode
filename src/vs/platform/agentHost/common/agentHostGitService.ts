@@ -293,7 +293,7 @@ export interface IAgentHostGitService {
 	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
 	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
-	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
+	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean; readonly discardChanges?: boolean }): Promise<void>;
 	/**
 	 * Returns true when the named branch exists in the repository
 	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to

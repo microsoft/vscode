@@ -24,6 +24,7 @@ export interface ISessionEditorComment {
 	readonly resourceUri: URI;
 	readonly range: IRange;
 	readonly text: string;
+	readonly author?: string;
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly sourcePRReviewCommentId?: string;
 	readonly sourcePullRequest?: IFeedbackPullRequest;
@@ -75,6 +76,7 @@ export function getSessionEditorComments(
 			resourceUri: item.resourceUri,
 			range: item.range,
 			text: item.text,
+			author: item.sourcePRReviewCommentAuthor,
 			suggestion: item.suggestion,
 			sourcePRReviewCommentId: item.sourcePRReviewCommentId,
 			sourcePullRequest: item.sourcePullRequest,
@@ -99,6 +101,7 @@ export function getSessionEditorComments(
 			resourceUri: item.uri,
 			range: item.range,
 			text: item.body,
+			author: item.author,
 			sourcePRReviewCommentId: item.id,
 			sourcePullRequest: {
 				owner: item.pullRequest.owner,
@@ -130,8 +133,7 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 	// Rough number of characters that fit on one line in the widget body.
 	const charsPerLine = 50;
 	const textLines = Math.ceil(Math.max(1, comment.text.length) / charsPerLine);
-	// Add a small overhead for the item header (line info, action bar) and
-	// for suggestion blocks which render additional lines of code.
+	// Reserve the author header, line metadata and card spacing as well as suggestion blocks.
 	let suggestionLines = 0;
 	if (comment.suggestion?.edits.length) {
 		for (const edit of comment.suggestion.edits) {
@@ -144,7 +146,7 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 			replyLines += Math.ceil(Math.max(1, reply.text.length) / charsPerLine);
 		}
 	}
-	return textLines + 1 + suggestionLines + replyLines;
+	return textLines + 3 + suggestionLines + replyLines;
 }
 
 export function groupNearbySessionEditorComments(items: readonly ISessionEditorComment[], lineThreshold: number = 5): ISessionEditorComment[][] {

@@ -60,12 +60,12 @@ export function agentHostMcpServerId(authority: string, serverName: string, reso
 /**
  * Whether creating a session with the selected model requires the agent's protected-resource authentication.
  */
-export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined, allowSignedOutWhenUsable = false): boolean {
+export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined): boolean {
 	if (!agent?.protectedResources?.length) {
 		return false;
 	}
 	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
-	if (!allowSignedOutWhenUsable || !agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
+	if (!agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
 		return requiresAuthentication;
 	}
 	if (!model) {
@@ -324,15 +324,15 @@ export class AgentHostAuthenticationRecovery {
 	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
 		const logService = accessor.get(ILogService);
-		if (options.renewAuthentication) {
-			await options.renewAuthentication(resource);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const commandService = accessor.get(ICommandService);
+		if (await options.renewAuthentication?.(resource)) {
 			throwIfAuthenticationStale(options);
 			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
 			return;
 		}
-		const authenticationService = accessor.get(IAuthenticationService);
-		const defaultAccountService = accessor.get(IDefaultAccountService);
-		const commandService = accessor.get(ICommandService);
+		throwIfAuthenticationStale(options);
 		const scopes = resource.scopes_supported ?? [];
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, defaultAccountService, logService, resource, options, null);
@@ -573,8 +573,8 @@ export interface IAgentHostAuthenticationOptions {
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
 	readonly isCurrent?: () => boolean;
-	/** Renews a connection-owned credential instead of retrying or replacing the user's authentication session. */
-	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<void>;
+	/** Returns true after renewing a connection-owned credential, or false to use normal provider recovery. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<boolean>;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 

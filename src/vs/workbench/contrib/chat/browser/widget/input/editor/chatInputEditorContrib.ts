@@ -12,12 +12,13 @@ import { MouseTargetType } from '../../../../../../../editor/browser/editorBrows
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
-import { Range } from '../../../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { INLINE_ATTACHMENT_ANCHOR } from '../../../../common/attachments/chatInlineAttachments.js';
 import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
@@ -393,9 +394,14 @@ class InputEditorDecorations extends Disposable {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
+		// Parts parsed from the text of an inline attachment pill cover its anchor, which the pill renders instead.
+		const inputModel = this.widget.inputEditor.getModel();
+		const isInlineAttachmentAnchor = (range: IRange) => inputModel?.getValueInRange(range) === INLINE_ATTACHMENT_ANCHOR;
 		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart || p instanceof ChatRequestToolSetPart);
 		for (const tool of toolParts) {
-			varDecorations.push({ range: tool.editorRange });
+			if (!isInlineAttachmentAnchor(tool.editorRange)) {
+				varDecorations.push({ range: tool.editorRange });
+			}
 		}
 
 		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
@@ -403,7 +409,9 @@ class InputEditorDecorations extends Disposable {
 		const isEditingPreviousRequest = !!viewModel.editing;
 		if (isEditingPreviousRequest) {
 			for (const variable of dynamicVariableParts) {
-				varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+				if (!isInlineAttachmentAnchor(variable.editorRange)) {
+					varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+				}
 			}
 		}
 

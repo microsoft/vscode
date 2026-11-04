@@ -67,7 +67,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 import { cloneRepository } from '../../../../services/sessions/browser/cloneRepository.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
-import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
+import { ISessionRepositoryPicker } from '../../../../services/presentation/browser/sessionRepositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { CloudSandboxModels } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -1161,6 +1161,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
+		@ISessionRepositoryPicker private readonly sessionRepositoryPicker: ISessionRepositoryPicker,
 	) {
 		super();
 
@@ -2528,17 +2529,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return undefined;
 				}
 				checkHost();
-				const picker = store.add(this.instantiationService.createInstance(RepositoryPicker));
-				const selection = await picker.pickRepository(async (query, requestToken) => {
+				const getRepositories = async (query: string, requestToken: CancellationToken) => {
 					checkHost();
 					const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 					checkHost();
 					return repositories.map(repository => repository.fullName);
-				}, undefined, token);
+				};
+				const selection = await this.sessionRepositoryPicker.pickRepository(getRepositories, token);
 				if (selection) {
 					checkHost();
 				}
-				return selection?.repository;
+				return selection;
 			} catch (error) {
 				if (!isCancellationError(error) && !token.isCancellationRequested) {
 					this.notificationService.error(error);
@@ -2640,7 +2641,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	resolveWorkspace(uri: URI): ISessionWorkspace | undefined {
+	resolveWorkspace(uri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined {
 		if (this.providerMode === 'sandbox' && (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME || uri.authority !== 'github' || !/^\/[^/]+\/[^/]+\/HEAD$/.test(uri.path) || uri.query || uri.fragment)) {
 			return undefined;
 		}
@@ -2652,7 +2653,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			workingDirectory: uri,
 			name: basename(uri),
 			description: undefined,
-			gitRepository: uri.scheme === Schemas.file ? this._getLocalGitRepository(uri) : undefined,
+			gitRepository: uri.scheme === Schemas.file && (options?.resolveMetadata !== false || this._localGitRepositoryState.has(this.uriIdentityService.extUri.getComparisonKey(uri)))
+				? this._getLocalGitRepository(uri) : undefined,
 		};
 		return {
 			uri: uri,

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,19 +20,12 @@ import { TestProductService, TestWorkspaceTrustEnablementService } from '../../.
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let testObject: ExtensionManifestPropertiesService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		testObject = disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('declarative with extension dependencies', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), isWeb ? ['workspace', 'web'] : ['workspace']);
@@ -113,20 +105,13 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
 suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExtensionManifestPropertiesService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		testConfigurationService = new TestConfigurationService();
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getExtensionManifest(properties: Partial<IExtensionManifest> = {}): IExtensionManifest {
 		return Object.create({ name: 'a', publisher: 'pub', version: '1.0.0', ...properties }) as IExtensionManifest;

@@ -43,6 +43,15 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('round trips agent model preferences and ignores malformed optional values', () => {
+		const preferences = { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' as const };
+		assert.deepStrictEqual([
+			readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta(preferences))),
+			readAgentCustomizationMeta(agentCustomization({ 'vscode.models': ['sonnet', 42], 'vscode.reasoningEffort': 42, 'vscode.modelPolicy': 'unknown' })),
+			readAgentCustomizationMeta(agentCustomization(undefined)),
+		], [preferences, {}, {}]);
+	});
+
 	test('round trips optional app tool origin and rejects malformed metadata', () => {
 		const tool = withAgentToolOrigin({ name: 'semantic_search', _meta: { unrelated: true } }, 'mcpApp');
 		assert.deepStrictEqual({
@@ -521,6 +530,18 @@ suite('Agent host _meta readers', () => {
 	});
 
 	suite('readAgentCustomizationMeta', () => {
+		test('round-trips absolute source URIs and ignores malformed optional provenance', () => {
+			const sourceUri = 'client-customizations:/bundle/agents/reviewer.agent.md';
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.sourceUri': sourceUri, userInvocable: false }))),
+				...[undefined, null, false, 42, {}, '', 'relative/agent.md', '/agent.md'].map(value =>
+					readAgentCustomizationMeta(agentCustomization({ 'vscode.sourceUri': value, userInvocable: true }))),
+			], [
+				{ 'vscode.sourceUri': sourceUri, userInvocable: false },
+				...Array.from({ length: 8 }, () => ({ userInvocable: true })),
+			]);
+		});
+
 		test('reads only explicit, bounded Ask metadata', () => {
 			assert.deepStrictEqual([
 				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.chatMode': 'ask' }))),

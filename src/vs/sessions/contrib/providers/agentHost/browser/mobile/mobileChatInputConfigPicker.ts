@@ -36,7 +36,7 @@ import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
 

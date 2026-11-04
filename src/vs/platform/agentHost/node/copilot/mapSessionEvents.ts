@@ -10,6 +10,7 @@ import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { restoreRecordedResponseParts, type IRecordedResponseParts } from './copilotReasoningTiming.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -17,7 +18,7 @@ import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCall
 import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type SkillToolCallResolver, type TaskCompletionReview, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
@@ -271,6 +272,14 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 	return shellExit;
 }
 
+/**
+ * Reads the MCP App tool-result `_meta` the runtime carries as `mcpResultMeta`.
+ * TODO: Read the field directly once the pinned `@github/copilot-sdk` declares it.
+ */
+export function getSdkMcpResultMeta(result: ToolExecutionCompleteResult | undefined): Record<string, unknown> | undefined {
+	return (result as (ToolExecutionCompleteResult & { readonly mcpResultMeta?: Record<string, unknown> }) | undefined)?.mcpResultMeta;
+}
+
 /** Prefers UI output and avoids duplicating text already carried by structured result blocks. */
 export function getSdkToolResultText(result: ToolExecutionCompleteResult | undefined): string | undefined {
 	const displayText = result?.detailedContent ?? result?.content;
@@ -334,6 +343,7 @@ interface ITurnBuilder {
 	waitingStartedAt: string | undefined;
 	waitingDuration: number;
 	readonly responseParts: ResponsePart[];
+	readonly recordedResponses: IRecordedResponseParts[];
 	imageGenerationSdkTurnId?: string;
 	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
@@ -341,12 +351,14 @@ interface ITurnBuilder {
 }
 
 export interface IMapSessionEventsOptions {
+	readonly logService?: ILogService;
 	readonly workingDirectory?: URI;
 	/** Known client tool implementations, used to distinguish their inputs from native SDK tools. */
 	readonly clientToolNames?: ReadonlySet<string>;
 	readonly model?: ModelSelection;
 	readonly agent?: AgentSelection;
 	readonly interruptedTurnError?: ErrorInfo;
+	readonly resolveSkill?: SkillToolCallResolver;
 }
 
 function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind; startedAt?: string }): ITurnBuilder {
@@ -357,7 +369,7 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, waitingStartedAt: undefined, waitingDuration: 0, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, waitingStartedAt: undefined, waitingDuration: 0, responseParts: [], recordedResponses: [], usage: undefined, pendingTools: new Map() };
 }
 
 /** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
@@ -430,7 +442,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 }
 
 /** Seals a turn builder into a {@link Turn}, deriving `duration` from its first and last event timestamps. */
-function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
+function finalizeTurn(builder: ITurnBuilder, state: TurnState, logService?: ILogService): Turn {
 	const startedAtMs = builder.startedAt === undefined ? undefined : Date.parse(builder.startedAt);
 	const endedAtMs = builder.lastEventAt === undefined ? undefined : Date.parse(builder.lastEventAt);
 	const duration = startedAtMs !== undefined && endedAtMs !== undefined && Number.isFinite(startedAtMs) && Number.isFinite(endedAtMs)
@@ -441,7 +453,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		...(builder.startedAt !== undefined ? { startedAt: builder.startedAt } : {}),
 		...(duration !== undefined ? { duration } : {}),
 		message: builder.message,
-		responseParts: builder.responseParts,
+		responseParts: restoreRecordedResponseParts(builder.responseParts, builder.recordedResponses, logService),
 		usage: builder.usage,
 		state,
 	};
@@ -473,6 +485,7 @@ export async function mapSessionEvents(
 	const workingDirectory = options?.workingDirectory;
 	let currentModel = options?.model;
 	let currentAgent = options?.agent;
+	const recordedResponses = await db?.getAssistantResponseParts();
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -481,6 +494,11 @@ export async function mapSessionEvents(
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
+	// `session.task_complete` reviews the root `task_complete` call that completed right before it.
+	const taskCompletionReviewsByCallId = new Map<string, TaskCompletionReview>();
+	let unreviewedTaskCompleteCallId: string | undefined;
+	// Root `task_complete` requests, which identify a call whose `tool.execution_start` wasn't recorded.
+	const taskCompleteRequestCallIds = new Set<string>();
 	const binaryAssets = new Map<string, BinaryAssetData>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 	const subagentTaskPrompts = new Map<string, string>();
@@ -555,8 +573,32 @@ export async function mapSessionEvents(
 				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 			}
 		}
+		if (e.type === 'assistant.message' && !e.agentId) {
+			for (const request of e.data.toolRequests ?? []) {
+				if (isTaskCompleteTool(request.name)) {
+					taskCompleteRequestCallIds.add(request.toolCallId);
+				}
+			}
+		}
 		if (e.type === 'tool.execution_complete') {
 			completionsByCallId.set(e.data.toolCallId, e.data);
+			if (!e.agentId) {
+				const info = toolInfoByCallId.get(e.data.toolCallId);
+				// A Fusion phase's call is a root call, reviewed once the phase commits.
+				const isRootCall = !resolveParentToolCallId(e.agentId, e.data.parentToolCallId) && (!info?.parentToolCallId || !!e.data.fusion);
+				const isTaskComplete = info ? isTaskCompleteTool(info.toolName) : taskCompleteRequestCallIds.has(e.data.toolCallId);
+				// Only a successful call is reviewed.
+				if (isRootCall && isTaskComplete && e.data.success) {
+					unreviewedTaskCompleteCallId = e.data.toolCallId;
+				}
+			}
+		} else if (e.type === 'session.task_complete' && !e.agentId) {
+			if (unreviewedTaskCompleteCallId) {
+				taskCompletionReviewsByCallId.set(unreviewedTaskCompleteCallId, e.data);
+			}
+			unreviewedTaskCompleteCallId = undefined;
+		} else if ((e.type === 'assistant.turn_end' || e.type === 'session.idle') && !e.agentId) {
+			unreviewedTaskCompleteCallId = undefined;
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
@@ -668,7 +710,7 @@ export async function mapSessionEvents(
 		if (!parentBuilder) {
 			return;
 		}
-		turns.push(finalizeTurn(parentBuilder, parentTurnState));
+		turns.push(finalizeTurn(parentBuilder, parentTurnState, options?.logService));
 		parentBuilder = undefined;
 		parentTurnState = TurnState.Cancelled;
 		parentTurnTerminated = false;
@@ -689,7 +731,7 @@ export async function mapSessionEvents(
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
-		list.push(finalizeTurn(builder, state));
+		list.push(finalizeTurn(builder, state, options?.logService));
 		subagentTurns.set(parentToolCallId, list);
 	};
 
@@ -923,19 +965,31 @@ export async function mapSessionEvents(
 					pendingSkillBuilder = undefined;
 					touch(builder);
 				}
+				const original: ResponsePart[] = [];
 				if (reasoningText) {
-					builder.responseParts.push({
+					original.push({
 						kind: ResponsePartKind.Reasoning,
 						id: generateUuid(),
 						content: reasoningText,
 					});
 				}
 				if (content) {
-					builder.responseParts.push({
+					original.push({
 						kind: ResponsePartKind.Markdown,
 						id: generateUuid(),
 						content,
 					});
+				}
+				builder.responseParts.push(...original);
+				const recorded = recordedResponses?.get(e.id);
+				if (recorded) {
+					const matches = recorded.filter(part => part.kind === ResponsePartKind.Reasoning).map(part => part.content).join('') === (reasoningText ?? '')
+						&& recorded.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join('') === content;
+					if (matches && original.length) {
+						builder.recordedResponses.push({ responseId: e.id, original, recorded });
+					} else {
+						options?.logService?.warn(`[Copilot] Recorded response parts no longer match assistant message ${e.id}`);
+					}
 				}
 				if (!parentToolCallId && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
@@ -1028,29 +1082,7 @@ export async function mapSessionEvents(
 					break;
 				}
 				if (isTaskCompleteTool(info.toolName)) {
-					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
-					const phaseBuilder = parentToolCallId !== subagentParentToolCallId ? targetBuilderFor(parentToolCallId) : undefined;
-					if (summary && phaseBuilder) {
-						phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
-					}
-					if (!subagentParentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error) {
-						continue;
-					}
-					const builder = targetBuilderFor(subagentParentToolCallId);
-					if (!builder) {
-						continue;
-					}
-					if (summary) {
-						builder.responseParts.push({
-							kind: ResponsePartKind.Markdown,
-							id: generateUuid(),
-							content: summary,
-						});
-					}
-					if (!subagentParentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
-						parentTurnState = TurnState.Complete;
-						rootRequestActive = false;
-					}
+					restoreTaskComplete(d.toolCallId, info.parameters, d, subagentParentToolCallId, parentToolCallId !== subagentParentToolCallId ? parentToolCallId : undefined);
 					continue;
 				}
 				const builder = targetBuilderFor(parentToolCallId);
@@ -1067,7 +1099,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'skill.invoked': {
-				const synth = synthesizeSkillToolCall(e.data, e.id);
+				const synth = synthesizeSkillToolCall(e.data, e.id, options?.resolveSkill);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				// Slash-command skills arrive before the user.message they belong to.
 				const builder = !e.agentId && (!parentBuilder || e.data.trigger === 'user-invoked')
@@ -1131,7 +1163,7 @@ export async function mapSessionEvents(
 	}
 	flushParent();
 	if (pendingSkillBuilder) {
-		turns.push(finalizeTurn(pendingSkillBuilder, TurnState.Cancelled));
+		turns.push(finalizeTurn(pendingSkillBuilder, TurnState.Cancelled, options?.logService));
 	}
 	for (const parentToolCallId of [...subagentBuilders.keys()]) {
 		flushSubagent(parentToolCallId);
@@ -1151,18 +1183,8 @@ export async function mapSessionEvents(
 				continue;
 			}
 			if (isTaskCompleteTool(info.toolName)) {
-				const summary = getTaskCompleteMarkdown(info.parameters, completion?.error?.message ?? completion?.result?.content);
-				if (summary) {
-					builder.responseParts.push({
-						kind: ResponsePartKind.Markdown,
-						id: generateUuid(),
-						content: summary,
-					});
-				}
-				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnTerminated) {
-					parentTurnState = TurnState.Complete;
-					rootRequestActive = false;
-				}
+				const phaseToolCallId = parentToolCallId !== undefined && fusionPhaseToolCallIds.has(parentToolCallId) ? parentToolCallId : undefined;
+				restoreTaskComplete(request.toolCallId, info.parameters, completion, phaseToolCallId === undefined ? parentToolCallId : undefined, phaseToolCallId);
 				continue;
 			}
 			builder.responseParts.push(makeCompletedToolCallPart(
@@ -1180,6 +1202,41 @@ export async function mapSessionEvents(
 				resolveAgentName,
 				binaryAssets,
 			));
+		}
+	}
+
+	/**
+	 * Restores a completed `task_complete` call. A failed call completed nothing. A Fusion phase's
+	 * chat shows its summary, and the main chat shows a root call's completion as the runtime
+	 * reported it in `session.task_complete`: the runtime reports every completion it accepts, so an
+	 * unreported root call (such as one made outside Autopilot) completed nothing. A subagent's call
+	 * ends only its own task, which the runtime doesn't report.
+	 */
+	function restoreTaskComplete(toolCallId: string, parameters: Record<string, unknown> | undefined, completion: ToolExecutionCompleteData | undefined, subagentParentToolCallId: string | undefined, phaseToolCallId: string | undefined): void {
+		if (!completion?.success) {
+			return;
+		}
+		const toolOutput = completion.result?.content;
+		const phaseBuilder = phaseToolCallId !== undefined ? targetBuilderFor(phaseToolCallId) : undefined;
+		const phaseSummary = phaseBuilder && getPhaseTaskCompleteMarkdown(parameters, toolOutput);
+		if (phaseBuilder && phaseSummary) {
+			phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: phaseSummary });
+		}
+		const review = subagentParentToolCallId ? undefined : taskCompletionReviewsByCallId.get(toolCallId);
+		if (!subagentParentToolCallId && (!review || (parentTurnTerminated && parentTurnState === TurnState.Error))) {
+			return;
+		}
+		const builder = targetBuilderFor(subagentParentToolCallId);
+		if (!builder) {
+			return;
+		}
+		const summary = getTaskCompleteMarkdown(parameters, toolOutput, review);
+		if (summary) {
+			builder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
+		}
+		if (!subagentParentToolCallId && review?.outcome !== 'continue' && builder === parentBuilder && !parentTurnTerminated) {
+			parentTurnState = TurnState.Complete;
+			rootRequestActive = false;
 		}
 	}
 }
@@ -1216,6 +1273,16 @@ function sdkAttachmentToProtocol(
 ): MessageAttachment | undefined {
 	switch (attachment.type) {
 		case 'file': {
+			if (attachment.lineRange) {
+				// Whole lines: from the start of the first line to the start of the line after the last.
+				return {
+					type: MessageAttachmentKind.Resource,
+					uri: URI.file(attachment.path).toString(),
+					label: attachment.displayName || basename(attachment.path),
+					displayKind: 'selection',
+					selection: { range: { start: { line: attachment.lineRange.start - 1, character: 0 }, end: { line: attachment.lineRange.end, character: 0 } } },
+				};
+			}
 			return {
 				type: MessageAttachmentKind.Resource,
 				uri: URI.file(attachment.path).toString(),
@@ -1427,6 +1494,7 @@ function makeCompletedToolCallPart(
 		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration),
 		content: content.length > 0 ? content : undefined,
 		structuredContent: d.result?.structuredContent as Record<string, unknown> | undefined,
+		resultMetadata: getSdkMcpResultMeta(d.result),
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({

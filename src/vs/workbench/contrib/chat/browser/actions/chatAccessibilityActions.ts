@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -125,7 +126,10 @@ class ToggleThinkingContentAccessibleViewAction extends Action2 {
 	}
 }
 
-export function registerChatAccessibilityActions(): void {
-	registerAction2(AnnounceChatConfirmationAction);
-	registerAction2(ToggleThinkingContentAccessibleViewAction);
+export function registerChatAccessibilityActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AnnounceChatConfirmationAction));
+	store.add(registerAction2(ToggleThinkingContentAccessibleViewAction));
+
+	return store;
 }

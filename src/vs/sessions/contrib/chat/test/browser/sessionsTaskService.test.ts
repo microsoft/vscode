@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -102,7 +102,7 @@ function tasksJsonContent(tasks: ITaskEntry[]): string {
 
 suite('SessionsTasksService', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
@@ -190,12 +190,6 @@ suite('SessionsTasksService', () => {
 
 		service = store.add(instantiationService.createInstance(SessionsTasksService));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --- getSessionTasks ---
 

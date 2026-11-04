@@ -9,12 +9,15 @@ import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu
 import * as dom from '../../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
+import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -25,9 +28,14 @@ import { EditSuggestionId } from '../../../../../../editor/common/textModelEditS
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
@@ -44,6 +52,7 @@ import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -63,7 +72,9 @@ import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatMo
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import '../../../../files/browser/fileActions.contribution.js';
 import '../../../browser/widget/media/chat.css';
 
 class TestChatListWidget extends ChatListWidget {
@@ -243,7 +254,6 @@ suite('ChatListWidget', () => {
 		const fileService = upcastPartial<IFileService>({
 			hasProvider: () => true,
 		});
-
 		assert.deepStrictEqual({
 			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
 			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
@@ -254,6 +264,108 @@ suite('ChatListWidget', () => {
 			http: false,
 		});
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		for (const gesture of isMacintosh ? ['contextmenu', 'Shift+F10'] : ['contextmenu', 'ContextMenu', 'Shift+F10']) {
+			for (const { resource, linkType } of [
+				{ resource: URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), linkType: undefined },
+				{ resource: URI.parse('vscode-remote://host/workspace/my%20file.ts?provider=value'), linkType: 'file' },
+				{ resource: toAgentHostUri(URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), 'remote-host'), linkType: 'skill' },
+			]) {
+				test(`composes ${resource.scheme} file and transcript actions via ${gesture} (sessions=${isSessionsWindow})`, async () => {
+					let menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+					const contextMenuService = upcastPartial<IContextMenuService>({
+						showContextMenu: delegate => { menuDelegate = delegate; },
+					});
+					const editorResolverService = upcastPartial<IEditorResolverService>({
+						getEditors: () => [{ id: 'test.editor', label: 'Test Editor', priority: { editor: RegisteredEditorPriority.option, diff: RegisteredEditorPriority.option, merge: RegisteredEditorPriority.option } }],
+					});
+					const { instantiationService, model, widget, container } = createWidget({}, undefined, isSessionsWindow, contextMenuService, editorResolverService);
+					sinon.stub(instantiationService.get(IFileService), 'hasProvider').callsFake(uri => uri.scheme === resource.scheme);
+					const invocations: { id: string; resource?: string; linkTarget?: string }[] = [];
+					instantiationService.stub(ICommandService, {
+						executeCommand: async (id, arg) => {
+							invocations.push(URI.isUri(arg) ? { id, resource: arg.toString() } : isChatContextMenuActionContext(arg) ? { id, linkTarget: arg.linkTarget } : { id });
+						},
+					});
+					const menuService = store.add(instantiationService.createInstance(MenuService));
+					sinon.stub(instantiationService.get(IMenuService), 'getMenuActions').callsFake((...args) => menuService.getMenuActions(...args));
+					const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+					sinon.stub(instantiationService.get(IContextKeyService), 'createOverlay').callsFake(overlay => contextKeyService.createOverlay(overlay));
+					const target = resource.with({ query: linkType ? `${resource.query}&vscodeLinkType=${linkType}` : resource.query, fragment: 'L42,7' }).toString();
+					const request = model.addRequest({
+						text: 'Show source',
+						parts: [new ChatRequestTextPart(new OffsetRange(0, 11), new Range(1, 1, 1, 12), 'Show source')],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`[Source](<${target}>)`) });
+					request.response?.complete();
+					widget.refresh();
+					widget.layout(300, 500);
+					await waitForStableLayout(widget);
+					const link = Array.from(container.querySelectorAll('a')).find(anchor => anchor.getAttribute('data-href') === target)!;
+					if (gesture === 'contextmenu') {
+						link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+					} else {
+						widget.focusLastItem();
+						link.focus();
+						for (const type of ['keydown', 'keyup']) {
+							link.dispatchEvent(new mainWindow.KeyboardEvent(type, { key: gesture === 'ContextMenu' ? 'ContextMenu' : 'F10', keyCode: gesture === 'ContextMenu' ? 93 : 121, shiftKey: gesture === 'Shift+F10', bubbles: true, cancelable: true }));
+						}
+					}
+					const menu = menuDelegate as IContextMenuMenuDelegate | undefined;
+					assert.ok(menu);
+					const actionContext = menu.getActionsContext?.();
+					const actions = menu.getActions?.() ?? [];
+					const reveal = actions.find(action => action.id === REVEAL_IN_EXPLORER_COMMAND_ID);
+					const copy = actions.find(action => action.id === 'workbench.action.chat.copyLink');
+					assert.ok(reveal && copy);
+					await reveal.run(actionContext);
+					await copy.run(actionContext);
+					assert.deepStrictEqual({
+						actions: actions.filter(action => action === reveal || action === copy).map(action => action.id),
+						invocations,
+						openWith: menu.contextKeyService?.getContextKeyValue(ChatContextKeys.contextMenuHasAvailableEditors.key),
+						text: link.textContent,
+						href: link.getAttribute('data-href'),
+					}, {
+						actions: [REVEAL_IN_EXPLORER_COMMAND_ID, 'workbench.action.chat.copyLink'],
+						invocations: [{ id: REVEAL_IN_EXPLORER_COMMAND_ID, resource: resource.toString() }, { id: 'workbench.action.chat.copyLink', linkTarget: target }],
+						openWith: true,
+						text: 'Source',
+						href: target,
+					});
+				});
+			}
+		}
+	}
+
+	for (const target of ['https://example.com', 'https:////example.com', `${AGENT_HOST_SCHEME}://unavailable/file.ts`]) {
+		test(`keeps the transcript menu without filesystem actions for ${target}`, async () => {
+			let menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+			const contextMenuService = upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => { menuDelegate = delegate; },
+			});
+			const { instantiationService, model, widget, container } = createWidget({}, undefined, false, contextMenuService);
+			const getMenuActions = sinon.spy(instantiationService.get(IMenuService), 'getMenuActions');
+			const request = model.addRequest({
+				text: 'Show link',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Show link')],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`[Link](<${target}>)`) });
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const link = Array.from(container.querySelectorAll('a')).find(anchor => anchor.getAttribute('data-href') === target)!;
+			link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			menuDelegate?.getActions?.();
+			const context = menuDelegate?.getActionsContext?.();
+			assert.deepStrictEqual({
+				menus: getMenuActions.args.map(([id]) => id),
+				linkTarget: isChatContextMenuActionContext(context) ? context.linkTarget : undefined,
+			}, { menus: [MenuId.ChatContext], linkTarget: target });
+		});
+	}
 
 	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService, sessionResource?: URI) {
 		const disposables = store.add(new DisposableStore());
@@ -860,6 +972,170 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	test('restores the row at the top of the viewport after switching to another chat and back', async () => {
+		const { disposables, instantiationService, model, viewModel, widget } = createWidget();
+		const other = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const target of [model, other]) {
+			for (let index = 0; index < 6; index++) {
+				const text = `question ${index}`;
+				const request = target.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				target.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 30 }, (_, line) => `answer ${index} line ${line}`).join('\n\n')) });
+				request.response!.complete();
+			}
+		}
+		// Agent host sessions come back with the same request IDs, but new response IDs.
+		const data = model.toJSON();
+		const restoredModel = disposables.add(instantiationService.createInstance(ChatModel, { value: { ...data, requests: data.requests.map(request => ({ ...request, responseId: undefined })) }, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		// Hosts save and restore the view state through ChatWidget, around binding a new view model for each chat.
+		const chatWidget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget: widget });
+		let bound: ChatViewModel = viewModel;
+		// Like ChatWidget.setModel: the outgoing view model is disposed, which empties the list, then a new one is bound.
+		const switchTo = (target: ChatModel) => {
+			bound.dispose();
+			widget.refresh();
+			bound = disposables.add(instantiationService.createInstance(ChatViewModel, target, undefined));
+			widget.setViewModel(bound);
+			widget.refresh();
+			return bound;
+		};
+		const topOfViewport = (viewModel: ChatViewModel) => {
+			const items = viewModel.getItems();
+			const row = items.findLastIndex(item => widget.getElementTop(item)! <= widget.scrollTop);
+			return { row, offset: widget.scrollTop - widget.getElementTop(items[row])! };
+		};
+
+		widget.layout(300, 500);
+		const first = switchTo(model);
+		await waitForStableLayout(widget);
+		// Read down to the fourth response, which renders and measures every row above it.
+		const items = first.getItems();
+		for (const item of items.slice(0, 8)) {
+			widget.reveal(item, 0);
+			await waitForStableLayout(widget);
+		}
+		widget.scrollTop = widget.getElementTop(items[7])! + 150;
+		const saved = topOfViewport(first);
+		const viewState = chatWidget.getViewState();
+
+		switchTo(other);
+		chatWidget.restoreViewState({ scrollTop: 0, isAtBottom: true });
+		await waitForStableLayout(widget);
+		const restored = switchTo(restoredModel);
+		chatWidget.restoreViewState(viewState);
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			saved,
+			restored: topOfViewport(restored),
+			responseIdsChanged: restored.getItems().filter(isResponseVM).every(response => !items.some(item => item.id === response.id)),
+		}, {
+			saved: { row: 7, offset: 150 },
+			restored: { row: 7, offset: 150 },
+			responseIdsChanged: true,
+		});
+		disposables.dispose();
+	});
+
+	suite('streaming into a long transcript', () => {
+		const message = (text: string) => ({
+			text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		const countElements = (elements: Iterable<IObjectTreeElement<unknown>> | undefined): number => {
+			let count = 0;
+			for (const element of elements ?? []) {
+				count += 1 + countElements(element.children);
+			}
+			return count;
+		};
+
+		// Wires the widget the way ChatWidget does: one refresh per batch of view model changes.
+		async function createTranscript(priorTurns: number) {
+			const created = createWidget();
+			const { disposables, model, viewModel, widget } = created;
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), events => widget.refresh(events)));
+			for (let index = 0; index < priorTurns; index++) {
+				const request = model.addRequest(message(`Turn ${index}`), { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Answer ${index}`) });
+				request.response!.complete();
+			}
+			const request = model.addRequest(message('Stream a reply'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Streamed reply.') });
+			widget.layout(300, 500);
+			await timeout(0);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			return { ...created, request, setChildren: sinon.spy(ObjectTree.prototype, 'setChildren') };
+		}
+
+		async function streamParagraphs(priorTurns: number) {
+			const { disposables, model, container, widget, request, setChildren } = await createTranscript(priorTurns);
+			for (let index = 0; index < 5; index++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nStreamed paragraph ${index}.`) });
+				await timeout(0);
+			}
+			// Streamed words render progressively, so wait for the last paragraph before checking the scroll position.
+			const lastParagraphVisible = await retry(async () => assert.ok(container.textContent?.includes('Streamed paragraph 4.')), 100, 30).then(() => true, () => false);
+			await waitForStableLayout(widget);
+			const result = {
+				fullRefreshes: setChildren.getCalls().filter(call => call.args[0] === null).length,
+				diffedElements: setChildren.getCalls().reduce((sum, call) => sum + countElements(call.args[1]), 0),
+				lastParagraphVisible,
+				atBottom: widget.isScrolledToBottom,
+			};
+			setChildren.restore();
+			disposables.dispose();
+			return result;
+		}
+
+		test('diffs only the streaming response, however many turns precede it', async () => {
+			const short = await streamParagraphs(5);
+			const long = await streamParagraphs(100);
+			assert.deepStrictEqual({ short, long }, {
+				short: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+				long: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+			});
+		});
+
+		test('falls back to a full refresh when the request or the transcript changes', async () => {
+			const { model, viewModel, container, widget, request, setChildren } = await createTranscript(3);
+			const fullRefreshes = () => setChildren.getCalls().filter(call => call.args[0] === null).length;
+			const states: { fullRefreshes: number; requests: string[]; text: boolean }[] = [];
+			const record = async (text: string) => {
+				await timeout(0);
+				await waitForStableLayout(widget);
+				states.push({
+					fullRefreshes: fullRefreshes(),
+					requests: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					text: !!container.textContent?.includes(text),
+				});
+			};
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' More text.') });
+			await record('More text.');
+			// Completing the response changes its request's identity.
+			request.response!.complete();
+			await record('More text.');
+			const next = model.addRequest(message('Follow-up'), { variables: [] }, 0);
+			await record('Follow-up');
+			model.acceptResponseProgress(next, { kind: 'markdownContent', content: new MarkdownString('Follow-up reply.') });
+			await record('Follow-up reply.');
+			// Undo removes the request while its reply streams.
+			model.removeRequest(next.id);
+			await record('More text.');
+
+			assert.deepStrictEqual(states, [
+				{ fullRefreshes: 0, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 1, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 3, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+			]);
+		});
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
@@ -886,6 +1162,9 @@ suite('ChatListWidget', () => {
 
 		widget.refresh();
 		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		// Rows only measure once they render, so render the first exchange before reading the second request's position.
+		widget.scrollTop = 0;
 		await waitForStableLayout(widget);
 		const secondRequestItem = viewModel.getItems().filter(isRequestVM)[1];
 		const secondRequestTop = widget.getElementTop(secondRequestItem);
@@ -1283,6 +1562,9 @@ suite('ChatListWidget', () => {
 		container.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		container.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(1, 2, 3)');
 		container.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(4, 5, 6)');
+		// The hover checks dispatch synthetic mouse events. Keep a real pointer that happens to rest over the
+		// test window (Linux Electron) from also matching `:hover` and leaving a bubble in its hover color.
+		container.style.pointerEvents = 'none';
 		const hasStickyShadowRule = Array.from(container.querySelectorAll('style')).some(style =>
 			style.textContent?.includes('.monaco-tree-sticky-container-shadow') && style.textContent.includes('box-shadow'));
 		const firstParagraph = 'question with an attachment '.repeat(20).trim();

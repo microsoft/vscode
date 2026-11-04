@@ -153,7 +153,7 @@ export class SessionOptionsRow extends Disposable {
 				// The innermost picker under the pointer; its own context menu is replaced by one that also collapses it.
 				const picker = findLast(getLabeledPickerResponsiveItems(row), item => !!item.element?.contains(target));
 				const pickerId = picker?.element && iconOnlyPickers.getPickerId(picker.element);
-				if (!pickerId) {
+				if (!pickerId && target !== row && target !== sessionOptions && !toggle.element.contains(target)) {
 					return;
 				}
 				dom.EventHelper.stop(event, true);
@@ -166,7 +166,7 @@ export class SessionOptionsRow extends Disposable {
 			const hasDetails = options.hasDetails?.read(reader) ?? true;
 			// Screen reader users should never have the options collapsed out of the accessibility
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
-			const disclosureAvailable = !screenReaderOptimized && hasDetails;
+			const disclosureAvailable = !screenReaderOptimized && hasDetails && (iconOnlyPickers?.showOptionsToggle.read(reader) ?? true);
 			const expanded = options.expanded.read(reader);
 			const collapsed = disclosureAvailable && !expanded;
 			if (collapsed) {
@@ -178,7 +178,11 @@ export class SessionOptionsRow extends Disposable {
 			const showDetails = hasDetails && (!disclosureAvailable || expanded || iconRail);
 			row.classList.add('new-chat-session-options');
 			sessionOptions.classList.toggle('collapsed-icon-rail', iconRail);
+			const toggleHadFocus = toggle.element === dom.getActiveElement();
 			toggle.element.hidden = !disclosureAvailable;
+			if (toggle.element.hidden && toggleHadFocus) {
+				getRowControls().find(control => control !== toggle.element)?.focus();
+			}
 			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
 				if (!toggle.element.hidden) {
 					toggle.focus();

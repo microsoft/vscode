@@ -3128,6 +3128,68 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('expanding search results preserves filter focus through layout', () => {
+		const list = createActionList(disposables, [action('Recent')], {
+			listOptions: {
+				focusFilterOnOpen: true,
+				onDidChangeFilter: () => list.updateItems([action('Recent'), action('Older')]),
+			},
+		});
+		list.layout(200);
+		list.focus();
+		const input = list.filterInput!;
+		let blurs = 0;
+		disposables.add(addDisposableListener(input, 'blur', () => blurs++));
+		input.value = 'o';
+		input.dispatchEvent(new Event('input'));
+
+		assert.deepStrictEqual({
+			focused: isActiveElement(input),
+			blurs,
+			query: input.value,
+			rows: Array.from(list.domNode.querySelectorAll('.monaco-list-row')).map(row => row.textContent),
+		}, { focused: true, blurs: 0, query: 'o', rows: ['Older'] });
+	});
+
+	test('clearing a filter refreshes dynamically supplied items', () => {
+		const queries: string[] = [];
+		const list = createActionList(disposables, [action('Recent')], {
+			listOptions: {
+				focusFilterOnOpen: true,
+				onDidChangeFilter: value => {
+					queries.push(value);
+					list.updateItems([action(value ? 'Older' : 'Recent')]);
+				},
+			},
+		});
+		list.layout(200);
+		list.focus();
+		const input = list.filterInput!;
+		input.value = 'Older';
+		input.dispatchEvent(new Event('input'));
+
+		const cleared = list.clearFilter();
+		const clearedAgain = list.clearFilter();
+
+		assert.deepStrictEqual({
+			cleared,
+			clearedAgain,
+			queries,
+			query: input.value,
+			focused: isActiveElement(input),
+			rows: Array.from(list.domNode.querySelectorAll('.monaco-list-row')).map(row => row.textContent),
+		}, { cleared: true, clearedAgain: false, queries: ['Older', ''], query: '', focused: true, rows: ['Recent'] });
+	});
+
+	test('layout moves a misplaced filter above the list', () => {
+		const list = createActionList(disposables, [action('Recent')]);
+		list.domNode.parentElement!.appendChild(list.filterContainer!);
+
+		list.layout(200);
+
+		assert.strictEqual(list.filterContainer?.nextSibling, list.domNode);
+	});
+
 	test('rebuilding the items in place leaves focus alone when the list does not have it', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const outside = document.createElement('button');

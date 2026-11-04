@@ -1114,6 +1114,51 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
+	for (const userChoseComposition of [false, true]) {
+		test(`[desktop] submitting a New Session seeds the Existing profile only with a composition the user chose (user chose: ${userChoseComposition})`, async () => {
+			createDesktopController({
+				activateAux: true,
+				workspaceFolders: [{ uri: URI.file('/repo') }],
+				sidePaneVisibilityState: {
+					newSession: { editorVisible: false, auxiliaryBarVisible: true },
+					existingSession: { editorVisible: true, auxiliaryBarVisible: true },
+				},
+			});
+			await settle();
+			const existing = makeSession(URI.parse('session:existing'));
+			harness.activeSessionObs.set(existing, undefined);
+			await settle();
+			await openManagedTabs();
+			harness.visibleEditorsList = [{}];
+
+			const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false });
+			harness.activeSessionObs.set(draft, undefined);
+			harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
+			harness.onDidActiveEditorChange.fire();
+			await settle();
+			const inComposer = { editorVisible: harness.partVisibility.get(Parts.EDITOR_PART), detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) };
+			if (userChoseComposition) {
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+			}
+
+			(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			await settle();
+			harness.activeSessionObs.set(existing, undefined);
+			await settle();
+
+			assert.deepStrictEqual({
+				inComposer,
+				existingProfile: JSON.parse(harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE) ?? '').existingSession,
+				afterSwitchBack: { editorVisible: harness.partVisibility.get(Parts.EDITOR_PART), detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) },
+			}, {
+				inComposer: { editorVisible: false, detailVisible: true },
+				existingProfile: userChoseComposition ? { editorVisible: false, auxiliaryBarVisible: false } : { editorVisible: true, auxiliaryBarVisible: true },
+				afterSwitchBack: userChoseComposition ? { editorVisible: false, detailVisible: false } : { editorVisible: true, detailVisible: true },
+			});
+		});
+	}
+
 	test('[desktop] New Session opening rule does not re-run after a real editor opens', async () => {
 		createDesktopController({ activateAux: true });
 		await settle();
@@ -1907,8 +1952,8 @@ suite('DesktopLayoutController', () => {
 				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 			},
-			{ editorVisible: false, auxiliaryBarVisible: true },
-			'the persisted composition must be restored on the first visit after a fresh restart'
+			{ editorVisible: false, auxiliaryBarVisible: false },
+			'the persisted docked-only composition must not reveal the pane after a fresh restart'
 		);
 		assert.deepStrictEqual(
 			harness.applyWorkingSetCalls,

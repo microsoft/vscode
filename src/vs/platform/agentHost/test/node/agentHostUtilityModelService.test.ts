@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
@@ -66,9 +66,7 @@ interface IScenario {
 }
 
 suite('AgentHostUtilityModelService', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function run(scenario: IScenario, includeInput = false): Promise<unknown> {
 		const rootValues: Record<string, unknown> = {

@@ -96,9 +96,16 @@ declare module 'vscode' {
 		readonly availability?: ChatArtifactAvailability;
 		readonly main?: ChatArtifactPresentation;
 		/**
-		 * How this artifact contributes to a group of several artifacts of this provider, which shows the icon
+		 * Gives this artifact a pill of its own, shared with every other artifact assigned the same ID, including those of
+		 * other providers, and named by {@link ChatArtifactIntegrationProvider.groupLabel}. Without one, the artifact is listed
+		 * in the pill for its kind, such as Artifacts, with the other artifacts. Only consulted when this provider presents
+		 * the artifact's main part.
+		 */
+		readonly groupId?: string;
+		/**
+		 * How this artifact contributes to a group of several artifacts sharing its {@link groupId}, which shows the icon
 		 * with the highest priority among them, for example a failing pull request's icon over an open one's.
-		 * Priorities are only compared among this provider's artifacts, and only when this provider presents
+		 * Priorities are only compared among the group's artifacts, and only when this provider presents
 		 * the artifact's main part.
 		 */
 		readonly group?: { readonly icon: ThemeIcon; readonly priority: number };
@@ -272,7 +279,7 @@ declare module 'vscode' {
 		readonly label: string;
 		/** Names the recorded resources this provider supports, such as "Experiment links on example.com", so agents know when to use it. One line of plain text, at most 300 characters. */
 		readonly description?: string;
-		/** Names several of this provider's artifacts when they are grouped, such as "Experiments". One line of plain text, at most 100 characters. */
+		/** Names several of this provider's artifacts when they share a group ID, such as "Experiments". One line of plain text, at most 100 characters. */
 		readonly groupLabel?: string;
 		/** Stable for this registration's lifetime. Every referenced action must exist on each observation. Option and choice labels are one line of plain text, at most 100 characters. */
 		readonly automationOptions?: readonly ChatArtifactAutomationOption[];
