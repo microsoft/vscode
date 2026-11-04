@@ -20,6 +20,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -75,8 +76,8 @@ import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPicker
 import { AgentHostPermissionPickerDelegate, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { CheckoutOperationPreAction, checkoutOperationMeta, createBranchOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -96,6 +97,7 @@ const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionCo
 const PICKER_OPEN_ATTRIBUTE = 'data-picker-open';
 const MOBILE_BRANCH_PICKER_RESULT_LIMIT = 25;
 const repositoryConfigSequencer = new SequencerByKey<string>();
+const CREATE_BRANCH_LABEL = localize('agentHostSessionConfig.createBranch', "Create New Branch...");
 
 function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 	const activeElement = dom.getActiveElement();
@@ -110,6 +112,7 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 }
 
 export interface IConfigPickerItem {
+	readonly createBranch?: boolean;
 	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
@@ -537,6 +540,7 @@ class ConfigCheckboxControl extends Disposable {
 export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _propertyTriggers = new Map<string, HTMLElement>();
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	private readonly _hostMarker = this._register(new MutableDisposable());
@@ -589,6 +593,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	) {
 		super();
 
+		this._register(toDisposable(() => this._propertyTriggers.clear()));
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			for (const changeset of session?.activeChat.read(reader).changesets.read(reader) ?? []) {
@@ -673,6 +678,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const restoreFocus = focusedProperty !== undefined || this._focusableElement === activeElement || pickerClosedBySessionChange;
 		let focusToRestore: HTMLElement | undefined;
 		this._renderDisposables.clear();
+		this._propertyTriggers.clear();
 		this._focusableElement = undefined;
 		const checkboxSlots = new Set([
 			this._isolationCheckbox.value?.slot,
@@ -752,6 +758,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				}));
 			}
 			this._focusableElement = trigger;
+			this._propertyTriggers.set(property, trigger);
 			if (property === focusedProperty) {
 				focusToRestore = trigger;
 			}
@@ -955,6 +962,102 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
+	protected _getCreateBranchChangeset(provider: IAgentHostSessionsProvider, sessionId: string): ISessionChangeset | undefined {
+		const session = this._session.get();
+		const config = this._getSessionConfig(provider, sessionId);
+		const branch = config && getSessionWorkspaceProperties(config.schema).baseBranch;
+		return session?.sessionId === sessionId && provider.getCreateSessionConfig(sessionId) !== undefined
+			&& branch?.schema.enumDynamic && isSessionConfigWritable(branch.schema, true)
+			&& session.workspace.get()?.folders[0]?.gitRepository
+			? session.activeChat.get().changesets.get()?.find(changeset =>
+				changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
+				&& changeset.operations.get().some(operation => operation.id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID))
+			: undefined;
+	}
+
+	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, trigger: HTMLElement): Promise<void> {
+		const config = this._getSessionConfig(provider, sessionId);
+		const schema = config?.schema.properties[property];
+		if (!config || !schema || !isSessionConfigWritable(schema, true) || !this._getCreateBranchChangeset(provider, sessionId)) {
+			return;
+		}
+		const chat = this._getChat(provider, sessionId);
+		const workspace = this._session.get()?.workspace.get()?.uri;
+		const isolationKey = getSessionWorkspaceProperties(config.schema).isolationKey;
+		const isolation = config.values[isolationKey] ?? config.schema.properties[isolationKey]?.default;
+		const startPoint = config.values[property] ?? schema.default;
+		try {
+			if (typeof startPoint !== 'string' || !startPoint) {
+				throw new Error(localize('agentHostSessionConfig.createBranch.startPointRequired', "Select a starting branch before creating a new branch."));
+			}
+			const branches = await this._getItems(provider, sessionId, property, schema);
+			if (!this._isCurrentSession(provider, sessionId)) {
+				return;
+			}
+			const branchName = await this._quickInputService.input({
+				title: CREATE_BRANCH_LABEL,
+				prompt: localize('agentHostSessionConfig.createBranch.prompt', "Enter a name for the new branch, starting from '{0}'.", startPoint),
+				placeHolder: localize('agentHostSessionConfig.createBranch.placeholder', "Branch name"),
+				anchor: trigger,
+				validateInput: async name => {
+					if (!name || name === 'HEAD' || name === '@' || name.startsWith('-') || name.endsWith('.')
+						|| name.includes('..') || name.includes('@{') || /[\s~^:?*[\]\\]/.test(name)
+						|| Array.from(name).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+						|| name.split('/').some(part => !part || part.startsWith('.') || part.endsWith('.lock'))) {
+						return localize('agentHostSessionConfig.createBranch.invalid', "Enter a valid Git branch name.");
+					}
+					if (branches.some(branch => branch.value === name || branch.value.startsWith(`${name}/`) || name.startsWith(`${branch.value}/`))) {
+						return localize('agentHostSessionConfig.createBranch.exists', "A branch named '{0}' already exists or conflicts with an existing branch.", name);
+					}
+					return undefined;
+				},
+			});
+			if (branchName === undefined || !this._isCurrentSession(provider, sessionId)) {
+				return;
+			}
+			const operation = repositoryConfigSequencer.queue(sessionId, async () => {
+				const currentConfig = this._getSessionConfig(provider, sessionId);
+				const changeset = this._getCreateBranchChangeset(provider, sessionId);
+				if (!this._isCurrentSession(provider, sessionId) || !changeset
+					|| this._isSessionConfigResolving(provider, sessionId)
+					|| !isEqual(this._getChat(provider, sessionId), chat)
+					|| !isEqual(this._session.get()?.workspace.get()?.uri, workspace)
+					|| currentConfig?.values[property] !== config.values[property]
+					|| (currentConfig?.values[isolationKey] ?? currentConfig?.schema.properties[isolationKey]?.default) !== isolation) {
+					return;
+				}
+				await changeset.invokeOperation(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, undefined,
+					createBranchOperationMeta(branchName, startPoint, isolation !== 'worktree'));
+				if (this._isCurrentSession(provider, sessionId)
+					&& isEqual(this._getChat(provider, sessionId), chat)
+					&& isEqual(this._session.get()?.workspace.get()?.uri, workspace)) {
+					await provider.setSessionConfigValue(sessionId, this._requireChat(provider, sessionId), property, branchName);
+				}
+			});
+			provider.trackSessionConfigOperation(sessionId, operation);
+			await operation;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._notificationService.error(error);
+			}
+		} finally {
+			if (this._isCurrentSession(provider, sessionId)) {
+				this._propertyTriggers.get(property)?.focus();
+			}
+		}
+	}
+
+	private _withCreateBranchAction(provider: IAgentHostSessionsProvider, sessionId: string, isBranchPicker: boolean, items: IActionListItem<IConfigPickerItem>[]): IActionListItem<IConfigPickerItem>[] {
+		return isBranchPicker && this._getCreateBranchChangeset(provider, sessionId)
+			? [{
+				kind: ActionListItemKind.Action,
+				label: CREATE_BRANCH_LABEL,
+				group: { title: '', icon: Codicon.gitBranchCreate },
+				item: { value: '', label: CREATE_BRANCH_LABEL, createBranch: true },
+			}, { kind: ActionListItemKind.Separator }, ...items]
+			: items;
+	}
+
 	protected _renderTrigger(trigger: HTMLElement, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
@@ -1153,11 +1256,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const onShowChanges = isBranchPicker
 			? () => this._showChanges()
 			: undefined;
-		const actionItems = toActionItems(presentation, items, currentValue, policyRestricted, {
+		const actionItems = this._withCreateBranchAction(provider, sessionId, isBranchPicker, toActionItems(presentation, items, currentValue, policyRestricted, {
 			...repositoryState,
 			isWorktree: isolationKey !== undefined && config?.values[isolationKey] === 'worktree',
 			onShowChanges,
-		});
+		}));
 		if (actionItems.length === 0) {
 			return;
 		}
@@ -1172,18 +1275,22 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
 			const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
 			const filteredConfig = this._getSessionConfig(provider, sessionId);
-			return toActionItems(presentation, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
+			return this._withCreateBranchAction(provider, sessionId, isBranchPicker, toActionItems(presentation, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
 				...filteredRepositoryState,
 				isWorktree: isolationKey !== undefined && filteredConfig?.values[isolationKey] === 'worktree',
 				query,
 				onShowChanges,
-			});
+			}));
 		};
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
 				this._actionWidgetService.hide();
 				if (item.disabled || !this._isCurrentSession(provider, sessionId) || this._isSessionConfigResolving(provider, sessionId)) {
+					return;
+				}
+				if (item.createBranch) {
+					await this._createBranch(provider, sessionId, property, trigger);
 					return;
 				}
 				if (presentation === SessionConfigKey.Isolation && item.value === 'worktree'
@@ -1562,6 +1669,11 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const branchValue = config.values[branchProperty] ?? branchSchema?.default;
 		const repositoryState = this._getRepositoryBranchState(sessionId);
 		const sheetItems: IMobilePickerSheetItem[] = [];
+		const canCreateBranch = canSelectBranch && !!this._getCreateBranchChangeset(provider, sessionId);
+		let createBranchSelected = false;
+		if (canCreateBranch) {
+			sheetItems.push({ id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, label: CREATE_BRANCH_LABEL, icon: Codicon.gitBranchCreate });
+		}
 
 		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
 		const registerId = (property: string, item: IConfigPickerItem, isPII: boolean): string => {
@@ -1650,6 +1762,10 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 					if (!this._isCurrentSession(provider, sessionId)) {
 						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
+					if (canCreateBranch && id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID) {
+						createBranchSelected = true;
+						return MOBILE_PICKER_SHEET_CONFIRM;
+					}
 					const selection = idToConfig.get(id);
 					if (selection) {
 						const beforeValue = this._getSessionConfig(provider, sessionId)?.values[selection.property];
@@ -1672,7 +1788,11 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 			},
 		);
 		trigger.setAttribute('aria-expanded', 'false');
-		trigger.focus();
+		if (createBranchSelected) {
+			await this._createBranch(provider, sessionId, branchProperty, trigger);
+		} else if (this._isCurrentSession(provider, sessionId)) {
+			trigger.focus();
+		}
 	}
 }
 

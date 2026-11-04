@@ -1028,11 +1028,17 @@ suite('ChangesViewService', () => {
 		});
 	});
 
-	test('hides checkout from generic changeset operations', () => {
+	test('hides repository picker operations from generic changeset operations', () => {
 		const changeset = createChangeset([
 			{
 				id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
 				label: 'Checkout',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+			{
+				id: 'create-branch',
+				label: 'Create Branch',
 				scopes: [SessionChangesetOperationScope.Changeset],
 				status: SessionChangesetOperationStatus.Idle,
 			},

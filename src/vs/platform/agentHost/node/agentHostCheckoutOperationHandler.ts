@@ -7,10 +7,10 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { CheckoutBlockedByLocalChangesError, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
-import { CheckoutOperationPreAction, checkoutOperationDirtyWorkingTreeErrorData, readCheckoutOperationPreAction, readCheckoutOperationTreeish } from '../common/meta/agentCheckoutOperationMeta.js';
+import { CheckoutOperationPreAction, checkoutOperationDirtyWorkingTreeErrorData, readCheckoutOperationPreAction, readCheckoutOperationTreeish, readCreateBranchOperationMeta } from '../common/meta/agentCheckoutOperationMeta.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import type { SessionState } from '../common/state/sessionState.js';
@@ -46,6 +46,28 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		const workingDirectoryValue = scope.workingDirectories[0];
 		if (!workingDirectoryValue) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
+		}
+		if (params.operationId === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID) {
+			const input = readCreateBranchOperationMeta(params);
+			if (!input) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.createBranch.invalid', "Enter a branch name and select a starting branch."));
+			}
+			const workingDirectory = URI.parse(workingDirectoryValue);
+			if (await this._gitService.branchExists(workingDirectory, input.branchName)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.createBranch.exists', "Branch '{0}' already exists.", input.branchName));
+			}
+			this._throwIfCancelled(token);
+			try {
+				await this._gitService.createBranch(workingDirectory, input.branchName, { checkout: input.checkout, startPoint: input.startPoint });
+			} catch (error) {
+				throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.createBranch.failed', "Failed to create branch '{0}': {1}", input.branchName, error instanceof Error ? error.message : String(error)));
+			}
+			try {
+				await this._onCheckedOut(parsed.ownerUri);
+			} catch (error) {
+				this._logService.warn(`[AgentHostCheckoutOperationHandler] Post-creation refresh failed for ${parsed.ownerUri}: ${error instanceof Error ? error.message : String(error)}`);
+			}
+			return { message: { markdown: localize('agentHost.changeset.createBranch.created', "Created branch `{0}`.", input.branchName) } };
 		}
 		const treeish = readCheckoutOperationTreeish(params);
 		if (!treeish) {

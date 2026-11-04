@@ -560,10 +560,20 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined;
 	}
 
-	async createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void> {
+	async createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean; readonly startPoint?: string }): Promise<void> {
+		if (!branchName || branchName.startsWith('-') || branchName.includes('@{')) {
+			throw new Error('Invalid branch name.');
+		}
+		await this._runGit(workingDirectory, ['check-ref-format', '--branch', branchName], { throwOnError: true });
+		if (options?.startPoint?.startsWith('-')) {
+			throw new Error('Branch start points must not begin with a dash.');
+		}
 		const args = options?.checkout
 			? ['checkout', '-q', '-b', branchName, '--no-track']
 			: ['branch', '-q', branchName];
+		if (options?.startPoint) {
+			args.push(options.startPoint);
+		}
 
 		await this._runGit(workingDirectory, args, { throwOnError: true });
 	}

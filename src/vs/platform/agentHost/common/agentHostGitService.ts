@@ -294,7 +294,7 @@ export interface IAgentHostGitService {
 	 */
 	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
 	/** Creates a new branch and optionally checks it out while preserving the working tree. */
-	createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void>;
+	createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean; readonly startPoint?: string }): Promise<void>;
 	/** Checks out an existing local branch, throwing {@link CheckoutBlockedByLocalChangesError} when local changes would be overwritten. */
 	checkout(workingDirectory: URI, treeish: string): Promise<void>;
 	/**

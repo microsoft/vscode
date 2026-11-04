@@ -13,6 +13,29 @@ const TREEISH_META_KEY = 'treeish';
 const PRE_CHECKOUT_ACTION_META_KEY = 'preCheckoutAction';
 const DIRTY_WORKING_TREE_ERROR_REASON = 'dirtyWorkingTree';
 const ERROR_REASON_KEY = 'reason';
+const CREATE_BRANCH_META_KEY = 'vscode.createBranch';
+
+/** Creates metadata for a Create Branch operation, without changing the checkout for worktree isolation. */
+export function createBranchOperationMeta(branchName: string, startPoint: string, checkout: boolean): Record<string, unknown> {
+	return { [CREATE_BRANCH_META_KEY]: { branchName, startPoint, checkout } };
+}
+
+function hasCreateBranchFields(value: unknown): value is { branchName: unknown; startPoint: unknown; checkout: unknown } {
+	return typeof value === 'object' && value !== null && hasKey(value, { branchName: true, startPoint: true, checkout: true });
+}
+
+/** Reads the complete, typed input of a Create Branch operation. */
+export function readCreateBranchOperationMeta(source: IHasCheckoutOperationMeta): { branchName: string; startPoint: string; checkout: boolean } | undefined {
+	const value = source._meta?.[CREATE_BRANCH_META_KEY];
+	if (!hasCreateBranchFields(value)) {
+		return undefined;
+	}
+	return typeof value.branchName === 'string' && value.branchName.length > 0 && !value.branchName.startsWith('-')
+		&& typeof value.startPoint === 'string' && value.startPoint.length > 0 && !value.startPoint.startsWith('-')
+		&& typeof value.checkout === 'boolean'
+		? { branchName: value.branchName, startPoint: value.startPoint, checkout: value.checkout }
+		: undefined;
+}
 
 export const enum CheckoutOperationPreAction {
 	Stash = 'stash',

@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -253,6 +253,11 @@ suite('Changes Actions', () => {
 			scopes: [SessionChangesetOperationScope.Changeset],
 			status: SessionChangesetOperationStatus.Idle,
 		}, {
+			id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+			label: 'Create Branch',
+			scopes: [SessionChangesetOperationScope.Changeset],
+			status: SessionChangesetOperationStatus.Idle,
+		}, {
 			id: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID,
 			label: 'Sync Changes',
 			scopes: [SessionChangesetOperationScope.Changeset],
@@ -334,6 +339,7 @@ suite('Changes Actions', () => {
 			visibleForTextTab,
 			resourceOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}discard-file`) !== undefined,
 			checkoutOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID}`) !== undefined,
+			createBranchOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}`) !== undefined,
 			syncOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_SYNC_CHANGESET_OPERATION_ID}`) !== undefined,
 		}, {
 			actions: [{
@@ -351,6 +357,7 @@ suite('Changes Actions', () => {
 			visibleForTextTab: false,
 			resourceOperationRegistered: false,
 			checkoutOperationRegistered: false,
+			createBranchOperationRegistered: false,
 			syncOperationRegistered: false,
 		});
 

@@ -18,7 +18,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform
 import { IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -34,7 +34,7 @@ import { IKeybindingService } from '../../../../../../../platform/keybinding/com
 import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -264,6 +264,7 @@ class CapturingActionWidgetHolder {
 function setupServices(
 	store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>,
 	options?: {
+		createBranchSupported?: boolean;
 		checkoutDialogChoice?: 'Stash & Checkout' | 'Commit & Checkout';
 		checkoutDialogShown?: DeferredPromise<void>;
 		checkoutDialogRelease?: DeferredPromise<void>;
@@ -364,12 +365,15 @@ function setupServices(
 	const checkoutInvocations: { operationId: string; _meta: Record<string, unknown> | undefined }[] = [];
 	const uncommittedChangeset = new class extends mock<ISessionChangeset>() {
 		override readonly id = UNCOMMITTED_CHANGES_CHANGESET_ID;
-		override readonly operations = constObservable([{
-			id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+		override readonly operations = constObservable([
+			AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+			...(options?.createBranchSupported ? [AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID] : []),
+		].map(id => ({
+			id,
 			label: 'Checkout',
 			scopes: [SessionChangesetOperationScope.Changeset],
 			status: SessionChangesetOperationStatus.Idle,
-		}]);
+		})));
 		override async invokeOperation(operationId: string, _target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
 			checkoutInvocations.push({ operationId, _meta });
 			branchSelectionEvents.push('checkout');
@@ -413,6 +417,138 @@ function otherActiveSession(activeSession: IActiveSession): IActiveSession {
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const isolation of ['folder', 'worktree', undefined] as const) {
+		test(`creates and selects a branch only after Git succeeds with ${isolation ?? 'default worktree'} isolation`, async () => {
+			const created = new DeferredPromise<void>();
+			const services = setupServices(store, { createBranchSupported: true }, () => created.p);
+			services.provider.config = makeDynamicBranchConfig('main', isolation);
+			if (isolation === undefined) {
+				services.provider.config = { ...services.provider.config, values: { branch: 'main' } };
+			}
+			services.provider.completions = [{ value: 'main', label: 'main' }];
+			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override async input() { return 'feature/new'; }
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+			await timeout(0);
+			const callsBeforeCreation = services.provider.setSessionConfigValueCalls;
+			created.complete();
+			await creation;
+			assert.deepStrictEqual({
+				callsBeforeCreation,
+				invocations: services.checkoutInvocations,
+				selection: services.provider.config.values.branch,
+				label: branchLabel(container),
+			}, {
+				callsBeforeCreation: 0,
+				invocations: [{
+					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'main', checkout: isolation === 'folder' } },
+				}],
+				selection: 'feature/new',
+				label: 'feature/new',
+			});
+		});
+	}
+
+	test('validates new branch names and ref conflicts in the anchored input', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
+		let inputOptions: IInputOptions | undefined;
+		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input(options?: IInputOptions) { inputOptions = options; return undefined; }
+		}());
+		const { container } = renderPicker(store, services);
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		trigger.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		const invalidNames = ['', 'HEAD', '-option', 'a b', 'a..b', 'a@{b', '.hidden', 'a/.hidden', 'a.lock', 'a//b', 'a/', 'a.', 'a\\b', 'a?b', 'a[b', 'main', 'feature', 'feature/existing/child'];
+		assert.deepStrictEqual({
+			anchored: inputOptions?.anchor === trigger,
+			invalid: await Promise.all(invalidNames.map(async name => !!await inputOptions?.validateInput?.(name))),
+			valid: await inputOptions?.validateInput?.('feature/new'),
+			invocations: services.checkoutInvocations,
+		}, {
+			anchored: true,
+			invalid: invalidNames.map(() => true),
+			valid: undefined,
+			invocations: [],
+		});
+	});
+
+	for (const outcome of ['cancel', 'failure', 'sessionChanged'] as const) {
+		test(`does not select a new branch after ${outcome}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true }, async () => { throw new Error('Git failed'); });
+			services.provider.config = makeDynamicBranchConfig('main');
+			services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override async input() {
+					if (outcome === 'sessionChanged') {
+						services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+					}
+					return outcome === 'cancel' ? undefined : 'feature/new';
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+			assert.deepStrictEqual({
+				selection: services.provider.config.values.branch,
+				writes: services.provider.setSessionConfigValueCalls,
+				invocations: services.checkoutInvocations.length,
+				errors: services.notificationErrors,
+			}, {
+				selection: 'main',
+				writes: 0,
+				invocations: outcome === 'failure' ? 1 : 0,
+				errors: outcome === 'failure' ? ['Error: Git failed'] : [],
+			});
+		});
+	}
+
+	test('does not offer branch creation on hosts that do not advertise it', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		assert.strictEqual(services.actionWidget.items.some(item => item.item?.createBranch), false);
+	});
+
+	test('does not offer branch creation for a fixed branch enum', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		assert.strictEqual(services.actionWidget.items.some(item => item.item?.createBranch), false);
+	});
+
+	test('does not write the created branch into a different repository', async () => {
+		const created = new DeferredPromise<void>();
+		const services = setupServices(store, { createBranchSupported: true }, () => created.p);
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input() { return 'feature/new'; }
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		await timeout(0);
+		services.workspaceObs.set(makeWorkspace(undefined, 'main', undefined, URI.file('/other')), undefined);
+		created.complete();
+		await creation;
+		assert.deepStrictEqual({
+			invocations: services.checkoutInvocations.length,
+			writes: services.provider.setSessionConfigValueCalls,
+			selection: services.provider.config.values.branch,
+		}, { invocations: 1, writes: 0, selection: 'main' });
+	});
 
 	test('Copilot repository controls preserve target, baseBranch and new branch keys', async () => {
 		const services = setupServices(store);

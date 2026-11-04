@@ -29,7 +29,7 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -450,7 +450,7 @@ class CommitActionViewItem extends MenuEntryActionViewItem {
  * Contributes changeset operations to the Changes tab's editor actions toolbar.
  *
  * For a new (untitled) session this is every changeset-scoped operation of the
- * uncommitted changes changeset (except Sync and Checkout). For an existing
+ * uncommitted changes changeset (except Sync, Checkout, and Create Branch). For an existing
  * session only the Commit operation of the changeset selected in the Changes
  * view is contributed here; the title bar button bar omits it so that Commit
  * always lives in the Changes toolbar.
@@ -486,6 +486,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 				operations = changeset?.operations.read(reader)
 					.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
 					.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
+					.filter(operation => operation.id !== AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID)
 					.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
 				hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
 			} else {

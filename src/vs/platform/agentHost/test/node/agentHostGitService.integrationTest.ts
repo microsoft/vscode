@@ -1349,6 +1349,27 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('createBranch uses the selected start point without changing the checkout', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const base = run('rev-parse', 'HEAD');
+		run('checkout', '-q', '-b', 'dev');
+		run('commit', '-q', '--allow-empty', '-m', 'dev');
+		await svc!.createBranch(URI.file(dir), 'feature/new', { startPoint: 'main' });
+		assert.deepStrictEqual({
+			current: run('branch', '--show-current'),
+			created: run('rev-parse', 'feature/new'),
+		}, { current: 'dev', created: base });
+	});
+
+	(hasGit ? test : test.skip)('createBranch rejects invalid and existing names without changing the checkout', async () => {
+		const dir = initRepo();
+		for (const name of ['main', '-option', 'HEAD', 'a..b', 'a.lock', 'a b', '@{-1}']) {
+			await assert.rejects(svc!.createBranch(URI.file(dir), name, { checkout: true, startPoint: 'main' }));
+		}
+		assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'main');
+	});
+
 	(hasGit ? test : test.skip)('checkout switches a clean working directory to an existing branch', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['branch', 'dev'], { cwd: dir, env, stdio: 'pipe' });
