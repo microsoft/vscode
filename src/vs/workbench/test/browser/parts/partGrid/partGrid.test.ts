@@ -1346,6 +1346,37 @@ suite('Part Grid', () => {
 		}, { shape: 'row(side, column(main, created))', marked: ['created'], left: 0, right: 0 });
 	});
 
+	test('with no gap or insets, an editor dropped where the last move showed a new part goes there, also when what is under the pointer then is outside the grid', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const main = createPart(parts);
+		const file = await openEditor(main, '/file.txt');
+		await openEditor(main, '/other.txt');
+		grid.addPart('main', main);
+		grid.setGap(0);
+		grid.layout(1000, 800);
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'new', part: createPart(parts) }) }));
+
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: main.activeGroup.id })], DraggedEditorIdentifier.prototype);
+		const over = new DragEvent('dragover', { dataTransfer: new DataTransfer(), clientX: 3, clientY: 300, bubbles: true, cancelable: true });
+		mainWindow.document.elementFromPoint(3, 300)!.dispatchEvent(over);
+		// As the cards made way, what is under the pointer is something outside the grid, such as a webview over it
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add(toDisposable(() => outside.remove()));
+		const drop = new DragEvent('drop', { dataTransfer: new DataTransfer(), clientX: 3, clientY: 300, bubbles: true, cancelable: true });
+		outside.dispatchEvent(drop);
+		editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+		await timeout(PART_GRID_REFLOW_DURATION + 60);
+
+		assert.deepStrictEqual({ accepted: over.defaultPrevented, dropHandled: drop.defaultPrevented, shape: grid.describe() }, {
+			accepted: true,
+			dropHandled: true,
+			shape: 'row(new, main)'
+		});
+	});
+
 	test('without outer insets, an editor dragged over a part near an edge of the window goes into a new part there, and the part\'s own drop overlay goes away', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);

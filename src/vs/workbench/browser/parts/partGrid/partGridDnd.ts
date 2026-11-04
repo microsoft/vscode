@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventHelper, EventType, getWindows, hide, isAncestor, isHTMLElement, onDidRegisterWindow, onDidUnregisterWindow, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, getWindows, hide, isAncestor, isHTMLElement, onDidRegisterWindow, onDidUnregisterWindow, show } from '../../../../base/browser/dom.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -305,9 +305,12 @@ export class PartGridDropTarget extends Disposable {
 	private registerListeners(): void {
 		const container = this.host.container;
 
-		// Capture: editors where they go into a new part are the grid's, also over a part
-		this._register(addDisposableListener(container, EventType.DRAG_OVER, e => this.onDragOver(e), true));
-		this._register(addDisposableListener(container, EventType.DROP, e => this.onDrop(e), true));
+		// Capture: editors where they go into a new part are the grid's, also over a part. On the window, by where the
+		// pointer is: as the cards make way, what is under the pointer can be outside the grid, such as what draws over it,
+		// and a drop with no move after that goes there
+		const targetDocument = getWindow(container).document;
+		this._register(addDisposableListener(targetDocument, EventType.DRAG_OVER, e => this.isInGrid(e) && this.onDragOver(e), true));
+		this._register(addDisposableListener(targetDocument, EventType.DROP, e => this.isInGrid(e) && this.onDrop(e), true));
 		// Only once the pointer is out of the grid: Chromium tells no related target as what is under the pointer changes, as the cards make way
 		this._register(addDisposableListener(container, EventType.DRAG_LEAVE, e => {
 			// Editors no longer dragged, such as a drag from another window that ended there, show nowhere
@@ -332,6 +335,14 @@ export class PartGridDropTarget extends Disposable {
 		}
 		this._register(onDidRegisterWindow(({ window }) => listen(window)));
 		this._register(onDidUnregisterWindow(window => dragEndListeners.deleteAndDispose(window.vscodeWindowId)));
+	}
+
+	private isInGrid(e: DragEvent): boolean {
+		if (isAncestor(e.target as Node, this.host.container)) {
+			return true;
+		}
+		const bounds = this.host.container.getBoundingClientRect();
+		return e.clientX >= bounds.left && e.clientX <= bounds.right && e.clientY >= bounds.top && e.clientY <= bounds.bottom;
 	}
 
 	/**
@@ -470,7 +481,10 @@ export class PartGridDropTarget extends Disposable {
 			return;
 		}
 
-		this.retarget(e.clientX, e.clientY, editors);
+		// Where the last move showed them going, as the cards made way for it; without one, where the drop is
+		if (!this.current.location) {
+			this.retarget(e.clientX, e.clientY, editors);
+		}
 		const location = this.current.location;
 		if (!location) {
 			return; // into or beside a group: the part's own drop target takes them
