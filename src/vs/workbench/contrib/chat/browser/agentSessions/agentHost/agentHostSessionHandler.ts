@@ -6860,7 +6860,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const protocolState = this._getSessionState(sessionUri, sourceChat);
 		let turnIndex: number | undefined;
 		const sourceRequestId = options?.sourceRequestId ?? request?.id;
-		if (options?.sourceRequestId !== undefined && protocolState && protocolState.activeTurn?.id === sourceRequestId) {
+		if (sourceRequestId !== undefined && protocolState && protocolState.activeTurn?.id === sourceRequestId) {
 			// Active requests are not forkable history; use the completed boundary already available.
 			if (protocolState.turns.length) {
 				turnIndex = protocolState.turns.length - 1;
