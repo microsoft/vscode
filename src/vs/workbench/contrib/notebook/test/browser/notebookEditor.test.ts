@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
@@ -24,6 +25,63 @@ import { NotebookEditor } from '../../browser/notebookEditor.js';
 import { NotebookEditorWidget } from '../../browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../browser/services/notebookEditorService.js';
 import { INotebookService } from '../../common/notebookService.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/fontInfo.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NotebookOptions } from '../../browser/notebookOptions.js';
+
+suite('NotebookEditor layout styles', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createLayoutStyles(fontFamily: string): HTMLStyleElement {
+		const instantiationService = setupInstantiationService(disposables);
+		const configurationService = new TestConfigurationService({ editor: { fontFamily, fontSize: 14 } });
+		instantiationService.stub(IConfigurationService, configurationService);
+		const notebookOptions = disposables.add(instantiationService.createInstance(NotebookOptions, mainWindow, false, undefined));
+		const body = DOM.append(document.body, DOM.$('.notebook-layout-font-test'));
+		disposables.add(toDisposable(() => body.remove()));
+
+		// Exercise the real font/configuration and stylesheet path without constructing unrelated notebook UI.
+		const widget = Object.create(NotebookEditorWidget.prototype) as NotebookEditorWidget;
+		Object.defineProperties(widget, {
+			_body: { value: body },
+			_overlayContainer: { value: body },
+			_notebookOptions: { value: notebookOptions },
+			configurationService: { value: configurationService },
+		});
+		widget['_createLayoutStyles']();
+		const style = body.querySelector('style');
+		assert.ok(style);
+		return style;
+	}
+
+	test('preserves valid editor font lists in notebook layout CSS', () => {
+		const fontFamily = '"Fira Code", monospace';
+		const style = createLayoutStyles(fontFamily);
+		assert.strictEqual(
+			style.textContent?.match(/--notebook-cell-input-preview-font-family: ([^\n]*)/u)?.[1],
+			`${fontFamily};`
+		);
+	});
+
+	test('prevents editor font families from injecting declarations or workbench rules', () => {
+		const fontFamilies = [
+			'monospace; color: red',
+			'monospace; } .notebook-font-injection { color: red; } /*',
+		];
+		assert.deepStrictEqual(fontFamilies.map(fontFamily => {
+			const style = createLayoutStyles(fontFamily);
+			assert.ok(style.sheet);
+			return {
+				fontFamily: style.textContent?.match(/--notebook-cell-input-preview-font-family: ([^\n]*)/u)?.[1],
+				injectedRule: Array.from(style.sheet.cssRules).some(rule => rule.cssText.includes('.notebook-font-injection')),
+			};
+		}), fontFamilies.map(() => ({
+			fontFamily: `${EDITOR_FONT_DEFAULTS.fontFamily};`,
+			injectedRule: false,
+		})));
+	});
+});
 
 suite('NotebookEditor focus', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
