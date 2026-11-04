@@ -409,7 +409,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		// A part of locked groups other than the main part of its window, such as one that holds terminals, is not split
 		// for it: the main part of the window takes it.
 		const windowMainPart = getWindowMainPart(this.editorGroupsService, group.windowId);
-		return windowMainPart !== part ? windowMainPart.activeGroup : part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
+		return windowMainPart !== part ? this._avoidLockedGroup(windowMainPart.activeGroup) : part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
 	}
 
 	/**

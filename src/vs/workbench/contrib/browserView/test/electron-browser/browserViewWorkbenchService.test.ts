@@ -156,10 +156,13 @@ suite('BrowserViewWorkbenchService', () => {
 		const unlocked = group(2, false);
 		const created = group(3, false);
 		const addedBeside: number[] = [];
-		const windowMainPartGroup = group(4, false);
-		const windowMainPart = upcastPartial<IEditorPart>({ activeGroup: windowMainPartGroup });
 		// `isWindowMainPart`: the part of the locked group is the main part of its window, else another part of it, such as one that holds terminals
-		const makeService = (groups: IEditorGroup[], isWindowMainPart = true) => {
+		const makeService = (groups: IEditorGroup[], isWindowMainPart = true, windowMainPartGroups = [group(4, false)]) => {
+			const windowMainPart: IEditorPart = upcastPartial<IEditorPart>({
+				activeGroup: windowMainPartGroups[0],
+				getGroups: () => windowMainPartGroups,
+				addGroup: (location: IEditorGroup | number) => { addedBeside.push((location as IEditorGroup).id); return created; },
+			});
 			const part = upcastPartial<IEditorPart>({
 				activeGroup: locked,
 				getGroups: () => groups,
@@ -169,7 +172,7 @@ suite('BrowserViewWorkbenchService', () => {
 				activeGroup: group(9, false),
 				parts: isWindowMainPart ? [part] : [windowMainPart, part],
 				mainPart: isWindowMainPart ? part : windowMainPart,
-				getPart: () => part,
+				getPart: (candidate: IEditorGroup) => windowMainPartGroups.includes(candidate) ? windowMainPart : part,
 			})).service;
 		};
 		const id = (preferred: PreferredGroup | undefined) => typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred;
@@ -178,13 +181,16 @@ suite('BrowserViewWorkbenchService', () => {
 			withUnlockedGroup: id(await makeService([locked, unlocked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
 			onlyLockedGroups: id(await makeService([locked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
 			onlyLockedGroupsOfAnotherPart: id(await makeService([locked], false).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroupsOfAnotherPartAndInTheMainPart: id(await makeService([locked], false, [group(5, true)]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
 			addedBeside,
 		}, {
 			withUnlockedGroup: 2,
 			onlyLockedGroups: 3,
 			// Not split, such as a part that holds terminals: the main part of the window takes it
 			onlyLockedGroupsOfAnotherPart: 4,
-			addedBeside: [1],
+			// Nor in a locked group of that main part: a new group beside it
+			onlyLockedGroupsOfAnotherPartAndInTheMainPart: 3,
+			addedBeside: [1, 5],
 		});
 	});
 
