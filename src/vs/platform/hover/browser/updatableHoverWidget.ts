@@ -11,6 +11,7 @@ import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isMarkdownString, type IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { isFunction, isString } from '../../../base/common/types.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
 import { localize } from '../../../nls.js';
 
 type IManagedHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
@@ -20,6 +21,8 @@ export class ManagedHoverWidget implements IDisposable {
 	private _hoverWidget: IHoverWidget | undefined;
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private _focus: boolean | undefined;
+	private _options: IManagedHoverOptions | undefined;
+	private _contentOwnsPadding: boolean = false;
 
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) { }
 
@@ -87,6 +90,16 @@ export class ManagedHoverWidget implements IDisposable {
 
 	private show(content: IManagedHoverResolvedContent, focus: boolean | undefined, options: IManagedHoverOptions | undefined, contentOwnsPadding: boolean): void {
 		const oldHoverWidget = this._hoverWidget;
+		const nextFocus = focus ?? this._focus;
+		const effectiveOptions = { ...options, trapFocus: options?.trapFocus ?? nextFocus };
+		// Changed actions, padding or focus still require the existing replacement path.
+		if (isString(content) && content.length > 0 && oldHoverWidget && !oldHoverWidget.isDisposed &&
+			equals(this._options, effectiveOptions) && this._contentOwnsPadding === contentOwnsPadding &&
+			this._focus === nextFocus && oldHoverWidget.updateContent?.(content)) {
+			return;
+		}
+		this._options = deepClone(effectiveOptions);
+		this._contentOwnsPadding = contentOwnsPadding;
 		this._hoverWidget = undefined;
 		focus ??= this._focus;
 		this._focus = focus;

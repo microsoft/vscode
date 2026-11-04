@@ -1091,6 +1091,80 @@ suite('HoverService', () => {
 	});
 
 	suite('setupManagedHover', () => {
+
+		test('updates managed plain text without replacing its DOM or repeating onDidShow', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const target = createTarget();
+			let shown = 0;
+			const options = { onDidShow: () => shown++ };
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, 'Initial', options));
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+			const first = fixture.querySelector<HTMLElement>('.monaco-hover');
+			assert.ok(first);
+			for (const content of ['Updated 1', 'Updated 2', '<img src=x onerror=alert(1)>']) {
+				await hover.update(content, { ...options });
+				assert.strictEqual(fixture.querySelector('.monaco-hover'), first);
+				assert.strictEqual(first.querySelector('.hover-contents')?.textContent, content);
+				assert.strictEqual(first.querySelector('img'), null);
+			}
+			assert.strictEqual(shown, 1);
+			target.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: document.body }));
+			await timeout(500);
+			assert.strictEqual(fixture.querySelector('.monaco-hover'), null);
+		}));
+
+		test('preserves managed plain-text focus and scroll during updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, (_options, focus) => ({
+				persistence: { sticky: focus },
+			})));
+			const lines = Array.from({ length: 200 }, (_, i) => 'Line ' + i).join('\n');
+			const options = {};
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), lines, options));
+			hover.show(true);
+			await timeout(0);
+			const first = fixture.querySelector<HTMLElement>('.monaco-hover');
+			const contents = first?.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(first && contents);
+			contents.scrollTop = 40;
+			const scrollTop = contents.scrollTop;
+			const focused = document.activeElement;
+			await hover.update(lines + '\nUpdated', options);
+			assert.strictEqual(fixture.querySelector('.monaco-hover'), first);
+			assert.strictEqual(document.activeElement, focused);
+			assert.strictEqual(contents.scrollTop, scrollTop);
+			await hover.update('');
+			assert.strictEqual(fixture.querySelector('.monaco-hover'), null);
+		}));
+
+		test('recreates managed plain text when hover actions change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			const first = fixture.querySelector('.monaco-hover');
+			await hover.update('Updated', { actions: [{ commandId: 'test.updated', label: 'Updated action', run: () => { } }] });
+			const current = fixture.querySelector('.monaco-hover');
+			assert.notStrictEqual(current, first);
+			assert.ok(current?.textContent?.includes('Updated action'));
+		}));
+
+		test('refreshes hover actions mutated in a reused options object', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const options = { actions: [{ commandId: 'test.action', label: 'First', run: () => { } }] };
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial', options));
+			hover.show();
+			await timeout(0);
+			const first = fixture.querySelector('.monaco-hover');
+			options.actions[0].label = 'Second';
+			await hover.update('Updated', options);
+			const current = fixture.querySelector('.monaco-hover');
+			assert.deepStrictEqual({
+				replaced: current !== first,
+				content: current?.querySelector('.hover-contents')?.textContent,
+				action: current?.querySelector('.action-container')?.textContent,
+			}, { replaced: true, content: 'Updated', action: 'Second' });
+		}));
 		test('updates a pinned hover without losing its content or focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, (_options, focus) => ({
 				persistence: { sticky: focus },
@@ -1478,6 +1552,16 @@ suite('HoverService', () => {
 
 	suite('layout and resize', () => {
 		teardown(() => sinon.restore());
+
+		test('plain-text updates do not suppress a pending mouseout dismissal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const hover = asHoverWidget(showHover('Initial', target, { persistence: { hideOnHover: false } }));
+			hover.domNode.parentElement!.dispatchEvent(new MouseEvent('mouseleave'));
+			const updated = hover.updateContent('Updated while the pointer is outside');
+			await timeout(200);
+			assert.deepStrictEqual({ updated, disposed: hover.isDisposed, inDOM: isInDOM(hover) },
+				{ updated: true, disposed: true, inDOM: false });
+		}));
 
 		function showHoverWithManualLayout(): HoverWidget {
 			// Text content avoids native ResizeObserver callbacks outside the fake clock.
