@@ -366,6 +366,8 @@ export type IChatSessionHistoryItem = {
 	details?: string;
 	elapsedMs?: number;
 	completedAt?: number;
+	/** Whether the response was cancelled rather than completed. */
+	isCanceled?: boolean;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -633,6 +635,13 @@ export interface IChatSession extends IDisposable {
 	transferredState?: {
 		readonly editingSession: IChatEditingSession | undefined;
 		readonly inputState: ISerializableChatModelInputState | undefined;
+		/**
+		 * The language model the transferred draft selects. Set even when
+		 * {@link inputState} has no `selectedModel` because the model's metadata
+		 * is not available yet (cold restore), so the restore can wait for that
+		 * model instead of falling back to the request history's.
+		 */
+		readonly selectedModelId?: string;
 	};
 
 	requestHandler?: (

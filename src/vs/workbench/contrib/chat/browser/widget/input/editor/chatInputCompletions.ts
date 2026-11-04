@@ -59,6 +59,7 @@ import { isToolSet } from '../../../../common/tools/languageModelToolsService.js
 import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
+import { slashCommandNamePattern } from '../../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
@@ -70,15 +71,14 @@ import { InputEditorCommandArgumentHint } from './chatInputCommandArgumentHint.j
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
- * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
- * letter matching, consistent with `isValidSlashCommandName`.
+ * Regex matching a slash command word (e.g. `/foo`) with Unicode characters.
  */
-const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
+const SlashCommandWord = new RegExp(`/(?:${slashCommandNamePattern})?`, 'gu');
 
 /**
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
-const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+const AgentOrSlashCommandWord = new RegExp(String.raw`(@[\p{L}0-9_.:-]*|/(?:${slashCommandNamePattern})?)`, 'gu');
 const acceptCommandArgumentHintCommandId = '_chat.acceptCommandArgumentHint';
 
 interface IAcceptCommandArgumentHintContext {

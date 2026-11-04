@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
+import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
@@ -426,7 +427,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	private _isContentRef(resource: URI, decoded: URI): boolean {
 		return isAgentHostContentRefUri(resource)
 			|| decoded.scheme === 'session-db'
-			|| decoded.scheme === 'git-blob';
+			|| decoded.scheme === 'git-blob'
+			|| decoded.scheme === MCP_RESOURCE_SCHEME;
 	}
 
 	async stat(resource: URI): Promise<IStat> {

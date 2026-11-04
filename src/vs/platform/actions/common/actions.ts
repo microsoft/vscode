@@ -70,6 +70,19 @@ export function isISubmenuItem(item: unknown): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
+/**
+ * Describes a menu group: the items whose `group` is {@link IMenuGroup.group}. The menu's owner
+ * describes each group once with {@link IMenuRegistry.appendMenuGroup}; contributors only add items.
+ */
+export interface IMenuGroup {
+	readonly group: string;
+	/**
+	 * A non-interactive header shown above the group's items when the menu is shown as a context
+	 * menu or dropdown, including above the menu's first group. Toolbars do not show it.
+	 */
+	readonly title: string;
+}
+
 export class MenuId {
 
 	private static readonly _instances = new Map<string, MenuId>();
@@ -370,6 +383,13 @@ export interface IMenuActionOptions {
 	renderShortTitle?: boolean;
 }
 
+export interface IMenuItemActionOptions extends IMenuActionOptions {
+	/**
+	 * The {@link IMenuGroup.title title} of the menu group the action belongs to.
+	 */
+	readonly groupTitle?: string;
+}
+
 export interface IMenuChangeEvent {
 	readonly menu: IMenu;
 	readonly isStructuralChange: boolean;
@@ -379,6 +399,11 @@ export interface IMenuChangeEvent {
 
 export interface IMenu extends IDisposable {
 	readonly onDidChange: Event<IMenuChangeEvent>;
+	/**
+	 * Gets the visible actions grouped by menu group. The actions of a group with a
+	 * {@link IMenuGroup.title title} carry it in their `groupTitle`, which context menus
+	 * show above the group (see {@link getMenuActionGroupTitle}).
+	 */
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -478,12 +503,20 @@ export interface IMenuRegistry {
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+
+	/**
+	 * Describes a group of the menu, such as its title. The menu's owner describes each group once.
+	 * When a group is described more than once, its latest description applies until disposed.
+	 */
+	appendMenuGroup(menu: MenuId, group: IMenuGroup): IDisposable;
+	getMenuGroup(menu: MenuId, group: string): IMenuGroup | undefined;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
 	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
+	private readonly _menuGroups = new Map<MenuId, LinkedList<IMenuGroup>>();
 	private readonly _onDidChangeMenu = new MicrotaskEmitter<IMenuRegistryChangeEvent>({
 		merge: MenuRegistryChangeEvent.merge
 	});
@@ -548,6 +581,30 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
+	appendMenuGroup(id: MenuId, group: IMenuGroup): IDisposable {
+		let list = this._menuGroups.get(id);
+		if (!list) {
+			list = new LinkedList();
+			this._menuGroups.set(id, list);
+		}
+		// Latest first, so that it applies until disposed
+		const rm = list.unshift(group);
+		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		return markAsSingleton(toDisposable(() => {
+			rm();
+			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		}));
+	}
+
+	getMenuGroup(id: MenuId, group: string): IMenuGroup | undefined {
+		for (const candidate of this._menuGroups.get(id) ?? []) {
+			if (candidate.group === group) {
+				return candidate;
+			}
+		}
+		return undefined;
+	}
+
 	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
 		const set = new Set<string>();
 
@@ -574,6 +631,8 @@ export class SubmenuItemAction extends SubmenuAction {
 		readonly hideActions: IMenuItemHide | undefined,
 		actions: readonly IAction[],
 		checked?: boolean,
+		/** The {@link IMenuGroup.title title} of the menu group the submenu belongs to. */
+		readonly groupTitle?: string,
 	) {
 		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked);
 	}
@@ -599,6 +658,8 @@ export class MenuItemAction implements IAction {
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
+	/** The {@link IMenuGroup.title title} of the menu group the action belongs to. */
+	readonly groupTitle: string | undefined;
 
 	private readonly _options: IMenuActionOptions | undefined;
 
@@ -612,7 +673,7 @@ export class MenuItemAction implements IAction {
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
-		options: IMenuActionOptions | undefined,
+		options: IMenuItemActionOptions | undefined,
 		readonly hideActions: IMenuItemHide | undefined,
 		readonly menuKeybinding: IAction | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -650,6 +711,7 @@ export class MenuItemAction implements IAction {
 
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, undefined, contextKeyService, _commandService) : undefined;
+		this.groupTitle = options?.groupTitle;
 		this._options = options;
 		this.class = icon && ThemeIcon.asClassName(icon);
 
@@ -670,6 +732,14 @@ export class MenuItemAction implements IAction {
 
 		return this._commandService.executeCommand(this.id, ...runArgs);
 	}
+}
+
+/**
+ * Returns the {@link IMenuGroup.title title} of the menu group a menu action belongs to.
+ * Menus pass it as `getGroupTitle` to show a header above each group with a title.
+ */
+export function getMenuActionGroupTitle(action: IAction): string | undefined {
+	return action instanceof MenuItemAction || action instanceof SubmenuItemAction ? action.groupTitle : undefined;
 }
 
 //#region --- IAction2

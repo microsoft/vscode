@@ -199,6 +199,13 @@ suite('Gridview', function () {
 		});
 	});
 
+	test('the maximum width of a gridview is its views\' maximum width, not their maximum height', function () {
+		const gridview = createGridView();
+		gridview.layout(800, 600);
+		gridview.addView(store.add(new TestView(50, 700, 50, 100)), 200, [0]);
+		assert.deepStrictEqual([gridview.maximumWidth, gridview.maximumHeight], [700, 100]);
+	});
+
 	test('empty gridview is empty', function () {
 		const gridview = createGridView();
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), []);

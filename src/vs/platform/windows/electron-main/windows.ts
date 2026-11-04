@@ -17,7 +17,7 @@ import { ServicesAccessor, createDecorator } from '../../instantiation/common/in
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -55,6 +55,13 @@ export interface IWindowsMainService {
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: electron.WebContents): ICodeWindow | undefined;
+
+	/**
+	 * Restores the windows exactly as they are, for example minimized, when the
+	 * application starts the next time. Only applies if the application quits
+	 * without veto.
+	 */
+	restoreExactlyOnNextStartup(restore: boolean): void;
 }
 
 export interface IWindowsCountChangedEvent {
@@ -116,6 +123,12 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly remoteAuthority?: string;
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
+	/**
+	 * A chat session to open in the window that opens the only
+	 * entry of {@link urisToOpen}. It is not opened anywhere when
+	 * that entry can't be opened.
+	 */
+	readonly chatSessionToOpen?: ChatSessionToOpen;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

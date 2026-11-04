@@ -207,6 +207,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _archivesRequested = false;
 	private _archivesLoaded = false;
 	private _discoveryIncludesArchived = false;
+	private _sessionMutationVersion = 0;
 	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
 		void this._refreshIfStale();
 		this._discoveryPoll.schedule(this._nextPollDelay());
@@ -315,8 +316,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			await (this._discoveryQueued ?? this._discoveryInFlight);
 			return;
 		}
-		// A connected feed pushes task changes; renewals and reconnects catch up the inventory.
-		if (trigger === 'poll' && this._sessionFeed.value?.connected) {
+		// A connected feed supplies updates; explicit refreshes and feed catch-up use discovery directly.
+		if (this._sessionFeed.value?.connected) {
 			return;
 		}
 		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._pollInterval())) {
@@ -471,6 +472,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!this._discoveryPoll.isScheduled()) {
 				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
+			const mutationVersion = this._sessionMutationVersion;
 			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}) });
 			if (result.kind === 'scoped') {
 				const presentTasks = new Set(result.sessions.map(session => session.taskId));
@@ -505,6 +507,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 						...(retried.kind === 'partial' ? { failedTaskIds: retried.failedTaskIds } : {}),
 					};
 				}
+			}
+			if (mutationVersion !== this._sessionMutationVersion) {
+				result = { kind: 'failed', reason: 'Sandbox discovery was invalidated by a session mutation' };
 			}
 		} catch (error) {
 			if (token.isCancellationRequested || isCancellationError(error) || !this._isEnabled()) {
@@ -742,6 +747,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
 			throw new CancellationError();
 		}
+		this._sessionMutationVersion++;
 		this._updateSandboxSession(address, { ...current, name: title });
 		this._persistInventory();
 	}
@@ -769,6 +775,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
 			throw new CancellationError();
 		}
+		this._sessionMutationVersion++;
 		this._updateSandboxSession(address, { ...current, isArchived: archived });
 		this._persistInventory();
 	}
@@ -798,6 +805,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				if (source.token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+				this._sessionMutationVersion++;
 				this._deletedTaskIds.add(target.taskId);
 				this._apiService.clearSessionHistory(target.taskId);
 				sessions?.delete(target.sessionId);

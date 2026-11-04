@@ -79,7 +79,7 @@ import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -108,7 +108,7 @@ import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResett
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, onDidEndSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -981,6 +981,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly getAgentMergeConfiguration: (item: ISessionChatItem) => IObservable<ISessionAgentMergeConfiguration | undefined> = () => constObservable(undefined),
 		/** While searching, the field a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
 		private readonly getSearchHint: (item: ISessionChatItem, shownTexts: readonly string[]) => ISessionSearchHint | undefined = () => undefined,
+		private readonly getComparisonAttemptLabel: (session: ISession, chat: IChat) => string | undefined = () => undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -1054,7 +1055,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.isStandaloneContext.set(!!element.standalone);
 		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
-			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
+			template.title.set(this.getComparisonAttemptLabel(element.session, element.chat) ?? getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
 			const isRead = element.chat.isRead.read(reader);
@@ -1998,7 +1999,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				element,
 				reader,
 				!!this.options.deriveStatusFromMainChat,
-				collapsed,
+				collapsed && comparisonAttemptLabel === undefined,
 			);
 			template.statusContext.set(sessionStatus);
 			const isRead = getSessionRowIsRead(element, reader, !!this.options.deriveStatusFromMainChat);
@@ -3438,7 +3439,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isPinned: (session: ISession) => boolean;
 	readonly widgetAriaLabel?: string;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
-	readonly getComparisonAttemptLabel?: (session: ISession) => string | undefined;
+	readonly getComparisonAttemptLabel?: (session: ISession, chat?: IChat) => string | undefined;
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly getEnvironmentBadgeLabel?: (session: ISession) => string | undefined;
 	readonly includeQuickChatInAriaLabel?: boolean;
@@ -3477,7 +3478,7 @@ class SessionsAccessibilityProvider {
 	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
 		if (isSessionChatItem(element)) {
 			return derived(this, reader => {
-				const title = getChatTitle(element.chat, reader);
+				const title = this.options?.getComparisonAttemptLabel?.(element.session, element.chat) ?? getChatTitle(element.chat, reader);
 				const chatStatus = element.chat.status.read(reader);
 				const updatedAt = chatStatus === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
 				const status = getSessionConversationStatusAriaLabel(chatStatus);
@@ -3917,6 +3918,8 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 	/** The chat row this list is dragging and what it moves, resolved once when the drag starts. */
 	private _draggedChat: { readonly item: ISessionChatItem; readonly movable: { readonly session: ISession; readonly chat: IChat } | undefined } | undefined;
+	/** The one session this list is dragging, which stands for the chat it shows. */
+	private _draggedSession: ISession | undefined;
 
 	constructor(private readonly delegate: ISessionsListDndDelegate) {
 		super();
@@ -3979,6 +3982,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return;
 		}
 
+		this._draggedSession = sessions.length === 1 ? sessions[0] : undefined;
 		const identifiers = sessions.map(s => new DraggedSessionIdentifier(s.sessionId, s.resource));
 		this._transfer.setData(identifiers, DraggedSessionIdentifier.prototype);
 
@@ -3990,7 +3994,18 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 	}
 
-	onDragEnd(): void {
+	onDragEnd(originalEvent: DragEvent): void {
+		const draggedChat = this._draggedChat?.item;
+		const draggedSession = this._draggedSession;
+		if (DOM.isHTMLElement(originalEvent.target)) {
+			if (draggedChat) {
+				onDidEndSessionChatDrag(originalEvent, originalEvent.target, draggedChat.session, draggedChat.chat.resource, getChatTitle(draggedChat.chat));
+			} else if (draggedSession) {
+				onDidEndSessionChatDrag(originalEvent, originalEvent.target, draggedSession, undefined, draggedSession.title.get());
+			}
+		}
+		this._draggedSession = undefined;
+
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
 		this._draggedChat = undefined;
 		this.delegate.setDropTargetHeader(undefined);
@@ -4804,7 +4819,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
 				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
-				getComparisonAttemptLabel: s => this.renderedComparisonAttemptLabels.get(s.sessionId),
+				getComparisonAttemptLabel: s => this.getComparisonAttemptLabel(s),
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
 				getEnvironmentBadgeLabel: s => this.getEnvironmentBadgeLabel(s),
@@ -4884,6 +4899,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
 			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
 			getSearchHint,
+			(session, chat) => this.getComparisonAttemptLabel(session, chat),
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -4908,7 +4924,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
-		const inboxNotificationCount = derived(this, reader => this.inboxNotificationsService.notifications.read(reader).length);
+		const inboxNotificationCount = this.inboxNotificationsService.attentionCount;
 		const inboxOpenKeybindingLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
 			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getLabel() ?? undefined);
 		const inboxOpenKeybindingAriaLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
@@ -4983,7 +4999,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useCompactQuickChatRows */,
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
-			session => this.renderedComparisonAttemptLabels.has(session.sessionId),
+			session => this.getComparisonAttemptLabel(session) !== undefined,
 			this.options.sectionRowHeight,
 		);
 		this._delegate = delegate;
@@ -5052,7 +5068,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
-					getComparisonAttemptLabel: session => this.renderedComparisonAttemptLabels.get(session.sessionId),
+					getComparisonAttemptLabel: (session, chat) => this.getComparisonAttemptLabel(session, chat),
 					isRenderedInExternalSection: session => this.isRenderedInExternalSection(session),
 					getEnvironmentBadgeLabel: session => this.getEnvironmentBadgeLabel(session),
 					compact: () => this.isCompact(),
@@ -5149,9 +5165,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return element.label;
 						}
 						if (isSessionChatItem(element)) {
-							return getChatTitle(element.chat);
+							return this.getComparisonAttemptLabel(element.session, element.chat) ?? getChatTitle(element.chat);
 						}
-						return element.title.get();
+						return this.getComparisonAttemptLabel(element) ?? element.title.get();
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
@@ -5160,7 +5176,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0) {
 						return 'force-no-twistie';
 					}
-					if (this.renderedComparisonAttemptLabels.has(element.sessionId)) {
+					if (this.getComparisonAttemptLabel(element) !== undefined) {
 						return 'session-comparison-attempt-twistie';
 					}
 					return this.renderedComparisonParticipantConnectorPositions.has(element.sessionId) ? 'session-comparison-twistie' : 'session-chat-twistie';
@@ -5305,6 +5321,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				const comparison = this.sessionComparisonService.getComparisonForSession(element.resource);
+				if (comparison?.sessionResource && comparison.archivedAt === undefined && isEqual(comparison.sessionResource, element.resource) && !e.sideBySide) {
+					await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
+					return;
+				}
 				// Gate the open on workspace trust before any side effect (mark-read,
 				// activation, folder mount). A refused open leaves the current
 				// session (or empty new-session slot) untouched.
@@ -5483,9 +5504,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.scheduleListUpdate();
 		}));
 
-		// Re-render when the active session changes.
+		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			activeSession?.activeChat.read(reader);
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
@@ -5507,7 +5528,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
-		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
+		this.syncActiveChatSelection(this._sessionsService.mainWindowActiveSession.get());
 	}
 
 	/**
@@ -5580,7 +5601,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshPending = false;
 			this.refreshSessions();
 		}
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
 			this.sessions
@@ -5801,7 +5822,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						? members.find(member => isEqual(member.resource, participant.sessionResource))
 						: undefined;
 					if (session) {
-						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonHarnessLabel(participant, !sameHarness));
+						this.renderedComparisonAttemptLabels.set(participant.chatResource?.toString() ?? session.sessionId, getSessionComparisonHarnessLabel(participant, !sameHarness));
 					}
 				}
 			}
@@ -6920,7 +6941,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reveals and selects where `move` puts what it moves once the list shows it: the moved chat's row, or the new
+	 * Reveals and focuses where `move` puts what it moves once the list shows it: the moved chat's row, or the new
 	 * session's row for a chat moved into a new session. Call it before the move starts, as the provider reports where
 	 * the chat went while the move runs, then call the returned function with whether the move succeeded. Doesn't move
 	 * focus into the list. Gives up when the row doesn't show within a few updates of the list or a few seconds, and when
@@ -6975,7 +6996,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reveals and selects the row of the session `sessionId`, or of its chat `chat`; whether the list shows it. A find
+	 * Reveals and focuses the row of the session `sessionId`, or of its chat `chat`, selecting it only when it is the open chat; whether the list shows it. A find
 	 * filter that hides the row is cleared, keeping focus where it was.
 	 */
 	private revealMoved(sessionId: string, chat: URI | undefined): boolean {
@@ -7007,7 +7028,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.tree.reveal(element, 0.5);
 		this.tree.setFocus([element]);
-		this.tree.setSelection([element]);
+		const [rowSession, rowChat] = isSessionChatItem(element) ? [element.session, element.chat] : [session, session.mainChat.get()];
+		if (isOpenChat(rowSession, rowChat, this._sessionsService.activeSession, undefined)) {
+			this.tree.setSelection([element]);
+		}
 		return true;
 	}
 
@@ -8292,7 +8316,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private isActiveComparisonSession(session: ISession): boolean {
 		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
-		return comparison !== undefined && comparison.archivedAt === undefined;
+		return comparison !== undefined && !comparison.sessionResource && comparison.archivedAt === undefined;
 	}
 
 	private getCreateGroupAction(sessions?: ISession[]): IAction {
@@ -8622,6 +8646,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.sessionComparisonService.comparisons.get().some(comparison => comparison.groupId === groupId);
 	}
 
+	private getComparisonAttemptLabel(session: ISession, chat?: IChat): string | undefined {
+		return this.renderedComparisonAttemptLabels.get((chat ?? session.mainChat.get()).resource.toString())
+			?? (chat ? undefined : this.renderedComparisonAttemptLabels.get(session.sessionId));
+	}
+
 	private shouldShowComparisonAttemptStatus(session: ISession, reader: IReader): boolean {
 		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 		if (!comparison) {
@@ -8639,7 +8668,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const attemptSession = participant.sessionResource
 					? this.sessions.find(candidate => isEqual(candidate.resource, participant.sessionResource))
 					: undefined;
-				return attemptSession?.status.read(reader);
+				return participant.chatResource
+					? getSessionComparisonChat(participant, attemptSession, reader)?.status.read(reader)
+					: attemptSession?.status.read(reader);
 			});
 		return statuses.includes(SessionStatus.Error) || new Set(statuses).size > 1;
 	}
@@ -8825,8 +8856,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			add('host', this._sessionsProvidersService.getProvider(session.providerId)?.environment.label);
 		}
 		return {
-			title: this.renderedComparisonAttemptLabels.get(session.sessionId) ?? session.title.get(),
-			chatTitles: this.getRenderedSessionListChats(session).map(chat => getChatTitle(chat)),
+			title: this.getComparisonAttemptLabel(session) ?? session.title.get(),
+			chatTitles: this.getRenderedSessionListChats(session).map(chat => this.getComparisonAttemptLabel(session, chat) ?? getChatTitle(chat)),
 			fields,
 		};
 	}
@@ -9315,11 +9346,8 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 		if (participant.launchError) {
 			return SessionStatus.Error;
 		}
-		return participant.sessionResource
-			? reader
-				? sessions.find(session => isEqual(session.resource, participant.sessionResource))?.status.read(reader)
-				: sessions.find(session => isEqual(session.resource, participant.sessionResource))?.status.get()
-			: undefined;
+		const session = sessions.find(session => isEqual(session.resource, participant.sessionResource));
+		return participant.chatResource ? getSessionComparisonChat(participant, session, reader)?.status.read(reader) : session?.status.read(reader);
 	});
 	const needsInput = statuses.filter(status => status === SessionStatus.NeedsInput).length;
 	const working = statuses.filter(status => status === SessionStatus.InProgress).length;
@@ -9338,9 +9366,8 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 		return localize('comparisonGroup.reviewFailed', "Comparison · Review failed");
 	}
 	if (judge?.sessionResource) {
-		const judgeStatus = reader
-			? sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.read(reader)
-			: sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.get();
+		const session = sessions.find(session => isEqual(session.resource, judge.sessionResource));
+		const judgeStatus = judge.chatResource ? getSessionComparisonChat(judge, session, reader)?.status.read(reader) : session?.status.read(reader);
 		if (judgeStatus === SessionStatus.NeedsInput) {
 			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs attention");
 		}

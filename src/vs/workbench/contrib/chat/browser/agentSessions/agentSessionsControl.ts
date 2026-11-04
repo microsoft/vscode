@@ -12,7 +12,7 @@ import { $, append, EventHelper, addDisposableListener, EventType, getWindow, hi
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
+import { AgentSessionRefreshReason, AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
 import { AgentSessionChatRenderer, AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -48,6 +48,7 @@ import { LayoutSettings } from '../../../../services/layout/browser/layoutServic
 import { isEqual } from '../../../../../base/common/resources.js';
 
 export interface IAgentSessionsControlOptions {
+	readonly initiallyVisible?: boolean;
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
@@ -136,6 +137,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this.visible = options.initiallyVisible ?? true;
 
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionPinnedContextKey = ChatContextKeys.isPinnedAgentSession.bindTo(this.contextKeyService);
@@ -374,6 +376,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 		list.updateOptions({ indent: 0, defaultIndent: 0 });
+		this._register(list.onDidScroll(e => {
+			container.classList.toggle('can-scroll-down', e.scrollTop + e.height < e.scrollHeight);
+		}));
 
 		ChatContextKeys.agentSessionsViewerFocused.bindTo(list.contextKeyService);
 
@@ -689,7 +694,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const hasSessionsInModel = model.sessions.length > 0;
 		const isFilterActive = !this.options.filter.isDefault();
 
-		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive;
+		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive && !this.sessionsDataSource?.hasLoadableArchiveSection;
 		setVisibility(showEmpty, this.emptyFilterMessage);
 		setVisibility(!showEmpty, this.sessionsList.getHTMLElement());
 	}
@@ -863,8 +868,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 	}
 
-	refresh(): Promise<void> {
-		return this.agentSessionsService.model.resolve(undefined);
+	refresh(reason: AgentSessionRefreshReason = 'manual'): Promise<void> {
+		return this.agentSessionsService.model.resolve(undefined, undefined, reason);
 	}
 
 	collapseAllSections(): void {

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventType } from '../../../../../../base/browser/dom.js';
+import { EventType, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -13,7 +14,7 @@ import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessio
 import { IAgentSession, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { ChatSessionStatus, IChatSessionItemArchiveState, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemArchiveState, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -59,56 +60,105 @@ suite('AgentSessionsControl', () => {
 		};
 	}
 
-	test('lazy archive discovery keeps an empty header expandable and releases hidden demand', async () => {
+	for (const { filtered, initiallyVisible } of [
+		{ filtered: false, initiallyVisible: true },
+		{ filtered: true, initiallyVisible: true },
+		{ filtered: false, initiallyVisible: false },
+	]) {
+		test(`lazy archive discovery keeps its header reachable (filtered=${filtered}, initiallyVisible=${initiallyVisible})`, async () => {
+			const model: IAgentSessionsModel = {
+				sessions: filtered ? [createSession(URI.parse('test:/filtered'), 'Filtered')] : [], resolved: true, getSession: () => undefined,
+				observeSession: () => { throw new Error('Not implemented'); },
+				onWillResolve: Event.None, onDidResolve: Event.None,
+				onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+				resolve: async () => { },
+			};
+			let requests = 0;
+			const service = new class extends MockChatSessionsService {
+				override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: true, state: 'idle' });
+				override acquireArchivedSessionItems() {
+					requests++;
+					return toDisposable(() => requests--);
+				}
+			}();
+			const instantiation = workbenchInstantiationService(undefined, store);
+			instantiation.stub(IChatSessionsService, service);
+			instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
+			instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = model;
+				override readonly onDidChangeSessionArchivedState = Event.None;
+			});
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+				overrideStyles: {}, source: 'test', initiallyVisible,
+				filter: {
+					...createFilter(), groupResults: () => AgentSessionsGrouping.Date,
+					exclude: () => filtered,
+					isDefault: () => !filtered,
+					getExcludes: () => ({ providers: [], states: [], archived: initiallyVisible, read: false, repositoryGroupCapped: true }),
+				},
+				createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
+			}));
+			control.layout(300, 400);
+			await control.update();
+			const before = requests;
+			const treeAvailable = container.querySelector<HTMLElement>('.monaco-list')?.style.display !== 'none';
+			if (initiallyVisible) {
+				control.focus();
+				container.querySelector<HTMLElement>('.agent-session-section-label')?.click();
+			} else {
+				control.setVisible(true);
+				await control.update();
+			}
+			await timeout(0);
+			const expanded = requests;
+			control.setVisible(false);
+			const hidden = requests;
+			control.setVisible(true);
+			await control.update();
+			const reopened = requests;
+			control.dispose();
+			assert.deepStrictEqual({ before, treeAvailable, expanded, hidden, reopened, disposed: requests }, {
+				before: 0, treeAvailable: true, expanded: 1, hidden: 0, reopened: 1, disposed: 0,
+			});
+		});
+	}
+
+	test('forwards automatic refresh intent without changing explicit Refresh', async () => {
+		const calls: { provider: string | string[] | undefined; reason: ChatSessionRefreshReason | undefined }[] = [];
 		const model: IAgentSessionsModel = {
-			sessions: [], resolved: true, getSession: () => undefined,
+			sessions: [], resolved: true,
+			getSession: () => undefined,
 			observeSession: () => { throw new Error('Not implemented'); },
 			onWillResolve: Event.None, onDidResolve: Event.None,
 			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
-			resolve: async () => { },
+			resolve: async (provider, _onError, reason) => { calls.push({ provider, reason }); },
 		};
-		let requests = 0;
-		const service = new class extends MockChatSessionsService {
-			override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: true, state: 'idle' });
-			override acquireArchivedSessionItems() {
-				requests++;
-				return toDisposable(() => requests--);
-			}
-		}();
-		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stub(IChatSessionsService, service);
-		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
-		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 			override readonly model = model;
 			override readonly onDidChangeSessionArchivedState = Event.None;
 		});
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		store.add(toDisposable(() => container.remove()));
-		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
-			overrideStyles: {}, source: 'test',
-			filter: {
-				...createFilter(), groupResults: () => AgentSessionsGrouping.Date,
-				getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
-			},
-			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
+		const control = store.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+			overrideStyles: {}, filter: createFilter(), source: 'test',
+			createNewChat: () => { },
+			getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
 		}));
-		control.layout(300, 400);
-		await control.update();
-		const before = requests;
-		control.focus();
-		container.querySelector<HTMLElement>('.agent-session-section-label')?.click();
-		await timeout(0);
-		const expanded = requests;
-		control.setVisible(false);
-		const hidden = requests;
-		control.setVisible(true);
-		await control.update();
-		const reopened = requests;
-		control.dispose();
-		assert.deepStrictEqual({ before, expanded, hidden, reopened, disposed: requests }, {
-			before: 0, expanded: 1, hidden: 0, reopened: 1, disposed: 0,
-		});
+
+		await control.refresh('automatic');
+		await control.refresh();
+		await control.refresh('manual');
+
+		assert.deepStrictEqual(calls, [
+			{ provider: undefined, reason: 'automatic' },
+			{ provider: undefined, reason: 'manual' },
+			{ provider: undefined, reason: 'manual' },
+		]);
 	});
 
 	test('creates a new chat when double-clicking empty list space', () => {
@@ -151,6 +201,62 @@ suite('AgentSessionsControl', () => {
 		}));
 
 		assert.strictEqual(newChatCount, 1);
+	});
+
+	test('marks overflow below the viewport only while more sessions can be scrolled into view', async () => {
+		const sessions = Array.from({ length: 10 }, (_, index) => createSession(URI.parse(`test:/session-${index}`), `Session ${index}`));
+		const model: IAgentSessionsModel = {
+			sessions,
+			resolved: true,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None,
+			onDidResolve: Event.None,
+			onDidChangeSessions: Event.None,
+			onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
+			override getChatSessionContribution() { return undefined; }
+			override resolveChatSessionItem = async () => undefined;
+		});
+		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const control = store.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+			overrideStyles: {},
+			filter: createFilter(),
+			source: 'test',
+			createNewChat: () => { },
+			getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+		}));
+		const canScrollDown = () => control.element!.classList.contains('can-scroll-down');
+		control.layout(100, 500);
+		await control.update();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		const overflowing = canScrollDown();
+		control.reveal(sessions[sessions.length - 1].resource);
+		const atBottom = canScrollDown();
+		control.scrollToTop();
+		const backAtTop = canScrollDown();
+		control.layout(2000, 500);
+		const allVisible = canScrollDown();
+		control.layout(100, 500);
+		const shrunk = canScrollDown();
+		sessions.splice(0);
+		await control.update();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+		assert.deepStrictEqual({ overflowing, atBottom, backAtTop, allVisible, shrunk, empty: canScrollDown() }, {
+			overflowing: true, atBottom: false, backAtTop: true, allVisible: false, shrunk: true, empty: false,
+		});
 	});
 
 	test('activating a session parent opens its main chat', async () => {

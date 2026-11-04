@@ -12,6 +12,7 @@ import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -19,7 +20,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../base/common/platform.js';
+import { isWeb, regionalLocale } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -70,6 +71,7 @@ import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfir
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -95,7 +97,7 @@ import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/c
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
@@ -925,6 +927,40 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('formatChatRequestTimestamp', () => {
+		test('keeps regional timestamps consistent across request and response hovers and accessible labels', () => {
+			const timestamp = Date.now() - 60 * 60 * 1000;
+			const text = safeIntl.DateTimeFormat(regionalLocale, { hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const fullText = safeIntl.DateTimeFormat(regionalLocale, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const dateTime = new Date(timestamp).toISOString();
+			const requestContainer = document.createElement('div');
+			const responseContainer = document.createElement('div');
+
+			const request = renderChatRequestTimestamp(requestContainer, timestamp);
+			const response = renderChatResponseDetails(responseContainer, 'Test model', timestamp, 83_000, true);
+			const stats = formatResponseTokenStats([{ model: 'Test model', inputTokens: 40, cachedTokens: 0, outputTokens: 12 }], timestamp);
+
+			assert.deepStrictEqual({
+				request: {
+					text: request?.element.textContent,
+					dateTime: request?.element.getAttribute('datetime'),
+					label: request?.element.ariaLabel,
+					hover: request?.hoverText,
+				},
+				response: {
+					text: response?.textContent,
+					dateTime: response?.getAttribute('datetime'),
+					label: responseContainer.ariaLabel,
+				},
+				hover: stats?.markdown.value,
+				hoverFallback: stats?.markdownNotSupportedFallback,
+			}, {
+				request: { text, dateTime, label: `Sent ${fullText}`, hover: fullText },
+				response: { text, dateTime, label: `Completed ${fullText}, Elapsed time 1m 23s, Test model` },
+				hover: `**Response details**\n\nCompleted: ${fullText}\n\nModel: Test model\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				hoverFallback: `Response details. Completed: ${fullText}. Model: Test model. Input tokens: 40. Output tokens: 12`,
+			});
+		});
+
 		test('formats valid persisted timestamps and rejects legacy placeholders', () => {
 			const timestamp = Date.UTC(2026, 6, 8, 23, 18, 41);
 			const formatted = formatChatRequestTimestamp(timestamp);
@@ -932,12 +968,12 @@ suite('ChatListRenderer', () => {
 				hasText: !!formatted?.text,
 				hasFullText: !!formatted?.fullText,
 				dateTime: formatted?.dateTime,
-				invalid: formatChatRequestTimestamp(-1),
+				invalid: [undefined, 0, -1, NaN, Infinity, -Infinity].map(formatChatRequestTimestamp),
 			}, {
 				hasText: true,
 				hasFullText: true,
 				dateTime: '2026-07-08T23:18:41.000Z',
-				invalid: undefined,
+				invalid: [undefined, undefined, undefined, undefined, undefined, undefined],
 			});
 		});
 
@@ -2759,6 +2795,34 @@ suite('ChatListRenderer', () => {
 				expanded, staysExpanded, editingDisclosure: !!template.value.querySelector('details'),
 			}, { expanded: 'true', staysExpanded: true, editingDisclosure: false });
 		});
+	});
+
+	suite('inline request attachments', () => {
+		for (const restored of [false, true]) {
+			test(`shows an image above the request as well as its pill in the text (restored=${restored})`, () => {
+				const { configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
+				request.response?.complete();
+				// History keeps the prompt sent to the model, which links to the image where it was, and its own copy of the image, as an agent host does.
+				const image: IChatRequestVariableEntry = { kind: 'image', id: 'image', name: 'shot.png', value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]), mimeType: 'image/png', references: [{ kind: 'reference', reference: URI.file(restored ? '/history/shot.png' : '/downloads/shot.png') }] };
+				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
+				const text = restored ? '[shot.png](file:///downloads/shot.png) breaks [a.ts](file:///src/a.ts)' : '#attachment:shot.png breaks #attachment:a.ts';
+				const parts = restored ? [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] : [
+					new ChatRequestDynamicVariablePart(new OffsetRange(0, 20), new Range(1, 1, 1, 21), '#attachment:shot.png', image.id, undefined, image.value, undefined, undefined, false, false, undefined, true),
+					new ChatRequestTextPart(new OffsetRange(20, 28), new Range(1, 21, 1, 29), ' breaks '),
+					new ChatRequestDynamicVariablePart(new OffsetRange(28, 44), new Range(1, 29, 1, 45), '#attachment:a.ts', file.id, undefined, file.value, undefined, undefined, true, false, undefined, true),
+				];
+				model.addRequest({ text, parts }, { variables: [image, file] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+
+				const kinds = (selector: string) => Array.from(template.value.querySelectorAll(selector), attachment => attachment.classList.contains('image-attachment') ? 'image' : 'file');
+				assert.deepStrictEqual({
+					above: kinds(':scope > .chat-request-attachment-cards .chat-attached-context-attachment'),
+					inline: kinds('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'),
+					links: template.value.querySelectorAll('.rendered-markdown a[data-href^="file:"]').length,
+				}, { above: ['image'], inline: ['image', 'file'], links: 0 });
+			});
+		}
 	});
 
 	function configureTerminalProgressRenderer({ instantiationService, configurationService }: Pick<ReturnType<typeof createPersistentProgressRenderer>, 'instantiationService' | 'configurationService'>): void {

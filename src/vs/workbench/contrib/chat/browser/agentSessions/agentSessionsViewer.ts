@@ -1345,6 +1345,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		return isAgentSession(element) && this.getSessionChildren(element).length > 0;
 	}
 
+	get hasLoadableArchiveSection(): boolean {
+		const grouping = this.filter?.groupResults?.();
+		return grouping !== undefined && grouping !== AgentSessionsGrouping.Capped && this.archiveState?.().available === true;
+	}
+
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
 
 		// Sessions model
@@ -1376,7 +1381,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			if (this.filter?.groupResults?.()) {
 				const sections = this.groupSessionsIntoSections(filteredSessions);
 				const archive = this.archiveState?.();
-				if (archive?.available && this.filter.groupResults() !== AgentSessionsGrouping.Capped) {
+				if (archive && this.hasLoadableArchiveSection) {
 					const existing = sections.find((section): section is IAgentSessionSection => isAgentSessionSection(section) && section.section === AgentSessionSection.Archived);
 					const section: IAgentSessionSection = {
 						section: AgentSessionSection.Archived,

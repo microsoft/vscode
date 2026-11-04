@@ -813,6 +813,42 @@ suite('CloudSandboxAgentHostContribution', () => {
 		assert.deepStrictEqual({ failed, reset, requests }, { failed: 'error', reset: 'idle', requests: [false, true, true, false, true] });
 	});
 
+	test('a mutation during scoped reconciliation cannot overwrite archived UI or persisted state', async () => {
+		const storage: IStorageService = store.add(new InMemoryStorageService());
+		const first = discoveredSession();
+		const missing = discoveredSession({ sessionId: 'missing', taskId: 'missing-task' });
+		const entered = new DeferredPromise<void>();
+		const reconciliation = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		let refreshing = false;
+		const h = await createContribution(store, [first, missing], {
+			storageService: storage,
+			listSessions: async (_token, options) => {
+				if (!refreshing) {
+					return { kind: 'complete', sessions: [first, missing] };
+				}
+				if (options?.taskIds) {
+					void entered.complete();
+					return reconciliation.p;
+				}
+				return { kind: 'scoped', sessions: [first], removedTaskIds: [] };
+			},
+		});
+		refreshing = true;
+		const discovering = h.runDiscovery();
+		await entered.p;
+		const provider = h.contribution.stubProviders.get(cloudSandboxAddress(first.environmentId))!;
+		await provider.taskArchiveHandlers.get(first.sessionId)!(true);
+		provider.setSessionArchived(first.sessionId, true);
+		await reconciliation.complete({ kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' });
+		await discovering;
+		const key = `sessions.cloudSandbox.inventory.["github","account-1"].${JSON.stringify([first.environmentId, first.sessionId])}`;
+		const persisted = storage.getObject<{ sessions: ICloudSandboxDiscoveredSession[] }>(key, StorageScope.PROFILE);
+		assert.deepStrictEqual({
+			archived: !!((provider.seeded[0].status ?? 0) & SessionStatus.IsArchived),
+			persisted: persisted?.sessions[0].isArchived,
+		}, { archived: true, persisted: true });
+	});
+
 	test('manual, renewal and reconnect refreshes follow current archive demand', async () => {
 		const requests: { trigger: string | undefined; includeArchived: boolean | undefined }[] = [];
 		const h = await createContribution(store, [], {
@@ -2637,6 +2673,29 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const harness = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		await harness.contribution.refreshTasks(['changed-task']);
+		await harness.contribution.refreshFeed('renewal');
+		await harness.contribution.refreshFeed('reconnect');
+
+		assert.deepStrictEqual(requests, [
+			{ incremental: false, includeArchived: false, trigger: 'startup' },
+			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
+			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+			{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
+		]);
+	});
+
 	test('renewals catch up incrementally while periodic and reconnect scans remain authoritative', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
 		let sessions = [discoveredSession()];
@@ -2899,39 +2958,70 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual(harness.discoveryModes, [false, false]);
 	});
 
-	test('refreshes on stale focus and host selection but not while blurred or fresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	for (const connected of [false, true]) {
+		test(`stale focus and host selection refresh only without a connected feed (connected=${connected})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const triggers: (CloudSandboxDiscoveryTrigger | undefined)[] = [];
+			const harness = await createContribution(store, [], {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+				listSessions: async (_token, options) => {
+					triggers.push(options?.trigger);
+					return options?.incremental
+						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+						: { kind: 'complete', sessions: [discoveredSession()] };
+				},
+			});
+			// The inventory goes stale exactly one interval after a pass; keep the poll due later so focus and selection do the refreshing.
+			harness.contribution.pollJitter = 30_000;
+			harness.setFocused(false);
+			harness.setFocused(true);
+			await harness.contribution.checkForUpdates();
+			const fresh = harness.discoveryModes.length;
+
+			harness.setFocused(false);
+			await timeout(5 * 60_000);
+			harness.selectSandboxHost();
+			await harness.contribution.checkForUpdates();
+			const blurred = harness.discoveryModes.length;
+
+			harness.setFocused(true);
+			await harness.contribution.checkForUpdates();
+			harness.selectSandboxHost();
+			await harness.contribution.checkForUpdates();
+			await timeout(5 * 60_000);
+			harness.selectSandboxHost();
+			await harness.contribution.checkForUpdates();
+
+			assert.deepStrictEqual({ fresh, blurred, modes: harness.discoveryModes, triggers }, {
+				fresh: 1, blurred: 1,
+				modes: connected ? [false] : [false, true, true],
+				triggers: connected ? ['startup'] : ['startup', 'focus', 'selection'],
+			});
+		}));
+	}
+
+	test('stale focus resumes discovery when the feed disconnects', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let connected = true;
 		const triggers: (CloudSandboxDiscoveryTrigger | undefined)[] = [];
-		const harness = await createContribution(store, [], {
+		const harness = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { get connected() { return connected; }, start: async () => { }, dispose: () => { } },
 			listSessions: async (_token, options) => {
 				triggers.push(options?.trigger);
-				return options?.incremental
-					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-					: { kind: 'complete', sessions: [discoveredSession()] };
+				return { kind: 'complete', sessions: [discoveredSession()] };
 			},
 		});
-		// The inventory goes stale exactly one interval after a pass; keep the poll due later so focus and selection do the refreshing.
-		harness.contribution.pollJitter = 30_000;
+		harness.setFocused(false);
+		await timeout(5 * 60_000 + 1);
+		harness.setFocused(true);
+		await harness.contribution.checkForUpdates();
+		const whileConnected = [...triggers];
+
+		connected = false;
 		harness.setFocused(false);
 		harness.setFocused(true);
 		await harness.contribution.checkForUpdates();
-		const fresh = harness.discoveryModes.length;
 
-		harness.setFocused(false);
-		await timeout(5 * 60_000);
-		harness.selectSandboxHost();
-		await harness.contribution.checkForUpdates();
-		const blurred = harness.discoveryModes.length;
-
-		harness.setFocused(true);
-		await harness.contribution.checkForUpdates();
-		harness.selectSandboxHost();
-		await harness.contribution.checkForUpdates();
-		await timeout(5 * 60_000);
-		harness.selectSandboxHost();
-		await harness.contribution.checkForUpdates();
-
-		assert.deepStrictEqual({ fresh, blurred, modes: harness.discoveryModes, triggers }, {
-			fresh: 1, blurred: 1, modes: [false, true, true], triggers: ['startup', 'focus', 'selection'],
+		assert.deepStrictEqual({ whileConnected, afterDisconnect: triggers }, {
+			whileConnected: ['startup'], afterDisconnect: ['startup', 'focus'],
 		});
 	}));
 

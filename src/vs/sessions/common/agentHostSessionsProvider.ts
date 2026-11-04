@@ -65,6 +65,9 @@ export interface IAgentHostConnectionLabels {
 	readonly incompatible: string;
 }
 
+/** How the computer running this window is registered for remote access. */
+export type LocalAgentHostRegistration = 'devTunnel' | 'githubEnvironment';
+
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
@@ -155,6 +158,11 @@ export interface IAgentHostMcpServer {
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
 	readonly logOutputChannelId?: string;
+	/**
+	 * Skills this server serves in the session while it is effectively enabled. `id` is the server
+	 * customization's raw id, which identifies the server's skill bundle in the Skills list.
+	 */
+	readonly skillBundle?: { readonly id: string; readonly count: number };
 	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */
@@ -239,6 +247,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly hostDescription?: IObservable<string>;
 	/** Availability before applying a user's hidden preference. Defaults to available. */
 	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
+	/** Set when this host is a sharing registration of the computer running this window. */
+	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Reveals this host after an explicit picker selection without changing its availability. */
