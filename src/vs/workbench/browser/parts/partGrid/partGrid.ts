@@ -476,28 +476,57 @@ export class PartGrid extends Disposable {
 		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => {
 			this.pointerInOverlay = false;
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
-			this.setPointerOverCell(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined);
+			this.setPointerOverCellOrChrome(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined);
 		}, true));
 		// Into the frame of a webview the window may have no event at all: once its events stop, the grid looks for what
 		// draws over a part that the pointer is over
 		this._register(addDisposableListener(targetWindow.document, 'pointermove', () => this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET), true));
-		// Into the frame of a webview, which takes the pointer from the window, the window has a pointerout to nothing and no
-		// event after it: the pointer went into what draws over an element where it was heading, else out of the window
+		// Into what takes the pointer from the window while it is still over it, the window has a pointerout to nothing and
+		// no event after it: into the frame of a webview, or into a region that moves the window, such as a title row. The
+		// pointer is then where it was heading, unless that is outside the window
 		this._register(addDisposableListener(targetWindow.document, 'pointerout', e => {
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
 			if (isHTMLElement(e.relatedTarget)) {
-				this.setPointerOverCell(this.findCellAt(e.relatedTarget));
+				this.setPointerOverCellOrChrome(this.findCellAt(e.relatedTarget));
 				return;
 			}
-			const anchor = findOverlayAnchorAt(targetWindow.document, e.clientX + e.movementX, e.clientY + e.movementY, PART_GRID_OVERLAY_ENTRY_TOLERANCE);
-			this.setPointerOverCell(anchor ? this.findCellAt(anchor) : undefined);
+			this.setPointerOverCellAt(e.clientX + e.movementX, e.clientY + e.movementY);
 		}, true));
 		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
-		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, () => this.setPointerOverCell(undefined)));
+		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, e => this.setPointerOverCellAt(e.clientX, e.clientY)));
 		this._register(addDisposableListener(targetWindow, EventType.BLUR, () => this.setPointerOverCell(undefined)));
 	}
 
 	private pointerOverCard: HTMLElement | undefined;
+
+	/**
+	 * Marks the part of `cell`. Over a cell that is not a part, such as a title row across the window, the mark stays: the
+	 * pointer goes from a part's title there to its grabber below it.
+	 */
+	private setPointerOverCellOrChrome(cell: PartGridCell | undefined): void {
+		if (!cell || cell.part) {
+			this.setPointerOverCell(cell);
+		}
+	}
+
+	/**
+	 * Marks the part that the pointer is over at `x`, `y`, as the window did not say: what draws over a part there, such as
+	 * a webview, else the cell there. Outside the window, the pointer left it.
+	 */
+	private setPointerOverCellAt(x: number, y: number): void {
+		const targetWindow = getWindow(this.container);
+		if (x <= 0 || y <= 0 || x >= targetWindow.innerWidth - 1 || y >= targetWindow.innerHeight - 1) {
+			this.setPointerOverCell(undefined);
+			return;
+		}
+
+		const anchor = findOverlayAnchorAt(targetWindow.document, x, y, PART_GRID_OVERLAY_ENTRY_TOLERANCE);
+		const cell = anchor ? this.findCellAt(anchor) : Array.from(this.cells.values()).find(candidate => {
+			const rect = candidate.element.getBoundingClientRect();
+			return rect.width > 0 && rect.height > 0 && x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+		});
+		this.setPointerOverCellOrChrome(cell);
+	}
 
 	/** Whether the pointer is over what draws over a part, as {@link checkOverlayPointer} found, rather than over the window's elements. */
 	private pointerInOverlay = false;

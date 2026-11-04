@@ -706,6 +706,41 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('the grabber of a part stays shown as the pointer goes to it from the title row above or from a region of the card that moves the window, where the window has no events, until the pointer leaves the window', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [chat, main] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		const titleRow = createView();
+		grid.addView('title', titleRow, { edge: Direction.Up });
+		grid.layout(1000, 800);
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		const showing = () => ['chat', 'main'].filter(id => cardOf(id).classList.contains('part-grid-pointer-over'));
+		const chatRect = cardOf('chat').getBoundingClientRect();
+		cardOf('chat').dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		// Over the title row across the window, which is not a part
+		titleRow.element.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		const overTitleRow = showing();
+		// Into the top of the card, a region that moves the window: a pointerout to nothing, and a mouseleave, inside the window
+		cardOf('chat').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: chatRect.left + 40, clientY: chatRect.top + 6 }));
+		mainWindow.document.documentElement.dispatchEvent(new MouseEvent('mouseleave', { clientX: chatRect.left + 40, clientY: chatRect.top + 6 }));
+		const overDragRegion = showing();
+		await timeout(150);
+		const afterQuiet = showing();
+		mainWindow.document.documentElement.dispatchEvent(new MouseEvent('mouseleave', { clientX: chatRect.left + 40, clientY: -1 }));
+
+		assert.deepStrictEqual({ overTitleRow, overDragRegion, afterQuiet, leftTheWindow: showing() }, {
+			overTitleRow: ['chat'],
+			overDragRegion: ['chat'],
+			afterQuiet: ['chat'],
+			leftTheWindow: []
+		});
+	});
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
