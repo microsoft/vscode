@@ -983,11 +983,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			return;
 		}
 		// The session the window shows takes it, also from another session, such as a task terminal of the same working
-		// directory and task that the window reused
+		// directory and task that the window reused. Without its scope: such a terminal may run in another working directory
+		// or on another host than the session's, which matching the session's terminals checks then.
 		this._removeTerminalFromTrackedSessions(instance.instanceId);
+		this._trackedTerminalScopes.delete(instance.instanceId);
 		this._standaloneTerminalIds.delete(instance.instanceId);
-		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd;
-		this._trackTerminalsForSession(session.sessionId, [instance], cwd && { sessionId: session.sessionId, key: cwd.fsPath.toLowerCase(), agentHostAddress: this._getSessionAgentHostAddress(session) });
+		this._trackTerminalsForSession(session.sessionId, [instance]);
 	}
 
 	async showAllTerminals(): Promise<void> {

@@ -1282,6 +1282,19 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({ shownForOther, disposed: disposedInstances.map(instance => instance.instanceId) }, { shownForOther: false, disposed: [taken.instanceId] });
 	});
 
+	test('a terminal a chat window adopts from another working directory is the terminal of its session, but not one of its working directory: showing the session in a chat window again does not reuse it', async () => {
+		const worktree = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:adopting', worktree, providerType: AgentSessionProviders.Background });
+		const adopted = makeTerminalInstance(nextInstanceId++, '/other');
+		terminalInstances.set(adopted.instanceId, adopted);
+		contribution.trackChatWindowTerminal(session, adopted);
+		contribution.setShownInChatWindow(adopted, false);
+
+		const shown = await contribution.getChatWindowTerminals(session);
+
+		assert.deepStrictEqual({ reused: shown.some(instance => instance.instanceId === adopted.instanceId), created: shown.length }, { reused: false, created: 1 });
+	});
+
 	test('a chat window shows the session with all its terminals that no other chat window shows, in their order; while the main window shows the session too, its panel keeps all but one of them', async () => {
 		const worktree = URI.file('/worktree');
 		const session = makeAgentSession({ sessionId: 'test:windowed', worktree, providerType: AgentSessionProviders.Background });

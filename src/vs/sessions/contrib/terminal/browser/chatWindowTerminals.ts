@@ -151,8 +151,19 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				this._releaseToPanel(instance);
 			}
 		}));
+		// A terminal entering any of its parts, such as one dragged next to the chat from another session, is the window's,
+		// and its session's. Until it closes.
+		const incoming = store.add(this._trackWindowGroups(window, (group, editor) => {
+			const instance = this._instanceOf(editor);
+			const terminals = this._getTerminals(window);
+			if (instance && !instance.isDisposed && !terminals.has(instance)) {
+				terminals.add(instance);
+				this._take(window, instance);
+			}
+		}));
 		store.add(window.onWillClose(() => {
 			onlyTerminals.dispose();
+			incoming.dispose();
 			this.release(window);
 		}));
 		store.add(this._trackMainPart(window));
@@ -237,15 +248,24 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				return false;
 			}
 		}
-		// Each opens active, once the terminal service opened it in the group: the one that was active is again, after the last
-		const last = ordered[ordered.length - 1];
-		if (active !== last) {
-			await this._whenShownIn(group, last);
-			await this._whenShownIn(group, active);
-			const activeEditor = group.editors.find(editor => isEqual(editor.resource, active.resource));
-			if (activeEditor && this._isCurrent(window, generation)) {
-				await group.openEditor(activeEditor, { preserveFocus: !focus });
+		// Once the terminal service opened them in the group: in their order, which the position new editors open at, such as
+		// first, need not keep, and the one that was active active again, as each opens active
+		for (const instance of ordered) {
+			await this._whenShownIn(group, instance);
+		}
+		if (!this._isCurrent(window, generation)) {
+			return false;
+		}
+		const editors = ordered.map(instance => group.editors.find(editor => isEqual(editor.resource, instance.resource)));
+		const start = Math.min(...editors.map(editor => editor ? group.editors.indexOf(editor) : Number.MAX_SAFE_INTEGER));
+		editors.forEach((editor, index) => {
+			if (editor && group.editors.indexOf(editor) !== start + index) {
+				group.moveEditor(editor, group, { index: start + index, preserveFocus: true, inactive: true });
 			}
+		});
+		const activeEditor = editors[ordered.indexOf(active)];
+		if (activeEditor && group.activeEditor !== activeEditor) {
+			await group.openEditor(activeEditor, { preserveFocus: !focus });
 		}
 		if (focus) {
 			// Once it shows in the group: until then it is still where it was, such as in the panel of the main window.
@@ -571,6 +591,27 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				group.moveEditor(editor, part.activeGroup);
 			});
 		}));
+	}
+
+	/** Calls `onOpen` for each editor of the groups of `window`, of all its parts, and each that opens in them. */
+	private _trackWindowGroups(window: IChatWindow, onOpen: (group: IEditorGroup, editor: EditorInput) => void): IDisposable {
+		const store = new DisposableStore();
+		const groups = store.add(new DisposableMap<IEditorGroup>());
+		const add = (group: IEditorGroup) => {
+			if (group.windowId !== window.windowId || groups.has(group)) {
+				return;
+			}
+			group.editors.forEach(editor => onOpen(group, editor));
+			groups.set(group, group.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_OPEN && e.editor) {
+					onOpen(group, e.editor);
+				}
+			}));
+		};
+		this._editorGroupsService.groups.forEach(add);
+		store.add(this._editorGroupsService.onDidAddGroup(add));
+		store.add(this._editorGroupsService.onDidRemoveGroup(group => groups.deleteAndDispose(group)));
+		return store;
 	}
 
 	private _trackGroups(part: IEditorPart, trackGroup: (group: IEditorGroup) => IDisposable): IDisposable {

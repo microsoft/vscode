@@ -39,8 +39,12 @@ class TestGroup extends mock<IEditorGroup>() {
 	activated: EditorInput[] = [];
 	override get isEmpty() { return this.editors.length === 0; }
 	override contains(editor: EditorInput) { return this.editors.includes(editor); }
-	override moveEditor(editor: EditorInput, target: IEditorGroup): boolean {
+	override moveEditor(editor: EditorInput, target: IEditorGroup, options?: { index?: number }): boolean {
 		this.editors = this.editors.filter(candidate => candidate !== editor);
+		if (target === this && options?.index !== undefined) {
+			this.editors.splice(options.index, 0, editor);
+			return true;
+		}
 		(target as TestGroup).editors.push(editor);
 		(target as TestGroup).moved.push(editor);
 		return true;
@@ -121,6 +125,8 @@ suite('Chat window terminals', () => {
 		readonly opensLater?: boolean;
 		/** The id of the window, such as of the active window, which is the main window in tests. */
 		readonly windowId?: number;
+		/** Whether an editor opens first in its group, as `workbench.editor.openPositioning` `first` opens it. */
+		readonly opensFirst?: boolean;
 		/** Called as a terminal moves into an editor group, such as to close the window meanwhile. */
 		readonly onMoveToEditor?: (instance: ITerminalInstance) => void;
 	}
@@ -182,6 +188,8 @@ suite('Chat window terminals', () => {
 				options.onMoveToEditor?.(instance);
 				if (options.opensLater) {
 					setTimeout(() => { calls.push('opened'); terminalsGroup.open(editor('workbench.editors.terminal', instance.resource)); }, 10);
+				} else if (options.opensFirst) {
+					terminalsGroup.editors.unshift(editor('workbench.editors.terminal', instance.resource));
 				} else {
 					terminalsGroup.editors.push(editor('workbench.editors.terminal', instance.resource));
 				}
@@ -216,6 +224,8 @@ suite('Chat window terminals', () => {
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override getGroups() { return [...otherGroups, terminalsGroup]; }
 			override get groups() { return [mainGroup, terminalsGroup, chatGroup, ...otherWindowGroups]; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
 			override getScopedInstantiationService(part: IEditorPart) {
 				assert.strictEqual(part, mainPart);
 				const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => sessionScope as T });
@@ -522,13 +532,19 @@ suite('Chat window terminals', () => {
 	test('the terminals the window takes, such as the terminal of a task or one opened by New Terminal in the part that holds its terminals, are terminals of its session', async () => {
 		const task = terminal(9);
 		const opened = terminal(11, { target: TerminalLocation.Editor });
-		const { terminals, window, terminalsGroup, tracked } = createEnvironment({ instances: [task, opened], foreground: [task, opened] });
+		const besideChat = terminal(12, { target: TerminalLocation.Editor });
+		const inMain = terminal(13, { target: TerminalLocation.Editor });
+		const { terminals, window, terminalsGroup, chatGroup, mainGroup, tracked } = createEnvironment({ instances: [task, opened, besideChat, inMain], foreground: [task, opened, besideChat, inMain] });
 
 		await terminals.showTerminal(window, 9, false);
 		terminalsGroup.open(editor('workbench.editors.terminal', opened.resource));
+		// Such as dragged there from another session, or opened next to the chat: in any part of the window
+		chatGroup.open(editor('workbench.editors.terminal', besideChat.resource));
+		mainGroup.open(editor('workbench.editors.terminal', inMain.resource));
+		await timeout(0);
 		terminals.release(window);
 
-		assert.deepStrictEqual(tracked, ['session-1:9', 'session-1:11']);
+		assert.deepStrictEqual(tracked, ['session-1:9', 'session-1:11', 'session-1:12', 'session-1:13']);
 	});
 
 	test('as the window closes, a terminal beside the chat, or in its main part, goes to the panel, still running, before those parts close, rather than closing with them; the terminals of the part that holds them leave once it unloads; also as its window unloads, which closes it without that step', () => {
@@ -599,6 +615,18 @@ suite('Chat window terminals', () => {
 			shown: false,
 			moved: ['toEditor:7'],
 			takenAfterClose: [],
+		});
+	});
+
+	test('the terminals of a session keep their order in the window also where new editors open first in their group', async () => {
+		const instances = [terminal(5), terminal(6), terminal(7)];
+		const { terminals, window, terminalsGroup } = createEnvironment({ terminals: instances, foreground: [], opensFirst: true });
+
+		await terminals.show(window, false);
+
+		assert.deepStrictEqual({ order: terminalsGroup.editors.map(candidate => candidate.resource?.toString()), active: terminalsGroup.activeEditor?.resource?.toString() }, {
+			order: instances.map(instance => instance.resource.toString()),
+			active: instances[0].resource.toString(),
 		});
 	});
 
