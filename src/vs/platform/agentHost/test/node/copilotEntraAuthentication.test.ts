@@ -165,6 +165,53 @@ suite('Copilot Entra authentication', () => {
 		await assert.rejects(f.authenticate(f.credential()), /pending acquisition/);
 	});
 
+	test('a disconnected owner cannot withdraw a replacement window identity', async () => {
+		const f = fixture();
+		await f.signIn();
+		f.connection.cancel();
+		const replacement = store.add(new CancellationTokenSource());
+		const acquisition = f.acquire(identity);
+		await waitForState(f.bridge.authenticationRequired);
+		await f.bridge.authenticate(f.credential(copilotEntraDiscoveryResource, ['User.Read'], 'replacement'), replacement.token);
+		await acquisition;
+
+		await assert.rejects(f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }), /authority is unavailable/);
+		assert.deepStrictEqual(await f.acquire({ ...identity, accountId: 'replacement', reason: 'renewal' }), { kind: 'identity', accountId: 'replacement' });
+	});
+
+	test('SDK cancellation rejects an identity reply in the same tick without installing authority', async () => {
+		const f = fixture();
+		const cancellation = store.add(new CancellationTokenSource());
+		const acquisition = f.acquire(identity, cancellation.token);
+		await waitForState(f.bridge.authenticationRequired);
+		cancellation.cancel();
+		const late = f.authenticate(f.credential());
+
+		await assert.rejects(late, /pending acquisition/);
+		assert.deepStrictEqual({
+			result: await acquisition,
+			renewal: await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' }),
+			resources: f.bridge.getProtectedResources(),
+		}, { result: { kind: 'cancelled' }, renewal: { kind: 'unavailable' }, resources: [] });
+	});
+
+	test('SDK cancellation rejects a same-tick resource reply without revoking the established identity', async () => {
+		const f = fixture();
+		await f.signIn();
+		const cancellation = store.add(new CancellationTokenSource());
+		const scopes = [`${copilotEntraEmuAudience}/.default`];
+		const acquisition = f.acquire({ kind: 'token', clientId: copilotEntraClientId, reason: 'renewal', accountId: 'selected', audience: copilotEntraEmuAudience, scopes, skipCachedAccessToken: false }, cancellation.token);
+		const requirement = await waitForState(f.bridge.authenticationRequired);
+		cancellation.cancel();
+		const late = f.authenticate(f.credential(requirement.resource.resource, scopes));
+
+		await assert.rejects(late, /pending acquisition/);
+		assert.deepStrictEqual({
+			result: await acquisition,
+			renewal: await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' }),
+		}, { result: { kind: 'cancelled' }, renewal: { kind: 'identity', accountId: 'selected' } });
+	});
+
 	test('does not stop a GitHub-only runtime when clients disconnect without Microsoft authority', async () => {
 		const f = fixture();
 		let revoked = 0;
