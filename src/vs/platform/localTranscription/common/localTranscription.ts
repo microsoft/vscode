@@ -12,6 +12,14 @@ export const ILocalTranscriptionService = createDecorator<ILocalTranscriptionSer
 /** IPC channel name used to reach the transcription service in the utility process. */
 export const localTranscriptionChannelName = 'localTranscription';
 
+/** Default on-device model used for dictation. */
+export const DEFAULT_LOCAL_TRANSCRIPTION_MODEL = 'nemotron-3.5-asr-streaming-0.6b';
+
+export interface ILocalTranscriptionModelImportResult {
+	readonly model: string;
+	readonly version: number;
+}
+
 /** Lifecycle of the downloaded transcription model. */
 export const enum LocalTranscriptionModelState {
 	/** Model has not been requested yet. */
@@ -64,12 +72,11 @@ export interface ILocalTranscriptionResult {
 /**
  * On-device speech-to-text using a downloaded model. Transcription runs through
  * Microsoft's Foundry Local streaming ASR engine (onnxruntime + onnxruntime-genai
- * native runtime), which handles decoding, VAD and endpointing internally; the
- * default model is NVIDIA's `nemotron-speech-streaming-en-0.6b` streaming RNN-T
- * (the model the GitHub Copilot app ships for dictation). The model is chosen by
- * the `dictation.model` setting. Runs in a utility process. A single
- * transcription session is active at a time (dictation is a singleton in the
- * renderer).
+ * native runtime), which handles decoding, VAD and endpointing internally. The
+ * default model is NVIDIA's multilingual Nemotron 3.5 streaming RNN-T. The model
+ * is chosen by the `dictation.model` setting. Runs in a utility process. A
+ * single transcription session is active at a time (dictation is a singleton
+ * in the renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
@@ -95,6 +102,12 @@ export interface ILocalTranscriptionService {
 	getModelStatus(): Promise<ILocalTranscriptionModelStatus>;
 
 	/**
+	 * Imports the default on-device model from an official Foundry Local expansion
+	 * pack or a prepared model directory into `cacheDir`.
+	 */
+	importModel(options: { readonly sourcePath: string; readonly cacheDir: string }): Promise<ILocalTranscriptionModelImportResult>;
+
+	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
 	 * transcription session. `cacheDir` is where model files are stored. `model`
 	 * selects the on-device Foundry Local model; when omitted the service default
@@ -102,10 +115,10 @@ export interface ILocalTranscriptionService {
 	 *
 	 * `proxyUrl`/`noProxy` bridge VS Code's `http.proxy`/`http.noProxy` settings
 	 * into this utility process: when set, they are applied as the standard proxy
-	 * environment variables before any download, so all provisioning legs — the
-	 * addon tarball and NuGet core libraries (our own fetches) and the native
-	 * Foundry Local *model* download — route through the proxy. When they are
-	 * omitted, the process's inherited OS environment proxy vars still apply.
+	 * environment variables before any download, so both the native runtime CDN
+	 * download and the Foundry Local *model* download route through the proxy.
+	 * When they are omitted, the process's inherited OS environment proxy vars
+	 * still apply.
 	 *
 	 * `proxyStrictSSL === false` (VS Code's `http.proxyStrictSSL`) disables TLS
 	 * certificate verification for the JavaScript download legs. `proxyAuthorization`
@@ -117,9 +130,10 @@ export interface ILocalTranscriptionService {
 	 *
 	 * `runtimeUrlTemplate`/`runtimeVersion` come from `product.dictationRuntime`
 	 * (stamped by `build/dictation-runtime/produce.ts`). When set, the native
-	 * runtime (Foundry Local addon + core libraries) is downloaded from VS Code's
-	 * CDN for this host's target. When omitted (local dev builds), the runtime
-	 * falls back to the SDK's own `node_modules` payload and nothing is downloaded.
+	 * runtime (Foundry Local addons + shared libraries) is downloaded from VS
+	 * Code's CDN for this host's target. When omitted (local dev builds), the
+	 * runtime falls back to the SDK's own `node_modules` payload and nothing is
+	 * downloaded.
 	 */
 	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string; readonly runtimeUrlTemplate?: string; readonly runtimeVersion?: string }): Promise<void>;
 

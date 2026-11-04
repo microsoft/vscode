@@ -24,7 +24,7 @@ export default new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const filename = normalize(context.getFilename());
+		const filename = normalize(context.filename);
 		if (filename === FACADE_PATH) {
 			return {};
 		}

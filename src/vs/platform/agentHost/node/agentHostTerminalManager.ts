@@ -20,9 +20,10 @@ import { getShellIntegrationInjection } from '../../terminal/node/terminalEnviro
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
-import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
+import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH, AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../common/terminalConstants.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import { isZsh } from './agentHostShellUtils.js';
@@ -119,7 +120,7 @@ export function formatTerminalText(data: string, options: IFormatTerminalTextOpt
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
+	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	sendText(uri: string, data: string, options: ISendTextOptions): Promise<void>;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
@@ -130,7 +131,6 @@ export interface IAgentHostTerminalManager {
 	getContent(uri: string): string | undefined;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
-	getExitCode(uri: string): number | undefined;
 	supportsCommandDetection(uri: string): boolean;
 	disposeTerminal(uri: string): void;
 	getTerminalInfos(): TerminalInfo[];
@@ -139,6 +139,7 @@ export interface IAgentHostTerminalManager {
 	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void;
 	appendOutputTerminalData(uri: string, data: string): void;
 	resetOutputTerminal(uri: string): void;
+	replaceOutputTerminalData(uri: string, data: string): void;
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void;
 }
 
@@ -178,7 +179,7 @@ interface IManagedTerminal {
 	content: TerminalContentPart[];
 	contentSize: number;
 	claim: TerminalClaim;
-	exitCode?: number;
+	lifecycle: TerminalState['lifecycle'];
 	commandTracker?: ICommandTracker;
 	headlessTerminal?: AgentHostHeadlessTerminal;
 	terminalQueryFilterState: ITerminalQueryFilterState;
@@ -194,7 +195,7 @@ interface IOutputTerminal {
 	content: TerminalContentPart[];
 	contentSize: number;
 	claim: TerminalClaim;
-	exitCode?: number;
+	lifecycle: TerminalState['lifecycle'];
 }
 
 /**
@@ -244,6 +245,19 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 					break;
 			}
 		}));
+
+		// A chat that moves to another session (Block 4) takes its terminals along: they belong to the chat's runtime,
+		// so their session claims name the new owner, and deleting the previous owner leaves them running.
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
+			for (const [uri, claim] of [
+				...[...this._terminals.values()].map(terminal => [terminal.uri, terminal.claim] as const),
+				...[...this._outputTerminals].map(([uri, terminal]) => [uri, terminal.claim] as const),
+			]) {
+				if (claim.kind === TerminalClaimKind.Session && claim.chat === chat && claim.session === previous) {
+					this._stateManager.dispatchServerAction(uri, { type: ActionType.TerminalClaimed, claim: { ...claim, session: current } });
+				}
+			}
+		}));
 	}
 
 	/** Get metadata for all active terminals (for root state). */
@@ -252,7 +266,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			resource: t.uri,
 			title: t.title,
 			claim: t.claim,
-			exitCode: t.exitCode,
+			lifecycle: t.lifecycle,
 		}));
 	}
 
@@ -263,7 +277,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return {
 				title: outputTerminal.title,
 				content: outputTerminal.content,
-				exitCode: outputTerminal.exitCode,
+				lifecycle: outputTerminal.lifecycle,
 				claim: outputTerminal.claim,
 				isPty: false,
 			};
@@ -278,7 +292,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			cols: terminal.cols,
 			rows: terminal.rows,
 			content: terminal.content,
-			exitCode: terminal.exitCode,
+			lifecycle: terminal.lifecycle,
 			claim: terminal.claim,
 			supportsCommandDetection: terminal.commandTracker?.detectionAvailableEmitted,
 			isPty: true,
@@ -289,7 +303,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void> {
 		const uri = params.channel;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -307,6 +321,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		if (options?.vscodeTerminalIdentity) {
+			// Match the identity workbench terminals set in addTerminalEnvironmentKeys.
+			env['TERM_PROGRAM'] = 'vscode';
+			env['TERM_PROGRAM_VERSION'] = this._productService.version;
+		}
 		// Attribute these commands to VS Code. Already inherited from the agent
 		// host process; set here as defense in depth.
 		env[AiAgentEnvVar] = AiAgentEnvValue;
@@ -427,6 +446,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: [],
 			contentSize: 0,
 			claim,
+			lifecycle: { status: TerminalLifecycleStatus.Running },
 			commandTracker,
 			headlessTerminal,
 			terminalQueryFilterState: { pendingData: '' },
@@ -456,7 +476,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		store.add(toDisposable(() => dataListener.dispose()));
 
 		const exitListener = ptyProcess.onExit(e => {
-			managed.exitCode = e.exitCode;
+			managed.lifecycle = { status: TerminalLifecycleStatus.Exited, exitCode: e.exitCode };
 			managed.onExitEmitter.fire(e.exitCode);
 			onFirstData.complete();
 			this._stateManager.dispatchServerAction(uri, {
@@ -501,7 +521,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Send input data to a terminal's PTY process. */
 	writeInput(uri: string, data: string): void {
 		const terminal = this._terminals.get(uri);
-		if (terminal && terminal.exitCode === undefined) {
+		if (terminal?.lifecycle.status === TerminalLifecycleStatus.Running) {
 			terminal.pty.write(data);
 		}
 	}
@@ -586,15 +606,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		return terminal?.commandTracker?.detectionAvailableEmitted ?? false;
 	}
 
-	/** Get the exit code for a terminal, or undefined if still running. */
-	getExitCode(uri: string): number | undefined {
-		return this._terminals.get(uri)?.exitCode;
-	}
-
 	/** Resize a terminal. */
 	private _resize(uri: string, cols: number, rows: number): void {
 		const terminal = this._terminals.get(uri);
-		if (terminal && terminal.exitCode === undefined) {
+		if (terminal?.lifecycle.status === TerminalLifecycleStatus.Running) {
 			terminal.cols = cols;
 			terminal.rows = rows;
 			terminal.pty.resize(cols, rows);
@@ -604,6 +619,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Update a terminal's claim. */
 	private _setClaim(uri: string, claim: TerminalClaim): void {
+		const outputTerminal = this._outputTerminals.get(uri);
+		if (outputTerminal) {
+			outputTerminal.claim = claim;
+			return;
+		}
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			terminal.claim = claim;
@@ -810,8 +830,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Trim content parts to stay within the rolling buffer limit. */
 	private _trimContent(managed: { content: TerminalContentPart[]; contentSize: number }): void {
-		const maxSize = 100_000;
-		const targetSize = 80_000;
+		const maxSize = AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH;
+		const targetSize = AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH;
 		if (managed.contentSize <= maxSize) {
 			return;
 		}
@@ -849,6 +869,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: [],
 			contentSize: 0,
 			claim: options.claim,
+			lifecycle: { status: TerminalLifecycleStatus.Running },
 		});
 	}
 
@@ -879,19 +900,37 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		});
 	}
 
+	/** Replace an output-only terminal with its authoritative completed content. */
+	replaceOutputTerminalData(uri: string, data: string): void {
+		const terminal = this._outputTerminals.get(uri);
+		if (!terminal) {
+			return;
+		}
+		terminal.content = data ? [{ type: 'unclassified', value: data }] : [];
+		terminal.contentSize = data.length;
+		this._stateManager.dispatchServerAction(uri, {
+			type: ActionType.TerminalCleared,
+		});
+		if (data) {
+			this._stateManager.dispatchServerAction(uri, {
+				type: ActionType.TerminalData,
+				data,
+			});
+		}
+	}
+
 	/** Record the command's exit on an output-only terminal and notify subscribers. */
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void {
 		const terminal = this._outputTerminals.get(uri);
-		if (!terminal || terminal.exitCode !== undefined) {
+		if (!terminal || terminal.lifecycle.status === TerminalLifecycleStatus.Exited) {
 			return;
 		}
-		if (exitCode !== undefined) {
-			terminal.exitCode = exitCode;
-			this._stateManager.dispatchServerAction(uri, {
-				type: ActionType.TerminalExited,
-				exitCode,
-			});
-		}
+		terminal.lifecycle = exitCode === undefined
+			? { status: TerminalLifecycleStatus.Exited }
+			: { status: TerminalLifecycleStatus.Exited, exitCode };
+		this._stateManager.dispatchServerAction(uri, exitCode === undefined
+			? { type: ActionType.TerminalExited }
+			: { type: ActionType.TerminalExited, exitCode });
 	}
 
 	/** Dispose a terminal: kill the process and remove it. */
@@ -966,6 +1005,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.store.dispose();
 		}
 		this._terminals.clear();
+		this._outputTerminals.clear();
 		super.dispose();
 	}
 }

@@ -676,7 +676,7 @@ export class PredictionStats extends Disposable {
 	 * Gets latency stats of successful predictions.
 	 */
 	get latency() {
-		const latencies = this._stats.filter(([, correct]) => correct).map(([s]) => s).sort();
+		const latencies = this._stats.filter(([, correct]) => correct).map(([s]) => s).sort((a, b) => a - b);
 
 		return {
 			count: latencies.length,
@@ -1080,7 +1080,7 @@ const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T
 	}
 
 	for (let bi = 0; bi < b.length; bi++, ai++) {
-		if (b[ai] !== a[ai]) {
+		if (b[bi] !== a[ai]) {
 			return false;
 		}
 	}

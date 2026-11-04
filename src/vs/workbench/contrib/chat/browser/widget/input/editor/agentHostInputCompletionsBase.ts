@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from '../../../../../../../base/common/lifecy
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { CompletionItem, CompletionList } from '../../../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionList } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { LanguageFilter } from '../../../../../../../editor/common/languageSelector.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
@@ -100,6 +100,10 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		for (const item of result.items) {
 			const built = this._buildItem(position, item, ctx.context);
 			if (built) {
+				if (item.start && (built.kind === CompletionItemKind.File || built.kind === CompletionItemKind.Folder)) {
+					built.filterText = model.getValueInRange(Range.fromPositions(item.start, position));
+				}
+				built.sortText ??= suggestions.length.toString().padStart(6, '0');
 				suggestions.push(built);
 			}
 		}
@@ -118,5 +122,17 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		const replace = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 		const insert = new Range(start.lineNumber, start.column, position.lineNumber, position.column);
 		return { insert, replace };
+	}
+
+	protected static buildTextCompletionItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		return {
+			label: item.insertText.startsWith('/') && item.label !== undefined && item.label !== item.insertText && item.label !== item.insertText.trimEnd()
+				? { label: item.insertText.trimEnd(), description: item.label }
+				: item.label ?? item.insertText,
+			insertText: item.insertText,
+			filterText: item.insertText,
+			range: this.computeRange(position, item),
+			kind: CompletionItemKind.Text,
+		};
 	}
 }

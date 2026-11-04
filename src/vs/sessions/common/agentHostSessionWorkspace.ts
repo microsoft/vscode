@@ -5,11 +5,12 @@
 
 import { Codicon } from '../../base/common/codicons.js';
 import { match as matchGlob } from '../../base/common/glob.js';
-import { IObservable } from '../../base/common/observable.js';
+import { constObservable, derived, IObservable } from '../../base/common/observable.js';
 import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
+import { getRepositoryRootFromWorktree } from '../../platform/agentHost/common/worktreePaths.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
@@ -33,6 +34,8 @@ export interface IAgentHostSessionWorkspaceOptions {
 	 * `baseBranchProtected` on the resulting repository.
 	 */
 	readonly branchProtectionPatterns?: readonly string[];
+	/** Overrides the inferred folder/worktree type icon. See {@link ISessionWorkspace.typeIcon}. */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
@@ -85,6 +88,7 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			repo?.branchName ?? '',
 			repo?.baseBranchName ?? '',
 			String(repo?.baseBranchProtected ?? ''),
+			String(repo?.hasGitRemote ?? ''),
 			String(repo?.hasGitHubRemote ?? ''),
 			repo?.upstreamBranchName ?? '',
 			String(repo?.incomingChanges ?? ''),
@@ -95,28 +99,166 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	return [workspace.label, ...folderKeys].join('\n');
 }
 
+/** Resolves the GitHub info a session folder reports, by working directory. */
+export type IFolderGitHubInfoResolver = (workingDirectory: URI) => IObservable<IGitHubInfo | undefined> | undefined;
+
+/**
+ * Projects a chat's working-directory scope onto its owning session workspace.
+ * Returns no workspace rather than exposing a partial scope when a required folder is unavailable.
+ * Pass `resolveDetachedFolders` for a chat whose folders are intentionally detached from the
+ * session workspace, such as an archived chat, so those folders are resolved on their own.
+ *
+ * Pass `getFolderGitHubInfo` to have each folder report its own repository and
+ * pull request information instead of what the session workspace carries.
+ * Pass `gitState` to project the chat scope's branch state onto its primary folder.
+ */
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver, gitState?: ISessionGitState, resolveDetachedFolders = false): ISessionWorkspace | undefined {
+	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo && !gitState)) {
+		return sessionWorkspace;
+	}
+
+	const folders: ISessionFolder[] = [];
+	for (const workingDirectory of workingDirectories ?? sessionWorkspace.folders.map(folder => folder.workingDirectory)) {
+		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory))
+			?? (resolveDetachedFolders ? createAdditionalFolder(workingDirectory, sessionWorkspace.description) : undefined);
+		if (!folder) {
+			return undefined;
+		}
+		const folderWithGitState = folders.length === 0 && gitState ? withFolderGitState(folder, gitState) : folder;
+		const gitHubInfo = getFolderGitHubInfo?.(folder.workingDirectory);
+		folders.push(gitHubInfo && folderWithGitState.gitRepository?.gitHubInfo !== gitHubInfo ? withFolderGitHubInfo(folderWithGitState, gitHubInfo) : folderWithGitState);
+	}
+
+	if (folders.length === 0) {
+		return undefined;
+	}
+	if (folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
+		return sessionWorkspace;
+	}
+
+	const primaryFolder = folders[0];
+	const usesSessionPrimary = extUri.isEqual(primaryFolder.workingDirectory, sessionWorkspace.folders[0].workingDirectory);
+	return {
+		...sessionWorkspace,
+		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
+		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
+		folders,
+	};
+}
+
+/** Membership test over a session's host scratch folders (`vscode.scratchFolders`). */
+export interface IAgentHostScratchFolders {
+	has(folder: URI): boolean;
+}
+
+/** Removes host scratch folders from `workingDirectories`; they are internal and never shown or used as roots. */
+export function withoutScratchFolders(workingDirectories: readonly URI[], scratchFolders: IAgentHostScratchFolders | undefined): readonly URI[] {
+	return scratchFolders ? workingDirectories.filter(directory => !scratchFolders.has(directory)) : workingDirectories;
+}
+
+/**
+ * Like {@link buildAgentHostChatWorkspace}, for a session that reports host scratch folders.
+ * Scratch folders are never shown: a chat working only in scratch folders has no workspace, and a
+ * chat with folders of its own in a session without a workspace (a quick chat) gets a workspace of
+ * those folders from `buildOwnWorkspace`, each reporting its own GitHub info. Without `scratchFolders` (an older host) this is
+ * {@link buildAgentHostChatWorkspace}.
+ */
+export function buildAgentHostChatWorkspaceWithScratchFolders(
+	sessionWorkspace: ISessionWorkspace | undefined,
+	workingDirectories: readonly URI[] | undefined,
+	scratchFolders: IAgentHostScratchFolders | undefined,
+	buildOwnWorkspace: (workingDirectories: readonly URI[]) => ISessionWorkspace | undefined,
+	getFolderGitHubInfo: IFolderGitHubInfoResolver | undefined,
+	gitState: ISessionGitState | undefined,
+	resolveDetachedFolders: boolean,
+): ISessionWorkspace | undefined {
+	if (!scratchFolders || !workingDirectories?.length) {
+		return buildAgentHostChatWorkspace(sessionWorkspace, workingDirectories, getFolderGitHubInfo, gitState, resolveDetachedFolders);
+	}
+	const ownFolders = withoutScratchFolders(workingDirectories, scratchFolders);
+	if (ownFolders.length === 0) {
+		return undefined;
+	}
+	if (!sessionWorkspace) {
+		// Its folders report their own GitHub repository and pull requests, as in a session workspace; `buildOwnWorkspace` applied the Git state.
+		return buildAgentHostChatWorkspace(buildOwnWorkspace(ownFolders), undefined, getFolderGitHubInfo, undefined, false);
+	}
+	return buildAgentHostChatWorkspace(sessionWorkspace, ownFolders, getFolderGitHubInfo, gitState, resolveDetachedFolders);
+}
+
+/** A non-primary folder; a VS Code-created worktree reports its repository as the folder's root. */
+function createAdditionalFolder(workingDirectory: URI, description: string | undefined): ISessionFolder {
+	const repositoryRoot = getRepositoryRootFromWorktree(workingDirectory);
+	const root = repositoryRoot ?? workingDirectory;
+	return {
+		root,
+		workingDirectory,
+		name: basename(root) || root.path,
+		description,
+		...(repositoryRoot ? {
+			gitRepository: { uri: repositoryRoot, workTreeUri: workingDirectory, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
+		} : {}),
+	};
+}
+
+function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
+	const repository = folder.gitRepository ?? {
+		uri: folder.root,
+		workTreeUri: undefined,
+		baseBranchName: undefined,
+		gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined),
+	};
+	return {
+		...folder,
+		gitRepository: {
+			...repository,
+			isRepository: constObservable(true),
+			branchName: gitState.branchName,
+			baseBranchName: gitState.baseBranchName,
+			hasGitRemote: gitState.hasGitRemote,
+			hasGitHubRemote: gitState.hasGitHubRemote,
+			upstreamBranchName: gitState.upstreamBranchName,
+			defaultBranchName: gitState.defaultBranchName,
+			defaultRemoteBranchName: gitState.defaultRemoteBranchName,
+			incomingChanges: gitState.incomingChanges,
+			outgoingChanges: gitState.outgoingChanges,
+			uncommittedChanges: gitState.uncommittedChanges,
+		},
+	};
+}
+
+/** A folder reporting `gitHubInfo`; a folder without a repository gains one once the GitHub state resolves. */
+function withFolderGitHubInfo(folder: ISessionFolder, gitHubInfo: IObservable<IGitHubInfo | undefined>): ISessionFolder {
+	return {
+		...folder,
+		gitRepository: folder.gitRepository
+			? { ...folder.gitRepository, gitHubInfo }
+			: { uri: folder.root, workTreeUri: undefined, baseBranchName: undefined, isRepository: derived(reader => gitHubInfo.read(reader) !== undefined), gitHubInfo },
+	};
+}
+
 export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectories: readonly URI[] | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
 	const baseBranchName = gitState?.baseBranchName;
 	const baseBranchProtected = baseBranchName !== undefined
 		? matchesAnyBranchProtectionPattern(baseBranchName, options.branchProtectionPatterns)
 		: undefined;
+	const hasGitRemote = gitState?.hasGitRemote;
 	const hasGitHubRemote = gitState?.hasGitHubRemote;
 	const upstreamBranchName = gitState?.upstreamBranchName;
+	const defaultBranchName = gitState?.defaultBranchName;
+	const defaultRemoteBranchName = gitState?.defaultRemoteBranchName;
 	const incomingChanges = gitState?.incomingChanges;
 	const outgoingChanges = gitState?.outgoingChanges;
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
-	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
-	// state / project association. Additional directories are emitted as plain
-	// peer folders — per-folder git state is owned by the deferred git track and
-	// is not populated here.
+	// state / project association. Additional directories carry no per-folder
+	// git state; a VS Code-created worktree reports its repository as the
+	// folder's project, so a chat working in it shows that project.
 	const primary = workingDirectories?.[0];
-	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const name = basename(dir) || dir.path;
-		return { root: dir, workingDirectory: dir, name, description: options.description };
-	});
+	const additionalFolders = (workingDirectories ?? []).slice(1).map(dir => createAdditionalFolder(dir, options.description));
 
 	if (project) {
 		const workTreeUri = extUri.isEqual(primary, project.uri) ? undefined : primary;
@@ -132,10 +274,11 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 				workingDirectory: primary ?? project.uri,
 				name: project.displayName,
 				description: options.description,
-				gitRepository: { uri: project.uri, workTreeUri, gitHubInfo, ...gitFields },
+				gitRepository: { uri: project.uri, workTreeUri, isRepository: constObservable(true), gitHubInfo, ...gitFields },
 			}, ...additionalFolders],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 			isVirtualWorkspace: false,
+			typeIcon: options.typeIcon,
 		};
 	}
 
@@ -156,9 +299,10 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			workingDirectory: primary,
 			name: folderName,
 			description: options.description,
-			gitRepository: { uri: primary, workTreeUri: undefined, gitHubInfo, ...gitFields },
+			gitRepository: { uri: primary, workTreeUri: undefined, isRepository: constObservable(gitState !== undefined), gitHubInfo, ...gitFields },
 		}, ...additionalFolders],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		isVirtualWorkspace: false,
+		typeIcon: options.typeIcon,
 	};
 }

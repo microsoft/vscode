@@ -1,0 +1,35 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call get_current_session exactly once, then reply exactly "current".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: get_current_session
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call get_current_session exactly once, then reply exactly "current".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_current_session
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"copilotcli:/${uuid_0}","openLink":"agent-host-session://copilotcli/${uuid_0}","title":"Call get_current_session exactly once, then reply exactly \"current\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T01:04:41.696Z","modifiedAt":"2026-08-02T01:04:40.748Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}'
+    response:
+      content: current
+      stopReason: end_turn

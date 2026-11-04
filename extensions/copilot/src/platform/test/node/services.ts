@@ -73,6 +73,8 @@ import { resolveOTelConfig } from '../../otel/common/otelConfig';
 import { IOTelService } from '../../otel/common/otelService';
 import { IParserService } from '../../parser/node/parserService';
 import { ParserServiceImpl } from '../../parser/node/parserServiceImpl';
+import { IPromptsService } from '../../promptFiles/common/promptsService';
+import { MockPromptsService } from '../../promptFiles/test/common/mockPromptsService';
 import { IPromptPathRepresentationService, TestPromptPathRepresentationService } from '../../prompts/common/promptPathRepresentationService';
 import { BasicCodeSearchAuthenticationService, ICodeSearchAuthenticationService } from '../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { NullRequestLogger } from '../../requestLogger/node/nullRequestLogger';
@@ -100,6 +102,8 @@ import { SnapshotSearchService, TestingTabsAndEditorsService } from './simulatio
 import { TestChatAgentService } from './testChatAgentService';
 import { TestWorkbenchService } from './testWorkbenchService';
 import { TestWorkspaceService } from './testWorkspaceService';
+import { IGrepResultService, NullGrepResultService } from '../../../extension/tools/node/grepResultService';
+import { IRegionContextProviderService, NullRegionContextProviderService } from '../../languageContextProvider/common/regionContextProvider';
 
 /**
  * Collects descriptors for services to use in testing.
@@ -267,8 +271,11 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 	testingServiceCollection.define(IImageService, nullImageService);
 	testingServiceCollection.define(ILanguageContextService, NullLanguageContextService);
 	testingServiceCollection.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
+	testingServiceCollection.define(IGrepResultService, new SyncDescriptor(NullGrepResultService));
+	testingServiceCollection.define(IRegionContextProviderService, new SyncDescriptor(NullRegionContextProviderService));
 	testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
 	testingServiceCollection.define(IPromptPathRepresentationService, new SyncDescriptor(TestPromptPathRepresentationService));
+	testingServiceCollection.define(IPromptsService, new SyncDescriptor(MockPromptsService));
 	testingServiceCollection.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
 	testingServiceCollection.define(IChatSessionService, new SyncDescriptor(TestChatSessionService));
 

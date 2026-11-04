@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/25cc285b5e8accab4ff7725eeb8594f458b45ce4",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/dbaa99358d1dbc2fc6c337f0f6571060dbc4ee1f",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",
@@ -635,7 +635,7 @@
 					},
 					"patterns": [
 						{
-							"include": "#string_escaped_char"
+							"include": "#string_escaped_char_raw"
 						}
 					]
 				},
@@ -658,7 +658,7 @@
 					},
 					"patterns": [
 						{
-							"include": "#string_escaped_char"
+							"include": "#string_escaped_char_raw"
 						}
 					]
 				},
@@ -968,6 +968,19 @@
 			"patterns": [
 				{
 					"match": "\\\\(\\\\|[0-3]\\d{,2}|[4-7]\\d?|x[a-fA-F0-9]{,2}|u[a-fA-F0-9]{,4}|U[a-fA-F0-9]{,8}|.)",
+					"name": "constant.character.escape.julia"
+				}
+			]
+		},
+		"string_escaped_char_raw": {
+			"comment": "In raw strings, backslashes only escape anything when preceding a quote. An even number of backslashes causes all of them to be escaped and the quote to be literal; an odd number escapes all backslashes (except for the one preceding the quote) and the quote.",
+			"patterns": [
+				{
+					"match": "(\\\\\\\\)*\\\\\"",
+					"name": "constant.character.escape.julia"
+				},
+				{
+					"match": "(\\\\\\\\)+(?=\")",
 					"name": "constant.character.escape.julia"
 				}
 			]

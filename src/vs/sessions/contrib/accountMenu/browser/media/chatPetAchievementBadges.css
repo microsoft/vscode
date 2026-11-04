@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-chat-pet-achievement-badges {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
+}
+
+.sessions-chat-pet-achievement-badges.hidden {
+	display: none;
+}
+
+.sessions-chat-pet-achievement-badges-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.sessions-chat-pet-achievement-badges-title {
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sessions-chat-pet-achievement-badges-count {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badges-list {
+	display: flex;
+	flex-wrap: wrap;
+	align-self: stretch;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.sessions-chat-pet-achievement-badges-list-item {
+	display: flex;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge {
+	box-sizing: border-box;
+	display: flex;
+	flex: 0 0 28px;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editor-background);
+	color: inherit;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button {
+	cursor: pointer;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button:hover,
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button.wearing {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button:focus {
+	outline: none;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.sessions-chat-pet-achievement-badge-preview {
+	display: block;
+	width: 24px;
+	height: 24px;
+	image-rendering: pixelated;
+}
+
+.sessions-chat-pet-achievement-badge.locked {
+	cursor: default;
+	filter: grayscale(1);
+	opacity: 0.5;
+}
+
+.sessions-chat-pet-achievement-badges-actions {
+	display: flex;
+	justify-content: flex-start;
+}
+
+.sessions-chat-pet-achievement-badges-actions .monaco-button {
+	width: auto;
+	min-height: 24px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.hc-black .sessions-chat-pet-achievement-badge,
+.hc-light .sessions-chat-pet-achievement-badge {
+	border-color: var(--vscode-contrastBorder);
+}

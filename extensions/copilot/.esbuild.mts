@@ -32,7 +32,6 @@ const baseNodeBuildOptions = {
 	external: [
 		'./package.json',
 		'./.vscode-test.mjs',
-		'playwright',
 		'keytar',
 		'@azure/functions-core',
 		'applicationinsights-native-metrics',
@@ -47,9 +46,13 @@ const baseNodeBuildOptions = {
 	platform: 'node',
 	mainFields: ['module', 'main'], // needed for jsonc-parser,
 	define: {
+		// applicationinsights reads this once while its module loads. Bundled ES imports are hoisted above
+		// runtime environment assignments, so its options must be defined at build time.
 		'process.env.APPLICATIONINSIGHTS_CONFIGURATION_CONTENT': JSON.stringify(JSON.stringify({
 			proxyHttpUrl: '',
-			proxyHttpsUrl: ''
+			proxyHttpsUrl: '',
+			// Statsbeat probes the Azure instance metadata service and reports SDK metrics even when telemetry is disabled.
+			disableStatsbeat: true
 		}))
 	},
 } satisfies esbuild.BuildOptions;
@@ -126,23 +129,6 @@ const sanityTestBundlePlugin: esbuild.Plugin = {
 	}
 };
 
-const importMetaPlugin: esbuild.Plugin = {
-	name: 'claudeAgentSdkImportMetaPlugin',
-	setup(build) {
-		// Handle import.meta.url in @anthropic-ai/claude-agent-sdk package
-		build.onLoad({ filter: /node_modules[\/\\]@anthropic-ai[\/\\]claude-agent-sdk[\/\\].*\.mjs$/ }, async (args) => {
-			const contents = await fs.promises.readFile(args.path, 'utf8');
-			return {
-				contents: contents.replace(
-					/import\.meta\.url/g,
-					'require("url").pathToFileURL(__filename).href'
-				),
-				loader: 'js'
-			};
-		});
-	}
-};
-
 const shimVsCodeTypesPlugin: esbuild.Plugin = {
 	name: 'shimVsCodeTypesPlugin',
 	setup(build) {
@@ -158,15 +144,10 @@ const shimVsCodeTypesPlugin: esbuild.Plugin = {
 			return {
 				contents: `
 					let vscode;
-					// See test/simulationExtension/extension.js for where and why this is created.
-					if (typeof COPILOT_SIMULATION_VSCODE !== 'undefined') {
-						vscode = COPILOT_SIMULATION_VSCODE;
-					} else {
-						try {
-							vscode = eval('require(' + JSON.stringify('vscode') + ')');
-						} catch (e) {
-							vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
-						}
+					try {
+						vscode = eval('require(' + JSON.stringify('vscode') + ')');
+					} catch (e) {
+						vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
 					}
 					module.exports = vscode;
 				`,
@@ -185,12 +166,11 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
 		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
-		{ in: './src/extension/chatSessions/vscode-node/copilotCLIShim.ts', out: 'copilotCLIShim' },
 		{ in: './src/test-extension.ts', out: 'test-extension' },
 		{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
 	],
 	loader: { '.ps1': 'text' },
-	plugins: [testBundlePlugin, sanityTestBundlePlugin, importMetaPlugin],
+	plugins: [testBundlePlugin, sanityTestBundlePlugin],
 	external: [
 		...baseNodeBuildOptions.external,
 		'vscode'
@@ -393,8 +373,7 @@ async function main() {
 				`**/baseline.old.json`,
 				`**/*.w.json`,
 				'**/*.sqlite',
-				'**/*.sqlite-journal',
-				'test/aml/out/**'
+				'**/*.sqlite-journal'
 			]
 		});
 		rebuild();

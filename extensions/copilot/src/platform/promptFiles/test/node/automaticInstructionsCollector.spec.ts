@@ -24,6 +24,7 @@ import { AutomaticInstructionsCollector, InstructionsCollectionEvent } from '../
 import { InstructionFileIdPrefix, isCustomizationsIndex, isInstructionFile } from '../../../../extension/prompt/common/chatVariablesCollection';
 import { ToolName } from '../../../../extension/tools/common/toolNames';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { NullNativeEnvService } from '../../../env/common/nullEnvService';
 
 
 const localSessionResource = URI.parse(`local://test`);
@@ -108,7 +109,8 @@ suite('AutomaticInstructionsCollector', () => {
 			extensionsService,
 			telemetry,
 			new LogServiceImpl([]),
-			new NullExperimentationService()
+			new NullExperimentationService(),
+			new NullNativeEnvService(),
 		);
 	});
 
@@ -328,6 +330,26 @@ suite('AutomaticInstructionsCollector', () => {
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).toContain(level2Uri.path);
 			expect(paths).toContain(level3Uri.path);
+		});
+
+		test('resolves user home references', async () => {
+			const copilotUri = URI.joinPath(rootFolderUri, '.github/copilot-instructions.md');
+			const referencedUri = URI.file('/home/testuser/referenced.instructions.md');
+
+			promptsService.setAgentInstructions([
+				{ uri: copilotUri, type: AgentInstructionFileType.copilotInstructionsMd },
+			]);
+			promptsService.setFileContent(copilotUri, 'See #file:~/referenced.instructions.md');
+			promptsService.setFileContent(referencedUri, 'Referenced content');
+
+			await mockFiles(fileSystem, [
+				{ path: referencedUri.path, contents: ['Referenced content'] },
+			]);
+
+			const result = await callCollect();
+
+			const paths = result.filter(e => isInstructionFile(e)).map(e => e.value.path);
+			expect(paths).toContain(referencedUri.path);
 		});
 
 		test('skips references to files outside the workspace that are not prompt files', async () => {

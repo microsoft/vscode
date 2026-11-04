@@ -37,7 +37,7 @@ export class MockPromptsService implements IPromptsService {
 	getSyntaxParserFor(_model: any): any { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
-	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getSourceFolders(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any

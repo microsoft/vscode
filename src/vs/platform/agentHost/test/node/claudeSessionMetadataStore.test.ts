@@ -17,7 +17,7 @@ import { createNullSessionDataService, createSessionDataService, TestSessionData
 function createStore(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>, sessionDataService: ISessionDataService = createSessionDataService()): ClaudeSessionMetadataStore {
 	const services = new ServiceCollection([ISessionDataService, sessionDataService]);
 	const instantiationService = disposables.add(new InstantiationService(services));
-	return instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude');
+	return instantiationService.createInstance(ClaudeSessionMetadataStore);
 }
 
 function makeSdkInfo(overrides: Partial<SDKSessionInfo> = {}): SDKSessionInfo {
@@ -113,6 +113,18 @@ suite('ClaudeSessionMetadataStore', () => {
 		assert.deepStrictEqual(overlay, {});
 	});
 
+	test('known-session detection ignores absent and empty sidecars', async () => {
+		const emptyDatabase = new TestSessionDatabase();
+		const absent = createStore(disposables, createNullSessionDataService());
+		const present = createStore(disposables, createSessionDataService(emptyDatabase));
+
+		const absentResult = await absent.hasKnownSession(SESSION_URI);
+		const emptyResult = await present.hasKnownSession(SESSION_URI);
+		await emptyDatabase.setMetadata('agentHost.workspaceless', 'false');
+
+		assert.deepStrictEqual([absentResult, emptyResult, await present.hasKnownSession(SESSION_URI)], [false, false, true]);
+	});
+
 	test('read narrows malformed permissionMode to undefined', async () => {
 		const db = new TestSessionDatabase();
 		await db.setMetadata('claude.permissionMode', 'not-a-mode');
@@ -143,20 +155,18 @@ suite('ClaudeSessionMetadataStore', () => {
 		assert.deepStrictEqual(overlay.model, { id: 'm', config: { thinking: 'high' } });
 	});
 
-	test('project maps SDK info onto IAgentSessionMetadata', async () => {
+	test('project maps SDK info onto IAgentChatMetadata (minus chat)', async () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ sessionId: 'abc', summary: 'sdk-summary', customTitle: 'custom', cwd: '/repo' });
 
 		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
-			session: projected.session.toString(),
 			startTime: projected.startTime,
 			modifiedTime: projected.modifiedTime,
 			summary: projected.summary,
 			workingDirectory: projected.workingDirectories?.[0]?.toString(),
 		}, {
-			session: 'claude:/abc',
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'custom',

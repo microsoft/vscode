@@ -43,13 +43,14 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::forward_tunnel_connection_to_existing_ah;
+use super::agent_host::serve_agent_host_tunnel_connection;
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
 	SocketCodeServer,
 };
 use super::dev_tunnels::ActiveTunnel;
+use super::machine_status;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
@@ -183,6 +184,17 @@ async fn preload_extensions(
 	sb.install_extensions().await
 }
 
+/// Options controlling how a tunnel serves the agent host, all supplied by the
+/// editor that started the tunnel.
+#[derive(Clone, Debug, Default)]
+pub struct AgentHostServeOptions {
+	/// Overrides the user data directory whose agent-host endpoint registry the
+	/// selection gateway reads. `None` uses the platform default.
+	pub user_data_dir: Option<String>,
+	/// Pins the selection gateway to the live editor agent host.
+	pub delegate_to_editor: bool,
+}
+
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -192,24 +204,29 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
+	agent_host_options: AgentHostServeOptions,
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
+	let AgentHostServeOptions {
+		user_data_dir,
+		delegate_to_editor,
+	} = agent_host_options;
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
 	let mut agent_host_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
 
-	// Kick off the agent host supervisor in the background. The supervisor
-	// is the only process that binds the user-facing TCP listener and owns
-	// the canonical lockfile; we never spawn an in-process sidecar here.
-	// We deliberately do NOT await this here — the tunnel needs to start
-	// accepting connections immediately. Consumers that need the
-	// supervisor's endpoint (currently `handle_serve` for the
-	// `agentHostProxy` bridge, and the `agent-host` port forwarder below)
-	// await this shared future when they actually need it. Driving a
-	// clone with `tokio::spawn` ensures the work makes progress even if no
-	// one is currently awaiting it.
+	// The supervisor is the only process that binds the user-facing TCP
+	// listener and publishes the canonical registry entry; we never spawn
+	// an in-process sidecar here. This future is genuinely lazy: nothing
+	// drives it until a consumer that actually needs the legacy (v5)
+	// single-supervisor endpoint awaits a clone of it — currently
+	// `handle_serve`'s `agentHostProxy` bridge, and the root/default route
+	// of the `agent-host` port forwarder below. A tunnel that nobody
+	// connects to must not spawn a standalone supervisor by itself; the
+	// protocol-v6 selection route (also below) consults the registry
+	// directly instead and never touches this future.
 	let active_agent_host: SharedActiveAgentHost = {
 		let launcher_paths = launcher_paths.clone();
 		let log = log.clone();
@@ -222,7 +239,10 @@ pub async fn serve(
 		.boxed()
 		.shared()
 	};
-	tokio::spawn(active_agent_host.clone());
+	// Resolve once and pass the result to every agent-host connection so the
+	// selection gateway consults the same registry as the editor.
+	let agent_host_user_data_path =
+		super::user_data_path::resolve_user_data_path(user_data_dir.as_deref());
 
 	let code_server_args = code_server_args.clone();
 
@@ -245,6 +265,8 @@ pub async fn serve(
 			}
 		});
 	}
+
+	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, true);
 
 	loop {
 		tokio::select! {
@@ -274,24 +296,16 @@ pub async fn serve(
 			Some(socket) = agent_host_port.recv() => {
 				let log = log.clone();
 				let active_agent_host = active_agent_host.clone();
+				let launcher_paths = launcher_paths.clone();
+				let user_data_path = agent_host_user_data_path.clone();
 				tokio::spawn(async move {
-					let active = match active_agent_host.await {
-						Ok(a) => a,
-						Err(e) => {
-							warning!(
-								log,
-								"Cannot forward agent-host tunnel connection; supervisor unavailable: {}",
-								e
-							);
-							return;
-						}
-					};
-					forward_tunnel_connection_to_existing_ah(
+					serve_agent_host_tunnel_connection(
 						log,
 						socket.into_rw(),
-						active.dial_host().to_string(),
-						active.port,
-						active.token.clone(),
+						active_agent_host,
+						launcher_paths,
+						user_data_path,
+						delegate_to_editor,
 					)
 					.await;
 				});
@@ -481,16 +495,22 @@ fn make_socket_rpc(
 		handle_serve(c, params).await
 	});
 	rpc.register_async("update", |p: UpdateParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_update(&c.http, &c.log, &c.did_update, &p).await
 	});
 	rpc.register_sync("servermsg", |m: ServerMessageParams, c| {
+		ensure_auth(&c.auth_state)?;
 		if let Err(e) = handle_server_message(&c.log, &c.server_bridges, m) {
 			warning!(c.log, "error handling call: {:?}", e);
 		}
 		Ok(EmptyObject {})
 	});
-	rpc.register_sync("prune", |_: EmptyObject, c| handle_prune(&c.launcher_paths));
+	rpc.register_sync("prune", |_: EmptyObject, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_prune(&c.launcher_paths)
+	});
 	rpc.register_async("callserverhttp", |p: CallServerHttpParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		let code_server = c.code_server.lock().await.clone();
 		handle_call_server_http(code_server, p).await
 	});
@@ -533,6 +553,7 @@ fn make_socket_rpc(
 		},
 	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
+		ensure_auth(&c.auth_state)?;
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
 			trace!(c.log, "got {} response for req {}", p.status_code, p.req_id);
 			req.initial_response(p.status_code, p.headers);
@@ -542,6 +563,7 @@ fn make_socket_rpc(
 		Ok(EmptyObject {})
 	});
 	rpc.register_sync("httpbody", move |p: HttpBodyParams, c| {
+		ensure_auth(&c.auth_state)?;
 		let mut reqs = c.http_requests.lock().unwrap();
 		if let Some(req) = reqs.get(&p.req_id) {
 			if !p.segment.is_empty() {
@@ -790,9 +812,10 @@ async fn handle_serve(
 	csa.install_extensions.extend(params.extensions);
 
 	// Mix in the agent-host bridge info now that we actually need to spawn
-	// the VS Code server. The supervisor was started in the background by
-	// `serve()`, so this only blocks if it hasn't finished yet. If it
-	// failed we still serve — the renderer just won't see `agentHostProxy`.
+	// the VS Code server. `active_agent_host` is genuinely lazy (see the
+	// comment in `serve()`), so awaiting it here is what first drives the
+	// supervisor to start. If it failed we still serve — the renderer
+	// just won't see `agentHostProxy`.
 	if let Some(ah_fut) = c.active_agent_host.clone() {
 		match ah_fut.await {
 			Ok(a) => a.apply_to_bridge(&mut csa),
@@ -1508,4 +1531,27 @@ async fn do_challenge_response_flow(
 	shutdown.open(());
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn ensure_auth_allows_only_authenticated_state() {
+		let waiting = Arc::new(std::sync::Mutex::new(AuthState::WaitingForChallenge(None)));
+		let issued = Arc::new(std::sync::Mutex::new(AuthState::ChallengeIssued(
+			"challenge".into(),
+		)));
+		let authed = Arc::new(std::sync::Mutex::new(AuthState::Authenticated));
+
+		assert_eq!(
+			[
+				ensure_auth(&waiting).is_ok(),
+				ensure_auth(&issued).is_ok(),
+				ensure_auth(&authed).is_ok(),
+			],
+			[false, false, true]
+		);
+	}
 }

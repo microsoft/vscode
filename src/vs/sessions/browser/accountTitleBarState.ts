@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../base/common/codicons.js';
+import { FileAccess } from '../../base/common/network.js';
 import { ThemeIcon } from '../../base/common/themables.js';
+import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
@@ -14,6 +16,11 @@ export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
+	/**
+	 * The icon (avatar) supplied by the authentication provider for this
+	 * account, if any.
+	 */
+	readonly accountIcon?: URI;
 }
 
 /**
@@ -32,6 +39,7 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
+			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.sessionId),
 		};
 	}
 
@@ -42,6 +50,7 @@ export async function resolveAccountInfo(
 				accountName: sessions[0].account.label,
 				accountProviderId: 'github',
 				accountProviderLabel: 'GitHub',
+				accountIcon: sessions[0].account.icon,
 			};
 		}
 	} catch {
@@ -49,6 +58,20 @@ export async function resolveAccountInfo(
 	}
 
 	return undefined;
+}
+
+/**
+ * Looks up the icon (avatar) that the authentication provider supplied for the
+ * session backing the default account, if any.
+ */
+async function getSessionAccountIcon(authenticationService: IAuthenticationService, providerId: string, sessionId: string): Promise<URI | undefined> {
+	try {
+		const sessions = await authenticationService.getSessions(providerId);
+		return sessions.find(session => session.id === sessionId)?.account.icon;
+	} catch {
+		// Provider not available yet
+		return undefined;
+	}
 }
 
 export type AccountTitleBarStateSource = 'account' | 'copilot';
@@ -77,7 +100,11 @@ export interface IAccountTitleBarState {
 	readonly revealLabelOnHover?: boolean;
 }
 
-export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined): string | undefined {
+export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined, accountIcon?: URI): string | undefined {
+	if (accountIcon) {
+		return FileAccess.uriToBrowserUri(accountIcon).toString(true);
+	}
+
 	if (accountProviderId !== 'github' || !accountName?.trim()) {
 		return undefined;
 	}
@@ -135,7 +162,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 function getCopilotPresentation(
 	entitlement: ChatEntitlement,
 	sentiment: IChatSentiment,
-	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot }
+	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot },
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {
 		return undefined;
@@ -144,10 +171,10 @@ function getCopilotPresentation(
 	if (entitlement === ChatEntitlement.Unknown) {
 		return {
 			source: 'copilot',
-			kind: 'prominent',
+			kind: 'default',
 			icon: Codicon.account,
-			label: localize('agentsSignedOut', "Agents Signed Out"),
-			ariaLabel: localize('agentsSignedOutAria', "Agents is signed out"),
+			label: localize('agentsSignInOptional', "Sign In"),
+			ariaLabel: localize('agentsSignInOptionalAria', "Sign in to GitHub to use more agents"),
 		};
 	}
 

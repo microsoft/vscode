@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { LanguageService } from '../../../../../editor/common/services/languageService.js';
 import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -26,6 +28,10 @@ suite('Release notes renderer', () => {
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override async whenInstalledExtensionsRegistered() { return true; }
+		});
+		instantiationService.stub(ILanguageService, store.add(new LanguageService()));
 		extensionService = instantiationService.get(IExtensionService);
 		languageService = instantiationService.get(ILanguageService);
 
@@ -58,6 +64,30 @@ Navigation End -->
 
 		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
 		await assertSnapshot(result.toString());
+	});
+
+	test('keeps shorthand as inline code without the tryout renderer', async () => {
+		const content = '`try(editor.smart-diff,Try Smart Diff Layout)`\n\n<!-- %IF TRYOUTS %\n`try(editor.smart-diff,Conditional Example)`\n%ENDIF % -->';
+		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
+		assert.strictEqual(result.toString().trim(), '<p><code>try(editor.smart-diff,Try Smart Diff Layout)</code></p>');
+	});
+
+	test('preserves the highlights table and renders fenced blocks separately from inline code', async () => {
+		const content = '<table class="highlights-table"><tr><th>Editor</th></tr><tr><td><a href="#editor">Highlights</a></td></tr></table>\n\n## Editor\n\nInline `code`.\n\n```typescript\nconst value = 42;\n```\n\n```\nplain code\n```';
+		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
+		await assertSnapshot(result.toString());
+	});
+
+	test('groups marked release highlights without including the following sections', async () => {
+		const content = '# Release Notes\n\n<!-- RELEASE_HIGHLIGHTS_START -->\n## Release highlights\n\nSummary.\n\n* [Editor improvements](#editor)\n<!-- RELEASE_HIGHLIGHTS_END -->\n\n## Editor\n\nDetails.';
+		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
+		await assertSnapshot(result.toString());
+	});
+
+	test('strips unmatched highlights markers without wrapping the following content', async () => {
+		const content = '<!-- RELEASE_HIGHLIGHTS_START -->\n## Editor\n\nDetails.';
+		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
+		assert.strictEqual(result.toString(), '<h2 id="editor">Editor</h2>\n<p>Details.</p>\n');
 	});
 
 	test('Should render code settings', async () => {

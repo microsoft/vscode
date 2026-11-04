@@ -15,13 +15,14 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatViewModel } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatListWidget } from '../widget/chatListWidget.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from './agentSessionsModel.js';
 import './media/agentSessionHoverWidget.css';
@@ -86,6 +87,16 @@ export class AgentSessionHoverWidget extends Disposable {
 	}
 
 	private async loadModel() {
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be loaded here:
+		// loading its model subscribes/restores it on the agent host, which adopts
+		// (migrates) it. Migration must happen only on explicit open, so render the
+		// fallback tooltip from the summary instead of loading the model.
+		if (this.session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
+			this.loadingElement.remove();
+			const tooltip = this.buildFallbackTooltip(this.session);
+			this.domNode.textContent = typeof tooltip === 'string' ? tooltip : tooltip.value;
+			return;
+		}
 		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token, 'AgentSessionHoverWidget#loadModel');
 		if (this._store.isDisposed) {
 			modelRef?.dispose();
@@ -180,10 +191,9 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);
-		const provider = providerType ?? AgentSessionProviders.Local;
-		const providerIcon = getAgentSessionProviderIcon(provider);
+		const providerIcon = providerType ? getAgentSessionProviderIcon(providerType) : session.icon;
 		dom.append(detailsRow, renderIcon(providerIcon));
-		dom.append(detailsRow, dom.$('span', undefined, getAgentSessionProviderName(provider)));
+		dom.append(detailsRow, dom.$('span', undefined, session.providerLabel));
 		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
 
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
@@ -272,9 +282,8 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);
-		const provider = providerType ?? AgentSessionProviders.Local;
-		const providerIcon = getAgentSessionProviderIcon(provider);
-		const providerName = getAgentSessionProviderName(provider);
+		const providerIcon = providerType ? getAgentSessionProviderIcon(providerType) : session.icon;
+		const providerName = session.providerLabel;
 		let timeLabel: string;
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
@@ -331,7 +340,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		let statusLabel: string;
 		switch (status) {
 			case AgentSessionStatus.NeedsInput:
-				statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+				statusLabel = localize('agentSessionNeedsInput', "Needs Attention");
 				break;
 			case AgentSessionStatus.InProgress:
 				statusLabel = localize('agentSessionInProgress', "In Progress");

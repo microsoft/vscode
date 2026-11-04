@@ -12,7 +12,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 | `agentPluginEnablement.ts` | Plugin collision enablement, canonical plugin identity, and enterprise-policy identity helpers |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
-| `pluginInstallService.ts` | `IPluginInstallService` — install/update orchestration interface |
+| `pluginInstallService.ts` | `IPluginInstallService` — install/update/uninstall orchestration interface |
 | `pluginSource.ts` | `IPluginSource` — per-source-kind strategy interface (install path, ensure, update, cleanup) |
 
 ### Browser layer (`browser/`)
@@ -74,18 +74,18 @@ Shared base class that handles:
 
 1. **Format detection** — recognizes strict Agent Plugins v1 by its root schema, then falls back to the Copilot, Claude, and Open Plugin path conventions.
 2. **Content reading** — reads commands, skills, agents, hooks, and MCP server definitions from the filesystem.
-3. **File watching** — watches plugin directories for changes and re-reads contents on a 200 ms debounced scheduler.
+3. **File watching** — by default, watches plugin directories for changes and re-reads their contents. Sources that own atomic replacement of plugin directories can opt out and rebuild entries from discovery-level events instead.
 4. **Observable propagation** — sets the `plugins` observable on each refresh cycle.
 
 Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs exist.
 
 ### Discovery Implementations
 
-**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes.
+**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Redundant paths into the Copilot CLI-owned cache are ignored; committed CLI installations are owned by `CopilotCliAgentPluginDiscovery`.
 
-**MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
+**MarketplaceAgentPluginDiscovery** — resolves entries from `IPluginMarketplaceService.installedPlugins`, publishes only targets that still exist as directories, and delegates exact-URI removal and source cleanup to `IPluginInstallService`.
 
-**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). Watches the deepest existing ancestor (down to the install root) and each marketplace bucket non-recursively so the first-ever install is detected without a reload.
+**CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. Uninstall delegates to the Copilot SDK so the runtime's cross-process lock and state writer own the complete transaction; direct installs carry the runtime-compatible opaque source ID needed to disambiguate same-name sources, and VS Code never deletes CLI-owned cache directories directly.
 
 ### Plugin Formats
 
@@ -95,12 +95,12 @@ Four format adapters share the discovery surface:
 |-|------------------|---------|--------|-------------|
 | Manifest | `plugin.json` with the exact Agent Plugins v1 schema | `plugin.json` | `.claude-plugin/plugin.json` | `.plugin/plugin.json` |
 | Portable components | `skills/*/SKILL.md`, `mcp.json` | Host-specific components | Host-specific components | Open Plugin components |
-| Hooks config | None | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
-| Special handling | Compatible schema recognition, fixed paths, and package containment | Legacy permissive behavior | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
+| Hooks config | `com.github.copilot/hooks/hooks.json` client extension | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
+| Special handling | Compatible schema recognition, portable fixed paths, Copilot client extensions, package containment, `${PLUGIN_ROOT}` in Copilot hooks, and Agent Plugin MCP path semantics | Legacy permissive behavior and `${PLUGIN_ROOT}` hook replacement | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
 
 Auto-detection first reads root `plugin.json`. The Agent adapter is selected when `$schema` uses the `agent-plugins.org` plugin schema namespace. Compatible schema revisions are accepted and known usable fields are read without rejecting unknown or malformed optional metadata. An Agent manifest wins over coexisting legacy metadata. Otherwise `.plugin/plugin.json` selects Open Plugin, a Claude path or manifest selects Claude, and the remaining packages use the Copilot adapter.
 
-Agent Plugins use the shared plugin discovery pipeline and permissive component readers with format-specific fixed paths. Discovery scans only immediate skill children and root `mcp.json`, keeps usable known fields, normalizes remote servers to the existing MCP configuration consumed by transport auto-detection, and never interprets legacy inline fields or custom component paths. Unknown or malformed optional metadata is ignored.
+Agent Plugins use the shared plugin discovery pipeline and permissive component readers. Portable discovery scans only immediate children of `skills/` and root `mcp.json`. Copilot-specific commands, agents, rules, and hooks use the sanctioned `com.github.copilot` client extension namespace in both the manifest and filesystem. Their defaults are `com.github.copilot/commands/`, `com.github.copilot/agents/`, `com.github.copilot/rules/`, and `com.github.copilot/hooks/hooks.json`. Component path configuration under `extensions["com.github.copilot"]` resolves relative to the matching extension directory and supports the same string, string array, and `{ paths, exclusive }` forms as legacy plugin manifests. Inline hook and MCP definitions are also accepted there. Other extension namespaces and malformed optional metadata are ignored.
 
 ### Plugin Contents (Filesystem Layout)
 
@@ -111,6 +111,15 @@ Agent Plugins use the shared plugin discovery pipeline and permissive component 
 ├── .plugin/plugin.json                            # Open Plugin manifest
 ├── hooks.json   OR  hooks/hooks.json              # hook definitions
 ├── mcp.json                                       # Agent Plugins v1 MCP definitions
+├── com.github.copilot/                            # Copilot Agent Plugin client extension
+│   ├── commands/
+│   │   └── do-thing.md
+│   ├── agents/
+│   │   └── helper.md
+│   ├── rules/
+│   │   └── project.instructions.md
+│   └── hooks/
+│       └── hooks.json
 ├── .mcp.json                                      # Legacy MCP server definitions
 ├── commands/
 │   ├── do-thing.md                                # → IAgentPluginCommand
@@ -129,9 +138,9 @@ Agent Plugins use the shared plugin discovery pipeline and permissive component 
 Manages the catalog of available and installed plugins:
 
 - **Fetch** — reads `chat.plugins.marketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
-- **Installed storage** — persists installed plugins in application-scoped storage (`chat.plugins.installed.v1`). Each entry tracks `{ pluginUri, plugin, enabled }`.
+- **Installed storage** — persists `{ pluginUri, relativePath?, enablementUri?, marketplace, name? }` entries in `agent-plugins/installed.json`. Managed plugins resolve `relativePath` against the current plugin home so moving a portable installation does not invalidate them; external plugins retain absolute URIs. Escaping relative paths fall back to `pluginUri` and are removed or replaced with a valid managed path during migration. Descendant paths preserve plugin-directory casing and use the same casing policy as containment, including on macOS. Legacy entries under the current home and relocated absolute URIs are migrated at startup and after external edits. The store serializes its own file operations and preserves pending local changes instead of publishing stale migration results. Migration uses the file service's existing modification-time and etag checks; detected conflicts are reloaded and rescheduled. This is best-effort protection, not a cross-process transaction: same-size edits, unchanged timestamps, and changes after validation can still be overwritten. A stable `enablementUri` preserves each profile's enablement decisions through `IAgentPluginEnablementService`, including in-window profile switches and after another profile rewrites the shared manifest. Updates that move an installation transfer this identity from its previous recorded URI; a stale update whose source was already removed retains the target's established identity.
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
-- **Auto-update** — checks for upstream changes approximately every 24 hours when `extensions.autoUpdate` is enabled; sets `hasUpdatesAvailable` observable.
+- **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
 - **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
 
 ### Marketplace Definition Files
@@ -156,11 +165,13 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 
 | Kind | Provisioning | Cache path |
 |------|-------------|------------|
-| `RelativePath` | No-op (lives inside marketplace repo) | `<cacheRoot>/github.com/<owner>/<repo>/<path>` |
+| `RelativePath` | No-op (lives inside marketplace repo) | `<marketplaceRepository>/<path>` |
 | `GitHub` | `git clone` / `git pull` | `<cacheRoot>/github.com/<owner>/<repo>[/ref_<ref>]` |
 | `GitUrl` | `git clone` / `git pull` | `<cacheRoot>/<host>/<path>[/ref_<ref>]` |
 | `Npm` | `npm install` in terminal | `<cacheRoot>/npm/<sanitized-package>/` |
 | `Pip` | `pip install` in terminal | `<cacheRoot>/pip/<package>/` |
+
+Unpinned marketplace repositories use `<cacheRoot>/<host>/<path>`. Ref-specific marketplace repositories use the isolated `<cacheRoot>/.marketplace-repositories/<host>/<path>/ref_<ref>` namespace so one cache variant cannot delete another. Storage-indexed legacy locations remain usable while valid.
 
 ## Configuration & Storage Keys
 
@@ -171,19 +182,35 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 | `chat.pluginLocations` | `Record<string, boolean>` | `{}` | Local plugin directories to discover |
 | `chat.pluginMarketplaces` | `string[]` | `[]` | Marketplace references to fetch from |
 
+### Enterprise customization lockdown
+
+The managed customization controls are complementary:
+
+- `strictKnownMarketplaces` restricts which marketplace sources may provide plugins.
+- `strictPluginOnlyCustomization` blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers. Eligible plugin contributions remain available.
+- `allowManagedMcpServersOnly` makes the managed MCP allowlist authoritative; lower-layer allow entries cannot broaden it and deny entries remain restrictive.
+- `allowManagedHooksOnly` permits plugin hooks only when managed `enabledPlugins` force-enables the plugin. User/workspace hooks and hooks from otherwise user-enabled plugins do not load.
+
+`strictPluginOnlyCustomization` does not replace strict marketplace enforcement. Hardened deployments apply both controls when plugin source and standalone customization provenance must both be constrained.
+
+In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization` from Copilot managed settings, including its array form, and applies it to the customizations it discovers. The user and workspace skills and agents that VS Code forwards (for example, from configured skill locations), and every MCP server it forwards (for example, from VS Code's `mcp.json` or an extension), are bundled separately from other synced content. The host passes them through the SDK's `skillDirectories`, `customAgents`, and session `mcpServers` instead of `pluginDirectories`, so the runtime treats them as standalone customizations rather than plugin content. Extension and built-in skills and agents stay in the synced plugin, matching the workbench lockdown, which blocks only standalone prompt files.
+
 ### Storage (ApplicationScope, MachineTarget)
 | Key | Description |
 |-----|-------------|
-| `chat.plugins.installed.v1` | Installed marketplace plugins |
+| `chat.plugins.installed.v1` | Legacy installed marketplace plugins, migrated to `agent-plugins/installed.json` |
 | `chat.plugins.trustedMarketplaces.v1` | User-trusted marketplace canonical IDs |
 | `chat.plugins.lastFetchedPlugins.v2` | Last marketplace fetch results (persisted until next fetch) |
 | `chat.plugins.marketplaces.githubCache.v1` | GitHub API response cache (8 hour TTL) |
 | `chat.plugins.lastUpdateCheck.v1` | Timestamp of last periodic update check |
 
 ### Enablement Storage
+Stored in `StorageScope.APPLICATION`, so every window and profile (including the Agents Window's `agents` profile) shares the same switches. Values from non-default profiles are merged in once, "off wins" (`customizationEnablementStorage.ts`).
+
 | Key | Description |
 |-----|-------------|
 | `agentPlugins.enablement` | Per-plugin enable/disable state (shared `EnablementModel`) |
+| `agentPlugins.enablementIdentities` | Aliases from relocated install URIs to the URI their enablement is stored under |
 
 ## Reactivity Model
 
@@ -212,5 +239,7 @@ The entire system is built on `IObservable`:
 - **Lazy instantiation** — the service is registered as `InstantiationType.Delayed` and only created on first injection.
 
 Synthetic `.plugin/plugin.json` plus `.mcp.json` bundles created by customization synchronization remain legacy Open Plugin packages. Root Agent Plugin recognition is also used for direct standalone installs, but `MarketplaceType.OpenPlugin` and the existing marketplace protocol remain unchanged because Agent Plugins v1 defines no marketplace format.
+
+The synced bundle can also contain client-authored instruction rules without source files. Remote Copilot sessions receive an always-applied image rule through this path: use an absolute Markdown image path, and call `view` once only if no tool has already returned the image. The client resolves matching paths from raster image bytes in that chat's tool results, including restored history, without requiring the original sandbox file. Path inference accepts common path arguments and avoids ambiguous multi-image or multi-path results; stable host-provided resource identities remain the long-term solution.
 
 Provider adapters do not delegate strict packages to legacy SDK plugin discovery. Copilot explicitly receives skills and MCP, Codex explicitly receives skills and MCP, and Claude explicitly receives remote MCP. Remote MCP transport selection remains the responsibility of each provider's existing auto-detection. The Claude SDK currently has no external skill-directory API or per-server stdio working-directory option, so strict Claude skills and stdio MCP are skipped rather than reinterpreted.

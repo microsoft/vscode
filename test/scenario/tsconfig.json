@@ -1,0 +1,25 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"noImplicitAny": false,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"target": "es2024",
+		"strict": true,
+		"noUnusedParameters": false,
+		"noUnusedLocals": true,
+		"rootDir": "./src",
+		"outDir": "out",
+		"sourceMap": true,
+		"declaration": true,
+		"skipLibCheck": true,
+		"lib": [
+			"esnext",
+			"dom"
+		]
+	},
+	"exclude": [
+		"node_modules",
+		"out"
+	]
+}

@@ -10,6 +10,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IEnvService } from '../../env/common/envService';
 import { collectSingleLineErrorMessage } from '../../log/common/logService';
 import { FetchOptions, HeadersImpl, IAbortController, IHeaders, PaginationOptions, ReportFetchEvent, Response, safeGetHostname } from '../common/fetcherService';
+import { stringifyJsonBody } from '../common/jsonBody';
 import { IFetcher, userAgentLibraryHeader } from '../common/networking';
 
 export class NodeFetcher implements IFetcher {
@@ -40,7 +41,7 @@ export class NodeFetcher implements IFetcher {
 				throw new Error(`Illegal arguments! Cannot pass in both 'body' and 'json'!`);
 			}
 			headers['Content-Type'] = 'application/json';
-			body = JSON.stringify(options.json);
+			body = stringifyJsonBody(options.json);
 		}
 
 		const method = options.method || 'GET';

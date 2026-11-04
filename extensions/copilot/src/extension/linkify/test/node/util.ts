@@ -63,6 +63,28 @@ export function createTestLinkifierService(...listOfFiles: readonly (string | UR
 	);
 }
 
+/**
+ * Builds a linkifier over several workspace roots. `files` are absolute URIs so each root can
+ * hold its own copy of the same relative path.
+ */
+export function createMultiRootLinkifierService(roots: readonly URI[], files: readonly URI[]): ILinkifyService {
+	const workspaceService = new class implements Partial<IWorkspaceService> {
+		getWorkspaceFolders(): URI[] {
+			return [...roots];
+		}
+
+		getWorkspaceFolder(resource: URI): URI | undefined {
+			return roots.find(root => resource.path.startsWith(`${root.path}/`));
+		}
+
+		getWorkspaceFolderName(workspaceFolderUri: URI): string {
+			return workspaceFolderUri.path.split('/').pop() ?? '';
+		}
+	} as any;
+
+	return new LinkifyService(createMockFsService(files), workspaceService, NullEnvService.Instance);
+}
+
 export async function linkify(linkifer: ILinkifyService, text: string, references: readonly PromptReference[] = []): Promise<LinkifiedText> {
 	const linkifier = linkifer.createLinkifier({ requestId: undefined, references }, []);
 

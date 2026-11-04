@@ -5,6 +5,7 @@
 
 import electron from 'electron';
 import { Queue } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { mnemonicButtonLabel } from '../../../base/common/labels.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -33,6 +34,11 @@ export interface IDialogMainService {
 	showMessageBox(options: electron.MessageBoxOptions, window?: electron.BrowserWindow): Promise<electron.MessageBoxReturnValue>;
 	showSaveDialog(options: electron.SaveDialogOptions, window?: electron.BrowserWindow): Promise<electron.SaveDialogReturnValue>;
 	showOpenDialog(options: electron.OpenDialogOptions, window?: electron.BrowserWindow): Promise<electron.OpenDialogReturnValue>;
+
+	/**
+	 * Whether a message box or file dialog is showing or waiting to show.
+	 */
+	hasOpenDialogs(): boolean;
 }
 
 interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
@@ -135,16 +141,22 @@ export class DialogMainService implements IDialogMainService {
 		// Queue message box requests per window so that one can show
 		// after the other.
 		if (window) {
-			let windowDialogQueue = this.windowDialogQueues.get(window.id);
+			const windowId = window.id;
+			let windowDialogQueue = this.windowDialogQueues.get(windowId);
 			if (!windowDialogQueue) {
 				windowDialogQueue = new Queue<electron.MessageBoxReturnValue | electron.SaveDialogReturnValue | electron.OpenDialogReturnValue>();
-				this.windowDialogQueues.set(window.id, windowDialogQueue);
+				this.windowDialogQueues.set(windowId, windowDialogQueue);
+				Event.once(windowDialogQueue.onDrained)(() => this.windowDialogQueues.delete(windowId));
 			}
 
 			return windowDialogQueue as unknown as Queue<T>;
 		} else {
 			return this.noWindowDialogueQueue as unknown as Queue<T>;
 		}
+	}
+
+	hasOpenDialogs(): boolean {
+		return this.noWindowDialogueQueue.size > 0 || Array.from(this.windowDialogQueues.values()).some(queue => queue.size > 0);
 	}
 
 	showMessageBox(rawOptions: electron.MessageBoxOptions, window?: electron.BrowserWindow): Promise<electron.MessageBoxReturnValue> {

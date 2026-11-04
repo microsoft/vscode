@@ -7,9 +7,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, ChatSessionRefreshReason, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
+import { IChatSideChatOrigin, IChatSideChatSelection } from '../../common/chatSideChatService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -67,7 +69,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable {
-		this.sessionItemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(CancellationToken.None) });
+		this.sessionItemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(CancellationToken.None, 'initial') });
 		return {
 			dispose: () => {
 				this.sessionItemControllers.delete(chatSessionType);
@@ -119,12 +121,12 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	async refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
+	async refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, _onError?: (error: unknown) => void, reason: ChatSessionRefreshReason = 'manual'): Promise<void> {
 		await Promise.all(
 			Array.from(this.sessionItemControllers.entries())
 				.filter(([chatSessionType]) => !providerTypeFilter || providerTypeFilter.includes(chatSessionType))
 				.map(async ([_chatSessionType, controllerEntry]) => {
-					await controllerEntry.controller.refresh(token);
+					await controllerEntry.controller.refresh(token, reason);
 				}));
 	}
 
@@ -185,6 +187,25 @@ export class MockChatSessionsService implements IChatSessionsService {
 			throw new Error(`No content provider for ${sessionType}`);
 		}
 		return provider.provideChatSessionContent(sessionResource, token);
+	}
+
+	updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		const provider = this.contentProviders.get(sessionType);
+		if (!provider?.updateChatSessionMetadata) {
+			return false;
+		}
+		provider.updateChatSessionMetadata(sessionResource, metadata);
+		return true;
+	}
+
+	async getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]> {
+		const session = await this.getOrCreateChatSession(sessionResource, token);
+		try {
+			return [...session.history];
+		} finally {
+			session.dispose();
+		}
 	}
 
 	async canResolveChatSession(sessionType: string): Promise<boolean> {
@@ -276,7 +297,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
-		return !!this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+		const requires = this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+		return typeof requires === 'function' ? requires() : !!requires;
 	}
 
 	supportsDelegationForSessionType(chatSessionType: string): boolean {
@@ -287,7 +309,19 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return false;
 	}
 
-	async forkChatSession(_sessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _token: CancellationToken): Promise<IChatSessionItem> {
+	sessionSupportsSideChat(_sessionResource: URI): boolean {
+		return false;
+	}
+
+	observeSideChatOrigin(_sessionResource: URI): IObservable<IChatSideChatOrigin | undefined> {
+		return constObservable(undefined);
+	}
+
+	async createSideChat(_sessionResource: URI, _turnId: string, _token: CancellationToken, _selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+		throw new Error('Not implemented');
+	}
+
+	async forkChatSession(_sessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _token: CancellationToken, _options?: IChatSessionForkOptions): Promise<IChatSessionItem> {
 		throw new Error('Not implemented');
 	}
 

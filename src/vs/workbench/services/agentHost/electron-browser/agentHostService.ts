@@ -10,15 +10,24 @@
 // (`LocalAgentHostServiceClient`).
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Event } from '../../../../base/common/event.js';
+import { autorun, ObservablePromise } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostOTelPolicyReadiness, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LocalAgentHostServiceClient } from '../../../../platform/agentHost/electron-browser/localAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../policies/common/accountPolicyService.js';
 import { EditorRemoteAgentHostServiceClient } from '../browser/editorRemoteAgentHostServiceClient.js';
 
 /**
@@ -34,29 +43,88 @@ class WorkbenchAgentHostService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@IAccountPolicyGateService accountPolicyGateService: IAccountPolicyGateService,
+		@ILogService logService: ILogService,
 	) {
 		const inner = environmentService.remoteAuthority
 			? instantiationService.createInstance(EditorRemoteAgentHostServiceClient)
 			: instantiationService.createInstance(
 				LocalAgentHostServiceClient,
 				environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
+				createAgentHostOTelPolicyReadiness(defaultAccountService, accountPolicyGateService, logService),
+				undefined,
 			);
 		return inner as unknown as WorkbenchAgentHostService;
 	}
 }
 
-class AgentHostPrewarmer {
+/** Reads gate readiness directly, including during configuration events preceding the gate event. */
+export function createAgentHostOTelPolicyReadiness(
+	defaultAccountService: IDefaultAccountService,
+	accountPolicyGateService: IAccountPolicyGateService,
+	logService: ILogService,
+): IAgentHostOTelPolicyReadiness {
+	const initialized = ObservablePromise.fromFn(async () => {
+		try {
+			await defaultAccountService.getDefaultAccount();
+			return true;
+		} catch (error) {
+			logService.error('Failed to resolve account policy for Agent Host OTel', error);
+			return false;
+		}
+	});
+	return {
+		isReady: () => {
+			const gate = accountPolicyGateService.gateInfo;
+			return initialized.promiseResult.get()?.data === true
+				&& gate.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved
+				&& gate.managedSettingsFreshness?.state !== ManagedSettingsFreshnessState.Pending;
+		},
+		onDidChange: Event.any(
+			Event.fromObservableLight(initialized.promiseResult),
+			accountPolicyGateService.onDidChangeGateInfo,
+		),
+	};
+}
+
+class AgentHostPrewarmer extends Disposable {
+
+	private _assignmentContextRequest = 0;
 
 	constructor(
-		@IAgentHostService agentHostService: IAgentHostService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
-		agentHostService.startAgentHost();
+		super();
+		this._register(this.agentHostService.onAgentHostStart(() => this.updateAssignmentContext()));
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateAssignmentContext()));
+		this.agentHostService.startAgentHost();
+		this.updateAssignmentContext();
+	}
+
+	private updateAssignmentContext(): void {
+		void this.doUpdateAssignmentContext().catch(error => this.logService.error('Failed to forward Agent Host assignment context', error));
+	}
+
+	private async doUpdateAssignmentContext(): Promise<void> {
+		const request = ++this._assignmentContextRequest;
+		const context = (await this.assignmentService.getCurrentExperiments())?.join(';') ?? '';
+		if (request !== this._assignmentContextRequest) {
+			return;
+		}
+		this.agentHostService.dispatch(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [CopilotCliVSCodeAssignmentContextKey]: context },
+		});
 	}
 }
 
 export class AgentHostPrewarmContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostPrewarm';
+	private prewarmer: AgentHostPrewarmer | undefined;
 
 	constructor(
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
@@ -75,7 +143,7 @@ export class AgentHostPrewarmContribution extends Disposable implements IWorkben
 	}
 
 	private start(): void {
-		this.instantiationService.createInstance(AgentHostPrewarmer);
+		this.prewarmer ??= this._register(this.instantiationService.createInstance(AgentHostPrewarmer));
 	}
 }
 

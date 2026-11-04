@@ -10,10 +10,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatSendResult, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { buildFixCIPrompt, getFailedChecks } from '../../changes/browser/checksActions.js';
+import { buildFixCIPrompt, countRequiredChecks } from '../../changes/browser/checksActions.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckStatus } from '../../github/common/types.js';
 import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js';
 
 /**
@@ -58,13 +57,16 @@ export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIF
 					return undefined;
 				}
 
-				const prRef = reader.store.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
+				// `delayedStore` (released *after* the recompute) keeps these ref-counted,
+				// shared models alive across a recompute; `store` would release the last
+				// reference first and force an empty model plus a refetch every time.
+				const prRef = reader.delayedStore.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
 				const livePR = prRef.object.pullRequest.read(reader);
 				if (!livePR) {
 					return undefined;
 				}
 
-				const ciRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, livePR.headSha));
+				const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, livePR.headSha));
 				const ciModel = ciRef.object;
 
 				// Once a fix has been requested for the current head commit, hide the
@@ -73,14 +75,12 @@ export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIF
 					return undefined;
 				}
 
-				const checks = ciModel.checks.read(reader);
-				const failed = getFailedChecks(checks).length;
-				if (failed === 0) {
+				const required = ciModel.requiredChecks.read(reader);
+				const counts = required ? countRequiredChecks(required) : undefined;
+				if (!counts?.failed) {
 					return undefined;
 				}
-				const completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
-				const pending = checks.length - completed;
-				return { failed, pending };
+				return { failed: counts.failed, pending: counts.pending };
 			});
 			this._states.set(session, obs);
 		}

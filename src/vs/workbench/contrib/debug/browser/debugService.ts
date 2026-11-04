@@ -175,6 +175,7 @@ export class DebugService implements IDebugService {
 			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
 		this.disposables.add(this.model.onDidChangeCallStack(() => {
+			this.viewModel.updateFocusedThreadHasMultipleStackFrames();
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
 			this.activity?.dispose();
 			if (numberOfSessions > 0) {

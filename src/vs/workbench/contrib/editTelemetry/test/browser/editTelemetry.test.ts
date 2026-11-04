@@ -18,7 +18,7 @@ import { EditSourceTrackingImpl } from '../../browser/telemetry/editSourceTracki
 import { ScmAdapter } from '../../browser/telemetry/scmAdapter.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -35,6 +35,55 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 
 suite('Edit Telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports Agent Host session mode for accepted and rejected edits', () => {
+		const instantiationService = new TestInstantiationService();
+		const sentTelemetry: { readonly eventName: string; readonly data: Record<string, unknown> | undefined }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			publicLog2(eventName, data) {
+				sentTelemetry.push({ eventName, data });
+			},
+		});
+		instantiationService.stub(IRandomService, new DeterministicRandomService());
+		const aiEditTelemetryService = instantiationService.createInstance(AiEditTelemetryServiceImpl);
+		const baseData = {
+			suggestionId: undefined,
+			presentation: 'highlightedEdit' as const,
+			feature: 'inlineChat' as const,
+			source: undefined,
+			languageId: undefined,
+			editDeltaInfo: undefined,
+			modeId: undefined,
+			applyCodeBlockSuggestionId: undefined,
+			modelId: undefined,
+			sourceRequestId: undefined,
+		};
+
+		aiEditTelemetryService.createSuggestionId({ ...baseData, isAgentHostSession: true });
+		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'copyButton', presentation: 'codeBlock', feature: 'sideBarChat', isAgentHostSession: true, provider: 'copilotcli', sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat' });
+		aiEditTelemetryService.handleCodeRejected({ ...baseData, rejectionMethod: 'reject', isAgentHostSession: false });
+
+		assert.deepStrictEqual(sentTelemetry.map(event => ({
+			eventName: event.eventName,
+			isAgentHostSession: event.data?.isAgentHostSession,
+			sourceRequestId: event.data?.sourceRequestId,
+			chatSessionId: event.data?.chatSessionId,
+			provider: event.data?.provider,
+		})), [
+			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true, sourceRequestId: undefined, chatSessionId: undefined, provider: 'unknown' },
+			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat', provider: 'copilotcli' },
+			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false, sourceRequestId: undefined, chatSessionId: undefined, provider: undefined },
+		]);
+		const ids = { agentSessionId: 'owner', chatSessionId: 'agent-host-copilotcli:/owner#peer', sourceRequestId: 'source-turn' };
+		aiEditTelemetryService.handleCodeAccepted({ ...baseData, ...ids, acceptanceMethod: 'accept', isAgentHostSession: true });
+		aiEditTelemetryService.handleCodeRejected({ ...baseData, ...ids, rejectionMethod: 'reject', isAgentHostSession: true });
+		assert.deepStrictEqual(sentTelemetry.slice(-2).map(event => ({
+			eventName: event.eventName,
+			agentSessionId: event.data?.agentSessionId,
+			chatSessionId: event.data?.chatSessionId,
+			sourceRequestId: event.data?.sourceRequestId,
+		})), ['editTelemetry.codeAccepted', 'editTelemetry.codeRejected'].map(eventName => ({ eventName, ...ids })));
+	});
 
 	test('1', async () => runWithFakedTimers({}, async () => {
 		const disposables = new DisposableStore();
@@ -55,7 +104,7 @@ suite('Edit Telemetry', () => {
 				sentTelemetry.push(`${formatTime(Date.now())} ${eventName}: ${JSON.stringify(data)}`);
 			},
 		});
-		instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
+		instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
 		instantiationService.stubInstance(ScmAdapter, { getRepo: (uri, reader) => undefined, });
 		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: (uri, reader) => true, });
 		instantiationService.stub(IRandomService, new DeterministicRandomService());
@@ -115,12 +164,12 @@ function fib(n) {
 			'01:11:010 editTelemetry.reportEditArc: {\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"languageId\":\"plaintext\",\"uniqueEditId\":\"1eb8a394-2489-41c2-851b-6a79432fc6bc\",\"didBranchChange\":0,\"timeDelayMs\":60000,\"originalCharCount\":19,\"originalLineCount\":1,\"originalDeletedLineCount\":1,\"arc\":19,\"currentLineCount\":1,\"currentDeletedLineCount\":1}',
 			'05:01:010 editTelemetry.reportEditArc: {\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"languageId\":\"plaintext\",\"uniqueEditId\":\"8c97b7d8-9adb-4bd8-ac9f-a562704ce40e\",\"didBranchChange\":0,\"timeDelayMs\":300000,\"originalCharCount\":37,\"originalLineCount\":1,\"originalDeletedLineCount\":0,\"arc\":16,\"currentLineCount\":1,\"currentDeletedLineCount\":0}',
 			'05:11:010 editTelemetry.reportEditArc: {\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"languageId\":\"plaintext\",\"uniqueEditId\":\"1eb8a394-2489-41c2-851b-6a79432fc6bc\",\"didBranchChange\":0,\"timeDelayMs\":300000,\"originalCharCount\":19,\"originalLineCount\":1,\"originalDeletedLineCount\":1,\"arc\":19,\"currentLineCount\":1,\"currentDeletedLineCount\":1}',
-			'12:00:000 editTelemetry.editSources.details: {\"mode\":\"10minFocusWindow\",\"sourceKey\":\"source:Chat.applyEdits\",\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"modifiedCount\":35,\"deltaModifiedCount\":56,\"totalModifiedCount\":39}',
-			'12:00:000 editTelemetry.editSources.details: {\"mode\":\"10minFocusWindow\",\"sourceKey\":\"source:cursor-kind:type\",\"sourceKeyCleaned\":\"source:cursor-kind:type\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"modifiedCount\":4,\"deltaModifiedCount\":4,\"totalModifiedCount\":39}',
-			'12:00:000 editTelemetry.editSources.stats: {\"mode\":\"10minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":600000,\"actualTime\":720000,\"trigger\":\"time\"}',
-			'22:00:000 editTelemetry.editSources.details: {\"mode\":\"20minFocusWindow\",\"sourceKey\":\"source:Chat.applyEdits\",\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"modifiedCount\":35,\"deltaModifiedCount\":56,\"totalModifiedCount\":39}',
-			'22:00:000 editTelemetry.editSources.details: {\"mode\":\"20minFocusWindow\",\"sourceKey\":\"source:cursor-kind:type\",\"sourceKeyCleaned\":\"source:cursor-kind:type\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"modifiedCount\":4,\"deltaModifiedCount\":4,\"totalModifiedCount\":39}',
-			'22:00:000 editTelemetry.editSources.stats: {\"mode\":\"20minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":1200000,\"actualTime\":1320000,\"trigger\":\"time\"}'
+			'12:00:000 editTelemetry.editSources.details: {\"mode\":\"10minFocusWindow\",\"sourceKey\":\"source:Chat.applyEdits\",\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"modifiedCount\":35,\"deltaModifiedCount\":56,\"totalModifiedCount\":39,\"coarseDiffCount\":0}',
+			'12:00:000 editTelemetry.editSources.details: {\"mode\":\"10minFocusWindow\",\"sourceKey\":\"source:cursor-kind:type\",\"sourceKeyCleaned\":\"source:cursor-kind:type\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"modifiedCount\":4,\"deltaModifiedCount\":4,\"totalModifiedCount\":39,\"coarseDiffCount\":0}',
+			'12:00:000 editTelemetry.editSources.stats: {\"attributionSchemaVersion\":2,\"mode\":\"10minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"agentHostModifiedCount\":0,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"coarseDiffCount\":0,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":600000,\"actualTime\":720000,\"trigger\":\"time\"}',
+			'22:00:000 editTelemetry.editSources.details: {\"mode\":\"20minFocusWindow\",\"sourceKey\":\"source:Chat.applyEdits\",\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"modifiedCount\":35,\"deltaModifiedCount\":56,\"totalModifiedCount\":39,\"coarseDiffCount\":0}',
+			'22:00:000 editTelemetry.editSources.details: {\"mode\":\"20minFocusWindow\",\"sourceKey\":\"source:cursor-kind:type\",\"sourceKeyCleaned\":\"source:cursor-kind:type\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"modifiedCount\":4,\"deltaModifiedCount\":4,\"totalModifiedCount\":39,\"coarseDiffCount\":0}',
+			'22:00:000 editTelemetry.editSources.stats: {\"attributionSchemaVersion\":2,\"mode\":\"20minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"agentHostModifiedCount\":0,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"coarseDiffCount\":0,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":1200000,\"actualTime\":1320000,\"trigger\":\"time\"}'
 		]));
 
 		disposables.dispose();

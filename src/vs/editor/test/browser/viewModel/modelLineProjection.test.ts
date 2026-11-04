@@ -38,6 +38,10 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 0), 14);
 		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 1), 15);
 		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 2), 16);
+		assert.deepStrictEqual(
+			[0, 1, 2].map(lineIndex => line1.getViewLineContinuesWithWrappedLine(lineIndex)),
+			[true, true, false]
+		);
 		for (let col = 1; col <= 14; col++) {
 			assert.strictEqual(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
 		}
@@ -102,6 +106,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 		const wordBreak = config.options.get(EditorOption.wordBreak);
 		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
+		const useTwoCellFullwidthCharacters = config.options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const model = createTextModel(text);
@@ -117,7 +122,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			wrappingInfo.wrappingColumn,
 			wrappingIndent,
 			wordBreak,
-			wrapOnEscapedLineFeeds
+			wrapOnEscapedLineFeeds,
+			useTwoCellFullwidthCharacters
 		);
 
 		callback(model, linesCollection);
@@ -951,6 +957,7 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 		const wordBreak = configuration.options.get(EditorOption.wordBreak);
+		const useTwoCellFullwidthCharacters = configuration.options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
@@ -965,7 +972,8 @@ suite('SplitLinesCollection', () => {
 			wrappingInfo.wrappingColumn,
 			wrappingIndent,
 			wordBreak,
-			wrapOnEscapedLineFeeds
+			wrapOnEscapedLineFeeds,
+			useTwoCellFullwidthCharacters
 		);
 
 		callback(linesCollection);

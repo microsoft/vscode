@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState, GitDiffChange } from '../common/gitService.js';
+import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState, GitDiffChange, GitCommitOptions } from '../common/gitService.js';
 import { ISettableObservable, observableValueOpts } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { AutoOpenBarrier } from '../../../../base/common/async.js';
@@ -88,5 +88,9 @@ export class GitRepository extends Disposable implements IGitRepository {
 
 	async diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]> {
 		return this.delegate.diffBetweenWithStats2(this.rootUri, ref, path);
+	}
+
+	async commitFiles(files: readonly URI[], message: string, options?: GitCommitOptions): Promise<void> {
+		return this.delegate.commitFiles(this.rootUri, files, message, options);
 	}
 }
