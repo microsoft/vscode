@@ -7,6 +7,7 @@ import { $, addDisposableListener, append, EventHelper, EventType, getActiveElem
 import { findOverlayAnchorAt, findOverlayAnchorOf, findOverlayAnchorUnderPointer } from '../../../../base/browser/overlayLayoutElement.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, Grid, GridBranchNode, GridLeafNode, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -832,7 +833,7 @@ export class PartGrid extends Disposable {
 		const cellOf = (stub: PreviewView) => stub.id === added?.id ? added.like : this.getCell(stub.id);
 		// Laid out as the grid is, before the change, which changes the cells as the grid would
 		const deserialize = (serialized: ISerializedGrid) => {
-			const deserialized = SerializableGrid.deserialize<PreviewView>(serialized, { fromJSON: (data: { id: string }) => stubOf(data.id) }, { proportionalLayout: false });
+			const deserialized = SerializableGrid.deserialize<PreviewView>(serialized, { fromJSON: (data: { id: string }) => stubOf(data.id) }, { proportionalLayout: true });
 			deserialized.layout(state.width, state.height);
 			return deserialized;
 		};
@@ -1486,68 +1487,94 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
-	 * The sizes of the parts that keep their sizes (see
-	 * {@link IPartGridPartOptions.keepsSize}) along their rows or columns.
+	 * Of each part that keeps its size, the shares that the others in its
+	 * row or column had of what it left them, unrounded, and the sizes they
+	 * got from them: as long as nothing else resized them since, such as
+	 * the user dragging a sash or the grid arranged again, they keep these
+	 * shares, so that resizing the grid back and forth gives the sizes back.
 	 */
-	private keptSizes(grid: SerializableGrid<PartGridCell>): Map<PartGridCell, number> {
-		const sizes = new Map<PartGridCell, number>();
+	private readonly keptShares = new WeakMap<PartGridCell, { readonly views: readonly (PartGridCell | undefined)[]; readonly sizes: readonly number[]; readonly shares: readonly number[] }>();
+
+	/**
+	 * The sizes of the parts that keep their sizes (see
+	 * {@link IPartGridPartOptions.keepsSize}) along their rows or columns,
+	 * and the shares the others in them have.
+	 */
+	private keptSizes(grid: SerializableGrid<PartGridCell>): Map<PartGridCell, { readonly size: number; readonly shares: readonly number[] }> {
+		const kept = new Map<PartGridCell, { readonly size: number; readonly shares: readonly number[] }>();
 		for (const cell of this.cells.values()) {
 			const line = cell.part && cell.options.keepsSize ? findLineOf(grid, cell) : undefined;
-			if (line && grid.isViewVisible(cell)) {
-				sizes.set(cell, sizeAlong(line.branch.children[line.index], line.orientation));
+			if (!line || !grid.isViewVisible(cell)) {
+				continue;
 			}
+			const others = othersInLine(line);
+			const sizes = others.map(node => sizeAlong(node, line.orientation));
+			const total = sizes.reduce((sum, size) => sum + size, 0);
+			const remembered = this.keptShares.get(cell);
+			const views = others.map(viewOf);
+			const unchanged = remembered && equals(remembered.views, views) && equals(remembered.sizes, sizes);
+			kept.set(cell, { size: sizeAlong(line.branch.children[line.index], line.orientation), shares: unchanged ? remembered.shares : sizes.map(size => total > 0 ? size / total : 1 / sizes.length) });
 		}
 
-		return sizes;
+		return kept;
 	}
 
 	/**
 	 * Gives the parts that keep their sizes the sizes they had before the
-	 * grid was laid out, the other parts in their rows or columns making
-	 * room in proportion to their sizes, as they do as the grid is resized.
+	 * grid was laid out, the other parts in their rows or columns taking
+	 * their shares of the rest, as they do as the grid is resized.
 	 */
-	private keepSizes(grid: SerializableGrid<PartGridCell>, sizes: ReadonlyMap<PartGridCell, number>): void {
-		for (const [cell, size] of sizes) {
+	private keepSizes(grid: SerializableGrid<PartGridCell>, kept: ReadonlyMap<PartGridCell, { readonly size: number; readonly shares: readonly number[] }>): void {
+		for (const [cell, { size, shares }] of kept) {
 			const line = findLineOf(grid, cell);
 			if (!line) {
 				continue;
 			}
-			const delta = sizeAlong(line.branch.children[line.index], line.orientation) - size;
-			if (delta === 0) {
-				continue;
-			}
-
-			const resize = (node: GridNode<PartGridCell>, value: number) => {
-				// A row or column across the line is resized by a view in it, across the row or column
-				const view = isGridBranchNode(node) ? node.children.find((child): child is GridLeafNode<PartGridCell> => !isGridBranchNode(child))?.view : node.view;
-				if (view) {
+			// By index in the line, read again for each resize, as each resize changes the sizes of others in it
+			const resize = (index: number, value: number) => {
+				const node = findLineOf(grid, cell)?.branch.children[index];
+				const view = node && viewOf(node);
+				if (view && sizeAlong(node, line.orientation) !== value) {
 					grid.resizeView(view, line.orientation === Orientation.VERTICAL ? { height: value } : { width: value });
 				}
 			};
-			const others = line.branch.children
-				.map((node, index) => ({ node, index }))
-				.filter(({ node, index }) => index !== line.index && (isGridBranchNode(node) || (node.cachedVisibleSize === undefined && maximumAlong(node.view, line.orientation) > minimumAlong(node.view, line.orientation))));
-			const total = others.reduce((sum, { node }) => sum + sizeAlong(node, line.orientation), 0);
-			if (others.length < 2 || total <= 0) {
-				resize(line.branch.children[line.index], size);
+			const others = othersInLine(line);
+			const indexes = others.map(node => line.branch.children.indexOf(node));
+			const keptSize = sizeAlong(line.branch.children[line.index], line.orientation);
+			const total = others.reduce((sum, node) => sum + sizeAlong(node, line.orientation), 0) + keptSize - size;
+			if (others.length < 2 || total <= 0 || shares.length !== others.length) {
+				resize(line.index, size);
 				continue;
 			}
 
+			// Rounded by where they end, so that the sizes add up to the total and each depends only on it and the shares
+			let end = 0;
+			const targets = shares.map(share => {
+				const start = Math.round(end * total);
+				end += share;
+				return Math.round(end * total) - start;
+			});
+
 			// The last of the others takes what the rest leaves: each resize goes to the last flexible view of the line
 			// that is not resized. The order keeps that view from going below the size it ends with: it grows first.
-			const last = others[others.length - 1];
-			const steps = others.slice(0, -1).map(({ node }) => () => {
-				const scaled = Math.round(sizeAlong(node, line.orientation) * (total + delta) / total);
-				resize(node, isGridBranchNode(node) ? scaled : Math.min(Math.max(scaled, minimumAlong(node.view, line.orientation)), maximumAlong(node.view, line.orientation)));
+			const steps = others.slice(0, -1).map((node, index) => () => {
+				const target = isGridBranchNode(node) ? targets[index] : Math.min(Math.max(targets[index], minimumAlong(node.view, line.orientation)), maximumAlong(node.view, line.orientation));
+				resize(indexes[index], target);
 			});
-			const keep = () => resize(line.branch.children[line.index], size);
-			if (delta > 0 && line.index < last.index) {
+			const keep = () => resize(line.index, size);
+			if (keptSize > size && line.index < indexes[indexes.length - 1]) {
 				steps.unshift(keep);
 			} else {
 				steps.push(keep);
 			}
 			for (const step of steps) {
 				step();
+			}
+
+			const after = findLineOf(grid, cell);
+			if (after) {
+				const othersAfter = othersInLine(after);
+				this.keptShares.set(cell, { views: othersAfter.map(viewOf), sizes: othersAfter.map(node => sizeAlong(node, after.orientation)), shares });
 			}
 		}
 	}
@@ -1794,6 +1821,23 @@ function findLineOf(grid: Grid<PartGridCell>, cell: PartGridCell): { readonly br
 	};
 
 	return find(grid.getViews(), grid.orientation);
+}
+
+/**
+ * The others in the row or column of a part that keeps its size, which
+ * make room for it: rows or columns across it, and parts that show and
+ * can be resized.
+ */
+function othersInLine(line: { readonly branch: GridBranchNode<PartGridCell>; readonly index: number; readonly orientation: Orientation }): GridNode<PartGridCell>[] {
+	return line.branch.children.filter((node, index) => index !== line.index && (isGridBranchNode(node) || (node.cachedVisibleSize === undefined && maximumAlong(node.view, line.orientation) > minimumAlong(node.view, line.orientation))));
+}
+
+/**
+ * The view by which a node is resized along its row or column: a row or
+ * column across it by a view in it.
+ */
+function viewOf(node: GridNode<PartGridCell>): PartGridCell | undefined {
+	return isGridBranchNode(node) ? node.children.find((child): child is GridLeafNode<PartGridCell> => !isGridBranchNode(child))?.view : node.view;
 }
 
 function sizeAlong(node: GridNode<PartGridCell>, orientation: Orientation): number {

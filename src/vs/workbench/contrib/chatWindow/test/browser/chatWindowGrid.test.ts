@@ -610,7 +610,7 @@ suite('Chat window grid', () => {
 		});
 	});
 
-	test('the chat and the main part keep their widths as the terminals walk through every position, show and hide, after a mode round trip, a resize and a change of density', () => {
+	test('the chat and the main part keep their widths as the terminals walk through every position, show and hide, after a mode round trip and a resize, and their share of the grid as the outer insets change', () => {
 		const { mode, position, grid, open, terminalsPart, userResize } = setupWithTerminals();
 		open();
 		userResize(ChatWindowGridCell.Chat, 'right', 400);
@@ -658,8 +658,31 @@ suite('Chat window grid', () => {
 
 		assert.deepStrictEqual({ sideBySideSizes, stackedSizes }, {
 			sideBySideSizes: ['400/600 title 30 terminals 240', '640/960 title 30 terminals 240', '320/480 title 30 terminals 240', '400/600 title 30 terminals 240'],
-			stackedSizes: ['292/238 title 30 terminals 240 strip 34', '557/453 title 30 terminals 240 strip 34', '204/166 title 30 terminals 240 strip 34', '292/238 title 30 terminals 240 strip 34']
+			stackedSizes: ['292/238 title 30 terminals 240 strip 34', '556/454 title 30 terminals 240 strip 34', '204/166 title 30 terminals 240 strip 34', '292/238 title 30 terminals 240 strip 34']
 		});
+	});
+
+	test('in Stacked, resizing the window by small uneven steps, out and back, as a window is dragged, gives the main part and the chat back their exact heights', () => {
+		const { mode, grid, open, userResize } = setupWithTerminals();
+		open();
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		userResize(ChatWindowGridCell.Chat, 'top', 177);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const before = heights();
+		// As a window is dragged: by uneven steps, out and back
+		const steps = [1, 3, 2, 7, 1, 5, 4, 1, 9, 2];
+		let height = 800;
+		for (let i = 0; i < 60; i++) {
+			height += steps[i % steps.length];
+			grid.layout(1000, height);
+		}
+		for (let i = 0; i < 60; i++) {
+			height -= steps[(i * 3) % steps.length];
+			grid.layout(1000, height);
+		}
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual(heights(), before);
 	});
 
 	test('QA\'s INFO-2 sequence: side by side, only the chat (its sizes saved meanwhile), a part moved, stacked, and side by side again: the split the user had, never the main part at its minimum', () => {
