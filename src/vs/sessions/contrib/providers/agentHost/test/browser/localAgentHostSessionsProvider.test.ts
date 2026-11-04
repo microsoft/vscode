@@ -9417,6 +9417,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('comparison permissions inherit a running chat without requiring an unsent draft', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'evaluation-source');
+		const session = provider.getSessions()[0];
+		const chat = session.mainChat.get().resource;
+		provider.getSessionConfig(session.sessionId, chat);
+		agentHost.setSessionState('evaluation-source', 'copilotcli', {
+			provider: 'copilotcli', title: 'Evaluator', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			config: { schema: createVSCodeSessionConfigSchema(), values: { mode: 'plan', autoApprove: 'assisted' } },
+		});
+		const permission = provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', chat);
+		const translated = provider.getComparisonPermissionOptionForSession(session.sessionId, 'claude', chat);
+		assert.deepStrictEqual({
+			permission: permission && { id: permission.id, mode: permission.comparisonModeId },
+			translated: translated && { id: translated.id, allowAll: translated.isAllowAll },
+			withoutChat: provider.getPermissionOptionForSession(session.sessionId),
+		}, {
+			permission: { id: 'assisted', mode: 'plan' },
+			translated: { id: 'default', allowAll: undefined },
+			withoutChat: undefined,
+		});
+	});
+
 	for (const approval of [
 		{ provider: 'conforming-host', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
 		{ provider: 'conforming-host', key: 'autoApprove', values: ['default', 'assisted', 'autoApprove'] },
@@ -17370,6 +17394,118 @@ suite('LocalAgentHostSessionsProvider', () => {
 			undefined);
 		return { provider, chat, peer, summary, peerSummary, state, setChatState, show, visibleSessions, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
 	}
+
+	test('comparison permissions use the nested caller values and wait for its own configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, peer, peerSummary, show } = perChatSession('comparison-nested-source', true, { withoutChatState: true });
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'comparison-nested-source')!;
+		await waitForSessionConfig(provider, session, config => !!config);
+		const peerResource = session.chats.get().find(chat => !isEqual(chat.resource, session.mainChat.get().resource))!.resource;
+		show(session, peerResource);
+		const before = provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', peerResource);
+		agentHost.setChatState(peer, { ...peerSummary, turns: [], config: { values: { autoApprove: 'autoApprove' } } });
+		await timeout(0);
+		const permission = provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', peerResource);
+		const translated = provider.getComparisonPermissionOptionForSession(session.sessionId, 'claude', peerResource);
+		assert.deepStrictEqual({
+			before, permission: permission?.id, translated: translated?.id,
+		}, { before: undefined, permission: 'autoApprove', translated: 'bypassPermissions' });
+	}));
+
+	test('configuration leases await hidden chat values and survive visibility changes until every lease is released', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, peer, peerSummary, show, visibleSessions } = perChatSession('leased-config', true, { withoutChatState: true });
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'leased-config')!;
+		await waitForSessionConfig(provider, session, config => !!config);
+		const peerResource = session.chats.get().find(chat => !isEqual(chat.resource, session.mainChat.get().resource))!.resource;
+		await timeout(60_000);
+		let ready = false;
+		const pending = provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None).then(lease => {
+			ready = true;
+			return disposables.add(lease);
+		});
+		await timeout(0);
+		const beforeState = { ready, permission: provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', peerResource)?.id };
+		agentHost.setChatState(peer, { ...peerSummary, turns: [], config: { values: { autoApprove: 'autoApprove' } } });
+		const first = await pending;
+		const second = disposables.add(await provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None));
+		show(session, peerResource);
+		visibleSessions.set([], undefined);
+		first.dispose();
+		await timeout(60_000);
+		const live = () => (agentHost.sessionSubscribeCounts.get(peer) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(peer) ?? 0);
+		const retained = { live: live(), permission: provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', peerResource)?.id };
+		second.dispose();
+		await timeout(60_000);
+		assert.deepStrictEqual({ beforeState, retained, released: live() }, {
+			beforeState: { ready: false, permission: undefined },
+			retained: { live: 1, permission: 'autoApprove' },
+			released: 0,
+		});
+	}));
+
+	for (const outcome of ['cancelled', 'disconnected', 'disposed', 'failed'] as const) {
+		test(`configuration leases release subscriptions when ${outcome} without falling back to parent permissions`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const { provider, peer } = perChatSession(`config-${outcome}`, true, { withoutChatState: true });
+			await timeout(0);
+			const session = provider.getSessions().find(session => session.title.get() === `config-${outcome}`)!;
+			await waitForSessionConfig(provider, session, config => !!config);
+			const peerResource = session.chats.get().find(chat => !isEqual(chat.resource, session.mainChat.get().resource))!.resource;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const pending = provider.acquireSessionConfig(session.sessionId, peerResource, cancellation.token);
+			const rejected = assert.rejects(pending, outcome === 'failed' ? /Config unavailable/ : /Cancel/);
+			await timeout(0);
+			switch (outcome) {
+				case 'cancelled': cancellation.cancel(); break;
+				case 'disconnected': agentHost.fireAgentHostExit(); break;
+				case 'disposed': provider.dispose(); break;
+				case 'failed': agentHost.fireSessionStateError(URI.parse(peer), new Error('Config unavailable')); break;
+			}
+			await rejected;
+			await timeout(60_000);
+			assert.strictEqual((agentHost.sessionSubscribeCounts.get(peer) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(peer) ?? 0), 0);
+		}));
+	}
+
+	test('resolves creation isolation for the selected harness and workspace without creating a draft', async () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+		]);
+		const provider = createProvider(disposables, agentHost);
+		const workspace = URI.file('/target-project');
+		agentHost.resolveSessionConfigHandler = request => ({
+			schema: createVSCodeSessionConfigSchema({ isolation: { type: 'string', title: 'Isolation', enum: request.provider === 'claude' ? ['folder'] : ['folder', 'worktree'] } }),
+			values: {},
+		});
+		const results = await Promise.all(['copilotcli', 'claude'].map(type => provider.resolveSessionConfigForCreation(workspace, type, CancellationToken.None)));
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.map(request => ({ provider: request.provider, workspace: request.workingDirectory?.toString(), config: request.config })),
+			isolation: results.map(result => result.schema.properties.isolation.enum),
+			created: agentHost.createSessionConfigs.length,
+		}, {
+			requests: ['copilotcli', 'claude'].map(provider => ({ provider, workspace: workspace.toString(), config: undefined })),
+			isolation: [['folder', 'worktree'], ['folder']],
+			created: 0,
+		});
+	});
+
+	test('a failed leased chat does not inherit parent permissions and can be explicitly reacquired', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, peer, peerSummary } = perChatSession('leased-config-error', true);
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'leased-config-error')!;
+		await waitForSessionConfig(provider, session, config => !!config);
+		const peerResource = session.chats.get().find(chat => !isEqual(chat.resource, session.mainChat.get().resource))!.resource;
+		const first = disposables.add(await provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None));
+		agentHost.fireSessionStateError(URI.parse(peer), new Error('Config unavailable'));
+		const failed = provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', peerResource);
+		first.dispose();
+		agentHost.setChatState(peer, { ...peerSummary, turns: [], config: { values: { autoApprove: 'autoApprove' } } });
+		const second = disposables.add(await provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None));
+		const restored = provider.getComparisonPermissionOptionForSession(session.sessionId, 'copilotcli', peerResource);
+		second.dispose();
+		assert.deepStrictEqual({ failed, restored: restored?.id }, { failed: undefined, restored: 'autoApprove' });
+	}));
 
 	test('a chat backed by another agent renders and writes its config against its own schema from its state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, peer, peerSummary, state, show } = perChatSession('own-schema', true, { withoutChatState: true });

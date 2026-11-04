@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
@@ -295,6 +296,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionOwnConfig(sessionId: string): ResolveSessionConfigResult | undefined;
 	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** Retains and awaits the exact chat's configuration, rejecting unavailable state rather than using parent permissions. */
+	acquireSessionConfig(sessionId: string, chat: URI, token: CancellationToken): Promise<IDisposable>;
+	/** Resolves a harness's configuration for a new session in the target workspace, independently of existing sessions. */
+	resolveSessionConfigForCreation(workspace: URI, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */

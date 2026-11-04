@@ -11,7 +11,7 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -4495,10 +4495,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly supportsPermissionsForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
 
-	getPermissionOptionForSession(sessionId: string): ISessionPermissionOption | undefined {
+	getPermissionOptionForSession(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined {
 		const newSession = this._getNewSession(sessionId);
-		const sessionType = newSession?.agentProvider;
-		const config = newSession?.getConfig();
+		const key = this._sessionKeyFromChatId(sessionId);
+		const cached = key ? this._sessionCache.get(key) : undefined;
+		const sessionType = newSession?.agentProvider ?? (chatResource && cached?.getChatAgentProvider(chatResource));
+		const config = newSession?.getConfig() ?? (chatResource ? this.getSessionConfig(sessionId, chatResource) : undefined);
+		if (chatResource && (this.isSessionConfigResolving(sessionId, chatResource).get()
+			|| this._getChatConfigChain(sessionId, chatResource).some(resource => this._failedChatConfigs.has(resource)))) {
+			return undefined;
+		}
 		if (!sessionType || !config) {
 			return undefined;
 		}
@@ -4509,11 +4515,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
 	}
 
-	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined {
+	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string, chatResource?: URI): ISessionPermissionOption | undefined {
 		const sourceSession = this._getNewSession(sessionId);
-		const sourceSessionType = sourceSession?.agentProvider;
-		const sourceOption = this.getPermissionOptionForSession(sessionId);
-		if (!sourceSessionType || !sourceOption) {
+		const key = this._sessionKeyFromChatId(sessionId);
+		const cached = key ? this._sessionCache.get(key) : undefined;
+		const sourceSessionType = sourceSession?.agentProvider ?? (chatResource && cached?.getChatAgentProvider(chatResource));
+		const sourceOption = this.getPermissionOptionForSession(sessionId, chatResource);
+		if (!sourceSessionType || !sourceOption || sourceOption.locked) {
 			return undefined;
 		}
 		if (sourceSessionType === sessionTypeId) {
@@ -4521,7 +4529,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const options = getAgentHostSessionPermissionOptions(
 			sessionTypeId,
-			isAutoApprovePolicyRestricted(this._baseConfigurationService, sourceSession.getConfig()?.schema),
+			isAutoApprovePolicyRestricted(this._baseConfigurationService, (sourceSession?.getConfig() ?? (chatResource ? this.getSessionConfig(sessionId, chatResource) : undefined))?.schema),
 			true,
 		);
 		return sourceOption.isAllowAll
@@ -4745,9 +4753,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	/**
 	 * Chat-state subscriptions that supply a chat's own config values, keyed by
-	 * backend chat. Created when a chat's config is read and released after
-	 * {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS} without reads; the connection
-	 * reference-counts them, so an open chat shares its existing subscription.
+	 * backend chat. Held for visible chats and explicit configuration leases,
+	 * with idle release after writes or the last consumer leaves.
 	 */
 	private readonly _chatConfigSubscriptions = this._register(new DisposableMap<string, IChatConfigSubscription>());
 	/** Triggers when a chat config subscription is acquired or released, so held resolving observables follow it. */
@@ -4762,6 +4769,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _chatConfigIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
 	private readonly _pinnedChatConfigs = new Set<string>();
+	private readonly _chatConfigReferences = new CounterSet<string>();
+	private readonly _sessionConfigLeases = this._register(new DisposableStore());
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, DisposableMap<string, AutomationModelConfiguration>>());
 	/**
@@ -6462,7 +6471,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._onDidChangeSessionConfig.fire(sessionId);
 			}
 		}
-		if (this._pinnedChatConfigs.has(backendChat)) {
+		if (this._pinnedChatConfigs.has(backendChat) || this._chatConfigReferences.has(backendChat)) {
 			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
 		} else {
 			this._armChatConfigIdleTimer(backendChat);
@@ -6471,11 +6480,85 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _armChatConfigIdleTimer(backendChat: string): void {
+		if (this._pinnedChatConfigs.has(backendChat) || this._chatConfigReferences.has(backendChat)) {
+			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
+			return;
+		}
 		this._chatConfigIdleTimers.set(backendChat, disposableTimeout(() => {
 			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
 			this._chatConfigSubscriptions.deleteAndDispose(backendChat);
 			this._onDidChangeChatConfigSubscriptions.trigger(undefined);
 		}, BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS));
+	}
+
+	async acquireSessionConfig(sessionId: string, chat: URI, token: CancellationToken): Promise<IDisposable> {
+		this._assertSessionAvailable(sessionId);
+		if (this._getNewSession(sessionId)) {
+			await this.whenSessionConfigResolved(sessionId, token);
+			return Disposable.None;
+		}
+		const connection = this.connection;
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!connection || !rawId || !cached || this._store.isDisposed || readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
+			throw new Error(localize('agentHost.sessionConfigUnavailable', "Could not resolve the Agent Host session configuration. Please try again."));
+		}
+		const lease = this._sessionConfigLeases.add(new DisposableStore());
+		const cancellation = new CancellationTokenSource(token);
+		lease.add(toDisposable(() => cancellation.dispose(true)));
+		const readState = <T>(subscription: IAgentSubscription<T>) => waitForState(
+			observableFromEvent(this, Event.any(
+				Event.map(subscription.onDidChange, () => undefined),
+				Event.map(subscription.onDidError ?? Event.None, () => undefined),
+			), () => subscription.value),
+			(state): state is T => state !== undefined && !(state instanceof Error),
+			state => state instanceof Error ? state : undefined,
+			cancellation.token,
+		);
+		try {
+			lease.add(this._sessionChatDetailsReferences.acquire(sessionId));
+			const reference = lease.add(connection.getSubscription(StateComponents.Session, cached.backendUri, 'BaseAgentHostSessionsProvider.configLease'));
+			const state = await readState(reference.object);
+			const backendChat = this.getBackendChatResource(chat)?.toString();
+			if (!state.config || !state.chats.some(summary => summary.resource === backendChat)) {
+				throw new Error(localize('agentHost.chatConfigUnavailable', "Could not resolve the originating chat's configuration. Please try again."));
+			}
+			if (hasChatConfigProperties(state.config.schema) || this._chatUsesOwnAgent(sessionId, chat)) {
+				for (const resource of this._getChatConfigChain(sessionId, chat)) {
+					this._chatConfigReferences.add(resource);
+					lease.add(toDisposable(() => {
+						this._chatConfigReferences.delete(resource);
+						if (!this._store.isDisposed && this._chatConfigSubscriptions.has(resource)) {
+							this._armChatConfigIdleTimer(resource);
+						}
+					}));
+					this._failedChatConfigs.delete(resource);
+					const entry = this._keepChatConfigAlive(sessionId, resource);
+					if (!entry) {
+						throw new Error(localize('agentHost.chatConfigUnavailable', "Could not resolve the originating chat's configuration. Please try again."));
+					}
+					await readState(entry.subscription);
+				}
+			}
+			this._assertSessionAvailable(sessionId);
+			if (cancellation.token.isCancellationRequested || this.connection !== connection || !this.getSessionConfig(sessionId, chat)
+				|| this.isSessionConfigResolving(sessionId, chat).get()
+				|| this._getChatConfigChain(sessionId, chat).some(resource => this._failedChatConfigs.has(resource))) {
+				throw new Error(localize('agentHost.chatConfigUnavailable', "Could not resolve the originating chat's configuration. Please try again."));
+			}
+			return toDisposable(() => this._sessionConfigLeases.delete(lease));
+		} catch (error) {
+			this._sessionConfigLeases.delete(lease);
+			throw error;
+		}
+	}
+
+	async resolveSessionConfigForCreation(workspace: URI, sessionTypeId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
+		const connection = this.connection;
+		if (!connection || !this.getSessionTypes(workspace).some(type => type.id === sessionTypeId) || this._isAgentDisabledByPolicy(sessionTypeId)) {
+			throw new Error(localize('agentHost.sessionConfigUnavailable', "Could not resolve the Agent Host session configuration. Please try again."));
+		}
+		return raceCancellationError(connection.resolveSessionConfig({ provider: sessionTypeId, workingDirectory: workspace, config: undefined }), token);
 	}
 
 	getNewSessionCancellationToken(sessionId: string): CancellationToken {
@@ -10261,6 +10344,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (remote), passing a store that bounds the listeners' lifetime.
 	 */
 	protected _attachConnectionListeners(connection: IAgentConnection, store: DisposableStore): void {
+		this._sessionConfigLeases.clear();
+		store.add(toDisposable(() => this._sessionConfigLeases.clear()));
 		this._lastPublishedActiveClients.clear();
 		// Chat config subscriptions belong to the previous connection.
 		this._chatConfigIdleTimers.clearAndDisposeAll();

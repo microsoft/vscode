@@ -27,7 +27,7 @@ import { setChatNotificationResource } from '../../../../workbench/contrib/chat/
 import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource' | 'chatResource'> {
@@ -232,13 +232,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				.filter(participant => participant.launchError)
 				.map(participant => `${getSessionComparisonHarnessLabel(participant)}: ${participant.launchError}`)
 				.join('; ');
-			throw new Error(localize(
+			throw new SessionComparisonLaunchError(localize(
 				'sessionComparison.insufficientSuccessfulAttempts',
 				"Only {0} of {1} comparison attempts started. At least two must start successfully. Failed attempts: {2}",
 				successfulAttemptCount,
 				attempts.length,
 				launchFailures
-			));
+			), launchedAttempts);
 		}
 		const launchedSessions = launchedAttempts.flatMap(participant => {
 			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
