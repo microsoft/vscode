@@ -46,6 +46,7 @@ import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceC
 import { IMicCaptureService } from '../../../../contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import '../../../../../editor/contrib/placeholderText/browser/placeholderText.contribution.js';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -132,6 +133,7 @@ export interface ChatInputFixtureOptions {
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Renders the production Copilot Agent Host mode and permissions pickers. */
 	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
+	readonly placeholder?: string;
 	/** Combines the Agent Host mode and permissions controls in the composer. */
 	readonly combinedModePermissionsPicker?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
@@ -334,13 +336,16 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
 	const mockWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
-		override readonly viewModel = sessionResource ? createFixtureChatViewModel(sessionResource) : undefined;
+		override readonly viewModel = sessionResource ? Object.assign(createFixtureChatViewModel(sessionResource), { inputPlaceholder: fixtureOptions.placeholder }) : undefined;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
 	}();
 
 	inputPart.render(session, '', mockWidget);
+	if (fixtureOptions.placeholder) {
+		inputPart.inputEditor.updateOptions({ placeholder: fixtureOptions.placeholder });
+	}
 
 	if (pet) {
 		// The same host `ChatWidget` registers, so the platform comes from the input part.

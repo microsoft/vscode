@@ -102,6 +102,8 @@ Providers also supply independent harness and environment identifiers, plus obse
 
 `ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
 
+Providers that expose a terminal sandbox toggle can publish its checked state for an individual chat. Composers observe the owning provider for their scoped session and chat; they do not infer sandboxing from workbench settings.
+
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
 Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. Management retains the submitted input for the lifetime of the in-flight first request. The preparation view uses that snapshot in a view-owned chat model to render the request and progress with the normal transcript renderer, without registering, persisting, or sending that model. The chat composer remains visible with editing disabled and Stop available; the original new-session composer is retained so failed or canceled preparation preserves the submitted prompt and attachments.

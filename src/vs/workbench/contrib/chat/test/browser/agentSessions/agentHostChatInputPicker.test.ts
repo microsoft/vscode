@@ -1067,9 +1067,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const confirmed = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
 		const optimistic = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		const placeholderAfterOptOut = permissionPicker.sandboxToggleChecked.get();
 		config.values[SessionConfigKey.SandboxEnabled] = 'on';
 		const restored = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
-		assert.deepStrictEqual({ confirmed, optimistic, restored }, { confirmed: true, optimistic: false, restored: true });
+		const placeholderAfterOptIn = permissionPicker.sandboxToggleChecked.get();
+		assert.deepStrictEqual({ confirmed, optimistic, restored, placeholderAfterOptOut, placeholderAfterOptIn }, {
+			confirmed: true, optimistic: false, restored: true, placeholderAfterOptOut: false, placeholderAfterOptIn: true,
+		});
 	});
 
 	test('remote sandbox policy updates the open picker and does not leak across hosts', async () => {
