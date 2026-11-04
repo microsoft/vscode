@@ -15,6 +15,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
@@ -30,7 +31,8 @@ import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesE
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { ChatWindowLayoutCommandsContext, resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const OPEN_BROWSER_COMMAND_ID = 'workbench.action.agentSessions.openBrowser';
@@ -82,11 +84,21 @@ const browserTabCommandWhen = ContextKeyExpr.or(addTabActionWhen, ChatWindowLayo
 const searchTabCommandWhen = ContextKeyExpr.or(searchTabActionWhen, ContextKeyExpr.and(ChatWindowLayoutCommandsContext, IsQuickChatSessionContext.negate()));
 
 /**
- * Runs the chat window's own command for a tab while the action runs in a chat window, such as from a keybinding while the
- * window has focus: it opens the tab in the main part of that window, for its session. Undefined in the main window.
+ * The chat window an action runs in. Its menu entries name where they run, by their editor group or their window, which a
+ * click in a window that does not have focus yet runs before it does: then only the chat window they name, never one in
+ * the main window. Without arguments, as from a keybinding or the Command Palette, the chat window that has focus.
+ */
+function resolveInvokingChatWindow(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
+	return args.length ? resolveChatWindowOfContext(accessor, args) : accessor.get(IChatWindowService).activeWindow;
+}
+
+/**
+ * Runs the chat window's own command for a tab while the action runs in a chat window: it opens the tab in the main part
+ * of that window, for its session. Undefined in the main window.
  */
 function runInChatWindow(accessor: ServicesAccessor, args: readonly unknown[], chatWindowCommandId: string): Promise<unknown> | undefined {
-	return resolveChatWindow(accessor, args) ? accessor.get(ICommandService).executeCommand(chatWindowCommandId, ...args) : undefined;
+	const window = resolveInvokingChatWindow(accessor, args);
+	return window ? accessor.get(ICommandService).executeCommand(chatWindowCommandId, { windowId: window.windowId } satisfies IWindowCommandContext) : undefined;
 }
 
 /**
@@ -262,7 +274,7 @@ export class NewSearchTabAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const chatWindow = resolveChatWindow(accessor, args);
+		const chatWindow = resolveInvokingChatWindow(accessor, args);
 		if (chatWindow) {
 			// In a chat window, the search opens in its main part, as the window's other tabs do, not beside its chat.
 			chatWindow.showEditor();

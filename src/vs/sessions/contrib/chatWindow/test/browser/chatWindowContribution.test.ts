@@ -215,8 +215,9 @@ suite('Chat window contribution', () => {
 		});
 	});
 
-	test('the main window\'s Changes command, such as from a key of the user\'s, opens the Changes tab in the chat window that has focus, for its session; in the main window, in its editor area as before', async () => {
-		const run = async (inChatWindow: boolean) => {
+	test('the main window\'s Changes command opens the Changes tab in the chat window it runs in, for its session: from a key of the user\'s while the window has focus, or from an entry of the window; from an entry of the main window, in the main window\'s editor area, even while a chat window has focus', async () => {
+		const mainWindowId = 1;
+		const run = async (focusedWindow: 'chat' | 'main', ...args: unknown[]) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const opened: unknown[] = [];
 			const mainGroup = upcastPartial<IEditorGroup>({ id: 1, count: 0, findEditors: () => [] });
@@ -225,12 +226,18 @@ suite('Chat window contribution', () => {
 			const window = upcastPartial<IChatWindow>({
 				windowId: 2,
 				mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: windowGroup, groups: [windowGroup] }),
+				chatPart: upcastPartial<IChatWindow['chatPart']>({ groups: [] }),
+				terminalsPart: constObservable(undefined),
 				showEditor: () => { editorShown = true; },
 			});
 			// The session of the window, which its scope provides, differs from the active session of the main window.
 			const scoped = disposables.add(new TestInstantiationService());
 			scoped.stub(ISessionScope, { session: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat') })) });
-			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: inChatWindow ? window : undefined, windows: constObservable([window]) }));
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+				activeWindow: focusedWindow === 'chat' ? window : undefined,
+				windows: constObservable([window]),
+				getWindow: (windowId: number) => windowId === window.windowId ? window : undefined,
+			}));
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup }),
 				getScopedInstantiationService: () => scoped,
@@ -240,20 +247,33 @@ suite('Chat window contribution', () => {
 				getChangesEditorResource: resource => resource,
 				getSessionResource: () => undefined,
 				openChangesEditor: async (resource, options, group) => {
-					opened.push({ session: resource.toString(), chat: options?.chatResource?.toString(), index: options?.index, group: group === windowGroup ? 'chatWindow' : group === mainGroup ? 'mainWindow' : 'other' });
+					opened.push({ session: resource.toString(), chat: options?.chatResource?.toString(), group: group === windowGroup ? 'chatWindow' : group === mainGroup ? 'mainWindow' : 'other' });
 					return undefined;
 				},
 			}));
 			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
-				executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args)) as R,
+				executeCommand: async <R>(id: string, ...commandArgs: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...commandArgs)) as R,
 			}));
-			await instantiationService.invokeFunction(accessor => new NewChangesTabAction().run(accessor));
+			await instantiationService.invokeFunction(accessor => new NewChangesTabAction().run(accessor, ...args));
 			return { opened, editorShown };
 		};
+		const inChatWindow = { opened: [{ session: 'test:/window', chat: 'test:/window/chat', group: 'chatWindow' }], editorShown: true };
+		const inMainWindow = { opened: [{ session: 'test:/main', chat: undefined, group: 'mainWindow' }], editorShown: false };
 
-		assert.deepStrictEqual({ chatWindow: await run(true), mainWindow: await run(false) }, {
-			chatWindow: { opened: [{ session: 'test:/window', chat: 'test:/window/chat', index: 0, group: 'chatWindow' }], editorShown: true },
-			mainWindow: { opened: [{ session: 'test:/main', chat: undefined, index: 0, group: 'mainWindow' }], editorShown: false },
+		assert.deepStrictEqual({
+			keyInChatWindow: await run('chat'),
+			entryOfChatWindowBeforeItHasFocus: await run('main', { windowId: 2 }),
+			groupOfChatWindowBeforeItHasFocus: await run('main', { groupId: 2 }),
+			keyInMainWindow: await run('main'),
+			entryOfMainWindowWhileChatWindowHasFocus: await run('chat', { windowId: mainWindowId }),
+			groupOfMainWindowWhileChatWindowHasFocus: await run('chat', { groupId: 1 }),
+		}, {
+			keyInChatWindow: inChatWindow,
+			entryOfChatWindowBeforeItHasFocus: inChatWindow,
+			groupOfChatWindowBeforeItHasFocus: inChatWindow,
+			keyInMainWindow: inMainWindow,
+			entryOfMainWindowWhileChatWindowHasFocus: inMainWindow,
+			groupOfMainWindowWhileChatWindowHasFocus: inMainWindow,
 		});
 	});
 });
