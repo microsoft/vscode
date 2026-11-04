@@ -80,8 +80,8 @@
 }
 
 /* Paint above the shared wallpaper but below the chat surfaces and their content. */
-.monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view:not(.is-active)::before,
-.monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view.is-active .chat-group-view:not(.active-group)::before,
+.monaco-workbench:not(.session-comparison-grid-active) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view:not(.is-active)::before,
+.monaco-workbench:not(.session-comparison-grid-active) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view.is-active .chat-group-view:not(.active-group)::before,
 .monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .sessions-chat-background-replica-viewport::after,
 .monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) .sessions-chat-background-replica-viewport::after {
 	content: '';
@@ -91,8 +91,8 @@
 	pointer-events: none;
 }
 
-:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view:not(.is-active)::before,
-:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view.is-active .chat-group-view:not(.active-group)::before,
+:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view:not(.is-active)::before,
+:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view.is-active .chat-group-view:not(.active-group)::before,
 :is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .sessions-chat-background-replica-viewport::after,
 :is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) .sessions-chat-background-replica-viewport::after {
 	background-color: var(--vscode-inactiveSessionView-background);
@@ -172,7 +172,7 @@
 	filter: grayscale(1);
 }
 
-.monaco-workbench.session-comparison-grid-active .part.sessionspart .session-view.is-active::after {
+.monaco-workbench.session-comparison-grid-active :is(.part.sessionspart, .sessions-window-host) .session-view.is-active::after {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -183,7 +183,7 @@
 	z-index: 101;
 }
 
-:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active .part.sessionspart .session-view.is-active::after {
+:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active :is(.part.sessionspart, .sessions-window-host) .session-view.is-active::after {
 	border-color: var(--vscode-contrastActiveBorder);
 }
 

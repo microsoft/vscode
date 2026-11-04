@@ -120,7 +120,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, findMcpServerDetailMigrationEntry, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
-import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedAgentPluginDetail, resolvePluginSkillUri } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
@@ -891,6 +891,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => this.onDidChangeSidebarSelection(e)));
+		this.registerSidebarKeyboardNavigation();
 
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
@@ -1007,6 +1008,30 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonStyle();
 	}
 
+	private registerSidebarKeyboardNavigation(): void {
+		const homeButton = this.homeButton;
+		if (!homeButton) {
+			return;
+		}
+		this.editorDisposables.add(DOM.addDisposableListener(homeButton, DOM.EventType.KEY_DOWN, event => {
+			if (event.key !== 'ArrowDown' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || this.sectionsList.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			this.sectionsList.setFocus([0]);
+			this.sectionsList.domFocus();
+		}));
+		this.editorDisposables.add(DOM.addDisposableListener(this.sectionsList.getHTMLElement(), DOM.EventType.KEY_DOWN, event => {
+			if (event.key !== 'ArrowUp' || event.target !== this.sectionsList.getHTMLElement() || this.sectionsList.getFocus()[0] !== 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			homeButton.focus();
+		}));
+	}
+
 	private updateHomeButtonStyle(): void {
 		if (!this.homeButtonLabel || !this.homeButton) {
 			return;
@@ -1027,12 +1052,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: localize('overviewButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', label);
 		this.homeButtonLabel.textContent = label;
-		this.homeButton.title = this.getHomeButtonTooltip();
+		this.homeButton.removeAttribute('title');
 	}
 
 	private getHomeButtonTooltip(): string {
 		return this.welcomePage?.isDiscover
-			? localize('discoverButtonTooltip', "Back to Customizations")
+			? localize('discoverButtonTooltip', "Browse available customizations")
 			: localize('homeButtonTooltip', "Back to overview");
 	}
 
@@ -1131,6 +1156,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		widget.setInput(prompt);
 		widget.focusInput();
+	}
+
+	public createCanvas(): Promise<void> {
+		return this.runMarketplacePrompt('/create-canvas ');
 	}
 
 	private createBackArrowButton(
@@ -1296,6 +1325,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpListWidget.setMcpServerMigrationCandidates(this.getMcpServerMigrationCandidates());
+			this.mcpListWidget.setShowSkillBundle(bundleId => void this.showMcpServerSkills(bundleId));
 			this.mcpListWidget.setCloseCustomizationEditor(async () => {
 				if (this.input) {
 					await this.group.closeEditor(this.input);
@@ -4350,7 +4380,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, sectionId, StorageScope.PROFILE, StorageTarget.USER);
 			this.updateContentVisibility();
 			if (this.isPromptsSection(sectionId)) {
-				void this.listWidget.setSection(sectionId);
+				this.listWidgetSectionLoad = this.listWidget.setSection(sectionId);
 			}
 			// Re-layout after visibility change so the newly-visible widget
 			// can measure its flex-computed container height correctly.
@@ -4439,6 +4469,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.listWidget.refresh();
 	}
 
+	/** Opens Skills filtered to the MCP server's host-published bundle identity. */
+	public async showMcpServerSkills(bundleId: string): Promise<void> {
+		if (!this.selectSectionById(AICustomizationManagementSection.Skills)) {
+			return;
+		}
+		const navigationGeneration = this.contentNavigationGeneration;
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		await this.listWidgetSectionLoad;
+		if (navigationGeneration === this.contentNavigationGeneration && this.selectedSection === AICustomizationManagementSection.Skills && isEqual(sessionResource, this.harnessService.activeSessionResource.get())) {
+			this.listWidget.showSkillBundle(bundleId);
+		}
+	}
+
 	public setSearchQuery(query: string, preserveFocus?: boolean): void {
 		if (this.selectedSection === undefined) {
 			this.welcomePage?.setSearchQuery(query, preserveFocus);
@@ -4459,18 +4502,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	/**
 	 * Reveals and selects the item backed by `uri` in the current section,
-	 * retrying while the list loads. MCP servers and plugins have no
-	 * URI-addressable rows, so selecting their section is the whole reveal.
+	 * retrying while the list loads.
 	 */
 	public async revealCustomizationByUri(uri: URI): Promise<void> {
-		if (!this.isPromptsSection(this.selectedSection)) {
+		const isPlugin = this.selectedSection === AICustomizationManagementSection.Plugins;
+		if (!isPlugin && !this.isPromptsSection(this.selectedSection)) {
 			return;
 		}
 		for (let attempt = 0; attempt < 10; attempt++) {
-			if (this.listWidget.revealAndSelectFirstItemByUri([uri])) {
+			const revealed = isPlugin
+				? await this.pluginListWidget?.revealAndSelectItemByUri(uri)
+				: this.listWidget.revealAndSelectFirstItemByUri([uri]);
+			if (revealed) {
 				return;
 			}
-			if (attempt === 0) {
+			if (attempt === 0 && !isPlugin) {
 				this.listWidget.clearSearch();
 			}
 			await timeout(100);
@@ -6184,7 +6230,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (!isCurrentPluginContributionNavigation(navigationGeneration, this.contentNavigationGeneration, section, this.selectedSection, this.viewMode === 'list')) {
 				return;
 			}
-			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
+			const pluginUri = pluginItem.kind === AgentPluginItemKind.Installed ? pluginItem.plugin.uri : undefined;
+			const items = this.itemsModel.getItems(modelSection).get().filter(item => pluginUri && item.pluginUri && isEqual(item.pluginUri, pluginUri));
+			const resolvedUri = section === AICustomizationManagementSection.Skills
+				? resolvePluginSkillUri(uri, items)
+				: uri;
+			const item = resolvedUri ? items.find(item => isEqual(item.uri, resolvedUri)) : undefined;
 			if (item) {
 				void this.openCustomizationItem(item, { kind: 'pluginDetail', item: pluginItem, origin: pluginOrigin });
 			}

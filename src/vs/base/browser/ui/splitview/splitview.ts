@@ -871,6 +871,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				if (typeof proportion === 'number') {
 					total += proportion;
 				} else {
+					// A view that keeps its size still keeps within its bounds, such as one restored at a size out of them
+					item.size = clamp(item.size, item.minimumSize, item.maximumSize);
 					size -= item.size;
 				}
 			}

@@ -1,6 +1,7 @@
 {
 	"name": "@vscode/chat-lib",
 	"version": "0.0.0",
+	"packageManager": "pnpm@12.16.0",
 	"description": "Chat and inline editing SDK extracted from VS Code Copilot Chat",
 	"main": "dist/src/main.js",
 	"types": "dist/src/main.d.ts",
@@ -16,6 +17,7 @@
 	"dependencies": {
 		"@microsoft/tiktokenizer": "^1.0.10",
 		"@sinclair/typebox": "^0.34.41",
+		"@unicode/unicode-15.0.0": "2.1.0",
 		"@vscode/copilot-api": "^0.5.2",
 		"@vscode/l10n": "^0.0.18",
 		"@vscode/prompt-tsx": "^0.4.0-alpha.8",
@@ -41,6 +43,7 @@
 		"rimraf": "^6.0.1",
 		"tsx": "^4.22.4",
 		"typescript": "^5.8.3",
+		"vite": "^8.0.16",
 		"vitest": "^4.1.8"
 	},
 	"keywords": [
@@ -63,7 +66,7 @@
 		"build": "npm-run-all compile copy",
 		"compile": "tsc",
 		"copy": "copyfiles src/package.json \"src/**/*.tiktoken\" dist",
-		"package": "npm pack",
+		"package": "pnpm pack",
 		"postinstall": "tsx script/postinstall.js",
 		"test": "vitest run",
 		"test:watch": "vitest"

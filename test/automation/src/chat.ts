@@ -10,6 +10,8 @@ const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
 // The chat view sets `data-bound-chat-resource` once its widget is bound to a
 // chat session and clears it while it rebinds to another one.
 const CHAT_VIEW_BOUND_SESSION = `${CHAT_VIEW} .chat-viewpane[data-bound-chat-resource]`;
+// The resource of a local chat session (`LocalChatSessionUri`).
+const LOCAL_CHAT_SESSION_RESOURCE_PREFIX = 'vscode-chat-session://local/';
 const CHAT_EDITOR = '.editor-instance .interactive-session';
 const CHAT_INPUT_EDITOR = `${CHAT_VIEW} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_INPUT_EDITOR_FOCUSED = `${CHAT_VIEW} .interactive-input-part .monaco-editor.focused[role="code"]`;
@@ -76,6 +78,22 @@ export class Chat {
 	 */
 	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
 		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
+	}
+
+	/**
+	 * Waits until the chat view is bound to a local chat session other than
+	 * `previousSessionResource`, such as the one `smoketest.openLocalChat`
+	 * opens. That command keeps running after the command palette closes, and
+	 * first waits for the command that opens a local chat to be registered: a
+	 * message sent before then goes to the session the view had, such as the
+	 * Agent Host Copilot session that is its default, and never gets the
+	 * response the test expects.
+	 */
+	async waitForNewLocalChatViewSession(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => {
+			const sessionResource = element?.attributes['data-bound-chat-resource'];
+			return !!sessionResource && sessionResource !== previousSessionResource && sessionResource.startsWith(LOCAL_CHAT_SESSION_RESOURCE_PREFIX);
+		}, retryCount);
 	}
 
 	async waitForChatEditor(retryCount?: number): Promise<void> {

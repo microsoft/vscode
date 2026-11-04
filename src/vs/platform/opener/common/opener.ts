@@ -50,6 +50,11 @@ export type OpenExternalOptions = {
 	readonly allowContributedOpeners?: boolean | string;
 	readonly fromWorkspace?: boolean;
 	readonly skipValidation?: boolean;
+	/**
+	 * The window the link was activated in, such as the window of a web page that opens it. Contributed external openers
+	 * open in that window, rather than in the window that appears to have focus.
+	 */
+	readonly sourceWindowId?: number;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
@@ -69,6 +74,8 @@ export interface IExternalUriOpenContext {
 	/** The URL before resolution or port forwarding, preserving its original encoding when opened as a string. */
 	readonly sourceHref: string;
 	readonly viewColumn?: ViewColumn;
+	/** The window the link was activated in; see {@link OpenExternalOptions.sourceWindowId}. */
+	readonly sourceWindowId?: number;
 }
 
 export interface IExternalOpener {

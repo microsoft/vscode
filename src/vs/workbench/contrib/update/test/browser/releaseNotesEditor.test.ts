@@ -42,6 +42,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -88,6 +90,8 @@ suite('Release notes editor Try This integration', () => {
 		const onDispose = store.add(new Emitter<void>());
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IHostService, { onDidChangeFocus: Event.None, onDidChangeActiveWindow: Event.None });
+		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		const webview = new class extends mock<IOverlayWebview>() {
 			override readonly container = $('div');
 			override readonly onMessage = onMessage.event;

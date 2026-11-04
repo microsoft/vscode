@@ -6,10 +6,15 @@
 /*
  * The character that an inline attachment pill is laid out over. Its glyph is
  * hidden, and its width, set per pill, reserves the pill's width in the line.
+ *
+ * The glyph is hidden with opacity rather than a transparent color, since token
+ * colors, such as the input foreground of the chat input, are more specific
+ * than this rule. Fonts on Windows and Linux draw the character as an "OBJ"
+ * box, which would show through the pill.
  */
 .monaco-editor .chat-inline-attachment-anchor {
 	display: inline-block;
-	color: transparent;
+	opacity: 0;
 }
 
 .monaco-editor .chat-inline-attachment-wrap-width {

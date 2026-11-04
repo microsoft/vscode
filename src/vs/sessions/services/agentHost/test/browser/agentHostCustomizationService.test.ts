@@ -61,6 +61,7 @@ suite('AgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = observableValue<IActiveSession | undefined>(this, session);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<ISessionsProvidersService>() {
 				constructor(private readonly _provider: ISessionsProvider) { super(); }
@@ -92,6 +93,7 @@ suite('AgentHostCustomizationService', () => {
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue(this, undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		};
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 			constructor(private readonly _provider: ISessionsProvider) {
@@ -212,12 +214,14 @@ suite('AgentHostCustomizationService', () => {
 		const plugin: PluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: 'plugin',
-			uri: 'vscode-synced-customization:///plugin',
+			uri: URI.parse('vscode-synced-customization:///plugin').toString(),
 			name: 'Plugin',
+			clientId: 'vscode',
 			children: [server],
 		};
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'agenthost-test';
+			override getClientId(): string { return 'vscode'; }
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeCustomizations = Event.None;
 			override getBackendSessionResource(): URI { return URI.parse('other-agent://tenant/conversations/opaque-session'); }

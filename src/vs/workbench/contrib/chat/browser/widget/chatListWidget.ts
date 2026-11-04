@@ -9,6 +9,7 @@ import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -18,9 +19,11 @@ import { Mimes } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { compare } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -29,16 +32,19 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { extractSelection } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, editorWidgetBackground, editorWidgetBorder, iconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor } from '../chat.js';
@@ -322,6 +328,17 @@ export interface IChatListWidgetOptions {
 	readonly tabIndex?: 0 | -1;
 }
 
+interface IChatListRenderedState {
+	readonly viewModel: IChatViewModel;
+	readonly items: readonly ChatTreeItem[];
+	/** Diff identities computed by the refresh, keyed by element. */
+	readonly diffIds: ReadonlyMap<ChatTreeItem, string>;
+	readonly consecutiveRequestIds: ReadonlySet<string>;
+	readonly editing: IChatRequestViewModel | undefined;
+	readonly visibleChangeCount: number;
+	readonly settingChangeCounter: number;
+}
+
 /**
  * A reusable widget that encapsulates chat list/tree rendering.
  * This can be used in various contexts such as the main chat widget,
@@ -386,6 +403,8 @@ export class ChatListWidget extends Disposable {
 	private _viewModel: IChatViewModel | undefined;
 	private _visible = true;
 	private _lastItem: ChatTreeItem | undefined;
+	/** What the last full {@link refresh} rendered, so response-only updates can skip diffing the whole transcript. */
+	private _renderedState: IChatListRenderedState | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
 	private _autoScrollHolds = new AutoScrollHolds();
@@ -501,6 +520,7 @@ export class ChatListWidget extends Disposable {
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 
@@ -930,7 +950,25 @@ export class ChatListWidget extends Disposable {
 
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
-		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		let linkUri: URI | undefined;
+		if (linkTarget) {
+			try {
+				linkUri = URI.parse(linkTarget);
+			} catch (error) {
+				this.logService.debug('Unable to parse chat context menu link', error);
+			}
+		}
+		const hasAvailableEditors = !!linkUri && shouldShowChatLinkOpenWith(linkUri, this.fileService, this.editorResolverService);
+		let fileResource = linkUri
+			&& linkUri.scheme !== Schemas.http && linkUri.scheme !== Schemas.https
+			&& this.fileService.hasProvider(linkUri) ? extractSelection(linkUri).uri : undefined;
+		if (fileResource?.query) {
+			const params = new URLSearchParams(fileResource.query);
+			if (params.has('vscodeLinkType')) {
+				params.delete('vscodeLinkType');
+				fileResource = fileResource.with({ query: params.toString() });
+			}
+		}
 		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
 		const responseSelection = selection?.response === selected ? selection : undefined;
 
@@ -942,6 +980,10 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
 			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
 			[ChatContextKeys.contextMenuHasResponseSelection.key, !!responseSelection],
+			[ResourceContextKey.Scheme.key, fileResource?.scheme],
+			[ResourceContextKey.HasResource.key, !!fileResource],
+			[ResourceContextKey.IsFileSystemResource.key, !!fileResource],
+			[ExplorerFolderContext.key, !!fileResource?.path.endsWith('/')],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,
@@ -950,11 +992,19 @@ export class ChatListWidget extends Disposable {
 			responseSelection,
 		};
 		this.contextMenuService.showContextMenu({
-			menuId: MenuId.ChatContext,
-			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: scopedContextKeyService,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => actionContext,
+			getActions: () => {
+				const groups = new Map(this.menuService.getMenuActions(MenuId.ChatContext, scopedContextKeyService, { shouldForwardArgs: true }));
+				if (fileResource) {
+					for (const [group, actions] of this.menuService.getMenuActions(MenuId.ChatInlineResourceAnchorContext, scopedContextKeyService, { arg: fileResource })) {
+						groups.set(group, [...(groups.get(group) ?? []), ...actions]);
+					}
+				}
+				const sortedGroups = [...groups].sort(([a], [b]) => a === b ? 0 : a === 'navigation' ? -1 : b === 'navigation' ? 1 : compare(a, b));
+				return getFlatContextMenuActions(sortedGroups);
+			},
 		});
 	}
 
@@ -970,22 +1020,32 @@ export class ChatListWidget extends Disposable {
 			this.clearScrollHeightReservation();
 		}
 		this._viewModel = viewModel;
+		this._renderedState = undefined;
 		this._renderer.updateViewModel(viewModel);
 	}
 
 	/**
 	 * Refresh the list from the current view model.
 	 * Uses internal state for diff identity calculation.
+	 *
+	 * @param changes The view model changes that caused this refresh, when known. If they only
+	 * report changed responses and the list of items is unchanged, only those responses are
+	 * diffed instead of the whole transcript.
 	 */
-	refresh(): void {
+	refresh(changes?: readonly IChatViewModelChangeEvent[]): void {
 		if (!this._viewModel) {
 			this._tree.setChildren(null, []);
 			this._lastItem = undefined;
+			this._renderedState = undefined;
 			this._lastItemIdContextKey.set([]);
 			return;
 		}
 
 		const items = this._viewModel.getItems();
+		if (changes?.length && this.refreshChangedResponses(this._viewModel, items, changes)) {
+			return;
+		}
+
 		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
@@ -995,44 +1055,113 @@ export class ChatListWidget extends Disposable {
 			: items.map(item => ({ element: item, collapsed: false, collapsible: false }));
 
 		const editing = this._viewModel.editing;
+		const diffIds = new Map<ChatTreeItem, string>();
 
 		this._withPersistedAutoScroll(() => {
 			this._tree.setChildren(null, treeItems, {
 				diffDepth: 1,
 				diffIdentityProvider: {
-					getId: (element) => {
-						// Pending types only have 'id', request/response have 'dataId'
-						const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
-						const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
-						const isLastItem = element.id === this._lastItem?.id;
-						// Per-element editing state: only re-render items whose editing role changed
-						const isEditTarget = isRequestVM(element) && editing?.id === element.id;
-						const isBlocked = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeBlocked.get() : false;
-						return baseId +
-							// If a response is in the process of progressive rendering, we need to ensure that it will
-							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
-							`${isResponseVM(element) && element.renderData ? `_${this._visibleChangeCount}` : ''}` +
-							// Re-render once content references are loaded
-							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
-							// Re-render if element becomes hidden due to undo/redo
-							`_${disablement ? `${disablement.afterUndoStop || '1'}` : '0'}` +
-							// Re-render the request being edited and requests whose blocked state changed
-							`_${isEditTarget ? 'edit' : ''}` +
-							`_${isBlocked ? 'blocked' : ''}` +
-							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
-							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
-							`_${consecutiveRequestIds.has(element.id) ? 'consecutive' : ''}` +
-							// Re-render the old and new tail rows when the list grows or shrinks.
-							`_${isLastItem ? 'last' : ''}` +
-							// Re-render all if invoked by setting change
-							`_setting${this._settingChangeCounter}` +
-							// Rerender request if we got new content references in the response
-							// since this may change how we render the corresponding attachments in the request
-							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
+					getId: element => {
+						let id = diffIds.get(element);
+						if (id === undefined) {
+							id = this.getDiffIdentity(element, editing, consecutiveRequestIds);
+							diffIds.set(element, id);
+						}
+						return id;
 					},
 				}
 			});
 		});
+
+		this._renderedState = {
+			viewModel: this._viewModel,
+			items,
+			diffIds,
+			consecutiveRequestIds,
+			editing,
+			visibleChangeCount: this._visibleChangeCount,
+			settingChangeCounter: this._settingChangeCounter,
+		};
+	}
+
+	/**
+	 * Re-diffs only the responses reported by {@link changes}, under their requests, when nothing
+	 * else that feeds the diff identity changed since the last full refresh. Returns `false`
+	 * when a full refresh is needed.
+	 */
+	private refreshChangedResponses(viewModel: IChatViewModel, items: readonly ChatTreeItem[], changes: readonly IChatViewModelChangeEvent[]): boolean {
+		const rendered = this._renderedState;
+		if (!this._useTreeHierarchy || !rendered || rendered.viewModel !== viewModel
+			|| rendered.editing !== viewModel.editing
+			|| rendered.visibleChangeCount !== this._visibleChangeCount
+			|| rendered.settingChangeCounter !== this._settingChangeCounter
+			|| !equals(rendered.items, items)) {
+			return false;
+		}
+
+		const requests = new Set<IChatRequestViewModel>();
+		for (const change of changes) {
+			if (change?.kind !== 'changeResponse' || !this._tree.hasElement(change.response)) {
+				return false;
+			}
+			const request = this._tree.getParentElement(change.response);
+			if (!isRequestVM(request)) {
+				return false;
+			}
+			requests.add(request);
+		}
+
+		// A response change can also change its request's identity, for example when the response
+		// completes or gains content references. The request row is a root node, so diff it fully.
+		for (const request of requests) {
+			if (rendered.diffIds.get(request) !== this.getDiffIdentity(request, rendered.editing, rendered.consecutiveRequestIds)) {
+				return false;
+			}
+		}
+
+		const diffIdentityProvider = { getId: (element: ChatTreeItem) => this.getDiffIdentity(element, rendered.editing, rendered.consecutiveRequestIds) };
+		this._withPersistedAutoScroll(() => {
+			for (const request of requests) {
+				const children: ITreeElement<ChatTreeItem>[] = [];
+				for (let i = items.indexOf(request) + 1; i < items.length && isResponseVM(items[i]); i++) {
+					children.push({ element: items[i], collapsed: false, collapsible: false });
+				}
+				this._tree.setChildren(request, children, { diffIdentityProvider });
+			}
+		});
+		return true;
+	}
+
+	/** The diff identity of an element; when it changes, a refresh replaces and re-renders its row. */
+	private getDiffIdentity(element: ChatTreeItem, editing: IChatRequestViewModel | undefined, consecutiveRequestIds: ReadonlySet<string>): string {
+		// Pending types only have 'id', request/response have 'dataId'
+		const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
+		const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
+		const isLastItem = element.id === this._lastItem?.id;
+		// Per-element editing state: only re-render items whose editing role changed
+		const isEditTarget = isRequestVM(element) && editing?.id === element.id;
+		const isBlocked = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeBlocked.get() : false;
+		return baseId +
+			// If a response is in the process of progressive rendering, we need to ensure that it will
+			// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
+			`${isResponseVM(element) && element.renderData ? `_${this._visibleChangeCount}` : ''}` +
+			// Re-render once content references are loaded
+			(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
+			// Re-render if element becomes hidden due to undo/redo
+			`_${disablement ? `${disablement.afterUndoStop || '1'}` : '0'}` +
+			// Re-render the request being edited and requests whose blocked state changed
+			`_${isEditTarget ? 'edit' : ''}` +
+			`_${isBlocked ? 'blocked' : ''}` +
+			// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
+			(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+			`_${consecutiveRequestIds.has(element.id) ? 'consecutive' : ''}` +
+			// Re-render the old and new tail rows when the list grows or shrinks.
+			`_${isLastItem ? 'last' : ''}` +
+			// Re-render all if invoked by setting change
+			`_setting${this._settingChangeCounter}` +
+			// Rerender request if we got new content references in the response
+			// since this may change how we render the corresponding attachments in the request
+			(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
 	}
 
 	/**

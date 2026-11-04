@@ -5,16 +5,19 @@
 
 import { $, addDisposableListener, clearNode, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { hashAsync } from '../../../../base/common/hash.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { openInboxLink } from './inboxLinks.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -22,6 +25,18 @@ import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/ch
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { collectInboxEvidence, IInboxEvidence, IInboxEvidenceImage } from '../common/inboxEvidence.js';
 import { IInboxNotificationItem } from '../common/inboxNotificationsService.js';
+
+export function createInboxEvidenceSection(container: HTMLElement, title: string, count: number, store: DisposableStore, onLayout: () => void): HTMLElement {
+	const section = container.appendChild($('section.inbox-evidence-section'));
+	if (count > 3) {
+		const details = section.appendChild($<HTMLDetailsElement>('details.inbox-evidence-disclosure'));
+		details.appendChild($('summary', undefined, localize('inbox.evidence.sectionCount', "{0} ({1})", title, count)));
+		store.add(addDisposableListener(details, 'toggle', onLayout));
+		return details.appendChild($('.inbox-evidence-disclosure-content'));
+	}
+	section.appendChild($('h3', undefined, title));
+	return section;
+}
 
 export class InboxEvidenceWidget extends Disposable {
 	readonly element = $('.inbox-evidence');
@@ -34,6 +49,7 @@ export class InboxEvidenceWidget extends Disposable {
 	private signature: string | undefined;
 	private accessibleContent = '';
 	private readonly focusTargets = new Map<string, HTMLElement>();
+	private readonly hoverDelegate = this._register(createInstantHoverDelegate());
 
 	constructor(
 		session: ISession,
@@ -89,17 +105,16 @@ export class InboxEvidenceWidget extends Disposable {
 		this.changed.trigger(undefined);
 	}
 
-	private section(title: string, note?: string): HTMLElement {
-		const section = this.element.appendChild($('section.inbox-evidence-section'));
-		section.appendChild($('h3', undefined, title));
+	private section(title: string, note?: string, count = 0): HTMLElement {
+		const section = createInboxEvidenceSection(this.element, title, count, this.renderStore, this.onLayout);
 		if (note) {
 			section.appendChild($('p.inbox-evidence-note', undefined, note));
 		}
 		return section;
 	}
 
-	private button(parent: HTMLElement, label: string, key: string, action: () => Promise<unknown>, store = this.renderStore): void {
-		const button = store.add(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true }));
+	private button(parent: HTMLElement, label: string, key: string, action: () => Promise<unknown>, store = this.renderStore, title?: string): void {
+		const button = store.add(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true, title, hoverDelegate: this.hoverDelegate }));
 		button.label = label;
 		button.element.dataset.evidenceKey = key;
 		this.focusTargets.set(key, button.element);
@@ -137,15 +152,18 @@ export class InboxEvidenceWidget extends Disposable {
 				this.accessibleContent = accessible.join('\n\n');
 			}, focusKey);
 		}
-		if (evidence.artifacts.length) {
-			const section = this.section(localize('inbox.evidence.sources', "Artifacts and references"));
+		const artifacts = evidence.artifacts.filter(artifact => !this.item.pullRequestStates?.some(state =>
+			state.pullRequestUri && isEqual(artifact.uri ?? artifact.link, state.pullRequestUri)));
+		if (artifacts.length) {
+			const section = this.section(localize('inbox.evidence.sources', "Artifacts and references"), undefined, artifacts.length);
 			const list = section.appendChild($('ul.inbox-evidence-files'));
-			for (const artifact of evidence.artifacts) {
+			for (const artifact of artifacts) {
 				const uri = artifact.uri ?? artifact.link;
 				const row = list.appendChild($('li'));
 				const label = artifact.isArtifact ? artifact.label : localize('inbox.evidence.reference', "Reference: {0}", artifact.label);
 				if (uri) {
-					this.button(row, label, `artifact:${artifact.id}`, () => this.openerService.open(uri));
+					const key = `artifact:${artifact.id}`;
+					this.button(row, label, key, () => openInboxLink(this.openerService, uri), this.renderStore, uri.toString(true));
 				} else {
 					row.textContent = label;
 				}
@@ -155,7 +173,12 @@ export class InboxEvidenceWidget extends Disposable {
 		this.element.style.display = this.element.hasChildNodes() ? '' : 'none';
 		this.accessibleContent = accessible.join('\n\n');
 		if (focusKey) {
-			this.focusTargets.get(focusKey)?.focus();
+			const target = this.focusTargets.get(focusKey);
+			const disclosure = target?.closest('details');
+			if (disclosure) {
+				disclosure.open = true;
+			}
+			target?.focus();
 		}
 		this.onLayout();
 	}

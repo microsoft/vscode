@@ -17,7 +17,8 @@ import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -84,6 +85,9 @@ import '../../../../browser/media/workbench.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
 
+/** The editor parts of a Files tab of the main window: no part other than the main part. */
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
+
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	const element = mainWindow.document.createElement('div');
 	element.className = className;
@@ -138,6 +142,11 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The actions run in the main window: no chat window has focus. */
+	function stubNoChatWindow(instantiationService: TestInstantiationService): void {
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+	}
 
 	function createFileSearch(instantiationService: TestInstantiationService): EmptyFileEditorSearch {
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
@@ -279,38 +288,35 @@ suite('Sessions - Editor Contribution', () => {
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
 		const editor = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
 		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
-		try {
-			const getBorders = () => {
-				const frame = mainWindow.getComputedStyle(group, '::after');
-				return {
-					outerBorder: mainWindow.getComputedStyle(editor).borderColor,
-					frameWidth: frame.borderWidth,
-					frameColor: frame.borderColor,
-					frameRadius: frame.borderRadius,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getBorders = () => {
+			const frame = mainWindow.getComputedStyle(group, '::after');
+			return {
+				outerBorder: mainWindow.getComputedStyle(editor).borderColor,
+				frameWidth: frame.borderWidth,
+				frameColor: frame.borderColor,
+				frameRadius: frame.borderRadius,
 			};
-			const borders = [];
-			const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
-			for (const theme of themes) {
-				workbench.classList.add(theme);
-				workbench.classList.remove('noauxiliarybar');
-				const docked = getBorders();
-				workbench.classList.add('noauxiliarybar');
-				borders.push({ theme, docked, editorOnly: getBorders() });
-				workbench.classList.remove(theme);
-			}
-			assert.deepStrictEqual(borders, themes.map(theme => {
-				const expected = {
-					outerBorder: 'rgba(0, 0, 0, 0)',
-					frameWidth: '1px',
-					frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
-					frameRadius: '7px',
-				};
-				return { theme, docked: expected, editorOnly: expected };
-			}));
-		} finally {
-			workbench.remove();
+		};
+		const borders = [];
+		const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
+		for (const theme of themes) {
+			workbench.classList.add(theme);
+			workbench.classList.remove('noauxiliarybar');
+			const docked = getBorders();
+			workbench.classList.add('noauxiliarybar');
+			borders.push({ theme, docked, editorOnly: getBorders() });
+			workbench.classList.remove(theme);
 		}
+		assert.deepStrictEqual(borders, themes.map(theme => {
+			const expected = {
+				outerBorder: 'rgba(0, 0, 0, 0)',
+				frameWidth: '1px',
+				frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
+				frameRadius: '7px',
+			};
+			return { theme, docked: expected, editorOnly: expected };
+		}));
 	});
 
 	test('matches the chat separator with and without the theme border class', () => {
@@ -342,87 +348,84 @@ suite('Sessions - Editor Contribution', () => {
 		const expectedColorReference = appendElement(workbench, 'expected-color-reference');
 		expectedColorReference.style.color = 'color-mix(in srgb, rgb(100, 100, 100) 12%, transparent)';
 
-		try {
-			const getSidePanelSeparatorStyles = () => {
-				const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
-				return {
-					color: style.backgroundColor,
-					leftInset: style.left,
-					rightInset: style.right,
-					width: style.height,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getSidePanelSeparatorStyles = () => {
+			const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
+			return {
+				color: style.backgroundColor,
+				leftInset: style.left,
+				rightInset: style.right,
+				width: style.height,
 			};
-			const chatBarStyle = mainWindow.getComputedStyle(chatBar);
-			const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
-			const chatSeparatorStyles = {
-				color: chatTabsRowStyle.borderBottomColor,
-				leftInset: chatBarStyle.paddingLeft,
-				rightInset: chatBarStyle.paddingRight,
-				width: chatTabsRowStyle.borderBottomWidth,
-			};
-			const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
-			const withoutThemeBorderClass = getSidePanelSeparatorStyles();
+		};
+		const chatBarStyle = mainWindow.getComputedStyle(chatBar);
+		const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
+		const chatSeparatorStyles = {
+			color: chatTabsRowStyle.borderBottomColor,
+			leftInset: chatBarStyle.paddingLeft,
+			rightInset: chatBarStyle.paddingRight,
+			width: chatTabsRowStyle.borderBottomWidth,
+		};
+		const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
+		const withoutThemeBorderClass = getSidePanelSeparatorStyles();
 
-			tabsAndActionsContainer.classList.add('tabs-border-bottom');
-			tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
-			const withThemeBorderClass = getSidePanelSeparatorStyles();
+		tabsAndActionsContainer.classList.add('tabs-border-bottom');
+		tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
+		const withThemeBorderClass = getSidePanelSeparatorStyles();
 
-			workbench.classList.add('hc-black');
-			const highContrast = getSidePanelSeparatorStyles();
-			const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
-			const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
-			const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
+		workbench.classList.add('hc-black');
+		const highContrast = getSidePanelSeparatorStyles();
+		const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
+		const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
+		const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
 
-			assert.deepStrictEqual({
-				expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
-				withoutThemeBorderClass,
-				withThemeBorderClass,
-				chatSeparatorStyles,
-				highContrast,
-				highContrastChatColor,
-				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
-				modal: {
-					borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
-					leftInset: modalSeparatorStyle.left,
-					rightInset: modalSeparatorStyle.right,
-				},
-			}, {
-				expectedColorIsTransparent: false,
-				withoutThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				withThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				chatSeparatorStyles: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrast: {
-					color: 'rgb(255, 255, 255)',
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrastChatColor: 'rgb(255, 255, 255)',
-				hasDuplicateTitleSeparator: false,
-				modal: {
-					borderColor: 'transparent',
-					leftInset: '0px',
-					rightInset: '0px',
-				},
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
+			withoutThemeBorderClass,
+			withThemeBorderClass,
+			chatSeparatorStyles,
+			highContrast,
+			highContrastChatColor,
+			hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
+			modal: {
+				borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
+				leftInset: modalSeparatorStyle.left,
+				rightInset: modalSeparatorStyle.right,
+			},
+		}, {
+			expectedColorIsTransparent: false,
+			withoutThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			withThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			chatSeparatorStyles: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrast: {
+				color: 'rgb(255, 255, 255)',
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrastChatColor: 'rgb(255, 255, 255)',
+			hasDuplicateTitleSeparator: false,
+			modal: {
+				borderColor: 'transparent',
+				leftInset: '0px',
+				rightInset: '0px',
+			},
+		});
 	});
 
 	for (const connected of [false, true]) {
@@ -457,39 +460,36 @@ suite('Sessions - Editor Contribution', () => {
 				return style.content !== 'none' && style.display !== 'none';
 			};
 
-			try {
-				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-					workbench.classList.add(theme);
-					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
-					const states = [false, true, false].map(compact => {
-						workbench.classList.toggle('modern-ui-compact', compact);
-						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
-						return {
-							separator: hasSeparator(row),
-							pinnedSeparator: hasSeparator(pinnedRow),
-							unpinnedSeparator: hasSeparator(unpinnedRow),
-							singleSeparator: hasSeparator(singleRow),
-							modalSeparator: hasSeparator(modalRow),
-							capBorder: mainWindow.getComputedStyle(fill).borderTop,
-							detailsTopBorder: detailsFrame.borderTopWidth,
-							detailsSideBorder: detailsFrame.borderLeftWidth,
-						};
-					});
+			store.add(toDisposable(() => workbench.remove()));
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+				const states = [false, true, false].map(compact => {
+					workbench.classList.toggle('modern-ui-compact', compact);
+					const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+					return {
+						separator: hasSeparator(row),
+						pinnedSeparator: hasSeparator(pinnedRow),
+						unpinnedSeparator: hasSeparator(unpinnedRow),
+						singleSeparator: hasSeparator(singleRow),
+						modalSeparator: hasSeparator(modalRow),
+						capBorder: mainWindow.getComputedStyle(fill).borderTop,
+						detailsTopBorder: detailsFrame.borderTopWidth,
+						detailsSideBorder: detailsFrame.borderLeftWidth,
+					};
+				});
 
-					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
-						separator: true,
-						pinnedSeparator: false,
-						unpinnedSeparator: true,
-						singleSeparator: true,
-						modalSeparator: true,
-						capBorder,
-						detailsTopBorder: '0px',
-						detailsSideBorder: compact ? '1px' : '0px',
-					})), theme);
-					workbench.classList.remove(theme);
-				}
-			} finally {
-				workbench.remove();
+				assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+					separator: true,
+					pinnedSeparator: false,
+					unpinnedSeparator: true,
+					singleSeparator: true,
+					modalSeparator: true,
+					capBorder,
+					detailsTopBorder: '0px',
+					detailsSideBorder: compact ? '1px' : '0px',
+				})), theme);
+				workbench.classList.remove(theme);
 			}
 		});
 	}
@@ -573,6 +573,7 @@ suite('Sessions - Editor Contribution', () => {
 					workspace: constObservable(chatWorkspace),
 				}),
 			} as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
@@ -585,6 +586,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1385,6 +1387,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewBrowserTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1436,6 +1439,7 @@ suite('Sessions - Editor Contribution', () => {
 				}
 			});
 
+			stubNoChatWindow(instantiationService);
 			await new OpenBrowserAction().run(instantiationService);
 			return calls;
 		};
@@ -1644,8 +1648,8 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
-		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService, noOtherEditorParts));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService, noOtherEditorParts));
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
@@ -1657,6 +1661,29 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('the Files tab of a part of another window, such as a chat window, closes while that part shows, whatever the main window shows', () => {
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			// The editor area of the main window is hidden
+			override isVisible(): boolean { return false; }
+		};
+		const partVisible = { value: true };
+		const mainPart = upcastPartial<IEditorPart>({ groups: [] });
+		let input: EmptyFileEditorInput | undefined = undefined;
+		const chatWindowPart = upcastPartial<IEditorPart>({
+			groups: [upcastPartial<IEditorGroup>({
+				contains: (editor: unknown) => editor === input,
+				scopedContextKeyService: upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => partVisible.value as T }),
+			})],
+		});
+		input = store.add(new EmptyFileEditorInput(undefined, layoutService, upcastPartial<IEditorGroupsService>({ mainPart, parts: [mainPart, chatWindowPart] })));
+		const closable = () => !input!.hasCapability(EditorInputCapabilities.CannotClose);
+		const whileShown = closable();
+		partVisible.value = false;
+
+		assert.deepStrictEqual({ whileShown, whileHidden: closable() }, { whileShown: true, whileHidden: false });
+	});
+
 	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
@@ -1666,7 +1693,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService, noOtherEditorParts));
 		let capabilitiesChanges = 0;
 		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -1701,7 +1728,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, noOtherEditorParts));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
@@ -1724,7 +1751,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, false);
 		const serializer = new EmptyFileEditorSerializer();
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService, noOtherEditorParts));
 		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
 		if (restored) {
 			store.add(restored);
@@ -1746,6 +1773,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewSearchTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(invoked, [openNewSearchEditor]);
@@ -1757,6 +1785,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1769,6 +1798,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
@@ -1780,6 +1810,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 2);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1792,6 +1823,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 2 }]);
@@ -1802,6 +1834,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 0);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		let opened = false;
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1811,6 +1844,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
@@ -1830,6 +1864,7 @@ suite('Sessions - Editor Contribution', () => {
 				isCreated: constObservable(true),
 				activeChat: constObservable({ workspace: constObservable(workspace) }),
 			} as unknown as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1851,6 +1886,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 

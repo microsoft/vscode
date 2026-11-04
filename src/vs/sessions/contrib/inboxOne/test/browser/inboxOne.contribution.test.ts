@@ -56,11 +56,12 @@ suite('InboxNotificationsCanvasContribution', () => {
 	test('registers a native canvas only while enabled', async () => {
 		const fixture = createFixture(true);
 		const enabled = [...fixture.registered.keys()];
+		const retainFocusOnRestore = fixture.registered.get(INBOX_CANVAS_ID)?.retainFocusOnRestore;
 		await fixture.setEnabled(false);
 		const disabled = [...fixture.registered.keys()];
 		await fixture.setEnabled(true);
-		assert.deepStrictEqual({ enabled, disabled, reenabled: [...fixture.registered.keys()], closed: fixture.closed }, {
-			enabled: [INBOX_CANVAS_ID], disabled: [], reenabled: [INBOX_CANVAS_ID], closed: [INBOX_CANVAS_ID],
+		assert.deepStrictEqual({ enabled, retainFocusOnRestore, disabled, reenabled: [...fixture.registered.keys()], closed: fixture.closed }, {
+			enabled: [INBOX_CANVAS_ID], retainFocusOnRestore: true, disabled: [], reenabled: [INBOX_CANVAS_ID], closed: [INBOX_CANVAS_ID],
 		});
 	});
 

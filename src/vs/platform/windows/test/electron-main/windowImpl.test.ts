@@ -14,6 +14,7 @@ import { IEnvironmentMainService } from '../../../environment/electron-main/envi
 import { NullLogService } from '../../../log/common/log.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
+import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
 
@@ -22,6 +23,10 @@ class TestWindow extends BaseWindow {
 
 	override setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		super.setWin(win, options);
+	}
+
+	override applyState(state: IWindowState, hasMultipleDisplays?: boolean, minimized?: boolean): void {
+		super.applyState(state, hasMultipleDisplays, minimized);
 	}
 
 	matches(_webContents: WebContents): boolean {
@@ -111,5 +116,51 @@ suite('BaseWindow - window controls overlay', () => {
 			x: horizontalInset,
 			y: getMacOSWindowControlsPosition(height, release())!.y,
 		}]));
+	});
+});
+
+suite('BaseWindow - restoring a window state', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function restore(mode: WindowMode, minimized = false): string[] {
+		const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'custom' } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
+			store.add(new NullLogService())
+		));
+
+		const calls: string[] = [];
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const setSheetOffset = sinon.stub();
+		window.setWin(upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setSheetOffset,
+			isVisible: () => false,
+			show: () => calls.push('show'),
+			showInactive: () => calls.push('showInactive'),
+			maximize: () => calls.push('maximize'),
+			minimize: () => calls.push('minimize'),
+		}));
+
+		window.applyState({ mode }, false, minimized);
+
+		return calls;
+	}
+
+	test('restores minimized windows without taking focus', () => {
+		assert.deepStrictEqual({
+			maximized: restore(WindowMode.Maximized),
+			minimized: restore(WindowMode.Normal, true),
+			maximizedMinimized: restore(WindowMode.Maximized, true),
+		}, {
+			maximized: ['maximize', 'show'],
+			minimized: ['showInactive', 'minimize'],
+			maximizedMinimized: ['maximize', 'showInactive', 'minimize'],
+		});
 	});
 });

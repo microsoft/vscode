@@ -6,15 +6,24 @@
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatPlanReview, IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../workbench/contrib/chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
+
+export const enum InboxTab {
+	ReadyForYou = 'readyForYou',
+	Working = 'working',
+	ReadyToMerge = 'readyToMerge',
+	OnHold = 'onHold',
+	Done = 'done',
+}
 
 export const enum InboxNotificationPriority {
 	Now = 0,
@@ -88,9 +97,17 @@ export interface IInboxNotificationQuestionCarouselPart {
 	readonly questions: readonly IChatQuestion[];
 }
 
+export interface IInboxNotificationPlanReviewPart extends Pick<IChatPlanReview, 'resolveId' | 'title' | 'content' | 'actions' | 'planUri'> {
+	readonly kind: 'planReview';
+	readonly chatResource: URI;
+	readonly requestId: string;
+	readonly reviewIndex: number;
+}
+
 export interface IInboxNotificationToolConfirmationButton {
 	readonly label: string;
 	readonly id?: string;
+	readonly group?: number;
 	readonly kind: 'approve' | 'deny';
 	readonly useUserActionReason?: boolean;
 }
@@ -104,6 +121,8 @@ export interface IInboxNotificationToolConfirmationPart {
 	readonly title: string | IMarkdownString;
 	readonly message: string | IMarkdownString;
 	readonly commandLine?: string;
+	readonly commandLanguage?: string;
+	readonly toolInput?: string;
 	readonly disclaimer?: string | IMarkdownString;
 	readonly originMessage?: string | IMarkdownString;
 	readonly buttons: readonly IInboxNotificationToolConfirmationButton[];
@@ -119,16 +138,29 @@ export function getInboxToolConfirmationDetails(invocation: IChatToolInvocation)
 	const commandLine = terminal ? terminal.commandLine.userEdited ?? terminal.commandLine.toolEdited ?? terminal.commandLine.original : undefined;
 	const hasParameters = state.parameters !== undefined && state.parameters !== null
 		&& (typeof state.parameters !== 'object' || Object.keys(state.parameters).length > 0);
+	const input = data?.kind === 'input' && data.editable === false && !data.mcpAppData && !data.imageGeneration ? data : undefined;
+	let toolInput: string | undefined;
+	let inputMatchesParameters = false;
+	if (input) {
+		try {
+			toolInput = JSON.stringify(input.rawInput ?? {}, null, 1);
+			inputMatchesParameters = !hasParameters || JSON.stringify(state.parameters, null, 1) === toolInput;
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+	}
 	return {
 		commandLine,
+		commandLanguage: terminal?.language,
+		toolInput,
 		disclaimer: state.confirmationMessages?.disclaimer,
 		originMessage: invocation.originMessage,
 		requiresSession: !!state.confirmationMessages?.terminalCustomActions?.length
-			|| (terminal ? !commandLine : !!data || hasParameters),
+			|| (terminal ? !commandLine : input ? toolInput === undefined || !inputMatchesParameters : !!data || hasParameters),
 	};
 }
 
-export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart;
+export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart | IInboxNotificationPlanReviewPart;
 
 export interface IInboxNotificationItem {
 	readonly id: string;
@@ -152,6 +184,7 @@ export interface IInboxNotificationItem {
 	readonly previewSignature?: string;
 	/** The text fed to the utility model to generate this item's preview. */
 	readonly previewInputText?: string;
+	readonly previewFallbackText?: string;
 }
 
 export interface IExternalInboxNotification {
@@ -166,10 +199,23 @@ export interface IExternalInboxNotification {
 	readonly actions?: readonly IInboxNotificationAction[];
 }
 
+export interface IInboxSessionRow extends IInboxNotificationItem {
+	readonly tab: InboxTab;
+	readonly sessionTitle: string;
+	readonly workTitle?: string;
+	readonly notifications: readonly IInboxNotificationItem[];
+	readonly hasImages: boolean;
+	readonly occurrence: string;
+}
+
 export interface IInboxNotificationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	readonly attentionCount: IObservable<number>;
+	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void;
+	markSessionDone(row: IInboxSessionRow): void;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: IObservable<InboxNotificationsSortMode>;
 	readonly isLoading: IObservable<boolean>;
@@ -183,7 +229,7 @@ export interface IInboxNotificationsService {
 
 	/**
 	 * Map from a completed item's id to its structured, model-generated evidence pack.
-	 * Generation is focus-triggered via {@link requestDetailSummary}; an entry is absent
+	 * Generation is visibility-triggered via {@link requestDetailSummary}; an entry is absent
 	 * until it has been generated.
 	 */
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
@@ -200,10 +246,10 @@ export interface IInboxNotificationsService {
 	requestPreview(item: IInboxNotificationItem): void;
 
 	/**
-	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
-	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
+	 * Generate and cache structured evidence for a session notification in {@link detailSummaries}.
+	 * Visibility requests settle empty results until inputs or models change; interaction requests can retry them.
 	 */
-	requestDetailSummary(item: IInboxNotificationItem): void;
+	requestDetailSummary(item: IInboxNotificationItem, source?: 'visibility' | 'interaction'): void;
 
 	/**
 	 * Privacy-safe telemetry identity for the item's session: a hashed session id and a bounded
@@ -222,9 +268,9 @@ export interface IInboxInteractionTelemetryContext {
 	readonly providerId: string;
 }
 
-/** A concrete, session-produced artifact an evidence claim is grounded in and links to. */
+/** A concrete source an evidence claim is grounded in and links to. */
 export interface IInboxEvidenceArtifact {
-	readonly kind: 'file' | 'session' | 'command';
+	readonly kind: 'file' | 'session' | 'command' | 'pullRequest';
 	readonly label: string;
 	readonly uri?: URI;
 }
@@ -235,7 +281,7 @@ export interface IInboxDetailEvidence {
 	readonly artifact: IInboxEvidenceArtifact;
 }
 
-/** A structured, model-generated evidence pack shown in the detail pane for a completed session. */
+/** A structured, model-generated evidence pack shown in the notification detail pane. */
 export interface IInboxDetailSummary {
 	readonly status: string;
 	readonly decisions: readonly string[];

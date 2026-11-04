@@ -147,6 +147,7 @@ suite('Sessions - Desktop editor part empty group', () => {
 			modelChanged.fire();
 		};
 		const group: IEmptyEditorGroup = {
+			id: 1,
 			element,
 			scopedContextKeyService: services.get(IContextKeyService),
 			get isEmpty() { return isEmpty; },

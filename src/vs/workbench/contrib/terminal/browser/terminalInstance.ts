@@ -1099,6 +1099,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
 			this.xterm.raw.open(this.xterm.raw.element);
+			this.xterm.updateGpuRendererWindow();
 		}
 
 		this.xterm?.refresh();
@@ -2537,7 +2538,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		disposables.push(quickPick);
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
-		quickPick.useNeutralSelection = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
 		quickPick.show();
 		const result = await new Promise<IQuickPickItem | undefined>(r => {

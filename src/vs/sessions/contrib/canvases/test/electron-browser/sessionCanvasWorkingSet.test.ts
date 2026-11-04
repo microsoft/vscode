@@ -24,6 +24,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorService } from '../../../../../workbench/services/editor/browser/editorService.js';
@@ -39,6 +40,7 @@ import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutC
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
 import { IWindowCanvas, IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { WindowCanvasEditor } from '../../browser/windowCanvasEditor.js';
@@ -96,6 +98,8 @@ suite('Session canvas working sets', () => {
 		harness.instaService.stub(IChatService, upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }));
 		harness.instaService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
+		harness.instaService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({ entries: constObservable([]), getTrackedCanvas: () => undefined, isPinned: () => false, isShown: () => false }));
+		harness.instaService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([]) }));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
 		instantiationService.stub(ICanvasService, canvasService);
@@ -153,18 +157,25 @@ suite('Session canvas working sets', () => {
 			assert.ok(content instanceof TestWindowCanvas);
 			content.draft = 'unsent';
 
+			nativeCanvases.deactivateCanvas();
 			await switchTo(sessionB);
 			const afterB = editorService.editors.filter(input => input instanceof WindowCanvasInput);
 			await switchTo(sessionA);
 			const afterA = editorService.editors.filter((input): input is WindowCanvasInput => input instanceof WindowCanvasInput);
+			const sessionEditorRestored = editorService.activeEditor?.typeId !== WindowCanvasInput.ID;
+			const navigationAfterRestore = nativeCanvases.navigationRequest.get();
+			await nativeCanvases.openCanvas('test.inbox', { source: 'history' });
 			assert.deepStrictEqual({
 				afterB: afterB.length, afterA: afterA.length,
 				sameContent: nativeCanvases.getPresentation(afterA[0]).content === content,
 				draft: content.draft,
-				sessionEditorRestored: editorService.activeEditor?.typeId !== WindowCanvasInput.ID,
+				sessionEditorRestored,
+				navigationAfterRestore,
+				historyDestination: nativeCanvases.activeCanvasOpen.get(),
 				maximizeCalls: harness.setEditorMaximizedCalls,
 			}, {
 				afterB: 1, afterA: 1, sameContent: true, draft: 'unsent', sessionEditorRestored: true,
+				navigationAfterRestore: undefined, historyDestination: { id: 'test.inbox', source: 'history' },
 				maximizeCalls: [],
 			});
 
