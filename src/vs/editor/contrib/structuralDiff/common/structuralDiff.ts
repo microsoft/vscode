@@ -156,7 +156,7 @@ function validateEntity(node: StructuralDiffNode, side: Side, entity: Structural
 	}
 }
 
-function validateCoverage(node: StructuralDiffNode, side: Side, coverage: StructuralDiffCoverage, model: ITextModel, context: StructuralDiffContext): Range {
+function validateCoverage(node: StructuralDiffNode, side: Side, coverage: StructuralDiffCoverage, entity: StructuralDiffEntity, model: ITextModel, context: StructuralDiffContext): Range {
 	const textChange = Number.isInteger(coverage.textChangeIndex) ? context.changes[coverage.textChangeIndex] : undefined;
 	if (!textChange) {
 		throw invalid(node, `has ${side} changes that refer to a text change that does not exist`);
@@ -164,6 +164,9 @@ function validateCoverage(node: StructuralDiffNode, side: Side, coverage: Struct
 	const range = toValidRange(model, coverage.range);
 	if (!range || range.isEmpty() || !Range.containsRange(side === 'original' ? textChange.originalRange : textChange.modifiedRange, range)) {
 		throw invalid(node, `has ${side} changes with a range that is empty, invalid or not contained in its text change`);
+	}
+	if (!Range.containsRange(entity.range, range)) {
+		throw invalid(node, `has ${side} changes that are not contained in its ${side} entity`);
 	}
 	if (!isEnumValue(StructuralDiffClassification, coverage.classification)
 		|| (coverage.tags !== undefined && !(Array.isArray(coverage.tags) && coverage.tags.every(tag => isEnumValue(StructuralDiffTag, tag))))) {
@@ -176,12 +179,12 @@ function validateCoverage(node: StructuralDiffNode, side: Side, coverage: Struct
  * Checks that the result of a provider satisfies the requirements documented for the structural diff
  * provider API, so that consumers can rely on them, and throws a descriptive error for the first violation.
  *
- * A result may be incomplete, so this does not require that all textual changes are covered.
+ * A complete result must cover all changed text exactly once, while an incomplete result may omit coverage.
  */
 function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffContext, originalModel: ITextModel, modifiedModel: ITextModel): void {
 	const models: Record<Side, ITextModel> = { original: originalModel, modified: modifiedModel };
 	const ids = new Set<string>();
-	const coverage: Record<Side, Range[]> = { original: [], modified: [] };
+	const coverage: Record<Side, Map<number, Range[]>> = { original: new Map(), modified: new Map() };
 
 	const validateNode = (node: StructuralDiffNode, parent: StructuralDiffNode | undefined): void => {
 		if (typeof node.id !== 'string' || ids.has(node.id)) {
@@ -202,7 +205,13 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 			}
 			validateEntity(node, side, entity, models[side], parent);
 			for (const change of changes) {
-				coverage[side].push(validateCoverage(node, side, change, models[side], context));
+				const range = validateCoverage(node, side, change, entity, models[side], context);
+				const ranges = coverage[side].get(change.textChangeIndex);
+				if (ranges) {
+					ranges.push(range);
+				} else {
+					coverage[side].set(change.textChangeIndex, [range]);
+				}
 			}
 		}
 		for (const child of node.children) {
@@ -214,13 +223,37 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 	if (root.original?.kind !== SymbolKind.File || root.modified?.kind !== SymbolKind.File) {
 		throw invalid(root, 'must be a file on both sides');
 	}
+	for (const side of sides) {
+		if (!Range.equalsRange(root[side]?.range, models[side].getFullModelRange())) {
+			throw invalid(root, `must cover the complete ${side} document`);
+		}
+	}
 	validateNode(root, undefined);
 
 	for (const side of sides) {
-		const ranges = coverage[side].sort(Range.compareRangesUsingStarts);
+		const ranges = [...coverage[side].values()].flat().sort(Range.compareRangesUsingStarts);
 		for (let index = 1; index < ranges.length; index++) {
 			if (!ranges[index - 1].getEndPosition().isBeforeOrEqual(ranges[index].getStartPosition())) {
 				throw new Error(`Invalid structural diff: ${side} changes ${ranges[index - 1].toString()} and ${ranges[index].toString()} overlap`);
+			}
+		}
+	}
+
+	if (!diff.isIncomplete) {
+		for (const side of sides) {
+			for (const [textChangeIndex, change] of context.changes.entries()) {
+				const changedRange = side === 'original' ? change.originalRange : change.modifiedRange;
+				// The coverage does not overlap and lies within the text change, so it is complete if it is contiguous from start to end.
+				let covered = Range.getStartPosition(changedRange);
+				for (const range of (coverage[side].get(textChangeIndex) ?? []).sort(Range.compareRangesUsingStarts)) {
+					if (!range.getStartPosition().equals(covered)) {
+						break;
+					}
+					covered = range.getEndPosition();
+				}
+				if (!covered.equals(Range.getEndPosition(changedRange))) {
+					throw new Error(`Invalid structural diff: the ${side} side of text change ${textChangeIndex} is not completely covered, although the result is not marked as incomplete`);
+				}
 			}
 		}
 	}

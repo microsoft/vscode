@@ -217,6 +217,22 @@ suite('ExtHost structural diff', () => {
 		await assert.rejects(provide(), /Provider failed/);
 	});
 
+	test('rejects unknown symbol kinds instead of converting them to a known kind', async () => {
+		await register({
+			provideStructuralDiff: () => {
+				const entity = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+				return {
+					root: {
+						id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
+						children: [{ id: 'member', modified: { name: 'member', kind: 99 as vscode.SymbolKind, range: entity.range }, originalChanges: [], modifiedChanges: [], children: [] }],
+					},
+					isIncomplete: true,
+				};
+			},
+		});
+		await assert.rejects(provide(), /Invalid structural diff: node 'member' has an invalid modified entity kind/);
+	});
+
 	test('runtime enum values match the core contract', () => {
 		assert.deepStrictEqual({
 			classification: types.StructuralDiffClassification,

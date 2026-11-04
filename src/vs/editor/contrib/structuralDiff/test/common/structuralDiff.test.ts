@@ -222,6 +222,7 @@ suite('Structural diff', () => {
 		const cases: [string, StructuralDiff, string][] = [
 			['valid', valid, 'valid'],
 			['incomplete results may omit coverage', { ...withInner({ originalChanges: [], modifiedChanges: [] }), isIncomplete: true }, 'valid'],
+			['complete result without coverage of a change', withInner({ modifiedChanges: [] }), 'Invalid structural diff: the modified side of text change 0 is not completely covered, although the result is not marked as incomplete'],
 			['duplicate id', withInner({ id: 'outer' }), problem('outer', 'must have an identifier that is unique within the result')],
 			['no entity', withInner({ original: undefined, modified: undefined, originalChanges: [], modifiedChanges: [] }), problem('inner', 'must have an original or a modified entity')],
 			['changes without entity', withInner({ original: undefined }), problem('inner', 'has original changes but no original entity')],
@@ -232,11 +233,13 @@ suite('Structural diff', () => {
 			['parent missing on a side', withOuter({ original: undefined }), problem('inner', 'has an entity in the original document that is not contained in its parent')],
 			['unknown text change', withInner({ modifiedChanges: [{ ...coverage, textChangeIndex: 1 }] }), problem('inner', 'has modified changes that refer to a text change that does not exist')],
 			['coverage outside its text change', withInner({ originalChanges: [{ ...coverage, range: new Range(1, 10, 1, 12) }] }), problem('inner', 'has original changes with a range that is empty, invalid or not contained in its text change')],
+			['coverage outside its entity', withInner({ original: { ...inner.original!, range: new Range(1, 7, 1, 12) } }), problem('inner', 'has original changes that are not contained in its original entity')],
 			['empty coverage', withInner({ originalChanges: [{ ...coverage, range: new Range(1, 15, 1, 15) }] }), problem('inner', 'has original changes with a range that is empty, invalid or not contained in its text change')],
 			['unknown classification', withInner({ modifiedChanges: [{ ...coverage, classification: 99 as StructuralDiffClassification }] }), problem('inner', 'has modified changes with an invalid classification or tag')],
 			['unknown tag', withInner({ originalChanges: [{ ...coverage, tags: [99 as StructuralDiffTag] }] }), problem('inner', 'has original changes with an invalid classification or tag')],
 			['overlapping coverage of ancestor and descendant', withOuter({ modifiedChanges: [coverage] }), 'Invalid structural diff: modified changes [1,15 -> 1,16] and [1,15 -> 1,16] overlap'],
 			['root that is not a file', withRoot({ modified: { ...valid.root.modified!, kind: SymbolKind.Class } }), problem('file', 'must be a file on both sides')],
+			['root that does not cover its document', withRoot({ original: { ...valid.root.original!, range: new Range(1, 1, 1, 17) } }), problem('file', 'must cover the complete original document')],
 		];
 
 		let reported: string[] = [];
@@ -254,6 +257,40 @@ suite('Structural diff', () => {
 				}
 			}
 			assert.deepStrictEqual(outcomes, cases.map(([name, , expected]) => [name, expected]));
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
+	test('accepts a complete result only if it covers each text change without gaps', async () => {
+		original.setValue('const value = 123;\n');
+		modified.setValue('const value = 456;\n');
+		let context: StructuralDiffContext | undefined;
+		let originalRanges: Range[] = [];
+		store.add(languageFeatures.structuralDiffProvider.register('*', {
+			provideStructuralDiff: (_original, _modified, value) => {
+				context = value;
+				const result = createResult(value);
+				return { ...result, root: { ...result.root, originalChanges: originalRanges.map(range => ({ textChangeIndex: 0, range, classification: StructuralDiffClassification.Other })) } };
+			},
+		}));
+		const reported: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error.message));
+		try {
+			const accepted: boolean[] = [];
+			for (const ranges of [
+				[new Range(1, 16, 1, 18), new Range(1, 15, 1, 16)],
+				[new Range(1, 15, 1, 16), new Range(1, 17, 1, 18)],
+			]) {
+				originalRanges = ranges;
+				accepted.push(!!(await compute()));
+			}
+			assert.deepStrictEqual({ changes: context?.changes, accepted, reported }, {
+				changes: [{ originalRange: new Range(1, 15, 1, 18), modifiedRange: new Range(1, 15, 1, 18) }],
+				accepted: [true, false],
+				reported: ['Invalid structural diff: the original side of text change 0 is not completely covered, although the result is not marked as incomplete'],
+			});
 		} finally {
 			setUnexpectedErrorHandler(previousHandler);
 		}

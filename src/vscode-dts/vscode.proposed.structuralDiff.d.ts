@@ -146,7 +146,8 @@ declare module 'vscode' {
 
 		/**
 		 * A non-empty range contained in the corresponding side of the
-		 * referenced textual change.
+		 * referenced textual change and in the range of the containing node's
+		 * entity in the same document.
 		 *
 		 * The containing node's {@link StructuralDiffNode.originalChanges originalChanges}
 		 * or {@link StructuralDiffNode.modifiedChanges modifiedChanges} property
