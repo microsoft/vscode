@@ -428,7 +428,8 @@ export class PartGrid extends Disposable {
 				const remaining = source?.part ? source.part.groups.reduce((count, group) => count + group.count, 0) - editors.length : 1;
 				return this.previewNewPart(PART_GRID_NEW_PART_ID, location, source?.id, remaining <= 0);
 			},
-			moveEditorsIntoNewPart: (editors, location) => this.moveEditorsIntoNewPart(editors, location)
+			moveEditorsIntoNewPart: (editors, location, copy) => this.moveEditorsIntoNewPart(editors, location, { copy }),
+			splitsOnDragAndDrop: () => !!this.editorGroupsService.partOptions.splitOnDragAndDrop
 		}));
 
 		this.cardDrag = this._register(new PartGridCardDrag({
@@ -734,7 +735,7 @@ export class PartGrid extends Disposable {
 	 * Moves editors into a new part at a location, created by the part
 	 * factory. Returns the id of the new part's cell, if it got the editors.
 	 */
-	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation): string | undefined {
+	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation, options?: { readonly copy?: boolean }): string | undefined {
 		const sourceGroup = editors.length ? this.editorGroupsService.getGroup(editors[0].groupId) : undefined;
 		if (!this.partFactory || !sourceGroup) {
 			return undefined;
@@ -748,14 +749,21 @@ export class PartGrid extends Disposable {
 		this.addCell(cell, location, undefined, sourceCell?.id);
 
 		const targetGroup = part.activeGroup;
-		sourceGroup.moveEditors(editors.map(({ editor }) => ({ editor, options: { pinned: true } })), targetGroup);
+		const editorsWithOptions = editors.map(({ editor }) => ({ editor, options: { pinned: true } }));
+		if (options?.copy) {
+			sourceGroup.copyEditors(editorsWithOptions, targetGroup);
+		} else {
+			sourceGroup.moveEditors(editorsWithOptions, targetGroup);
+		}
 		if (!hasEditors(part)) {
 			part.close();
 			return undefined;
 		}
 
 		targetGroup.focus();
-		status(localize('movedEditorsIntoNewPart', "Moved {0} into a new part", editors[0].editor.getName()));
+		status(options?.copy
+			? localize('copiedEditorsIntoNewPart', "Copied {0} into a new part", editors[0].editor.getName())
+			: localize('movedEditorsIntoNewPart', "Moved {0} into a new part", editors[0].editor.getName()));
 
 		return id;
 	}

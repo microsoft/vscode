@@ -7,8 +7,9 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindows, h
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { IEditorIdentifier } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorIdentifier } from '../../../common/editor.js';
 import { DraggedEditorIdentifier } from '../../dnd.js';
 import { disposeEditorDropOverlays } from '../editor/editorDropTarget.js';
 import type { IPartGridRect, PartGridLocation } from './partGrid.js';
@@ -245,9 +246,25 @@ export interface IPartGridDropTargetHost {
 	previewNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation): ReadonlyMap<string, IPartGridRect> | undefined;
 
 	/**
-	 * Moves editors into a new part at a location, as dropped.
+	 * Moves editors into a new part at a location, as dropped, or copies
+	 * them there.
 	 */
-	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation): void;
+	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation, copy: boolean): void;
+
+	/**
+	 * Whether editors dropped on a part split it, as the editor groups do,
+	 * by `workbench.editor.splitOnDragAndDrop`, before key modifiers.
+	 */
+	splitsOnDragAndDrop(): boolean;
+}
+
+function isToggleSplitOperation(e: DragEvent): boolean {
+	return (e.altKey && !isMacintosh) || (e.shiftKey && isMacintosh);
+}
+
+function isCopyOperation(e: DragEvent, editors: readonly IEditorIdentifier[]): boolean {
+	// Singleton editors only move
+	return ((e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh)) && !editors.some(({ editor }) => editor.hasCapability(EditorInputCapabilities.Singleton));
 }
 
 /**
@@ -317,9 +334,14 @@ export class PartGridDropTarget extends Disposable {
 		this._register(onDidUnregisterWindow(window => dragEndListeners.deleteAndDispose(window.vscodeWindowId)));
 	}
 
-	private getDragged(): readonly IEditorIdentifier[] | undefined {
+	/**
+	 * The editors dragged, where they can go into a new part: where editors
+	 * dropped split what they are dropped on, as the editor groups do.
+	 */
+	private getDragged(e?: DragEvent): readonly IEditorIdentifier[] | undefined {
 		const editors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-		if (editors?.length && this.host.canCreateParts()) {
+		const splits = this.host.splitsOnDragAndDrop() !== (!!e && isToggleSplitOperation(e));
+		if (editors?.length && splits && this.host.canCreateParts()) {
 			return editors.map(({ identifier }) => identifier);
 		}
 
@@ -357,7 +379,7 @@ export class PartGridDropTarget extends Disposable {
 			return;
 		}
 
-		const editors = this.getDragged();
+		const editors = this.getDragged(e);
 		if (!editors) {
 			this.reset();
 			return;
@@ -370,7 +392,7 @@ export class PartGridDropTarget extends Disposable {
 
 		EventHelper.stop(e, true);
 		if (e.dataTransfer) {
-			e.dataTransfer.dropEffect = 'move';
+			e.dataTransfer.dropEffect = isCopyOperation(e, editors) ? 'copy' : 'move';
 		}
 
 		// The drop overlay of the part under the editors, if it showed, goes away
@@ -443,7 +465,7 @@ export class PartGridDropTarget extends Disposable {
 	}
 
 	private onDrop(e: DragEvent): void {
-		const editors = this.getDragged();
+		const editors = this.getDragged(e);
 		if (!editors || this.settling) {
 			return;
 		}
@@ -458,10 +480,11 @@ export class PartGridDropTarget extends Disposable {
 		hide(this.indicator);
 		this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		this.current = { key: NONE_KEY, location: undefined };
+		const copy = isCopyOperation(e, editors);
 
 		const reflow = this.reflow.value;
 		if (!reflow) {
-			this.host.moveEditorsIntoNewPart(editors, location);
+			this.host.moveEditorsIntoNewPart(editors, location, copy);
 			return;
 		}
 
@@ -469,15 +492,15 @@ export class PartGridDropTarget extends Disposable {
 		this.settling = true;
 		this.reflowEnd.clear();
 		reflow.fill();
-		const timer = setTimeout(() => this.finish(editors, location), PART_GRID_REFLOW_DURATION + 30);
+		const timer = setTimeout(() => this.finish(editors, location, copy), PART_GRID_REFLOW_DURATION + 30);
 		// Disposed meanwhile, such as with its grid, the drop is dropped: no part is created for a grid that goes
 		this.reflowEnd.value = toDisposable(() => clearTimeout(timer));
 	}
 
-	private finish(editors: readonly IEditorIdentifier[], location: PartGridLocation): void {
+	private finish(editors: readonly IEditorIdentifier[], location: PartGridLocation, copy: boolean): void {
 		this.settling = false;
 		// The new part lays out the cards where they show; what it does not lay out, the clean up does
-		this.host.moveEditorsIntoNewPart(editors, location);
+		this.host.moveEditorsIntoNewPart(editors, location, copy);
 		this.reflow.clear();
 	}
 

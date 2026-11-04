@@ -11,6 +11,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -29,7 +30,7 @@ import { getPartGridDrop, getPartGridNewPartZone, IPartGridDrop } from '../../..
 import { PART_GRID_PLACEHOLDER_CLASS, PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridReflow.js';
 import { registerOverlayAnchor } from '../../../../../base/browser/overlayLayoutElement.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { GroupDirection, IContentPart, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -1314,6 +1315,23 @@ suite('Part Grid', () => {
 		await timeout(PART_GRID_REFLOW_DURATION + 80);
 
 		assert.deepStrictEqual({ created: editorDrag.created(), arrangementChanges: cardDrag.arrangementChanges() }, { created: 0, arrangementChanges: 0 });
+	});
+
+	test('editors dragged with the key that toggles splitting go into the part under them, as into its groups; with the copy key, a new part gets a copy', async () => {
+		const { grid, container, side, card, feedback, created } = await createEditorDragGrid(false);
+		const file = side.activeGroup.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.resource?.path === '/file.txt')!;
+		const main = card('main');
+		const [x, y] = [main.left - 4, main.top + main.height / 2];
+		const withKeys = (type: string, keys: KeyboardEventInit) => (mainWindow.document.elementFromPoint(x, y) ?? container.querySelector('.part-grid')!).dispatchEvent(new DragEvent(type, { dataTransfer: new DataTransfer(), clientX: x, clientY: y, bubbles: true, cancelable: true, ...keys }));
+		const toggleSplit = isMacintosh ? { shiftKey: true } : { altKey: true };
+		const copy = isMacintosh ? { altKey: true } : { ctrlKey: true };
+
+		withKeys('dragover', toggleSplit);
+		const toggled = feedback().slot;
+		withKeys('dragover', copy);
+		withKeys('drop', copy);
+
+		assert.deepStrictEqual({ toggled, shape: grid.describe(), created: created(), stillInSide: side.activeGroup.contains(file) }, { toggled: false, shape: 'row(side, new1, main)', created: 1, stillInSide: true });
 	});
 
 	test('a part that does not lay out in previews, such as one showing terminals, is not laid out as the cards make way or go back, only clipped', async () => {
