@@ -246,15 +246,14 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}
 		}));
 		this._updateRegistration();
-		let previousScope: string | undefined;
+		let previousIncludeRepositoryless: boolean | undefined;
 		this._register(autorun(reader => {
-			if (!enabled.read(reader) || this._workspaceRepositoryChoices.read(reader) === undefined) {
+			if (!enabled.read(reader)) {
 				return;
 			}
-			const repositories = this._workspaceRepositories.read(reader);
-			const scope = JSON.stringify(repositories === undefined ? null : [...repositories].sort());
-			const changed = previousScope !== undefined && previousScope !== scope;
-			previousScope = scope;
+			const includeRepositoryless = this._workspaceRepositories.read(reader) === undefined;
+			const changed = previousIncludeRepositoryless !== undefined && previousIncludeRepositoryless !== includeRepositoryless;
+			previousIncludeRepositoryless = includeRepositoryless;
 			if (changed) {
 				void this._discoverAndSeed({ trigger: 'configurationChange', retry: true });
 			}
@@ -320,10 +319,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}
 	}
 
-	protected override async _getDiscoveryRepositories(token: CancellationToken): Promise<readonly string[] | undefined> {
-		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
-		const repositories = this._workspaceRepositories.get();
-		return repositories === undefined ? undefined : [...repositories];
+	protected override _includeRepositorylessSessions(): boolean {
+		return this._workspaceRepositories.get() === undefined;
 	}
 
 	protected override _updateRegistration(): void {

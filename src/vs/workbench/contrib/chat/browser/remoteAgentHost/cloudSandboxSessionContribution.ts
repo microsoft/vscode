@@ -426,8 +426,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return this._taskRefreshInFlight;
 	}
 
-	protected async _getDiscoveryRepositories(_token: CancellationToken): Promise<readonly string[] | undefined> {
-		return undefined;
+	protected _includeRepositorylessSessions(): boolean {
+		return true;
 	}
 
 	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean, trigger: CloudSandboxDiscoveryTrigger, taskIds?: readonly string[]): Promise<void> {
@@ -462,8 +462,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!this._discoveryPoll.isScheduled()) {
 				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
-			const repositories = taskIds ? undefined : await this._getDiscoveryRepositories(token);
-			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}), ...(repositories !== undefined ? { repositories } : {}) });
+			const includeRepositoryless = taskIds !== undefined || this._includeRepositorylessSessions();
+			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}), ...(!includeRepositoryless ? { includeRepositoryless } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
 			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
 				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
@@ -514,9 +514,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 
 		const removedTasks = new Set(result.removedTaskIds);
-		const authoritativeRepositories = result.kind === 'complete' && result.repositories !== undefined ? new Set(result.repositories.map(name => name.toLowerCase())) : undefined;
 		const authoritativeFor = (session: ICloudSandboxSessionEnvironment) => result.kind === 'complete'
-			&& (authoritativeRepositories === undefined || session.repoName !== undefined && authoritativeRepositories.has(session.repoName.toLowerCase()));
+			&& (result.includeRepositoryless !== false || session.hasRepository === true || session.repoName !== undefined);
 		for (const [address, sessions] of this._sessionEnvironments) {
 			if (this._provisioning.has(address)) {
 				continue;

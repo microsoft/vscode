@@ -472,15 +472,15 @@ export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[
 export interface ICloudSandboxDiscoveryOptions {
 	readonly incremental?: boolean;
 	readonly taskIds?: readonly string[];
-	/** Repository names (`owner/name`) for inventory discovery; omitted for all projects, empty for none. Task hints remain unscoped. */
-	readonly repositories?: readonly string[];
+	/** Include repository-less inventory by default. Task hints ignore this filter. */
+	readonly includeRepositoryless?: boolean;
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
 }
 
 /** Only a complete recent-window refresh permits evicting absent cached sessions; other results may name explicit removals. */
 export type ICloudSandboxDiscoveryResult =
-	/** A successful recent-window refresh within the returned repository scope. Removal IDs report confirmed changes, not window eviction. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly repositories?: readonly string[]; readonly removedTaskIds?: readonly string[] }
+	/** A successful recent-window refresh; omitted repo-less inventory must be retained. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly includeRepositoryless?: boolean; readonly removedTaskIds?: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */

@@ -6,7 +6,7 @@
 import { IReader, IObservable } from '../base.js';
 import { DebugOwner, DebugNameData } from '../debugName.js';
 import { CancellationError, CancellationToken, CancellationTokenSource } from '../commonFacade/cancellation.js';
-import { IDisposable, strictEquals } from '../commonFacade/deps.js';
+import { strictEquals } from '../commonFacade/deps.js';
 import { autorun } from '../reactions/autorun.js';
 import { Derived } from '../observables/derivedImpl.js';
 import { DebugLocation } from '../debugLocation.js';
@@ -21,8 +21,7 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 	if (!predicate) {
 		predicate = state => state !== null && state !== undefined;
 	}
-	let cancellationListener: IDisposable | undefined;
-	const result = new Promise<T>((resolve, reject) => {
+	return new Promise((resolve, reject) => {
 		let isImmediateRun = true;
 		let shouldDispose = false;
 		const stateObs = observable.map(state => {
@@ -51,14 +50,14 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 			}
 		});
 		if (cancellationToken) {
-			cancellationListener = cancellationToken.onCancellationRequested(() => {
+			const dc = cancellationToken.onCancellationRequested(() => {
 				d.dispose();
-				cancellationListener?.dispose();
+				dc.dispose();
 				reject(new CancellationError());
 			});
 			if (cancellationToken.isCancellationRequested) {
 				d.dispose();
-				cancellationListener.dispose();
+				dc.dispose();
 				reject(new CancellationError());
 				return;
 			}
@@ -68,7 +67,6 @@ export function waitForState<T>(observable: IObservable<T>, predicate?: (state: 
 			d.dispose();
 		}
 	});
-	return cancellationToken ? result.finally(() => cancellationListener?.dispose()) : result;
 }
 
 export function derivedWithCancellationToken<T>(computeFn: (reader: IReader, cancellationToken: CancellationToken) => T): IObservable<T>;

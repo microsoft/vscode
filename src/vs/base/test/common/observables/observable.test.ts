@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../common/cancellation.js';
-import { isCancellationError, setUnexpectedErrorHandler } from '../../../common/errors.js';
+import { setUnexpectedErrorHandler } from '../../../common/errors.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { DisposableStore, toDisposable } from '../../../common/lifecycle.js';
 import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunPerKeyedItem, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState, derivedHandleChanges, runOnChange, DebugLocation } from '../../../common/observable.js';
@@ -1225,39 +1224,6 @@ suite('observables', () => {
 	});
 
 	suite('waitForState', () => {
-		for (const state of ['ready', 'error'] as const) {
-			for (const immediate of [false, true]) {
-				test(`releases its cancellation listener after ${state} (${immediate ? 'immediate' : 'asynchronous'})`, async () => {
-					const cancellations = ds.add(new Emitter<void>());
-					const token: CancellationToken = { isCancellationRequested: false, onCancellationRequested: cancellations.event };
-					const value = observableValue<string>('state', immediate ? state : 'pending');
-					const pending = waitForState(value, value => value === 'ready', value => value === 'error', token);
-					if (!immediate) {
-						value.set(state, undefined);
-					}
-					const result = await pending.then(value => ['resolved', value], error => ['rejected', error]);
-					assert.deepStrictEqual({ result, listening: cancellations.hasListeners() }, {
-						result: [state === 'ready' ? 'resolved' : 'rejected', state], listening: false,
-					});
-				});
-			}
-		}
-
-		for (const alreadyCancelled of [false, true]) {
-			test(`releases its cancellation listener when ${alreadyCancelled ? 'already cancelled' : 'cancelled while waiting'}`, async () => {
-				const cancellations = ds.add(new Emitter<void>());
-				let cancelled = alreadyCancelled;
-				const token: CancellationToken = { get isCancellationRequested() { return cancelled; }, onCancellationRequested: cancellations.event };
-				const pending = waitForState(observableValue('ready', false), value => value, undefined, token);
-				if (!alreadyCancelled) {
-					cancelled = true;
-					cancellations.fire();
-				}
-				const result = await pending.then(() => 'resolved', error => isCancellationError(error) ? 'cancelled' : 'unexpected error');
-				assert.deepStrictEqual({ result, listening: cancellations.hasListeners() }, { result: 'cancelled', listening: false });
-			});
-		}
-
 		test('resolve', async () => {
 			const log = new Log();
 			const myObservable = new LoggingObservableValue('myObservable', { state: 'initializing' as 'initializing' | 'ready' | 'error' }, log);
