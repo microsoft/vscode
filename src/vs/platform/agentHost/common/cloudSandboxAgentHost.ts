@@ -475,10 +475,10 @@ export interface ICloudSandboxDiscoveryOptions {
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
 }
 
-/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
+/** Only a complete recent-window refresh permits evicting absent cached sessions; other results may name explicit removals. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
