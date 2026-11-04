@@ -124,7 +124,7 @@ suite('BrowserViewWorkbenchService', () => {
 	}
 
 	test('without a configured placement, opens in the active group of the window the open was requested from, not of the window that appears to have focus', async () => {
-		const group = (id: number) => upcastPartial<IEditorGroup>({ id });
+		const group = (id: number) => upcastPartial<IEditorGroup>({ id, editors: [] });
 		const focusedWindowGroup = group(1);
 		const sourceWindowGroup = group(2);
 		const explicitGroup = group(3);
@@ -151,7 +151,7 @@ suite('BrowserViewWorkbenchService', () => {
 	});
 
 	test('does not open in a locked active group of the window the open was requested from, but in an unlocked group of its part, or a new one, or, for a part other than the main part of its window, in that main part', async () => {
-		const group = (id: number, isLocked: boolean) => upcastPartial<IEditorGroup>({ id, isLocked });
+		const group = (id: number, isLocked: boolean) => upcastPartial<IEditorGroup>({ id, isLocked, editors: [] });
 		const locked = group(1, true);
 		const unlocked = group(2, false);
 		const created = group(3, false);
@@ -195,8 +195,8 @@ suite('BrowserViewWorkbenchService', () => {
 	});
 
 	test('does not open in a group of the window the open was requested from that shows only a view with its own title, such as a chat, but in the main part of that window', async () => {
-		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false });
-		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
+		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false, editors: [] });
+		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, editors: [], windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
 		const windowMainPart = upcastPartial<IEditorPart>({ windowId: mainWindow.vscodeWindowId, groups: [windowMainPartGroup], activeGroup: windowMainPartGroup });
 		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
 			activeGroup: chatGroup,

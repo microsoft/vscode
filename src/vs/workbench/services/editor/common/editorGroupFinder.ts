@@ -241,13 +241,15 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 }
 
 /**
- * A group that shows only an editor that renders its own title, such as a
- * view shown as an editor, does not take other editors beside it: they go to
+ * A group that holds an editor that renders its own title, such as a view
+ * shown as an editor, does not take other editors opened in it: they go to
  * the active group of the main part of its window (the first part created in
- * it), as editors opened from a view go to the editor area.
+ * it), as editors opened from a view go to the editor area. Only an explicit
+ * group, such as of a drop or a move, puts editors beside it.
  */
 export function handOffFromSelfTitledEditor(group: IEditorGroup, editorGroupService: Pick<IEditorGroupsService, 'parts' | 'mainPart'>): IEditorGroup {
-	if (group.count !== 1 || !group.activeEditorPane?.providesTitle) {
+	const holdsSelfTitledEditor = (group.count === 1 && group.activeEditorPane?.providesTitle) || group.editors.some(editor => editor.hasCapability(EditorInputCapabilities.ProvidesTitle));
+	if (!holdsSelfTitledEditor) {
 		return group;
 	}
 

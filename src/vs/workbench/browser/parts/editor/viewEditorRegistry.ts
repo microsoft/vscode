@@ -70,6 +70,12 @@ export interface IViewEditorDescriptor {
 	readonly name: string;
 
 	/**
+	 * Whether its views render their own title, as {@link IViewEditorView.providesTitle} says: its editors then have the
+	 * `ProvidesTitle` capability.
+	 */
+	readonly providesTitle?: boolean;
+
+	/**
 	 * Creates the view for the input. The instantiation service opens
 	 * other editors in the main part of the window the view shows in.
 	 */

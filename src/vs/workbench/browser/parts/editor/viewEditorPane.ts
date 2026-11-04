@@ -7,7 +7,7 @@ import { $, append, Dimension, DragAndDropObserver, isEditableElement, isHTMLEle
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +17,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from './editor.js';
-import { IEditorOpenContext } from '../../../common/editor.js';
+import { GroupModelChangeKind, IEditorOpenContext } from '../../../common/editor.js';
 import { getWindowMainPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
@@ -29,6 +29,12 @@ import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from './vi
  * An editor pane that hosts the view of a {@link ViewEditorInput}. The view
  * opens other editors in the main part of its window, not beside itself.
  */
+/** A view of the pane, and what it holds, such as while another editor shows in its group. */
+interface IHiddenView extends IDisposable {
+	readonly view: IViewEditorView;
+	readonly disposables: DisposableStore;
+}
+
 export class ViewEditorPane extends EditorPane {
 
 	static readonly ID = 'workbench.editor.viewEditor';
@@ -40,8 +46,15 @@ export class ViewEditorPane extends EditorPane {
 	private dimension: Dimension | undefined;
 
 	private view: IViewEditorView | undefined;
+	private currentInput: ViewEditorInput | undefined;
 	private viewStateSaved = false;
-	private readonly viewDisposables = this._register(new DisposableStore());
+	private readonly viewDisposables = this._register(new MutableDisposable<DisposableStore>());
+
+	/**
+	 * The views of inputs that stay in the group while another editor shows, such as another tab: they live on, out of the
+	 * DOM, until their input leaves the group, as it closes or moves.
+	 */
+	private readonly hiddenViews = this._register(new DisposableMap<ViewEditorInput, IHiddenView>());
 
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
@@ -59,6 +72,13 @@ export class ViewEditorPane extends EditorPane {
 		this._register(group.onWillMoveEditor(e => {
 			if (e.editor === this.input) {
 				this.saveViewState();
+			} else if (e.editor instanceof ViewEditorInput) {
+				this.hiddenViews.get(e.editor)?.view.saveViewState?.();
+			}
+		}));
+		this._register(group.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.EDITOR_CLOSE && e.editor instanceof ViewEditorInput) {
+				this.hiddenViews.deleteAndDispose(e.editor);
 			}
 		}));
 	}
@@ -85,38 +105,74 @@ export class ViewEditorPane extends EditorPane {
 			return;
 		}
 
-		this.saveViewState();
-		this.viewDisposables.clear();
-		this.view = undefined;
+		this.hideOrDisposeView();
 
+		// The view it had while another editor showed in the group, else a new one
+		const hidden = this.hiddenViews.get(input);
+		if (hidden) {
+			this.hiddenViews.deleteAndLeak(input);
+		}
+		const { view, disposables } = hidden ?? this.createView(input);
+		this.view = view;
+		this.viewStateSaved = false;
+		this.currentInput = input;
+		this.viewDisposables.value = disposables;
+
+		this.container?.appendChild(view.element);
+		this._onDidChangeSizeConstraints.fire(undefined);
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+	}
+
+	private createView(input: ViewEditorInput): IHiddenView {
 		const descriptor = Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).get(input.viewType);
 		if (!descriptor) {
 			throw new Error(`No view editor is registered for '${input.viewType}'.`);
 		}
 
-		const viewInstantiationService = this.viewDisposables.add(this.instantiationService.createChild(new ServiceCollection(
+		const disposables = new DisposableStore();
+		const viewInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IEditorService, this.getMainPartEditorService()]
 		)));
 
-		const view = this.viewDisposables.add(descriptor.createView(viewInstantiationService, input));
-		this.view = view;
-		this.viewStateSaved = false;
-		this.viewDisposables.add(toDisposable(() => {
+		const view = disposables.add(descriptor.createView(viewInstantiationService, input));
+		disposables.add(toDisposable(() => {
 			view.element.remove();
 			if (this.view === view) {
 				this.view = undefined;
 			}
 		}));
-
-		this.container?.appendChild(view.element);
-		this.viewDisposables.add(view.onDidChange(e => this._onDidChangeSizeConstraints.fire(e)));
+		disposables.add(view.onDidChange(e => {
+			if (this.view === view) {
+				this._onDidChangeSizeConstraints.fire(e);
+			}
+		}));
 		if (view.dragHandle) {
-			this.viewDisposables.add(this.registerDragHandle(view.dragHandle, input));
+			disposables.add(this.registerDragHandle(view.dragHandle, input));
 		}
-		this._onDidChangeSizeConstraints.fire(undefined);
 
-		if (this.dimension) {
-			this.layout(this.dimension);
+		return { view, disposables, dispose: () => disposables.dispose() };
+	}
+
+	/**
+	 * Lets go of the view of the current input: it stays alive, out of the DOM, while its input stays in the group, such as
+	 * while another tab shows; it is disposed otherwise.
+	 */
+	private hideOrDisposeView(): void {
+		const view = this.view;
+		const input = this.currentInput;
+		const disposables = this.viewDisposables.value;
+		this.saveViewState();
+		this.view = undefined;
+		this.currentInput = undefined;
+		if (view && input && disposables && this.group.contains(input, { strictEquals: true })) {
+			this.viewDisposables.clearAndLeak();
+			view.element.remove();
+			this.hiddenViews.set(input, { view, disposables, dispose: () => disposables.dispose() });
+		} else {
+			this.viewDisposables.clear();
 		}
 	}
 
@@ -176,8 +232,7 @@ export class ViewEditorPane extends EditorPane {
 	}
 
 	override clearInput(): void {
-		this.saveViewState();
-		this.viewDisposables.clear();
+		this.hideOrDisposeView();
 
 		super.clearInput();
 	}

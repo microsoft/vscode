@@ -95,6 +95,7 @@ suite('View Editors', () => {
 			disposables.add(Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({
 				viewType: providesTitle ? 'test.titled' : 'test.untitled',
 				name: providesTitle ? 'Titled View' : 'Untitled View',
+				providesTitle,
 				createView: instantiationService => {
 					const view = new TestView(providesTitle, instantiationService, log, `view${views.length + 1}`);
 					views.push(view);
@@ -238,6 +239,35 @@ suite('View Editors', () => {
 		assert.deepStrictEqual({ onlyTitledView, withSecondEditor: titleShown() }, { onlyTitledView: false, withSecondEditor: true });
 	});
 
+	test('a view lives on while another editor beside it, as a tab, shows, and shows again as it was; it goes as its editor closes or moves to another group', async () => {
+		const { parts, part } = await createServices();
+		const titled = createViewInput('test.titled', '/chat/a');
+		const file = disposables.add(new TestFileEditorInput(URI.file('/tab.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		await part.activeGroup.openEditor(file, { pinned: true });
+		const whileTabShows = { views: views.length, disposed: views[0].disposed, inDom: views[0].element.isConnected };
+		await part.activeGroup.openEditor(titled);
+		const shownAgain = { views: views.length, disposed: views[0].disposed, inDom: views[0].element.isConnected };
+
+		await part.activeGroup.openEditor(file);
+		await part.activeGroup.closeEditor(titled);
+		const closedWhileHidden = views[0].disposed;
+
+		const moved = createViewInput('test.titled', '/chat/b');
+		await part.activeGroup.openEditor(moved, { pinned: true });
+		await part.activeGroup.openEditor(file);
+		part.activeGroup.moveEditor(moved, parts.mainPart.activeGroup);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileTabShows, shownAgain, closedWhileHidden, movedWhileHidden: views[1].disposed, createdForMove: views.length }, {
+			whileTabShows: { views: 1, disposed: false, inDom: false },
+			shownAgain: { views: 1, disposed: false, inDom: true },
+			closedWhileHidden: true,
+			movedWhileHidden: true,
+			createdForMove: 3,
+		});
+	});
+
 	test('a view opens other editors in the main part of its window, not beside itself', async () => {
 		const { parts, part } = await createServices();
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
@@ -248,7 +278,7 @@ suite('View Editors', () => {
 		assert.deepStrictEqual({ main: parts.mainPart.groups.some(group => group.contains(file)), part: (part as IContentPart).groups.some(group => group.contains(file)) }, { main: true, part: false });
 	});
 
-	test('opens to the active group of a group that shows only a view with its own title go to the main part of its window', async () => {
+	test('opens to the active group of a group that holds a view with its own title go to the main part of its window, also while another editor beside it, as a tab, is active', async () => {
 		const { parts, editorService, part } = await createServices();
 		const focusIn = (element: HTMLElement) => {
 			const focusable = element.appendChild(mainWindow.document.createElement('div'));
@@ -284,7 +314,7 @@ suite('View Editors', () => {
 		assert.deepStrictEqual({ onlyTitledView, onlyTitledViewActiveGroup, withSecondEditor, onlyUntitledView, mainWindow: where(fromMain) }, {
 			onlyTitledView: 'main',
 			onlyTitledViewActiveGroup: 'main',
-			withSecondEditor: 'part',
+			withSecondEditor: 'main',
 			onlyUntitledView: 'part',
 			mainWindow: 'main'
 		});
