@@ -14,10 +14,11 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { EditorCloseContext, GroupModelChangeKind, IEditorCloseEvent } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindowContent } from '../../browser/chatWindow.js';
 import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
-import { ChatWindow } from '../../browser/chatWindowService.js';
+import { ChatWindow, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
@@ -139,6 +140,31 @@ suite('Chat window', () => {
 	}
 
 	const editor = () => disposables.add(new TestInput());
+
+	test('the groups of the part that holds its terminals show the header of the main part, with its menus, for another editor there, such as the Changes editor, and none for a terminal; their tabs show as terminal tabs do', () => {
+		const headerPrimary = new MenuId('test.headerPrimary');
+		const editorActions = new MenuId('test.editorActions');
+		const options = getTerminalsPartGroupViewOptions({ menuIds: { headerPrimary, editorActions }, showHeader: true, useModernUITabs: true });
+		const editorOf = (typeId: string) => upcastPartial<EditorInput>({ typeId });
+
+		assert.deepStrictEqual({
+			menuIds: options.menuIds,
+			showHeader: options.showHeader,
+			useModernUITabs: options.useModernUITabs,
+			hideLockActions: options.hideLockActions,
+			changes: options.showHeaderFor?.(editorOf('workbench.editors.sessionChangesEditor')),
+			terminal: options.showHeaderFor?.(editorOf('workbench.editors.terminal')),
+			withoutMainPartOptions: getTerminalsPartGroupViewOptions(undefined).menuIds,
+		}, {
+			menuIds: { headerPrimary, headerSecondary: undefined, headerLayout: undefined },
+			showHeader: true,
+			useModernUITabs: undefined,
+			hideLockActions: true,
+			changes: true,
+			terminal: false,
+			withoutMainPartOptions: undefined,
+		});
+	});
 
 	test('its main part shows when an editor opens in it, and the window shows only its chat once its last editor closes, but not for a move', () => {
 		const { window, state, main } = createWindow();

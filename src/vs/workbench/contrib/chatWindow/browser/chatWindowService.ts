@@ -34,12 +34,24 @@ import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindo
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindChatWindowPartsVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
-import { ChatWindowGrid } from './chatWindowGrid.js';
+import { ChatWindowGrid, TERMINAL_EDITOR_TYPE_ID } from './chatWindowGrid.js';
 import { ChatWindowPartFactory } from './chatWindowPartFactory.js';
 import { ChatWindowsRestoration } from './chatWindowsRestoration.js';
 
-/** The options of the groups of the part that holds a chat window's terminals. */
-const TERMINALS_PART_GROUP_VIEW_OPTIONS: IEditorGroupViewOptions = { hideLockActions: true };
+/**
+ * The options of the groups of the part that holds a chat window's terminals: their tabs show as terminal tabs do, and an
+ * editor beside the terminals, such as one dropped there, shows the header of the groups of the main part, with its menus,
+ * while terminals show none.
+ */
+export function getTerminalsPartGroupViewOptions(mainPartGroupViewOptions: IEditorGroupViewOptions | undefined): IEditorGroupViewOptions {
+	const menuIds = mainPartGroupViewOptions?.menuIds;
+	return {
+		hideLockActions: true,
+		menuIds: menuIds && { headerPrimary: menuIds.headerPrimary, headerSecondary: menuIds.headerSecondary, headerLayout: menuIds.headerLayout },
+		showHeader: mainPartGroupViewOptions?.showHeader,
+		showHeaderFor: editor => editor?.typeId !== TERMINAL_EDITOR_TYPE_ID,
+	};
+}
 
 /** The size of a chat window when it opens. */
 const CHAT_WINDOW_SIZE = { width: 1200, height: 800 };
@@ -533,7 +545,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			createTerminalsPart: () => {
 				// Its groups stay locked to its terminals, as terminal groups lock, so that other editors open elsewhere: like the
 				// main window's panel, it offers no action to unlock them.
-				const part = this._editorGroupsService.createEditorPart({ container: append(host, $('.chat-window-terminals-part')), label: localize('chatWindow.terminalsPart', "Terminals"), services, groupViewOptions: TERMINALS_PART_GROUP_VIEW_OPTIONS });
+				const part = this._editorGroupsService.createEditorPart({ container: append(host, $('.chat-window-terminals-part')), label: localize('chatWindow.terminalsPart', "Terminals"), services, groupViewOptions: getTerminalsPartGroupViewOptions(look.mainPartGroupViewOptions) });
 				const store = new DisposableStore();
 				disposables.add(store);
 				if (look.mainPartOptions) {

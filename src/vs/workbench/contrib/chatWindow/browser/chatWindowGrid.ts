@@ -25,7 +25,7 @@ export const enum ChatWindowGridCell {
 }
 
 /** The type of terminal editors, `TerminalEditorInput.ID`. */
-const TERMINAL_EDITOR_TYPE_ID = 'workbench.editors.terminal';
+export const TERMINAL_EDITOR_TYPE_ID = 'workbench.editors.terminal';
 
 /** The share of the height of their column that the terminals take until the user sizes them. */
 const TERMINALS_SHARE = 0.3;
