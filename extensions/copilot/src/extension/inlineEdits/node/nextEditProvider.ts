@@ -1658,7 +1658,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		if (suggestion.result === undefined || suggestion.result.edit === undefined) {
 			return;
 		}
-		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+		try {
+			await this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+		} catch (error) {
+			this._logService.error(error, 'Snippy post-insertion check failed');
+		}
 	}
 
 	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {

@@ -31,7 +31,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
@@ -41,7 +41,8 @@ import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, 
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
@@ -137,8 +138,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// left gutter).
 			const detailParts: string[] = [];
 			if (workspace?.label) {
-				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
+				const presentationWorkspace = getSessionPresentationWorkspace(session, reader);
+				const kind = getSessionWorkspaceKind(presentationWorkspace);
+				const workspaceIcon = presentationWorkspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
 				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
@@ -272,6 +274,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // -- Go Back --
 
+const sessionNavigationWhen = ContextKeyExpr.and(IsSessionsWindowContext,
+	ContextKeyExpr.or(EditorAreaFocusContext.toNegated(), ActiveEditorContext.isEqualTo(WindowCanvasInput.EDITOR_ID)));
+
 registerAction2(class GoBackAction extends Action2 {
 	constructor() {
 		super({
@@ -292,11 +297,11 @@ registerAction2(class GoBackAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: sessionNavigationWhen,
 			}, {
 				weight: KeybindingWeight.SessionsContrib,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(sessionNavigationWhen, InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
 			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
@@ -338,11 +343,11 @@ registerAction2(class GoForwardAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: sessionNavigationWhen,
 			}, {
 				weight: KeybindingWeight.SessionsContrib,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(sessionNavigationWhen, InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
 			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
@@ -399,7 +404,7 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 
 function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
 	const sessionsService = accessor.get(ISessionsService);
-	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get());
 	if (view) {
 		action(view);
 	}
@@ -702,7 +707,7 @@ registerAction2(class RenameChatAction extends Action2 {
 				return;
 			}
 		}
-		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session.sessionId)?.startChatTitleEditing(renameContext.chat.resource)) {
+		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session)?.startChatTitleEditing(renameContext.chat.resource)) {
 			return;
 		}
 		if (!renameContext && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
@@ -1082,7 +1087,7 @@ registerAction2(class CloseChatAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const sessionView = accessor.get(ISessionsPartService).getSessionView(session.sessionId);
+		const sessionView = accessor.get(ISessionsPartService).getSessionView(session);
 		chat ??= sessionView?.getActiveChat() ?? session.activeChat.get();
 		if (!chat) {
 			return;
@@ -1895,7 +1900,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 					// active one) instead of in place; the dropdown's select handler
 					// does not forward the mouse event, so read the live modifier state.
 					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
-						const view = accessor.get(ISessionsPartService).getSessionView(target.sessionId);
+						const view = accessor.get(ISessionsPartService).getSessionView(target);
 						if (view) {
 							await view.openChatToSide(targetChat.resource);
 							return;
@@ -2053,7 +2058,7 @@ registerAction2(class TogglePinChatAction extends Action2 {
 	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
 		session ??= accessor.get(ISessionsService).activeSession.get();
 		if (session) {
-			accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.toggleActiveChatPin();
+			accessor.get(ISessionsPartService).getSessionView(session)?.toggleActiveChatPin();
 		}
 	}
 });
@@ -2092,7 +2097,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		// is only available while the header shows the title (e.g. not while the
 		// single-group chat tabs row replaces it); prompt for the new title when
 		// it cannot be used.
-		if (accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing()) {
+		if (accessor.get(ISessionsPartService).getSessionView(session)?.startTitleEditing()) {
 			return;
 		}
 		await accessor.get(ICommandService).executeCommand(RENAME_SESSION_COMMAND_ID, session);
@@ -2142,7 +2147,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		session ??= sessionsService.activeSession.get();
 
-		const sessionView = session && sessionsPartService.getSessionView(session.sessionId);
+		const sessionView = session && sessionsPartService.getSessionView(session);
 		const activeChat = sessionView?.getActiveChat();
 		if (session
 			&& sessionView
@@ -2273,7 +2278,8 @@ registerAction2(class CloseEditorAreaAction extends Action2 {
 				id: MenuId.EditorGroupWatermarkToolbar,
 				group: 'navigation',
 				order: 10,
-				when: IsSessionsWindowContext,
+				// A window with layout modes, such as a chat window, closes its own editor parts.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, LayoutModeContext.toNegated()),
 			},
 		});
 	}

@@ -42,7 +42,7 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.ELECTRON_CACHE_PATH }}
-        key: "electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('.npmrc', 'build/checksums/electron.txt') }}"
+        key: "electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('build/checksums/electron.txt') }}"
         lookup-only: ${{ inputs.lookup-only }}
 
     - name: Download Electron

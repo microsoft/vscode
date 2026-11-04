@@ -106,7 +106,7 @@ jobs:
       - name: Save ripple
         if: steps.build-ripple.outcome == 'success'
         continue-on-error: true
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/ripple/target/release/ripple
           key: ${{ steps.cache-ripple.outputs.cache-primary-key }}
@@ -538,8 +538,8 @@ jobs:
       browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
       browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
       remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      # The Electron job runs only the node.js integration tests that the plan selects, and skips them
-      # when it selects none.
+      # The Electron (node.js) job runs only the node.js integration tests that the plan selects, and is
+      # skipped when it selects none.
       node_integration_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true' }}
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}

@@ -42,12 +42,14 @@
 	// changing one of them runs every unit test, and every integration test, which the unit test
 	// runners run too.
 	"runEverything": {
-		// remote/.npmrc has the Node.js version that the node.js test runner requires.
+		// The Electron and Node.js versions are the `target` of the `nativeBuild` field of package.json
+		// and remote/package.json; the node.js test runner requires the latter. ripple can't select tests
+		// by that field, but an update of either version also updates the archives and checksums
+		// listed in build/checksums/.
 		"runtime version": [
-			".npmrc",
 			".nvmrc",
-			"remote/.npmrc",
 			"build/checksums/electron.txt",
+			"build/checksums/nodejs.txt",
 			"build/lib/electron.ts"
 		],
 		// The test launchers read the application name from product.json.
@@ -91,7 +93,6 @@
 			"remote/.pnpmfile.mjs",
 			"build/npm/**",
 			"build/azure-pipelines/win32/exec.ps1",
-			"build/.npmrc",
 			"build/.pnpmfile.mjs",
 			"build/.cachesalt",
 			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",

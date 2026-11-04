@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -23,9 +24,10 @@ import { ChatSessionForkError, IChatSession, IChatSessionsService } from '../../
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IOpenSessionOptions, ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IOpenSessionOptions, ISessionNavigationRequest, ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IForkChatOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import '../../browser/agentHostForkActions.js';
 
 const forkCommand = CommandsRegistry.getCommand(ForkConversationActionId)!;
@@ -45,14 +47,19 @@ suite('Agent Host fork actions', () => {
 			capabilities: constObservable({ supportsMultipleChats: multipleChats }),
 		});
 		const forkSession = upcastPartial<ISession>({ sessionId: 'fork', resource: forkChat.resource });
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeChat = observableValue<IChat>('activeChat', sourceChat);
+		const initialActiveSession = upcastPartial<IActiveSession>({ ...source, activeChat });
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', initialActiveSession);
+		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		const started = new DeferredPromise<void>();
+		const historyStarted = new DeferredPromise<void>();
 		let forkAvailable = true;
 		let forkGate: Promise<void> | undefined;
+		let historyGate: Promise<void> | undefined;
 		let forkError: Error | undefined;
 		const forkCalls: { kind: string; source: URI; requestId: string | undefined }[] = [];
-		const forkOptions: { readonly title?: string }[] = [];
+		const forkOptions: IForkChatOptions[] = [];
 		const opens: { kind: string; resource: URI; options?: IOpenSessionOptions & { referenceChatResource?: URI; referenceSessionId?: string } }[] = [];
 		const recoveryChoices: IPromptChoice[] = [];
 
@@ -73,7 +80,7 @@ suite('Agent Host fork actions', () => {
 			getSession: resource => isEqual(resource, source.resource) ? source : forkAvailable && isEqual(resource, forkChat.resource) ? forkSession : undefined,
 			getSessionForChatResource: resource => isEqual(resource, sourceChat.resource) ? { session: source, chat: sourceChat } : isEqual(resource, forkChat.resource) ? { session: source, chat: forkChat } : undefined,
 			onDidChangeSessions: onDidChangeSessions.event,
-			forkChatInSession: async (_session, source, turnId, options?: { readonly title?: string }) => {
+			forkChatInSession: async (_session, source, turnId, options) => {
 				forkCalls.push({ kind: 'chat', source, requestId: turnId });
 				forkOptions.push(options ?? {});
 				started.complete();
@@ -86,11 +93,16 @@ suite('Agent Host fork actions', () => {
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
 			getContentProviderSchemes: () => [sourceChat.resource.scheme],
-			getOrCreateChatSession: async () => upcastPartial<IChatSession>({
-				history: [{ type: 'request', id: 'request-2', prompt: 'second', participant: '' }],
-			}),
-			forkChatSession: async (source, request) => {
+			getOrCreateChatSession: async () => {
+				historyStarted.complete();
+				await historyGate;
+				return upcastPartial<IChatSession>({
+					history: [{ type: 'request', id: 'request-2', prompt: 'second', participant: '' }],
+				});
+			},
+			forkChatSession: async (source, request, _token, options) => {
 				forkCalls.push({ kind: 'session', source, requestId: request?.id });
+				forkOptions.push(options ?? {});
 				started.complete();
 				await forkGate;
 				return { resource: forkChat.resource, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } };
@@ -98,6 +110,7 @@ suite('Agent Host fork actions', () => {
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession,
+			navigationRequest,
 			openChat: async (_session, resource, options) => { opens.push({ kind: 'chat', resource, options }); },
 			openChatToSide: async (_session, resource, options) => { opens.push({ kind: 'chatToSide', resource, options }); },
 			openSession: async (resource, options) => { opens.push({ kind: 'session', resource, options }); },
@@ -110,8 +123,9 @@ suite('Agent Host fork actions', () => {
 			message: { text: 'second', parts: [] },
 		});
 		return {
-			source, sourceChat, forkChat, forkCalls, forkOptions, opens, recoveryChoices, started, activeSession, onDidChangeSessions,
+			source, sourceChat, forkChat, forkCalls, forkOptions, opens, recoveryChoices, started, historyStarted, activeSession, activeChat, initialActiveSession, navigationRequest, onDidChangeSessions,
 			setForkGate: (gate: Promise<void>) => forkGate = gate,
+			setHistoryGate: (gate: Promise<void>) => historyGate = gate,
 			setForkAvailable: (available: boolean) => {
 				forkAvailable = available;
 				if (available) {
@@ -120,7 +134,7 @@ suite('Agent Host fork actions', () => {
 			},
 			setForkError: (error: Error | undefined) => forkError = error,
 			run: async (toSide: boolean, slashCommand = false, title?: string, initialMessage?: { readonly text: string }) => {
-				const options = title !== undefined || initialMessage !== undefined ? { ...(title !== undefined ? { title } : {}), ...(initialMessage ? { initialMessage } : {}) } : undefined;
+				const options = toSide || title !== undefined || initialMessage !== undefined ? { ...(toSide ? { toSide: true } : {}), ...(title !== undefined ? { title } : {}), ...(initialMessage ? { initialMessage } : {}) } : undefined;
 				await instantiationService.invokeFunction(
 					forkCommand.handler,
 					slashCommand ? sourceChat.resource : toSide ? { element: checkpoint, toSide } : checkpoint,
@@ -151,24 +165,57 @@ suite('Agent Host fork actions', () => {
 			}
 		}
 
-		test(`retains the ${multipleChats ? 'chat' : 'session'} source while a delayed fork is running`, async () => {
+		for (const toSide of [false, true]) {
+			for (const slashCommand of [false, true]) {
+				for (const destination of ['another session', 'another chat', 'the composer', 'another view', 'away and back']) {
+					test(`does not open a delayed ${multipleChats ? 'chat' : 'session'} fork${toSide ? ' to the side' : ''} from ${slashCommand ? '/fork' : 'a checkpoint'} after navigating to ${destination}`, async () => {
+						const harness = createHarness(multipleChats, true);
+						const gate = new DeferredPromise<void>();
+						harness.setForkGate(gate.p);
+						const running = harness.run(toSide, slashCommand);
+						await harness.started.p;
+						const beforeCompletion = [...harness.opens];
+						if (destination === 'another chat') {
+							harness.activeChat.set(upcastPartial<IChat>({ resource: URI.parse('test:/other-chat') }), undefined);
+						} else {
+							harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
+							if (destination === 'the composer') {
+								harness.activeSession.set(undefined, undefined);
+							} else if (destination !== 'another view') {
+								harness.activeSession.set(upcastPartial<IActiveSession>({ sessionId: 'unrelated', resource: URI.parse('test:/unrelated') }), undefined);
+								if (destination === 'away and back') {
+									harness.activeSession.set(harness.initialActiveSession, undefined);
+								}
+							}
+						}
+						gate.complete();
+						await running;
+						await timeout(0);
+
+						assert.deepStrictEqual({ beforeCompletion, forks: harness.forkCalls, opens: harness.opens }, {
+							beforeCompletion: [],
+							forks: [{ kind: multipleChats ? 'chat' : 'session', source: harness.sourceChat.resource, requestId: slashCommand ? multipleChats ? 'request-2' : undefined : multipleChats ? 'request-1' : 'request-2' }],
+							opens: [],
+						});
+					});
+				}
+			}
+		}
+
+		test(`preserves later navigation while a ${multipleChats ? 'chat' : 'session'} fork prompt is submitted`, async () => {
 			const harness = createHarness(multipleChats, true);
 			const gate = new DeferredPromise<void>();
 			harness.setForkGate(gate.p);
-			const running = harness.run(true);
+			const running = harness.run(false, true, undefined, { text: 'send on the fork' });
 			await harness.started.p;
-			const beforeCompletion = [...harness.opens];
-			harness.activeSession.set(upcastPartial<IActiveSession>({ sessionId: 'unrelated', resource: URI.parse('test:/unrelated') }), undefined);
+			harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
 			gate.complete();
 			await running;
 
-			assert.deepStrictEqual({ beforeCompletion, opens: harness.opens }, {
-				beforeCompletion: [],
-				opens: [{
-					kind: multipleChats ? 'chatToSide' : 'sessionToSide',
-					resource: harness.forkChat.resource,
-					options: multipleChats ? { referenceChatResource: harness.sourceChat.resource } : { source: 'fork', referenceSessionId: harness.source.sessionId },
-				}],
+			assert.deepStrictEqual({ forks: harness.forkCalls, options: harness.forkOptions, opens: harness.opens }, {
+				forks: [{ kind: multipleChats ? 'chat' : 'session', source: harness.sourceChat.resource, requestId: multipleChats ? 'request-2' : undefined }],
+				options: [{ initialMessage: { text: 'send on the fork' } }],
+				opens: [],
 			});
 		});
 
@@ -197,6 +244,70 @@ suite('Agent Host fork actions', () => {
 		});
 	}
 
+	test('captures navigation before resolving the checkpoint history', async () => {
+		const harness = createHarness(true, true);
+		const gate = new DeferredPromise<void>();
+		harness.setHistoryGate(gate.p);
+		const running = harness.run(false);
+		await harness.historyStarted.p;
+		harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
+		gate.complete();
+		await running;
+
+		assert.deepStrictEqual({ forks: harness.forkCalls, opens: harness.opens }, {
+			forks: [{ kind: 'chat', source: harness.sourceChat.resource, requestId: 'request-1' }],
+			opens: [],
+		});
+	});
+
+	test('preserves later navigation while waiting for a separately forked session to appear', async () => {
+		const harness = createHarness(false);
+		harness.setForkAvailable(false);
+		const running = harness.run(true);
+		await timeout(0);
+		harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
+		harness.setForkAvailable(true);
+		await running;
+
+		assert.deepStrictEqual({ opens: harness.opens, hasListener: harness.onDidChangeSessions.hasListeners() }, {
+			opens: [],
+			hasListener: false,
+		});
+	});
+
+	test('preserves navigation after /fork settles but before its deferred open', async () => {
+		const harness = createHarness(false);
+		await harness.run(false, true);
+		harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.opens, []);
+	});
+
+	test('captures navigation independently for overlapping chat forks', async () => {
+		const harness = createHarness(true);
+		const firstGate = new DeferredPromise<void>();
+		harness.setForkGate(firstGate.p);
+		const first = harness.run(false);
+		await harness.started.p;
+		harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
+		const secondGate = new DeferredPromise<void>();
+		harness.setForkGate(secondGate.p);
+		const second = harness.run(false);
+		await timeout(0);
+		firstGate.complete();
+		await first;
+		const beforeSecond = [...harness.opens];
+		secondGate.complete();
+		await second;
+
+		assert.deepStrictEqual({ beforeSecond, forks: harness.forkCalls.length, opens: harness.opens }, {
+			beforeSecond: [],
+			forks: 2,
+			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: undefined }],
+		});
+	});
+
 	test('forwards the exact requested title when forking as a chat', async () => {
 		const harness = createHarness(true, true);
 		await harness.run(false, true, '  Exact fork title  ');
@@ -210,6 +321,7 @@ suite('Agent Host fork actions', () => {
 
 		await assert.rejects(harness.run(false, true, undefined, { text: 'inspect before resending' }));
 		const beforeInspection = [...harness.opens];
+		harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
 		await harness.recoveryChoices[0]?.run();
 
 		assert.deepStrictEqual({
