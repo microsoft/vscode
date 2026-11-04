@@ -6,7 +6,7 @@
 import { getActiveWindow, hasWindow } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, derivedObservableWithCache, IObservable, IReader, recomputeInitiallyAndOnChange, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -112,19 +112,37 @@ export class FocusedSessionHostService extends Disposable implements IFocusedSes
 	constructor(
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ISessionHost private readonly _mainWindowHost: ISessionHost,
-		@IHostService hostService: IHostService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 		// Sticky: only a window gaining focus changes it, not the app losing focus. A chat window that gains focus before
 		// its host knows its window resolves once it does.
-		this._register(hostService.onDidChangeActiveWindow(windowId => this._focusedWindowId.set(windowId, undefined)));
-		this.focusedHost = derived(this, reader => _sessionHostService.getHostOfWindow(this._focusedWindowId.read(reader), reader) ?? _mainWindowHost);
+		this._register(_hostService.onDidChangeActiveWindow(windowId => this._focusedWindowId.set(windowId, undefined)));
+		// While the host of the window that gained focus is still loading, as a chat window does while it restores, the
+		// previously focused host stays focused until it has loaded.
+		this.focusedHost = derivedObservableWithCache<ISessionHost>(this, (reader, previous) => {
+			const host = _sessionHostService.getHostOfWindow(this._focusedWindowId.read(reader), reader) ?? _mainWindowHost;
+			return this._loadingFallback(host, previous, reader);
+		});
+		// Observed for the service's lifetime, so the previously focused host is always known.
+		this._register(recomputeInitiallyAndOnChange(this.focusedHost));
+	}
+
+	private _loadingFallback(host: ISessionHost, previous: ISessionHost | undefined, reader: IReader | undefined): ISessionHost {
+		if (previous && previous !== host && host.content.read(reader).kind === 'loading' && this._sessionHostService.hosts.read(reader).includes(previous)) {
+			return previous;
+		}
+		return host;
 	}
 
 	getFocusedHost(): ISessionHost {
-		// While the app is in the background, `getActiveWindow` falls back to the main window rather than the window that
-		// last had focus, as `IChatWindowService.activeWindow` does: commands keep resolving as they did.
-		return this._sessionHostService.getHostOfWindow(getActiveWindow().vscodeWindowId) ?? this._mainWindowHost;
+		// While the app is in the background no document has focus, and `getActiveWindow` falls back to the main window:
+		// the window that last had focus is the focused one.
+		if (!this._hostService.hasFocus) {
+			return this.focusedHost.get();
+		}
+		const host = this._sessionHostService.getHostOfWindow(getActiveWindow().vscodeWindowId) ?? this._mainWindowHost;
+		return this._loadingFallback(host, this.focusedHost.get(), undefined);
 	}
 }
 

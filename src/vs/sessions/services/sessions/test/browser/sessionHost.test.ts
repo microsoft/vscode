@@ -207,7 +207,7 @@ suite('SessionHost', () => {
 		const { service, mainHost } = createService();
 		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, constObservable(sessionAInWindow), { windowId: CHAT_WINDOW_ID })));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
-		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
 
 		const initially = describe(focused.focusedHost.get());
 		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
@@ -230,7 +230,7 @@ suite('SessionHost', () => {
 		const chatWindow = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(sessionAInWindow), contextKeyService, windowId });
 		disposables.add(service.registerHost(chatWindow));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
-		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
 
 		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
 		const beforeBind = describe(focused.focusedHost.get());
@@ -238,5 +238,40 @@ suite('SessionHost', () => {
 		const afterBind = describe(focused.focusedHost.get());
 
 		assert.deepStrictEqual({ beforeBind, afterBind }, { beforeBind: SessionHostKind.MainWindow, afterBind: SessionHostKind.ChatWindow });
+	});
+
+	test('while the focused window restores its chat, the previously focused host stays focused until it has loaded', () => {
+		const { service, mainHost } = createService();
+		const windowSession = observableValue<IActiveSession | undefined>('window', undefined);
+		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, windowSession, { windowId: CHAT_WINDOW_ID, loadingChat: sideChat.resource })));
+		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
+		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ hasFocus: false, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const snapshot = () => ({ focused: describe(focused.focusedHost.get()), chat: focused.focusedHost.get().chat.get()?.resource.toString() });
+
+		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
+		const whileLoading = snapshot();
+		windowSession.set(sessionAInWindow, undefined);
+		const loaded = snapshot();
+
+		assert.deepStrictEqual({ whileLoading, loaded }, {
+			whileLoading: { focused: SessionHostKind.MainWindow, chat: 'chat:/main' },
+			loaded: { focused: SessionHostKind.ChatWindow, chat: 'chat:/side' },
+		});
+	});
+
+	test('while the app is in the background, commands act on the window that last had focus', () => {
+		const { service, mainHost } = createService();
+		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, constObservable(sessionAInWindow), { windowId: CHAT_WINDOW_ID })));
+		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
+		let hasFocus = true;
+		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ get hasFocus() { return hasFocus; }, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+
+		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
+		hasFocus = false;
+		const inBackground = describe(focused.getFocusedHost());
+		hasFocus = true;
+		const withFocus = describe(focused.getFocusedHost());
+
+		assert.deepStrictEqual({ inBackground, withFocus }, { inBackground: SessionHostKind.ChatWindow, withFocus: SessionHostKind.MainWindow });
 	});
 });
