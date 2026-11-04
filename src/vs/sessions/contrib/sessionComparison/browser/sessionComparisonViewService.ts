@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonChat, getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const ISessionComparisonViewService = createDecorator<ISessionComparisonViewService>('sessionComparisonViewService');
@@ -38,13 +38,18 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 				return [];
 			}
 			const session = this.managementService.getSession(participant.sessionResource);
-			return session ? [session] : [];
+			const chat = getSessionComparisonChat(participant, session);
+			return session && chat ? [{ session, chatResource: chat.resource }] : [];
 		});
 		if (!availableAttempts.length) {
 			throw new Error(localize('sessionComparison.noAttempts', "No comparison attempts are available to open."));
 		}
 		// SessionComparisonGridController hides and later restores the side pane once
 		// the grid is actually shown, so a cancelled or single-attempt open leaves it alone.
-		await this.sessionsService.openSessionsInGrid(availableAttempts);
+		if (comparison.participants.some(participant => participant.chatResource)) {
+			await this.sessionsService.openChatsInGrid(availableAttempts);
+		} else {
+			await this.sessionsService.openSessionsInGrid(availableAttempts.map(attempt => attempt.session));
+		}
 	}
 }

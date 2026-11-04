@@ -28,6 +28,7 @@ import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../serv
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -1145,12 +1146,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
 			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
 			stopOnlyWhileRunning: enabledProvider.provideContent().includes('Stop and Stop All are available only while their comparison sessions are running'),
-			archiveComparison: enabledProvider.provideContent().includes('comparison header\'s Mark All as Done action'),
-			undoComparison: enabledProvider.provideContent().includes('Undo restores the group and its sessions.'),
+			archiveComparison: enabledProvider.provideContent().includes('normal session Mark as Done and Undo actions'),
+			nestedParticipants: enabledProvider.provideContent().includes('other attempts, Judge, and synthesis are nested sessions'),
+			legacyGroups: enabledProvider.provideContent().includes('providers without nesting support use a comparison group'),
 			tokenWarning: enabledProvider.provideContent().includes('Running a comparison uses tokens for each session.'),
 			instructions: enabledProvider.provideContent().includes('press Enter or Space to expand or collapse the full instructions'),
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
-			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
 			rationaleOrder: enabledProvider.provideContent().includes('Solution, Comparison, Validation, Code quality'),
 			attemptRows: enabledProvider.provideContent().includes('Up Arrow or Down Arrow to move between them, then press Enter or Space to expand a row'),
@@ -1176,11 +1177,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopAll: false,
 			stopOnlyWhileRunning: false,
 			archiveComparison: true,
-			undoComparison: true,
+			nestedParticipants: true,
+			legacyGroups: true,
 			tokenWarning: true,
 			instructions: true,
 			gridOptOut: true,
-			deleteGroup: true,
 			inactivePaneNotification: true,
 			rationaleOrder: true,
 			attemptRows: true,
@@ -1227,6 +1228,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
 				sessionId: 'judge',
 				resource: judgeResource,
+				activeChat: constObservable(upcastPartial<IChat>({ resource: judgeResource })),
 			}));
 			override readonly mainWindowActiveSession = this.activeSession;
 		}());

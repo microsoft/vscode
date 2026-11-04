@@ -8,7 +8,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -21,7 +20,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
@@ -95,12 +94,12 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis])) {
+		const invokingParticipant = invocation.context && this.comparisonService.getParticipantForChat(comparison.id, invocation.context.sessionResource);
+		if (!invokingParticipant || ![SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis].includes(invokingParticipant.role)) {
 			return toolError('Only the Judge or synthesis session for this comparison can read its manifest.');
 		}
-		const invokingSession = invocation.context?.sessionResource
-			? this.sessionsManagementService.getSession(invocation.context.sessionResource)
-			: undefined;
+		const invokingSession = invokingParticipant?.sessionResource
+			? this.sessionsManagementService.getSession(invokingParticipant.sessionResource) : undefined;
 
 		const allAttemptParticipants = comparison.participants
 			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
@@ -108,19 +107,20 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		const attemptParticipants = allAttemptParticipants.filter(participant => participant.sessionResource);
 		const attempts = attemptParticipants.map(participant => {
 			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
-			const changes = session?.mainChat.get().changes.get() ?? [];
+			const chat = getSessionComparisonChat(participant, session);
+			const changes = chat?.changes.get() ?? [];
 			const changedFiles = changes.slice(0, 200).map(change => ({
 				resource: (isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri).toString(),
 				insertions: change.insertions,
 				deletions: change.deletions,
 			}));
-			const workspace = session?.workspace.get();
-			const changesSummary = session?.changesSummary?.get();
-			const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
-				? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
+			const workspace = participant.chatResource ? chat?.workspace.get() : session?.workspace.get();
+			const changesSummary = participant.chatResource ? chat?.changesSummary?.get() : session?.changesSummary?.get();
+			const sessionContextTarget = chat && session && invokingSession && invokingSession.providerId === session.providerId
+				? this.sessionsManagementService.getSessionContextReference(chat.resource)
 				: undefined;
 			const reasoningEffort = participant.harness.modelConfiguration?.[ReasoningEffortConfigKey];
-			const currentModelId = session?.mainChat.get().modelId.get();
+			const currentModelId = chat?.modelId.get();
 			const modelSelectionDiffers = currentModelId !== undefined && participant.harness.modelId !== undefined
 				? currentModelId !== participant.harness.modelId
 				: undefined;
@@ -143,7 +143,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 						label: participant.harness.permissionLabel ?? 'Default',
 					},
 				},
-				status: getManifestSessionStatus(session?.status.get()),
+				status: getManifestSessionStatus(participant.chatResource ? chat?.status.get() : session?.status.get()),
 				launchError: participant.launchError,
 				sessionContextTarget,
 				sessionContextUnavailableReason: session && !sessionContextTarget
@@ -284,7 +284,8 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge])) {
+		const invokingParticipant = invocation.context && this.comparisonService.getParticipantForChat(comparison.id, invocation.context.sessionResource);
+		if (invokingParticipant?.role !== SessionComparisonParticipantRole.Judge) {
 			return toolError('Only the judge session for this comparison can submit its verdict.');
 		}
 		const allAttemptParticipants = comparison.participants
@@ -379,14 +380,6 @@ function parseReadInput(value: unknown): IReadSessionComparisonInput | undefined
 	return isRecord(value) && typeof value.comparisonId === 'string'
 		? { comparisonId: value.comparisonId }
 		: undefined;
-}
-
-function isInvokingParticipant(comparison: ISessionComparison, invocation: IToolInvocation, roles: readonly SessionComparisonParticipantRole[]): boolean {
-	const invokingSession = invocation.context?.sessionResource;
-	return !!invokingSession && comparison.participants.some(participant =>
-		roles.includes(participant.role)
-		&& !!participant.sessionResource
-		&& isEqual(invokingSession, participant.sessionResource));
 }
 
 function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined {

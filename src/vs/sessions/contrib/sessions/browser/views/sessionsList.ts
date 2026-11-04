@@ -5307,6 +5307,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				const comparison = this.sessionComparisonService.getComparisonForSession(element.resource);
+				if (comparison?.sessionResource && comparison.archivedAt === undefined && isEqual(comparison.sessionResource, element.resource) && !e.sideBySide) {
+					await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
+					return;
+				}
 				// Gate the open on workspace trust before any side effect (mark-read,
 				// activation, folder mount). A refused open leaves the current
 				// session (or empty new-session slot) untouched.
@@ -8265,7 +8270,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private isActiveComparisonSession(session: ISession): boolean {
 		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
-		return comparison !== undefined && comparison.archivedAt === undefined;
+		return comparison !== undefined && !comparison.sessionResource && comparison.archivedAt === undefined;
 	}
 
 	private getCreateGroupAction(sessions?: ISession[]): IAction {
