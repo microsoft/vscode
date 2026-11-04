@@ -37,7 +37,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
-import { getOrganizationSupportActionTooltip } from '../../../../services/policies/common/organizationSupport.js';
+import { DEFAULT_ORGANIZATION_SUPPORT_URL, getOrganizationSupportActionTooltip } from '../../../../services/policies/common/organizationSupport.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
@@ -464,7 +464,7 @@ interface IPickerFixtureOptions {
 	readonly controlModels?: IStringDictionary<IModelControlEntry>;
 	/** The plan the account is on, which decides whether locked models offer upgrade or admin. */
 	readonly entitlement?: ChatEntitlement;
-	/** The organization's help page, which admin-locked models link to instead of GitHub's settings. */
+	/** The organization's help page, which admin-locked models link to instead of the default one. */
 	readonly organizationSupportUrl?: string;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
@@ -481,6 +481,7 @@ interface IPickerFixtureOptions {
 
 export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
+	const supportUrl = options.organizationSupportUrl ?? DEFAULT_ORGANIZATION_SUPPORT_URL;
 	setupContainer(container, 360);
 	if (options.anchored) {
 		container.style.position = 'relative';
@@ -582,8 +583,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		unavailableContext: {
 			show: true,
 			currentVSCodeVersion: '1.100.0',
-			manageSettingsUrl: 'https://github.com/settings/copilot',
-			organizationSupport: options.organizationSupportUrl ? { url: options.organizationSupportUrl, tooltip: getOrganizationSupportActionTooltip(options.organizationSupportUrl) } : undefined,
+			organizationSupport: { url: supportUrl, tooltip: getOrganizationSupportActionTooltip(supportUrl) },
 			updateStateType: StateType.Idle,
 		},
 		onUnavailableLinkClick: () => { },

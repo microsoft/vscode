@@ -21,7 +21,7 @@ import { ITabbedActionListDetailsOptions, TabbedActionListWidget } from '../../.
 import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDefaultAccountService } from '../../../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { DEFAULT_ORGANIZATION_SUPPORT_URL } from '../../../../../../../services/policies/common/organizationSupport.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService, OpenOptions } from '../../../../../../../../platform/opener/common/opener.js';
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -311,7 +311,6 @@ suite('ModelPickerTelemetry', () => {
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 		instantiationService.stub(IUriIdentityService, { extUri });
-		instantiationService.stub(IDefaultAccountService, { resolveGitHubUrl: () => 'https://github.com/settings/copilot' });
 		const workspaceTrustManagementService = store.add(new TestWorkspaceTrustManagementService());
 		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 		instantiationService.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => { trustRequests++; return true; } });
@@ -835,17 +834,18 @@ suite('ModelPickerTelemetry', () => {
 
 		test('reports upgrade and contact-admin links without counting unrelated links', () => {
 			const result = createPicker();
-			const links = ['command:workbench.action.chat.upgradePlan', 'https://github.com/settings/copilot', 'https://example.com/'];
+			const links = ['command:workbench.action.chat.upgradePlan', DEFAULT_ORGANIZATION_SUPPORT_URL, 'https://github.com/settings/copilot', 'https://example.com/'];
 			assert.ok(result.listOptions.linkHandler);
 			for (const link of links) {
 				result.listOptions.linkHandler(URI.parse(link), { kind: ActionListItemKind.Action });
 			}
-			assert.deepStrictEqual({ events: result.events, openedLinks: result.openedLinks }, {
+			assert.deepStrictEqual({ events: result.events, openedLinks: result.openedLinks, openedExternally: result.openedExternally }, {
 				events: [
 					{ name: 'chat.modelPickerInteraction', data: { interaction: 'premiumModelUpgradePlanClicked' } },
 					{ name: 'chat.modelPickerInteraction', data: { interaction: 'disabledModelContactAdminClicked' } },
 				],
 				openedLinks: links,
+				openedExternally: [DEFAULT_ORGANIZATION_SUPPORT_URL],
 			});
 		});
 

@@ -19,6 +19,7 @@ import { NoOpNotification, Severity } from '../../../../../platform/notification
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { DEFAULT_ORGANIZATION_SUPPORT_URL } from '../../common/organizationSupport.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -344,7 +345,7 @@ suite('AccountPolicyGateContribution', () => {
 		assert.match(promptStub.getCall(5).args[0].message, /requires Code to refresh managed settings whenever it starts or reloads\.\n\nAn error prevented the required policy/);
 	});
 
-	test('offers the organization support page in the approved-account notification when one is configured', async () => {
+	test('offers the organization support page in the approved-account notification, or the default one when none is valid', async () => {
 		const clock = sinon.useFakeTimers();
 		const restricted: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
 		const actionLabels = async (supportUrl: string | undefined) => {
@@ -382,8 +383,8 @@ suite('AccountPolicyGateContribution', () => {
 			invalidUrl: await actionLabels('file:///etc/passwd'),
 			withUrl: await actionLabels('https://example.com/copilot-help'),
 		}, {
-			withoutUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
-			invalidUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
+			withoutUrl: { labels: ['Sign In', 'Contact Admin', 'Learn More'], opened: [{ target: DEFAULT_ORGANIZATION_SUPPORT_URL, openExternal: true }] },
+			invalidUrl: { labels: ['Sign In', 'Contact Admin', 'Learn More'], opened: [{ target: DEFAULT_ORGANIZATION_SUPPORT_URL, openExternal: true }] },
 			withUrl: { labels: ['Sign In', 'Contact Admin', 'Learn More'], opened: [{ target: 'https://example.com/copilot-help', openExternal: true }] },
 		});
 	});
@@ -433,7 +434,7 @@ suite('AccountPolicyGateContribution', () => {
 			labels: prompt.getCalls().map(call => call.args[2].map(choice => choice.label)),
 			closed: handles.map(handle => handle.closed),
 		}, {
-			labels: [['Sign In', 'Learn More'], ['Sign In', 'Contact Admin', 'Learn More']],
+			labels: [['Sign In', 'Contact Admin', 'Learn More'], ['Sign In', 'Contact Admin', 'Learn More']],
 			closed: [true, true],
 		});
 	});

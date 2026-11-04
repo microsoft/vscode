@@ -26,7 +26,7 @@ import { LocalModelEnabledSettingId } from '../../../../../../../platform/agentH
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -39,12 +39,11 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../serv
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { GitHubPaths, IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService } from '../../../../../../../platform/update/common/update.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
-import { getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../../../../services/policies/common/organizationSupport.js';
+import { getOrganizationSupportActionTooltip, getOrganizationSupportUrl, openOrganizationSupport } from '../../../../../../services/policies/common/organizationSupport.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
@@ -202,7 +201,6 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -236,7 +234,7 @@ export class ModelPickerWidget extends Disposable {
 		}));
 		// Contact Admin links are resolved when the picker opens, so it closes rather than going stale.
 		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
-			if (this._tabbedPicker.value?.isVisible && getManagedSupportUrl(this._managedSettingsService) !== this._shownSupportUrl) {
+			if (this._tabbedPicker.value?.isVisible && getOrganizationSupportUrl(this._managedSettingsService) !== this._shownSupportUrl) {
 				this._tabbedPicker.value.hide();
 			}
 		}));
@@ -784,19 +782,16 @@ export class ModelPickerWidget extends Disposable {
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
-		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
-		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+		const supportUrl = getOrganizationSupportUrl(this._managedSettingsService);
 		this._shownSupportUrl = supportUrl;
-		const organizationSupport = supportUrl ? { url: supportUrl, tooltip: getOrganizationSupportActionTooltip(supportUrl) } : undefined;
+		const organizationSupport = { url: supportUrl, tooltip: getOrganizationSupportActionTooltip(supportUrl) };
 		const onLinkClick = (uri: URI) => {
 			if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
 				logModelPickerInteraction('premiumModelUpgradePlanClicked');
-			} else if (supportUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(supportUrl))) {
+			} else if (this._uriIdentityService.extUri.isEqual(uri, URI.parse(supportUrl))) {
 				logModelPickerInteraction('disabledModelContactAdminClicked');
 				void openOrganizationSupport(this._openerService, supportUrl);
 				return;
-			} else if (manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl))) {
-				logModelPickerInteraction('disabledModelContactAdminClicked');
 			}
 			void this._openerService.open(uri, { allowCommands: true });
 		};
@@ -837,7 +832,6 @@ export class ModelPickerWidget extends Disposable {
 			unavailableContext: {
 				show: presentation.showUnavailableFeatured,
 				currentVSCodeVersion: this._productService.version,
-				manageSettingsUrl,
 				organizationSupport,
 				updateStateType: this._updateService.state.type,
 			},

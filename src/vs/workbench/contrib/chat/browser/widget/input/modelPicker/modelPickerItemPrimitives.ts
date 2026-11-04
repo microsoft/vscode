@@ -182,7 +182,7 @@ export function getUnavailableReason(
 	return entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion) ? 'update' : 'admin';
 }
 
-/** The organization's help page, resolved once per picker open. */
+/** The organization's help page, or the default one, resolved once per picker open. */
 export interface IModelPickerOrganizationSupport {
 	readonly url: string;
 	/** Names the page's host, since the organization rather than VS Code controls it. */
@@ -201,8 +201,7 @@ export function createUnavailableModelItem(
 	id: string,
 	entry: IModelControlEntry,
 	reason: 'upgrade' | 'update' | 'admin',
-	manageSettingsUrl: string | undefined,
-	organizationSupport: IModelPickerOrganizationSupport | undefined,
+	organizationSupport: IModelPickerOrganizationSupport,
 	updateStateType: StateType,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction> {
@@ -212,12 +211,7 @@ export function createUnavailableModelItem(
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
-		const label = getOrganizationSupportActionLabel();
-		description = organizationSupport
-			? createOrganizationSupportLink(label, organizationSupport)
-			: manageSettingsUrl
-				? new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${manageSettingsUrl})`, { isTrusted: true })
-				: label;
+		description = createOrganizationSupportLink(getOrganizationSupportActionLabel(), organizationSupport);
 	}
 
 	let hoverContent: MarkdownString;

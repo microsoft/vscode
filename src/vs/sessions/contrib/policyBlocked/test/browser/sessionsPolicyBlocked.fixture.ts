@@ -13,6 +13,7 @@ import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBl
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { DEFAULT_ORGANIZATION_SUPPORT_URL } from '../../../../../workbench/services/policies/common/organizationSupport.js';
 
 const supportUrl = 'https://example.com/copilot-help';
 
@@ -41,7 +42,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	PolicyBlocked: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => createOverlay(ctx, { reason: SessionsBlockedReason.AgentDisabled }),
+		render: (ctx) => createOverlay(ctx, { reason: SessionsBlockedReason.AgentDisabled, supportUrl: DEFAULT_ORGANIZATION_SUPPORT_URL }),
 	}),
 	PolicyBlockedWithSupport: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -57,6 +58,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			reason: SessionsBlockedReason.AccountPolicyGate,
 			accountName: 'octocat',
 			approvedOrganizations: ['github', 'microsoft'],
+			supportUrl: DEFAULT_ORGANIZATION_SUPPORT_URL,
 		}),
 	}),
 	AccountPolicyGateWithSupport: defineComponentFixture({
@@ -72,6 +74,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => createOverlay(ctx, {
 			reason: SessionsBlockedReason.AccountPolicyGate,
+			supportUrl: DEFAULT_ORGANIZATION_SUPPORT_URL,
 		}),
 	}),
 	ManagedSettingsUnavailable: defineComponentFixture({
@@ -84,6 +87,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				failure: ManagedSettingsFreshnessFailure.Network,
 				lastAttemptAt: Date.now(),
 			},
+			supportUrl: DEFAULT_ORGANIZATION_SUPPORT_URL,
 		}),
 	}),
 	ManagedSettingsUnavailableWithSupport: defineComponentFixture({

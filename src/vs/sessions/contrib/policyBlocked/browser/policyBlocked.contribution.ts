@@ -17,7 +17,8 @@ import { ManagedSettingsFreshnessState } from '../../../../platform/policy/commo
 import { autorun } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IManagedSettingsUpdateService } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
-import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { getOrganizationSupportUrl } from '../../../../workbench/services/policies/common/organizationSupport.js';
 
 export class SessionsPolicyBlockedContribution extends Disposable implements IWorkbenchContribution {
 
@@ -59,7 +60,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			return;
 		}
 		const gateInfo = this.gateService.gateInfo;
-		const supportUrl = getManagedSupportUrl(this.managedSettingsService);
+		const supportUrl = getOrganizationSupportUrl(this.managedSettingsService);
 
 		// The gate forces chat.agent.enabled = false via restrictedValue when stably
 		// Restricted. Suppress AgentDisabled in that case so users see the gate-specific

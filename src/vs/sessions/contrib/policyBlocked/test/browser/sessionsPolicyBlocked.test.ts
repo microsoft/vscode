@@ -19,6 +19,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, ManagedSettingsData, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { DEFAULT_ORGANIZATION_SUPPORT_URL } from '../../../../../workbench/services/policies/common/organizationSupport.js';
 import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { DisablementReason, State, UpdateType } from '../../../../../platform/update/common/update.js';
@@ -108,18 +109,20 @@ suite('Sessions policy update explanation', () => {
 		return { root, content, updateInfo, opened, openedExternally, setManagedSettings, contribution, layout, layoutEvent, gate, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls };
 	}
 
-	test('offers the organization support page wherever an agent restriction says to contact an administrator', () => {
+	test('offers the organization support page, or the default one, wherever an agent restriction says to contact an administrator', () => {
 		const { root, gate, gateChange, openedExternally, setManagedSettings } = setup(undefined, false);
 		const buttons = () => [...root.querySelectorAll<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button')].map(button => button.textContent);
+		const contactAdministrator = () => root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button:not(.secondary)')!;
 		const states: { [state: string]: (string | null)[] } = {};
 		states.agentDisabledWithoutUrl = buttons();
+		contactAdministrator().click();
 		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'javascript:alert(1)' });
 		states.agentDisabledInvalidUrl = buttons();
+		contactAdministrator().click();
 		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
 		states.agentDisabled = buttons();
-		const contactAdministrator = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button:not(.secondary)')!;
-		const contactAdministratorAriaLabel = contactAdministrator.getAttribute('aria-label');
-		contactAdministrator.click();
+		const contactAdministratorAriaLabel = contactAdministrator().getAttribute('aria-label');
+		contactAdministrator().click();
 		gate.gateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
 		gateChange.fire(gate.gateInfo);
 		states.accountGate = buttons();
@@ -136,18 +139,18 @@ suite('Sessions policy update explanation', () => {
 		states.refreshFailedWithoutUrl = buttons();
 		assert.deepStrictEqual({ states, contactAdministratorAriaLabel, openedExternally }, {
 			states: {
-				agentDisabledWithoutUrl: ['Open VS Code'],
-				agentDisabledInvalidUrl: ['Open VS Code'],
+				agentDisabledWithoutUrl: ['Contact Admin', 'Open VS Code'],
+				agentDisabledInvalidUrl: ['Contact Admin', 'Open VS Code'],
 				agentDisabled: ['Contact Admin', 'Open VS Code'],
 				accountGate: ['Sign In', 'Contact Admin'],
 				[ManagedSettingsFreshnessFailure.NoUrl]: ['Contact Admin', 'Open VS Code'],
 				[ManagedSettingsFreshnessFailure.NoToken]: ['Sign In', 'Open VS Code'],
 				[ManagedSettingsFreshnessFailure.RateLimited]: ['Retry', 'Open VS Code'],
 				[ManagedSettingsFreshnessFailure.Network]: ['Retry', 'Contact Admin', 'Open VS Code'],
-				refreshFailedWithoutUrl: ['Retry', 'Open VS Code'],
+				refreshFailedWithoutUrl: ['Retry', 'Contact Admin', 'Open VS Code'],
 			},
 			contactAdministratorAriaLabel: 'Contact Admin',
-			openedExternally: ['https://example.com/copilot-help'],
+			openedExternally: [DEFAULT_ORGANIZATION_SUPPORT_URL, DEFAULT_ORGANIZATION_SUPPORT_URL, 'https://example.com/copilot-help'],
 		});
 	});
 
@@ -191,20 +194,29 @@ suite('Sessions policy update explanation', () => {
 	});
 
 	test('a rerender keeps focus on the same action, falls back to the primary action, and leaves focus in a dialog the overlay opened', () => {
-		const { root, setManagedSettings } = setup(undefined, false);
+		const { root, gate, gateChange, setManagedSettings } = setup(undefined, false);
 		const button = (label: string) => [...root.querySelectorAll<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button')].find(element => element.textContent === label)!;
 		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
 		button('Contact Admin').focus();
 		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/other-help' });
 		const keptAction = mainWindow.document.activeElement?.textContent;
 		setManagedSettings({});
+		const keptWithDefault = mainWindow.document.activeElement?.textContent;
+		// Signing in is the fix here, so the overlay drops Contact Admin.
+		gate.gateInfo = {
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.NoToken, lastAttemptAt: 0 },
+		};
+		gateChange.fire(gate.gateInfo);
 		const fallback = mainWindow.document.activeElement?.textContent;
 		const dialogButton = append(append(root, $('.monaco-dialog-modal-block')), $('button', undefined, 'Open'));
 		dialogButton.focus();
 		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
-		assert.deepStrictEqual({ keptAction, fallback, dialogKeptFocus: mainWindow.document.activeElement === dialogButton }, {
+		assert.deepStrictEqual({ keptAction, keptWithDefault, fallback, dialogKeptFocus: mainWindow.document.activeElement === dialogButton }, {
 			keptAction: 'Contact Admin',
-			fallback: 'Open VS Code',
+			keptWithDefault: 'Contact Admin',
+			fallback: 'Sign In',
 			dialogKeptFocus: true,
 		});
 	});
