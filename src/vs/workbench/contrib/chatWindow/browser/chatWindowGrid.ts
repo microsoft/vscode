@@ -24,6 +24,9 @@ export const enum ChatWindowGridCell {
 	Terminals = 'terminals',
 }
 
+/** The type of terminal editors, `TerminalEditorInput.ID`. */
+const TERMINAL_EDITOR_TYPE_ID = 'workbench.editors.terminal';
+
 /** The share of the height of their column that the terminals take until the user sizes them. */
 const TERMINALS_SHARE = 0.3;
 
@@ -505,8 +508,11 @@ export class ChatWindowGrid extends Disposable {
 		const state = { grid: serializedGrid, hidden: [], parts: {}, created: Array.from(this._created.keys()) };
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id), this._editorGroupsService);
 		this._partFactoryRegistration.value = this._partFactory && partGrid.setPartFactory(this._partFactory);
-		// A part dropped on the chat goes beside it: its editors would join the chat's group, whose title is the chat's own
-		partGrid.setMergeAllowed((_id, targetId) => targetId !== ChatWindowGridCell.Chat);
+		// A part dropped on the chat goes beside it: its editors would join the chat's group, whose title is the chat's own.
+		// So does a part dropped on the terminals, whose groups stay locked to terminals.
+		partGrid.setMergeAllowed((_id, targetId) => targetId !== ChatWindowGridCell.Chat && targetId !== ChatWindowGridCell.Terminals);
+		// Terminals do not lay out while cards make way: their processes would resize, also for a drag that is cancelled
+		partGrid.setPreviewLayoutAllowed((id, part) => id !== ChatWindowGridCell.Terminals && !part.groups.some(group => group.activeEditor?.typeId === TERMINAL_EDITOR_TYPE_ID));
 		// The title row of the window shows while the chat does not lead it, as the chat's own title stands in for it while
 		// it does: a part that moves shows where it goes with the title row as it will be
 		this._previewAdjusterRegistration.value = this._titleRow && partGrid.setMovePreviewAdjuster(preview => {

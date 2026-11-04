@@ -364,6 +364,13 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('a part does not merge into the terminals, whose groups stay locked to terminals, as it does not into the chat', () => {
+		const { grid, open } = setupWithTerminals();
+		open();
+
+		assert.deepStrictEqual({ intoTerminals: grid.partGrid!.mergeCell(ChatWindowGridCell.Main, ChatWindowGridCell.Terminals), intoChat: grid.partGrid!.mergeCell(ChatWindowGridCell.Main, ChatWindowGridCell.Chat) }, { intoTerminals: false, intoChat: false });
+	});
+
 	test('the terminals join the grid below the chat, below the main part or across the window, across the chat and the main part while stacked, and below the strip in editor only', () => {
 		const { mode, position, grid, open } = setupWithTerminals();
 		const before = grid.partGrid!.describe();
