@@ -312,7 +312,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		let packageJsonContents = '';
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, nativeBuild: undefined, type: 'module' }))
+			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);

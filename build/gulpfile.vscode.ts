@@ -182,8 +182,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		const name = product.nameShort;
-		// The native module build settings only matter for installing dependencies.
-		const packageJsonUpdates: Record<string, unknown> = { name, version, nativeBuild: undefined };
+		const packageJsonUpdates: Record<string, unknown> = { name, version };
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
