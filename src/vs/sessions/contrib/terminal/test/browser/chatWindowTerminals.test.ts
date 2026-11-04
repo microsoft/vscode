@@ -155,6 +155,7 @@ suite('Chat window terminals', () => {
 		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: observableValue('session', session) };
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override getGroups() { return [...otherGroups, terminalsGroup]; }
+			override get groups() { return [mainGroup, terminalsGroup, chatGroup]; }
 			override getScopedInstantiationService(part: IEditorPart) {
 				assert.strictEqual(part, mainPart);
 				const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => sessionScope as T });
@@ -299,6 +300,24 @@ suite('Chat window terminals', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(calls, ['terminalOf:session-1:{"viewColumn":0}', 'fromBackground', 'toEditor:7']);
+	});
+
+	test('showing the terminals moves a terminal of the window that is in an editor of another group, such as one moved into the main part, from that group, not through the panel of the main window, which would show and focus it', async () => {
+		const instance = terminal(9, { target: TerminalLocation.Editor });
+		const { terminals, window, calls, mainGroup, terminalsGroup } = createEnvironment({ instances: [instance], foreground: [instance] });
+		await terminals.showTerminal(window, 9, false);
+		// The user moved it into the main part
+		const terminalEditor = terminalsGroup.editors.find(candidate => candidate.resource?.toString() === instance.resource.toString())!;
+		terminalsGroup.moveEditor(terminalEditor, mainGroup);
+		calls.length = 0;
+
+		await terminals.show(window, true);
+		terminals.release(window);
+
+		assert.deepStrictEqual({ calls, movedBack: terminalsGroup.moved.includes(terminalEditor) }, {
+			calls: ['toBackground'],
+			movedBack: true,
+		});
 	});
 
 	test('a terminal opened in the main part moves to the part that holds the terminals; other editors stay', async () => {

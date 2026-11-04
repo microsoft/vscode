@@ -290,7 +290,17 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			return;
 		}
 		if (instance.target === TerminalLocation.Editor && this._terminalService.foregroundInstances.includes(instance)) {
-			// Shown in an editor elsewhere: from the panel, it moves to the chat window.
+			// Shown in an editor elsewhere, such as in the window's main part: it moves from that group to the window's, rather
+			// than through the panel, which would show and focus the main window's panel.
+			const source = this._editorGroupsService.groups.find(candidate => candidate !== group && candidate.editors.some(editor => isEqual(editor.resource, instance.resource)));
+			const editor = source?.editors.find(candidate => isEqual(candidate.resource, instance.resource));
+			if (source && editor) {
+				source.moveEditor(editor, group, { preserveFocus: !focus });
+				if (focus) {
+					await instance.focusWhenReady(true);
+				}
+				return;
+			}
 			await this._terminalService.moveToTerminalView(instance);
 		}
 		if (!this._terminalService.foregroundInstances.includes(instance)) {
