@@ -93,6 +93,8 @@ graph TB
 
 ### Agent layer (`common/agent.ts:IAgent`)
 
+Copilot alone opts into the host-internal `supportsVirtualWorkspaces` capability. A non-`file:` working directory selects a dedicated scoped SDK client with `sessionFs`; scoped credentials, when present, belong to that same client. Its `/session-state` namespace maps to `COPILOT_HOME/session-state/<sdk-session-id>` on the host, while workspace operations resolve the chat's current client window through the existing filesystem bridge. Workspace SDK paths map back to their original virtual URIs; host-local state and spill paths remain `file:`. Host attachment snapshots are staged under `/session-state/files/attachments` so the virtual runtime can read them. Virtual sessions use host `grep`/`glob` overrides that skip permission prompts, and omit shells, git/worktrees, disk-only changes aggregation, workspace customization discovery, and extra roots. This is derived from the recorded working directory on create and resume, not a persisted virtual-session flag.
+
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
 - Reading history (`chats.getMessages`).

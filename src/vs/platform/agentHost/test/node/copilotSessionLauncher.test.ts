@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { homedir } from 'os';
 import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
@@ -37,6 +38,8 @@ import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } f
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { CopilotVirtualSessionFs } from '../../node/copilot/copilotVirtualSessionFs.js';
+import { toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -1833,6 +1836,69 @@ suite('getCopilotAgentSelectionName', () => {
 suite('CopilotSessionLauncher shared session config', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const virtual of [false, true]) {
+			test(`${kind} ${virtual ? 'uses editor-backed files and search without disk tools' : 'keeps local filesystem and search tools unchanged'}`, async () => {
+				let captured: ResumeSessionConfig | undefined;
+				const raw = {
+					sessionId: 'virtual-workspace', on: () => () => { }, disconnect: async () => { },
+					rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+				} as unknown as CopilotSession;
+				const workingDirectory = virtual ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory;
+				const workspace = toCopilotWorkspace(workingDirectory);
+				const virtualSessionFs = workspace.kind === 'virtual'
+					? new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/virtual-workspace'), () => undefined, upcastPartial<IFileService>({})) : undefined;
+				const definitions = ['copilot_findFiles', 'copilot_findTextInFiles'].map(name => ({ name, description: name, inputSchema: { type: 'object' as const, properties: {} } }));
+				const base = {
+					client: returningSession(raw, config => { captured = config; }),
+					sessionId: 'virtual-workspace', workingDirectory, workspace, virtualSessionFs,
+					additionalDirectories: [URI.file('/additional')],
+					resolvedAgentName: undefined,
+					snapshot: {
+						tools: definitions, plugins: [], discoveredAgents: [], additionalRootInstructions: [], mcpServers: {
+							stdio: { type: McpServerType.LOCAL as const, command: 'npx' },
+							remote: { type: McpServerType.REMOTE as const, url: 'https://example.com/mcp' },
+						}
+					},
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } };
+				const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.EnableCustomTerminalTool]: virtual });
+				store.add(await launcher.launch(plan, {
+					...testRuntime,
+					createClientSdkTools: (_search, _host, withheld) => definitions.filter(tool => !withheld?.has(tool.name)).map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema, handler: async () => '' })),
+				}));
+				const disallowed = [
+					...['bash', 'read_bash', 'write_bash', 'stop_bash', 'list_bash', 'bash_shutdown',
+						'powershell', 'read_powershell', 'write_powershell', 'stop_powershell', 'list_powershell', 'powershell_shutdown',
+						'local_shell', 'grep', 'rg', 'glob'].map(name => `builtin:${name}`),
+					'custom:copilot_findFiles', 'custom:copilot_findTextInFiles',
+				];
+				assert.deepStrictEqual({
+					provider: captured?.createSessionFsProvider ? await captured.createSessionFsProvider(raw) === virtualSessionFs : false,
+					workingDirectory: captured?.workingDirectory,
+					excluded: (Array.isArray(captured?.excludedTools) ? captured.excludedTools : []).filter(name => disallowed.includes(name)),
+					tools: captured?.tools?.map(tool => ({ name: tool.name, overridesBuiltInTool: tool.overridesBuiltInTool === true, skipPermission: tool.skipPermission === true })),
+					additionalDirectories: captured?.additionalDirectories,
+					discovery: captured?.enableConfigDiscovery,
+					virtualPrompt: captured?.systemMessage?.content?.includes('virtual (remote) repository') === true,
+					mcpWorkingDirectories: Object.values(captured?.mcpServers ?? {}).map(server => hasKey(server, { url: true }) ? 'remote' : server.workingDirectory),
+				}, {
+					provider: virtual,
+					workingDirectory: virtual ? '/vscode-vfs/github/microsoft/vscode' : workingDirectory.fsPath,
+					excluded: virtual ? disallowed : [],
+					tools: virtual ? [{ name: 'grep', overridesBuiltInTool: true, skipPermission: true }, { name: 'glob', overridesBuiltInTool: true, skipPermission: true }]
+						: definitions.map(tool => ({ name: tool.name, overridesBuiltInTool: false, skipPermission: false })),
+					additionalDirectories: virtual ? undefined : [URI.file('/additional').fsPath],
+					discovery: !virtual,
+					virtualPrompt: virtual,
+					mcpWorkingDirectories: [virtual ? homedir() : undefined, 'remote'],
+				});
+			});
+		}
+	}
 
 	for (const kind of ['create', 'resume', 'recover', 'recover-empty', 'create-selection-error', 'resume-selection-error'] as const) {
 		test(`${kind} selects native plugin agents without registering their definitions`, async () => {

@@ -13,6 +13,7 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import type { SessionEvent } from '@github/copilot-sdk';
@@ -27,7 +28,7 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 	const sessionId = 'test-session';
 
 	function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
-		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session);
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 	}
 
 	function markdown(content: string): ResponsePart {
@@ -437,7 +438,7 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		];
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
-		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, {
+		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))), {
 			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
 		});
 
