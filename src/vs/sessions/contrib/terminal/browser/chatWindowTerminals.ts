@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement, isAncestor } from '../../../../base/browser/dom.js';
+import { getActiveElement, getActiveWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -50,8 +51,8 @@ export interface IChatWindowTerminalsService {
 	/** Shows the terminal `instanceId`, such as the terminal of a task, in the terminals of `window`; resolves to whether it did. */
 	showTerminal(window: IChatWindow, instanceId: number, focus: boolean): Promise<boolean>;
 	/**
-	 * Shows the terminal `instanceId`, such as the terminal of a task, in the terminals of a chat window that shows
-	 * `session`; resolves to whether one does and showed it.
+	 * Shows the terminal `instanceId`, such as the terminal of a task, in the terminals of the chat window that shows
+	 * `session` while that window is the active one, such as one the task was run from; resolves to whether it did.
 	 */
 	showSessionTerminal(session: ISession, instanceId: number, focus: boolean): Promise<boolean>;
 }
@@ -156,7 +157,15 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				terminals.delete(instance);
 			}
 		}
-		// Those the user put in another part of the window, such as its main part, stay there.
+		// Those the user put in another part of the window, such as its main part, stay there; one another chat window shows
+		// now, such as one the user moved there, is that window's.
+		for (const instance of [...terminals]) {
+			const other = this._otherChatWindowShowing(window, instance);
+			if (other) {
+				terminals.delete(instance);
+				this._getTerminals(other).add(instance);
+			}
+		}
 		const toShow = [...terminals].filter(instance => !this._isElsewhereInWindow(window, instance));
 		if (!toShow.length) {
 			// Created in the window's part, rather than in the panel of the main window and moved.
@@ -201,6 +210,15 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}
 		const terminalsGroups = window.terminalsPart.get()?.groups ?? [];
 		return this._editorGroupsService.groups.some(group => group.windowId === window.windowId && !terminalsGroups.includes(group) && group.editors.some(editor => isEqual(editor.resource, instance.resource)));
+	}
+
+	/** The chat window other than `window` that shows `instance` in an editor of one of its groups, if any. */
+	private _otherChatWindowShowing(window: IChatWindow, instance: ITerminalInstance): IChatWindow | undefined {
+		if (instance.target !== TerminalLocation.Editor) {
+			return undefined;
+		}
+		const group = this._editorGroupsService.groups.find(candidate => candidate.windowId !== window.windowId && candidate.editors.some(editor => isEqual(editor.resource, instance.resource)));
+		return group && this._chatWindowService.windows.get().find(candidate => candidate.windowId === group.windowId);
 	}
 
 	/** Hides the terminals of `window`, or `all` of them, also those in its other parts, as it closes. */
@@ -289,7 +307,9 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	}
 
 	async showSessionTerminal(session: ISession, instanceId: number, focus: boolean): Promise<boolean> {
-		const window = this._chatWindowService.windows.get().find(candidate => this._sessionOf(candidate)?.sessionId === session.sessionId);
+		// The window it was run from, such as from its Run menu: the active window, while it shows the session
+		const activeWindowId = getActiveWindow().vscodeWindowId;
+		const window = this._chatWindowService.windows.get().find(candidate => candidate.windowId === activeWindowId && this._sessionOf(candidate)?.sessionId === session.sessionId);
 		return window ? this.showTerminal(window, instanceId, focus) : false;
 	}
 
@@ -312,7 +332,8 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		if (instance.target === TerminalLocation.Editor && this._terminalService.foregroundInstances.includes(instance)) {
 			// Shown in an editor elsewhere, such as in the window's main part: it moves from that group to the window's, rather
 			// than through the panel, which would show and focus the main window's panel.
-			const source = this._editorGroupsService.groups.find(candidate => candidate !== group && candidate.editors.some(editor => isEqual(editor.resource, instance.resource)));
+			// Only from the main window or this window: a terminal another chat window shows stays its own
+			const source = this._editorGroupsService.groups.find(candidate => candidate !== group && (candidate.windowId === group.windowId || candidate.windowId === mainWindow.vscodeWindowId) && candidate.editors.some(editor => isEqual(editor.resource, instance.resource)));
 			const editor = source?.editors.find(candidate => isEqual(candidate.resource, instance.resource));
 			if (source && editor) {
 				source.moveEditor(editor, group, { preserveFocus: !focus });

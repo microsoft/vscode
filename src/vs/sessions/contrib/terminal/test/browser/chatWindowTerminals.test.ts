@@ -8,7 +8,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -25,6 +25,9 @@ import { ISessionScope } from '../../../../services/sessions/browser/sessionScop
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatWindowTerminals, IChatWindowTerminalsSource } from '../../browser/chatWindowTerminals.js';
+
+/** The id of the chat window of the tests, not the main window's. */
+const CHAT_WINDOW_ID = mainWindow.vscodeWindowId + 1;
 
 class TestGroup extends mock<IEditorGroup>() {
 	readonly onModelChange = new Emitter<IGroupModelChangeEvent>();
@@ -43,7 +46,7 @@ class TestGroup extends mock<IEditorGroup>() {
 		this.editors.push(editor);
 		this.onModelChange.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor });
 	}
-	constructor(override readonly id: number, override readonly windowId = 1) { super(); }
+	constructor(override readonly id: number, override readonly windowId = CHAT_WINDOW_ID) { super(); }
 	dispose() { this.onModelChange.dispose(); }
 }
 
@@ -92,6 +95,8 @@ suite('Chat window terminals', () => {
 		readonly panelGroup?: ITerminalInstance[];
 		/** Whether a terminal moved to an editor opens there later, as the editor service opens it. */
 		readonly opensLater?: boolean;
+		/** The id of the window, such as of the active window, which is the main window in tests. */
+		readonly windowId?: number;
 	}
 
 	function createEnvironment(options: IEnvironmentOptions = {}) {
@@ -113,7 +118,7 @@ suite('Chat window terminals', () => {
 		const onWillClose = disposables.add(new Emitter<void>());
 		let focused = 0;
 		const window = new class extends mock<IChatWindow>() {
-			override readonly windowId = 1;
+			override readonly windowId = options.windowId ?? CHAT_WINDOW_ID;
 			override readonly mainPart: IContentPart = mainPart;
 			override readonly chatPart: IContentPart = chatPart;
 			override readonly chatEditor = chatEditor;
@@ -200,7 +205,7 @@ suite('Chat window terminals', () => {
 		};
 		windows.set([window], undefined);
 		const terminals = disposables.add(instantiationService.createInstance(ChatWindowTerminals, source));
-		return { calls, shownInChatWindow, window, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
+		return { calls, shownInChatWindow, window, windows, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
 	}
 
 	test('shows a terminal of the window\'s session in the part that holds its terminals, and gives it back to the panel, still running, as the window closes', async () => {
@@ -238,20 +243,26 @@ suite('Chat window terminals', () => {
 		});
 	});
 
-	test('shows a terminal of a session, such as of a task run for it, in the window that shows the session; for another session it does not', async () => {
+	test('shows a terminal of a session, such as of a task run for it, in the window that shows the session while it is the active window, such as one the task was run from; for another session, or while another window, such as the main window, is active, it does not', async () => {
 		const instance = terminal(9);
-		const { terminals, window, calls } = createEnvironment({ instances: [instance], foreground: [instance] });
+		// The active window in tests is the main window
+		const { terminals, window, calls } = createEnvironment({ instances: [instance], foreground: [instance], windowId: mainWindow.vscodeWindowId });
 
 		const otherSession = await terminals.showSessionTerminal(upcastPartial<ISession>({ sessionId: 'session-2' }), 9, false);
 		const shownSession = await terminals.showSessionTerminal(upcastPartial<ISession>({ sessionId: 'session-1' }), 9, false);
 		const shownInWindow = window.terminalsVisible.get();
 		terminals.release(window);
 
-		assert.deepStrictEqual({ otherSession, shownSession, shownInWindow, calls }, {
+		const inactive = createEnvironment({ instances: [terminal(9)], foreground: [] });
+		const notActive = await inactive.terminals.showSessionTerminal(upcastPartial<ISession>({ sessionId: 'session-1' }), 9, false);
+
+		assert.deepStrictEqual({ otherSession, shownSession, shownInWindow, calls, notActive, notActiveCalls: inactive.calls }, {
 			otherSession: false,
 			shownSession: true,
 			shownInWindow: true,
 			calls: ['createPart', 'toEditor:7', 'toBackground'],
+			notActive: false,
+			notActiveCalls: [],
 		});
 	});
 
@@ -344,12 +355,12 @@ suite('Chat window terminals', () => {
 		});
 	});
 
-	test('showing the terminals moves a terminal of the window that is in an editor of another window\'s group from that group, not through the panel of the main window, which would show and focus it', async () => {
+	test('showing the terminals moves a terminal of the window that is in an editor of the main window\'s editor area from that group, not through the panel of the main window, which would show and focus it', async () => {
 		const instance = terminal(9, { target: TerminalLocation.Editor });
 		const { terminals, window, calls, terminalsGroup, otherWindowGroups } = createEnvironment({ instances: [instance], foreground: [instance] });
 		await terminals.showTerminal(window, 9, false);
 		const terminalEditor = terminalsGroup.editors.find(candidate => candidate.resource?.toString() === instance.resource.toString())!;
-		const otherWindowGroup = new TestGroup(12, 2);
+		const otherWindowGroup = new TestGroup(12, mainWindow.vscodeWindowId);
 		disposables.add({ dispose: () => otherWindowGroup.dispose() });
 		otherWindowGroups.push(otherWindowGroup);
 		terminalsGroup.moveEditor(terminalEditor, otherWindowGroup);
@@ -361,6 +372,35 @@ suite('Chat window terminals', () => {
 		assert.deepStrictEqual({ calls, movedBack: terminalsGroup.moved.includes(terminalEditor) }, {
 			calls: ['toBackground'],
 			movedBack: true,
+		});
+	});
+
+	test('a terminal of the window that another chat window shows now, such as one the user moved there, is that window\'s: showing the terminals does not take it from there', async () => {
+		const instance = terminal(9, { target: TerminalLocation.Editor });
+		const { terminals, window, windows, calls, terminalsGroup, otherWindowGroups } = createEnvironment({ instances: [instance], foreground: [instance] });
+		await terminals.showTerminal(window, 9, false);
+		const terminalEditor = terminalsGroup.editors.find(candidate => candidate.resource?.toString() === instance.resource.toString())!;
+		const otherChatWindowId = CHAT_WINDOW_ID + 1;
+		const otherGroup = new TestGroup(12, otherChatWindowId);
+		const otherMainGroup = new TestGroup(13, otherChatWindowId);
+		disposables.add({ dispose: () => { otherGroup.dispose(); otherMainGroup.dispose(); } });
+		otherWindowGroups.push(otherGroup);
+		windows.set([window, new class extends mock<IChatWindow>() {
+			override readonly windowId = otherChatWindowId;
+			override readonly mainPart = createPart(otherMainGroup);
+			override readonly terminalsPart = constObservable(undefined);
+			override readonly onWillClose = Event.None;
+		}()], undefined);
+		terminalsGroup.moveEditor(terminalEditor, otherGroup);
+		calls.length = 0;
+
+		await terminals.show(window, false);
+		terminals.release(window);
+
+		assert.deepStrictEqual({ calls: calls.filter(call => call !== 'terminalOf:session-1:{"viewColumn":0}'), stays: otherGroup.contains(terminalEditor), movedBack: terminalsGroup.moved.includes(terminalEditor) }, {
+			calls: [],
+			stays: true,
+			movedBack: false,
 		});
 	});
 
