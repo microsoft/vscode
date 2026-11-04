@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.146.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "c2fad9c2b70fca9d4ba5d689052bcf069661e333",
+  "distro": "05457c417e0e384f4d465f2acab6d21f43360868",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -118,7 +118,7 @@
     "@vscode/codicons": "^0.0.46-49",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
-    "@vscode/diff": "0.0.2-7",
+    "@vscode/diff": "0.0.2-122",
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",

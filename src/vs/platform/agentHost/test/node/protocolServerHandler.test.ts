@@ -3591,26 +3591,32 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({ advertised, calls }, { advertised: true, calls: [{ chat, scopeId: 'runtime' }] });
 		});
 
-		test(`sandbox certificate ${operation} is unavailable without host-control access`, async () => {
-			const calls: string[] = [];
-			agentService[`${operation}SandboxCertificate`] = async () => { calls.push(operation); };
-			const localServer = disposables.add(new MockProtocolServer());
-			disposables.add(new ProtocolServerHandler(
-				agentService, stateManager, localServer, { allowExtensionMethods: false },
-				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
-			));
-			const transport = new MockProtocolTransport();
-			localServer.simulateConnection(transport);
-			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'certificate-client' }));
-			const initialize = findResponse(transport.sent, 1);
-			assert.ok(initialize && hasKey(initialize, { result: true }));
-			const rejected = waitForResponse(transport, 2);
-			transport.simulateMessage(request(2, `vscode/${operation}SandboxCertificate`, { chat: defaultChatUri, scopeId: 'runtime' }));
-			assert.ok(hasKey(await rejected, { error: true }));
-			assert.deepStrictEqual({ capability: (initialize.result as InitializeResult)._meta?.[`vscode.sandboxCertificate.${operation}`], calls }, { capability: undefined, calls: [] });
-		});
+		for (const endpoint of operation === 'refresh' ? ['direct', 'relay'] : ['direct']) {
+			const available = operation === 'refresh' && endpoint === 'direct';
+			test(`sandbox certificate ${operation} is ${available ? 'available' : 'unavailable'} on a ${endpoint} endpoint without host-control access`, async () => {
+				const calls: string[] = [];
+				agentService[`${operation}SandboxCertificate`] = async () => { calls.push(operation); };
+				const localServer = disposables.add(new MockProtocolServer());
+				disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, localServer, { allowExtensionMethods: false, relayRoots: endpoint === 'relay' ? ['/workspace'] : undefined },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+					new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				));
+				const transport = disposables.add(new MockProtocolTransport());
+				localServer.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'certificate-client' }));
+				const initialize = findResponse(transport.sent, 1);
+				assert.ok(initialize && hasKey(initialize, { result: true }));
+				const response = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, `vscode/${operation}SandboxCertificate`, { chat: defaultChatUri, scopeId: 'runtime' }));
+				assert.deepStrictEqual({
+					capability: (initialize.result as InitializeResult)._meta?.[`vscode.sandboxCertificate.${operation}`],
+					succeeded: hasKey(await response, { result: true }),
+					calls,
+				}, available ? { capability: true, succeeded: true, calls: ['refresh'] } : { capability: undefined, succeeded: false, calls: [] });
+			});
+		}
 	}
 
 	test('subscribe request returns snapshot', async () => {
