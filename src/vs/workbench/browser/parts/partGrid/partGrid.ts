@@ -14,7 +14,9 @@ import { localize } from '../../../../nls.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../editor/editor.js';
 import { PART_GRID_CLASS } from '../editor/partGridClass.js';
+import { EditorPartInPartGridContext } from '../../../common/contextkeys.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../common/editor.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { getPartName } from '../editor/editorPartActions.js';
 import { PartGridCardDrag, PartGridCardDrop } from './partGridCardDrag.js';
 import { getPartTitleDragSource, PART_GRID_NEW_PART_ID, PartGridDropTarget } from './partGridDnd.js';
@@ -804,6 +806,12 @@ export class PartGrid extends Disposable {
 
 		if (cell.part) {
 			this.trackEditors(id, cell.part, disposables);
+
+			// For what acts on the parts of the grid, such as Move Part
+			const part = cell.part;
+			const inPartGrid = this.editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => EditorPartInPartGridContext.bindTo(accessor.get(IContextKeyService)));
+			inPartGrid.set(true);
+			disposables.add(toDisposable(() => inPartGrid.reset()));
 		}
 
 		if (cell.part && cell.dragHandle) {

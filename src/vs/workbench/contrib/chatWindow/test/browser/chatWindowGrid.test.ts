@@ -10,9 +10,11 @@ import { Direction, IViewSize } from '../../../../../base/browser/ui/grid/grid.j
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IPartGridPartFactory, PartGridLocation } from '../../../../browser/parts/partGrid/partGrid.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
@@ -82,6 +84,10 @@ suite('Chat window grid', () => {
 	/** The part the editors moved into a new part come from. */
 	let sourcePart: IContentPart | undefined;
 	const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+		override getScopedInstantiationService(): IInstantiationService {
+			const contextKeyService = new MockContextKeyService();
+			return upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(upcastPartial<ServicesAccessor>({ get: <T>() => contextKeyService as T }))) as IInstantiationService['invokeFunction'] });
+		}
 		override getGroup(): IEditorGroup {
 			return new class extends mock<IEditorGroup>() {
 				override moveEditors(): boolean { return true; }

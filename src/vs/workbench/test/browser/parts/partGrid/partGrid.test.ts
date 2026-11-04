@@ -18,6 +18,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -30,6 +31,7 @@ import { getPartGridDrop, getPartGridNewPartZone, IPartGridDrop } from '../../..
 import { PART_GRID_PLACEHOLDER_CLASS, PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridReflow.js';
 import { registerOverlayAnchor } from '../../../../../base/browser/overlayLayoutElement.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
+import { EditorPartInPartGridContext } from '../../../../common/contextkeys.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -98,6 +100,22 @@ suite('Part Grid', () => {
 
 		return input;
 	}
+
+	test('the parts of the grid say so in their context, for what acts on them, such as Move Part, until they leave it', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [main, other] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(other, '/other.txt')]);
+		grid.addPart('main', main);
+		grid.addPart('other', other, { edge: Direction.Right });
+		const [mainContext, otherContext] = [main, other].map(part => parts.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IContextKeyService)));
+		const inPartGrid = () => ({ main: mainContext.getContextKeyValue(EditorPartInPartGridContext.key), other: otherContext.getContextKeyValue(EditorPartInPartGridContext.key) });
+
+		const before = inPartGrid();
+		grid.removeCell('other');
+
+		assert.deepStrictEqual({ before, after: inPartGrid() }, { before: { main: true, other: true }, after: { main: true, other: false } });
+	});
 
 	test('parts go beside other parts or at an edge of the window, and move there', async () => {
 		const parts = await createParts();
@@ -326,7 +344,7 @@ suite('Part Grid', () => {
 		const parts = await createParts();
 		const container = createContainer();
 		container.style.setProperty('--part-grid-card-border-width', '1px');
-		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
+		const grid = disposables.add(new PartGrid(container, parts));
 		const chat = createPart(parts);
 		const main = createPart(parts);
 		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt')]);
