@@ -13,7 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionWorkspaceProperties, readSessionIsolation } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -132,8 +132,14 @@ export class ModelEvaluationTool implements IToolImpl {
 		if (this.name !== 'createModelComparison') {
 			return prepared;
 		}
-		const caller = this.caller(context.chatSessionResource);
-		const options = this.prepareCreation(record(context.parameters), caller);
+		const caller = this.caller(context.originatingChatResource ?? context.chatSessionResource);
+		const store = new DisposableStore();
+		let options: IStartSessionComparisonOptions;
+		try {
+			options = await this.prepareCreation(record(context.parameters), caller, store, token);
+		} finally {
+			store.dispose();
+		}
 		this.preparedCreations.set(context.parameters, { caller: caller.chat.resource, options });
 		const participants = [
 			...options.attempts.map((attempt, index) => ({ role: localize('evaluation.confirm.attempt', "Attempt {0}", index + 1), harness: attempt.harness })),
@@ -171,7 +177,7 @@ export class ModelEvaluationTool implements IToolImpl {
 			? localize('evaluation.confirm.worktrees', "Each attempt runs in a separate worktree.")
 			: localize('evaluation.confirm.folderless', "Each attempt runs in an independent chat with no workspace.")));
 		message.appendMarkdown('\n\n**').appendText(localize('evaluation.confirm.scenario', "Scenario")).appendMarkdown('**\n\n')
-			.appendMarkdown(options.prompt);
+			.appendText(options.prompt);
 		return {
 			...prepared,
 			confirmationMessages: { title: localize('evaluation.confirm.title', "Create Model Comparison?"), message },
@@ -179,16 +185,20 @@ export class ModelEvaluationTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		const store = new DisposableStore();
 		try {
 			this.checkEnabled();
 			if (token.isCancellationRequested) {
 				throw new EvaluationInputError('Comparison tool invocation was cancelled.');
 			}
 			const input = record(invocation.parameters);
-			const caller = this.caller(invocation.context?.sessionResource);
+			if (this.name === 'listModelComparisons') {
+				return result(this.list(input));
+			}
+			const caller = this.caller(invocation.originatingChatResource ?? invocation.context?.sessionResource);
 			switch (this.name) {
 				case 'getComparisonModels': {
-					const { provider, workspace, types } = this.creationContext(input, caller);
+					const { provider, workspace, types } = await this.creationContext(input, caller, store, token);
 					return result({
 						workspace: workspace?.toString(),
 						providerId: provider.id,
@@ -205,7 +215,7 @@ export class ModelEvaluationTool implements IToolImpl {
 					});
 				}
 				case 'createModelComparison': {
-					const options = this.prepareCreation(input, caller);
+					const options = await this.prepareCreation(input, caller, store, token);
 					const prepared = this.preparedCreations.get(invocation.parameters);
 					this.preparedCreations.delete(invocation.parameters);
 					if (!prepared || !isEqual(prepared.caller, caller.chat.resource) || creationSignature(prepared.options) !== creationSignature(options)) {
@@ -214,8 +224,6 @@ export class ModelEvaluationTool implements IToolImpl {
 					const comparison = await this.comparisons.startComparison(options, token);
 					return result({ ...this.summary(comparison), participants: this.participants(comparison, caller.session) });
 				}
-				case 'listModelComparisons':
-					return result(this.list(input));
 				case 'readModelComparison': {
 					const comparison = typeof input.comparisonId === 'string' ? this.comparisons.getComparison(input.comparisonId) : undefined;
 					if (!comparison) {
@@ -245,6 +253,8 @@ export class ModelEvaluationTool implements IToolImpl {
 				return { content: [{ kind: 'text', value: error.message }], toolResultError: error.message };
 			}
 			throw error;
+		} finally {
+			store.dispose();
 		}
 	}
 
@@ -264,7 +274,7 @@ export class ModelEvaluationTool implements IToolImpl {
 		return caller;
 	}
 
-	private creationContext(input: Record<string, unknown>, caller: { session: ISession; chat: IChat }) {
+	private async creationContext(input: Record<string, unknown>, caller: { session: ISession; chat: IChat }, store: DisposableStore, token: CancellationToken, selectedTypes?: ReadonlySet<string>) {
 		if (input.workspaceMode !== undefined && input.workspaceMode !== 'caller' && input.workspaceMode !== 'folderless') {
 			throw new EvaluationInputError('workspaceMode must be caller or folderless.');
 		}
@@ -274,6 +284,7 @@ export class ModelEvaluationTool implements IToolImpl {
 			|| provider.isDevContainerRequested?.(caller.session.sessionId)) {
 			throw new EvaluationInputError('The calling host cannot create model comparisons.');
 		}
+		store.add(await provider.acquireSessionConfig(caller.session.sessionId, caller.chat.resource, token));
 		const sourceWorkspace = caller.chat.workspace.get();
 		const folderless = input.workspaceMode === 'folderless' || (!sourceWorkspace && caller.session.isQuickChat?.get() === true);
 		const workspace = folderless ? undefined : sourceWorkspace?.folders[0]?.root;
@@ -283,16 +294,28 @@ export class ModelEvaluationTool implements IToolImpl {
 		if (provider.isSessionConfigResolving(caller.session.sessionId, caller.chat.resource).get()) {
 			throw new EvaluationInputError('The calling chat configuration is still resolving. Retry after it becomes available.');
 		}
-		const config = provider.getSessionOwnConfig(caller.session.sessionId);
-		if (workspace && (!config || !getSessionWorkspaceProperties(config.schema).isolation?.schema.enum?.includes('worktree'))) {
-			throw new EvaluationInputError('The calling host does not support isolated comparison worktrees.');
+		const candidates = (workspace ? provider.getSessionTypes(workspace) : provider.sessionTypes)
+			.filter(type => (!selectedTypes || selectedTypes.has(type.id)) && (workspace ? type.supportsWorktreeConfiguration : provider.supportsQuickChats));
+		const types = (await Promise.all(candidates.map(async type => {
+			if (workspace) {
+				const config = await provider.resolveSessionConfigForCreation(workspace, type.id, token);
+				const isolation = getSessionWorkspaceProperties(config.schema).isolation;
+				if (!isolation?.schema.enum?.some(value => readSessionIsolation(isolation, value) === 'worktree')) {
+					return undefined;
+				}
+			}
+			return type;
+		}))).filter(type => type !== undefined);
+		this.checkEnabled();
+		const currentWorkspace = caller.chat.workspace.get();
+		if (token.isCancellationRequested || currentWorkspace?.folders.length !== sourceWorkspace?.folders.length
+			|| !isEqual(currentWorkspace?.folders[0]?.root, sourceWorkspace?.folders[0]?.root)) {
+			throw new EvaluationInputError('The comparison context changed or was cancelled. Retry with the current calling chat.');
 		}
-		const types = (workspace ? provider.getSessionTypes(workspace) : provider.sessionTypes)
-			.filter(type => workspace ? type.supportsWorktreeConfiguration : provider.supportsQuickChats);
 		return { provider, workspace, types };
 	}
 
-	private prepareCreation(input: Record<string, unknown>, caller: { session: ISession; chat: IChat }): IStartSessionComparisonOptions {
+	private async prepareCreation(input: Record<string, unknown>, caller: { session: ISession; chat: IChat }, store: DisposableStore, token: CancellationToken): Promise<IStartSessionComparisonOptions> {
 		if (this.comparisons.comparisons.get().some(comparison => this.comparisons.getParticipantForChat(comparison.id, caller.chat.resource))) {
 			throw new EvaluationInputError('Comparison participants cannot launch further comparisons.');
 		}
@@ -300,7 +323,17 @@ export class ModelEvaluationTool implements IToolImpl {
 			|| input.attempts.length < SESSION_COMPARISON_MIN_ATTEMPTS || input.attempts.length > SESSION_COMPARISON_MAX_ATTEMPTS) {
 			throw new EvaluationInputError('Provide a nonempty prompt and between two and ten attempts.');
 		}
-		const { provider, workspace, types } = this.creationContext(input, caller);
+		const selectedTypes = new Set<string>();
+		for (const selection of [...input.attempts, input.judge, input.synthesizer]) {
+			if (selection !== undefined) {
+				const type = record(selection).sessionTypeId;
+				if (typeof type !== 'string') {
+					throw new EvaluationInputError('A selected harness is unavailable. Use getComparisonModels again.');
+				}
+				selectedTypes.add(type);
+			}
+		}
+		const { provider, workspace, types } = await this.creationContext(input, caller, store, token, selectedTypes);
 		if ((!workspace && (input.judge !== undefined || input.synthesizer !== undefined || input.branch !== undefined))
 			|| (input.synthesizer !== undefined && input.judge === undefined)) {
 			throw new EvaluationInputError('Folderless comparisons cannot use a branch, Judge, or Synthesizer. A Synthesizer requires a Judge.');

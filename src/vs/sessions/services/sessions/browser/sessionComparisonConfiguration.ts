@@ -29,7 +29,10 @@ export function createSessionComparisonHarness(
 		throw new Error(localize('comparison.fixedModelRequired', "Comparison attempts require a fixed model, not an Auto or routing model."));
 	}
 	const filtered = filterConfigurationToSchema(configuration, model.metadata.configurationSchema);
-	if (Object.entries(configuration).some(([key, value]) => filtered[key] !== value)) {
+	if (Object.entries(configuration).some(([key, value]) => {
+		const property = model.metadata.configurationSchema?.properties?.[key];
+		return filtered[key] !== value || property?.readOnly && value !== property.default;
+	})) {
 		throw new Error(localize('comparison.configurationUnavailable', "The requested model configuration is not supported by the selected model."));
 	}
 	return {

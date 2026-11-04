@@ -3498,6 +3498,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,
 				toolSessionResource,
+				originatingChatResource: getAgentHostSessionResource(sessionResource).with({
+					fragment: chatURI === this._getRawSessionState(backendSession.toString())?.defaultChat ? '' : getAgentHostChatId(chatURI),
+				}),
 				parameters,
 				context: contextSessionResource ? {
 					sessionResource: contextSessionResource,

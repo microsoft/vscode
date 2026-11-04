@@ -1538,13 +1538,13 @@ suite('AgentHostClientTools', () => {
 			}, backends[0]);
 			await connection.whenDispatched(({ action }) => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'removed-app');
 			assert.deepStrictEqual({
-				invocations: toolsService.invokedToolCalls.map(call => ({ id: call.toolId, context: call.context, scope: call.toolSessionResource?.toString() })),
+				invocations: toolsService.invokedToolCalls.map(call => ({ id: call.toolId, context: call.context, scope: call.toolSessionResource?.toString(), origin: call.originatingChatResource?.toString() })),
 				begun: toolsService.begunToolCallOptions.map(call => ({ scope: call.toolSessionResource?.toString(), presentation: call.sessionResource })),
 				removed: connection.dispatchedActions.flatMap(({ action }) => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'removed-app' ? [action.result.error?.code] : []),
 			}, {
 				invocations: [
-					{ id: firstTool.id, context: undefined, scope: resources[0].toString() },
-					{ id: secondTool.id, context: undefined, scope: resources[1].toString() },
+					{ id: firstTool.id, context: undefined, scope: resources[0].toString(), origin: resources[0].toString() },
+					{ id: secondTool.id, context: undefined, scope: resources[1].toString(), origin: resources[1].toString() },
 				],
 				begun: resources.map(resource => ({ scope: resource.toString(), presentation: undefined })),
 				removed: ['toolUnavailable'],
@@ -3212,6 +3212,7 @@ suite('AgentHostClientTools', () => {
 					callId: call.callId,
 					parameters: call.parameters,
 					hasContext: call.context !== undefined,
+					origin: call.originatingChatResource?.toString(),
 					preApprovedKind: call.preApproved?.type,
 				})),
 				completion: connection.dispatchedActions.find(entry =>
@@ -3222,6 +3223,7 @@ suite('AgentHostClientTools', () => {
 					callId: 'client-tool-1',
 					parameters: { task: 'build' },
 					hasContext: false,
+					origin: sessionResource.with({ fragment: 'subagent/task-call-1' }).toString(),
 					preApprovedKind: ToolConfirmKind.ConfirmationNotNeeded,
 				}],
 				completion: {
