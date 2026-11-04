@@ -45,6 +45,7 @@ suite('Sessions - Empty editor group Add Tab', () => {
 		const element = append(mainWindow.document.body, $('.editor-group-container.empty'));
 		disposables.add(toDisposable(() => element.remove()));
 		disposables.add(instantiationService.createInstance(EmptyEditorGroupAddTab, {
+			id: 1,
 			element,
 			scopedContextKeyService: disposables.add(new ContextKeyService(new TestConfigurationService())),
 			isEmpty: true,

@@ -95,6 +95,7 @@ async function renderEmptyGroup({ container, disposableStore, theme, focus }: Co
 	menuService.commandService = instantiationService.get(ICommandService);
 
 	disposableStore.add(instantiationService.createInstance(EmptyEditorGroupAddTab, {
+		id: 1,
 		element: groupElement,
 		scopedContextKeyService: instantiationService.get(IContextKeyService),
 		isEmpty: true,
