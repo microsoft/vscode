@@ -26,6 +26,8 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { EditorInputCapabilities, IVisibleEditorPane } from '../../../../../../workbench/common/editor.js';
 import { AICustomizationManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { ModelsManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/chatManagement/chatManagementEditorInput.js';
@@ -90,10 +92,12 @@ class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 suite('RemotesEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor() {
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true });
+	function createEditor(initialSettings: Record<string, unknown> = {}) {
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true, ...initialSettings });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
 		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
@@ -115,7 +119,7 @@ suite('RemotesEditor', () => {
 		editor.create(container);
 		editor.layout(new dom.Dimension(900, 600));
 		const input = store.add(new RemotesEditorInput());
-		return { editor, model, container, input, configuration, instantiation, tunnel };
+		return { editor, model, container, input, configuration, instantiation, tunnel, telemetry };
 	}
 
 	test('uses an independent singleton input that requires a modal', () => {
@@ -314,6 +318,30 @@ suite('RemotesEditor', () => {
 			linkFocusable: 0,
 			opened: [{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }],
 			accessible: true,
+		});
+	});
+
+	test('logs the This Computer experiment trigger in every arm once the editor shows its content', async () => {
+		const treatment = `config.${REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING}`;
+		const open = async (settings: Record<string, unknown>) => {
+			const { editor, input, instantiation, telemetry } = createEditor(settings);
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			const editorTriggers = [...telemetry.triggers];
+			const isVisibleEditor = (pane: RemotesEditor): pane is RemotesEditor & IVisibleEditorPane => pane.input !== undefined;
+			assert.ok(isVisibleEditor(editor));
+			instantiation.stub(IEditorService, { activeEditorPane: editor });
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
+			store.add(help.getProvider(instantiation)!).provideContent();
+			return { editor: editorTriggers, withHelp: telemetry.triggers };
+		};
+		assert.deepStrictEqual({
+			control: await open({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: false }),
+			treatment: await open({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true }),
+			editorDisabled: (await open({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [RemoteAgentHostsEnabledSettingId]: false })).editor,
+		}, {
+			control: { editor: [treatment], withHelp: [treatment] },
+			treatment: { editor: [treatment], withHelp: [treatment] },
+			editorDisabled: [],
 		});
 	});
 

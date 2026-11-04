@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
@@ -119,7 +120,7 @@ export class RemotesEditor extends EditorPane {
 			const model = this.widgetInstantiationService.createInstance(RemotesModel, token => channel.call<readonly IDiscoveredDevContainer[]>('listDevContainers', undefined, token));
 			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.tableContainer, model, OS);
 		}
-		const showThisComputer = !!this.configurationService.getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		const showThisComputer = this.isThisComputerEnabled();
 		this.thisComputerContainer.hidden = !showThisComputer;
 		if (!showThisComputer) {
 			this.thisComputer.clear();
@@ -128,6 +129,15 @@ export class RemotesEditor extends EditorPane {
 		}
 		this.widget.value.setVisible(this.isVisible());
 		this.widget.value.layout();
+	}
+
+	/**
+	 * Reads the experiment-controlled This Computer setting. Only called once the editor shows its content,
+	 * so the experiment trigger is logged in every arm whenever the section would be shown.
+	 */
+	private isThisComputerEnabled(): boolean {
+		logSettingExperimentTrigger(this.telemetryService, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		return !!this.configurationService.getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
 	}
 
 	getAccessibilityContent(): string {

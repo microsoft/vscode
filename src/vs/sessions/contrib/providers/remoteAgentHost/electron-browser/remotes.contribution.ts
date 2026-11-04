@@ -15,6 +15,8 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
 import { EditorExtensions } from '../../../../../workbench/common/editor.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -85,6 +87,10 @@ class RemotesAccessibleView implements IAccessibleViewImplementation {
 			return undefined;
 		}
 		const focused = dom.getActiveElement();
+		if (this.type === AccessibleViewType.Help) {
+			// The help describes the This Computer section only in the treatment arm.
+			logSettingExperimentTrigger(accessor.get(ITelemetryService), REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		}
 		const showThisComputer = accessor.get(IConfigurationService).getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Remotes,
