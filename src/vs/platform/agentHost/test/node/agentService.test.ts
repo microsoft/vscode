@@ -17302,7 +17302,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			async importChat(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void> {
-				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}${options?.takeOver ? ' takeOver' : ''}`);
+				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}${options?.takeOver ? ' takeOver' : ''}${options?.reloadIfStale ? ' reloadIfStale' : ''}`);
 				if (this.importChatError) {
 					throw this.importChatError;
 				}
@@ -17356,6 +17356,26 @@ suite('AgentService (node dispatcher)', () => {
 				live: getStateManager(svc).getChatState(chat)?.draft,
 				stored: await (svc as unknown as { _getChatDraft(session: URI, chat: URI): Promise<unknown> })._getChatDraft(session, URI.parse(chat)),
 			}, { live: expected, stored: expected });
+		});
+
+		test('importing a session the host has loaded replaces its turns only when the provider reloaded the chat', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			const userMessage = (messageId: string, content: string): IHistoryRecord => ({ type: 'message', session, role: 'user', messageId, content, toolRequests: [] });
+			const turnTexts = () => getStateManager(svc).getChatState(chat)?.turns.map(turn => turn.message.text);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI')];
+			await svc.importSession(session);
+			const imported = turnTexts();
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI'), userMessage('msg-2', 'Back in the CLI')];
+			await svc.importSession(session);
+			const kept = turnTexts();
+			agent.importedSelection = { model: undefined, agent: undefined, reloaded: true };
+			await svc.importSession(session);
+			assert.deepStrictEqual({ imported, kept, reloaded: turnTexts(), importChatCalls: agent.importChatCalls }, {
+				imported: ['From the CLI'],
+				kept: ['From the CLI'],
+				reloaded: ['From the CLI', 'Back in the CLI'],
+				importChatCalls: [`${session.toString()} ${chat}`, `${session.toString()} ${chat} reloadIfStale`, `${session.toString()} ${chat} reloadIfStale`],
+			});
 		});
 
 		test('a provider that refuses an import leaves the session external', async () => {

@@ -2457,6 +2457,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI> {
+		// A session the host already has loaded may lack turns another client ran since it was loaded.
+		const loaded = !!this._stateManager.getSessionState(this._orchestratorDatabase.toRuntimeSession(session.toString()));
 		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
 		// A provider backing can be admitted under another address, such as `ahp-session:` for an unseen Copilot session.
@@ -2464,8 +2466,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._providerService.getProviderForSession(session);
 		if (provider?.importChat) {
 			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
-			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), options);
+			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), { ...options, ...(loaded ? { reloadIfStale: true } : {}) });
 			if (imported) {
+				if (imported.reloaded) {
+					await this._replaceReloadedChatTurns(provider, runtimeSession, chat);
+				}
 				await this._offerImportedChatSelection(runtimeSession, chat, imported);
 			}
 		}
@@ -2473,6 +2478,23 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
 		return runtimeSession;
+	}
+
+	/**
+	 * Replaces the turns of a loaded chat that its provider reloaded from storage. They are replaced rather than merged:
+	 * turns that ran live have host-generated ids, while turns rebuilt from storage take the provider's ids.
+	 */
+	private async _replaceReloadedChatTurns(provider: IAgent, session: URI, chat: URI): Promise<void> {
+		const chatKey = chat.toString();
+		const previous = this._stateManager.getChatState(chatKey);
+		if (!previous) {
+			return;
+		}
+		const storage = URI.parse(this._chatStorageResource(session, chat));
+		const turns = await this._interleaveLocalTurns(session.toString(), chatKey, await this._getChatMessages(provider, chat, session, true, storage));
+		if (!this._stateManager.refreshChatHistory(chatKey, previous.turns, turns)) {
+			this._logService.trace(`[AgentService] Kept the turns of reloaded chat ${chatKey}: they are unchanged, or a turn started meanwhile`);
+		}
 	}
 
 	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
