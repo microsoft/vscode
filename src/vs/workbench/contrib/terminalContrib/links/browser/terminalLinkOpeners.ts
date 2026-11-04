@@ -65,7 +65,20 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
-		}, this._getTargetGroup());
+		}, this._getRevealGroup(link.uri, this._getTargetGroup()));
+	}
+
+	/**
+	 * The group of `target`'s window that shows `resource` already, as the editor service would reveal it without a target,
+	 * else `target`.
+	 */
+	private _getRevealGroup(resource: URI, target: IEditorGroup | undefined): IEditorGroup | number | undefined {
+		if (!target) {
+			return undefined;
+		}
+		const windowId = this._editorGroupsService.getPart(target).windowId;
+		const opened = this._editorService.findEditors(resource).find(({ groupId }) => this._editorGroupsService.getGroup(groupId)?.windowId === windowId);
+		return opened?.groupId ?? target;
 	}
 }
 

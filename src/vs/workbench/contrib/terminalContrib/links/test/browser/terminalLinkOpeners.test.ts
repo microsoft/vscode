@@ -73,7 +73,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 	let xterm: Terminal;
 
 	/** The parts of the windows, the first of each window its main part, and the active group. */
-	const editorParts: { parts: IEditorPart[]; activeGroup: IEditorGroup | undefined } = { parts: [], activeGroup: undefined };
+	const editorParts: { parts: IEditorPart[]; activeGroup: IEditorGroup | undefined; openedIn: number[] } = { parts: [], activeGroup: undefined, openedIn: [] };
 	function createPart(windowId: number, groupId: number): IEditorPart {
 		const group = { id: groupId } as IEditorGroup;
 		return { windowId, activeGroup: group, groups: [group] } as Partial<IEditorPart> as IEditorPart;
@@ -102,14 +102,22 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		} as Partial<IQuickInputService>);
 		editorParts.parts = [];
 		editorParts.activeGroup = undefined;
+		editorParts.openedIn = [];
 		openedInGroup = undefined;
 		instantiationService.stub(IEditorGroupsService, {
 			get parts() { return editorParts.parts; },
 			get activeGroup() { return editorParts.activeGroup ?? editorParts.parts[0]?.activeGroup; },
 			getPart(group: IEditorGroup) { return editorParts.parts.find(part => part.groups.includes(group))!; },
+			getGroup(id: number) {
+				const part = editorParts.parts.find(candidate => candidate.groups.some(group => group.id === id));
+				return part && { id, windowId: part.windowId } as IEditorGroup;
+			},
 			activeModalEditorPart: undefined,
 		} as Partial<IEditorGroupsService>);
 		instantiationService.stub(IEditorService, {
+			findEditors(resource: URI) {
+				return editorParts.openedIn.map(groupId => ({ groupId, editor: { resource } }));
+			},
 			async openEditor(editor: ITextResourceEditorInput, group?: PreferredGroup): Promise<any> {
 				openedInGroup = group;
 				activationResult = {
@@ -139,7 +147,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
 				groups.push((openedInGroup as IEditorGroup | undefined)?.id);
 			}
-			deepStrictEqual(groups, [undefined, undefined, 2]);
+			// Open already in another group of the window, it shows there, as without a group it would; open in another window, not.
+			editorParts.openedIn = [1, 4];
+			editorParts.parts = [mainWindowPart, windowMainPart, terminalsPart, createPart(2, 4)];
+			editorParts.activeGroup = terminalsPart.activeGroup;
+			await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
+			const revealed = openedInGroup;
+			editorParts.openedIn = [1];
+			await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
+			deepStrictEqual({ groups, revealed, notInOtherWindow: (openedInGroup as IEditorGroup | undefined)?.id }, { groups: [undefined, undefined, 2], revealed: 4, notInOtherWindow: 2 });
 		});
 	});
 
