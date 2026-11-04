@@ -9,6 +9,7 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -118,7 +119,9 @@ export class ReadSessionComparisonTool implements IToolImpl {
 				deletions: change.deletions,
 			}));
 			const workspace = participant.chatResource ? chat?.workspace.get() : session?.workspace.get();
-			const changesSummary = participant.chatResource ? chat?.changesSummary?.get() : session?.changesSummary?.get();
+			const aggregateMainChat = participant.chatResource && session && session.chats.get().length > 1
+				&& isEqual(chat?.resource, session.mainChat.get().resource);
+			const changesSummary = aggregateMainChat ? undefined : participant.chatResource ? chat?.changesSummary?.get() : session?.changesSummary?.get();
 			const sessionContextTarget = chat && session && invokingSession && invokingSession.providerId === session.providerId
 				? this.sessionsManagementService.getSessionContextReference(chat.resource)
 				: undefined;

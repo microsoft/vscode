@@ -1157,6 +1157,7 @@ suite('SessionsManagementService', () => {
 					}
 				},
 			});
+
 			await view.openSession(b.resource);
 			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
 			const opening = view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
@@ -1171,6 +1172,35 @@ suite('SessionsManagementService', () => {
 				children: visibility.gridSessions.get().filter(session => session?.scopedChatResource).length,
 			}, { active: b.sessionId, panes: 1, children: 0 });
 		});
+
+		for (const survivorKind of ['parent', 'child'] as const) {
+			test(`collapse retains only the exact ${survivorKind} pane when chats share an owner`, async () => {
+				const session = created('parent');
+				const chats = ['attempt', 'judge'].map(id => ({ ...session.mainChat.get(), resource: URI.parse(`test:///parent/${id}`) }));
+				const parent = { ...session, chats: constObservable([session.mainChat.get(), ...chats]) };
+				const { view, part, container } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				for (const chat of chats) {
+					await view.moveChatToGrid(parent.sessionId, chat.resource, visibility.getGridSlots()[0].id, 'right');
+				}
+				await view.openChat(parent, survivorKind === 'child' ? chats[1].resource : parent.mainChat.get().resource);
+				const survivor = view.activeSession.get()!;
+				const pane = part.getFocusedSessionView();
+				view.collapseToSession(survivor);
+				assert.deepStrictEqual({
+					panes: container.querySelectorAll('.session-view').length,
+					resources: view.visibleSessionPanes.get().map(candidate => candidate?.activeChat.get().resource.toString()),
+					retained: part.getFocusedSessionView() === pane,
+					active: view.activeSession.get() === survivor,
+				}, {
+					panes: 1,
+					resources: [(survivorKind === 'child' ? chats[1] : parent.mainChat.get()).resource.toString()],
+					retained: true,
+					active: true,
+				});
+			});
+		}
 
 		test('a hidden-parent child drag is cancelled if its destination closes during provider preparation', async () => {
 			const a = created('a');

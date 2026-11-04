@@ -17,10 +17,12 @@ import { ChatConfiguration, ChatNotificationMode } from '../../../../../workbenc
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatWindowNotifier } from '../../../../../workbench/contrib/chat/browser/chatWindowNotifier.js';
+import { setChatNotificationResource } from '../../../../../workbench/contrib/chat/common/chatNotification.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
 
@@ -89,6 +91,7 @@ class TestHostService extends mock<IHostService>() {
 
 class TestChatService extends mock<IChatService>() {
 	model: IChatModel | undefined;
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
 
 	override getSession(_resource: URI): IChatModel | undefined {
 		return this.model;
@@ -117,10 +120,10 @@ function createSession(id: string, initialStatus: SessionStatus, workspaceLabel 
 }
 
 function comparisonService(...sessions: ISession[]): ISessionComparisonService {
-	const comparison = upcastPartial<ISessionComparison>({ id: 'comparison', participants: [] });
+	const comparison = upcastPartial<ISessionComparison>({ id: 'comparison', participants: sessions.map(session => upcastPartial<ISessionComparisonParticipant>({ sessionResource: session.resource })) });
 	const resources = new Set(sessions.map(session => session.resource.toString()));
 	return new class extends mock<ISessionComparisonService>() {
-		override readonly comparisons = constObservable<readonly ISessionComparison[]>([]);
+		override readonly comparisons = constObservable<readonly ISessionComparison[]>([comparison]);
 		override getComparisonForSession(resource: URI): ISessionComparison | undefined {
 			return resources.has(resource.toString()) ? comparison : undefined;
 		}
@@ -542,6 +545,125 @@ suite('SessionsWindowNotifier', () => {
 		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), [
 			'chat-session:test:/missing-model-state:needsInput',
 		]);
+	});
+
+	test('tracks ordinary chats alongside participants and restores aggregate fallback for archived comparisons', async () => {
+		const base = createSession('parent', SessionStatus.InProgress);
+		const makeChat = (id: string) => ({
+			resource: base.session.resource.with({ fragment: id }), status: observableValue(id, SessionStatus.InProgress),
+			title: constObservable(id), workspace: base.session.workspace,
+		});
+		const participant = makeChat('attempt');
+		const ordinary = makeChat('ordinary');
+		const added = makeChat('added');
+		const chats = observableValue<readonly IChat[]>('chats', [upcastPartial<IChat>(participant), upcastPartial<IChat>(ordinary)]);
+		const parent = upcastPartial<ISession>({ ...base.session, resource: base.session.resource, sessionId: 'parent', status: base.status, title: base.session.title, workspace: base.session.workspace, chats });
+		const comparison = upcastPartial<ISessionComparison>({
+			id: 'comparison', participants: [upcastPartial<ISessionComparisonParticipant>({ sessionResource: parent.resource, chatResource: participant.resource })],
+		});
+		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
+		const host = new TestHostService();
+		const sessions = new TestSessionsService();
+		host.toastResult = { supported: true, clicked: true };
+		store.add(new TestSessionsWindowNotifier(
+			store.add(new TestSessionsManagementService([parent])), sessions, host,
+			new TestConfigurationService({
+				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.Always,
+				[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.Always,
+			}), new TestChatService(), new TestChatWidgetService(),
+			new class extends mock<ISessionComparisonService>() { override readonly comparisons = comparisons; }(),
+		));
+		chats.set([...chats.get(), upcastPartial<IChat>(added)], undefined);
+		for (const chat of [ordinary, added]) {
+			for (const status of [SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed]) {
+				chat.status.set(status, undefined);
+				await flushNotifications();
+			}
+		}
+		comparisons.set([{ ...comparison, archivedAt: 1 }], undefined);
+		base.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+		assert.deepStrictEqual(sessions.opened.map(resource => resource.toString()), [
+			...Array(3).fill(ordinary.resource.toString()), ...Array(3).fill(added.resource.toString()), parent.resource.toString(),
+		]);
+	});
+
+	test('notifies exact participants sharing a comparison even when an owner prefers another comparison', async () => {
+		const active = createSession('active', SessionStatus.InProgress);
+		const waiting = createSession('destination', SessionStatus.InProgress);
+		const activeChat = upcastPartial<IChat>({ resource: active.session.resource });
+		const waitingChat = upcastPartial<IChat>({ resource: waiting.session.resource.with({ fragment: 'moved' }), status: waiting.status, title: waiting.session.title, workspace: waiting.session.workspace });
+		const parent = upcastPartial<ISession>({ resource: waiting.session.resource, sessionId: 'destination', chats: constObservable([waitingChat]), status: constObservable(SessionStatus.InProgress) });
+		const a = upcastPartial<ISessionComparison>({
+			id: 'a', participants: [
+				upcastPartial<ISessionComparisonParticipant>({ sessionResource: active.session.resource, chatResource: activeChat.resource }),
+				upcastPartial<ISessionComparisonParticipant>({ sessionResource: parent.resource, chatResource: waitingChat.resource }),
+			],
+		});
+		const b = upcastPartial<ISessionComparison>({ id: 'b', sessionResource: parent.resource, participants: [] });
+		const sessions = new TestSessionsService();
+		const activePane = upcastPartial<IActiveSession>({ resource: active.session.resource, sessionId: 'active', activeChat: constObservable(activeChat) });
+		sessions.activeSession.set(activePane, undefined);
+		sessions.visibleSessionPanes.set([activePane, upcastPartial<IActiveSession>({ resource: parent.resource, sessionId: parent.sessionId, activeChat: constObservable(waitingChat) })], undefined);
+		const host = new TestHostService();
+		host.hasFocus = true;
+		store.add(new TestSessionsWindowNotifier(
+			store.add(new TestSessionsManagementService([parent])), sessions, host,
+			new TestConfigurationService({ [ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused }),
+			new TestChatService(), new TestChatWidgetService(),
+			new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([a, b]);
+				override getComparisonForSession(resource: URI) { return resource.toString() === parent.resource.toString() ? b : a; }
+			}(),
+		));
+		waiting.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), ['chat-session:test:/destination#moved:needsInput']);
+	});
+
+	test('a moved live model and its catalog chat produce one toast opening the destination', async () => {
+		const base = createSession('parent', SessionStatus.InProgress);
+		const chat = upcastPartial<IChat>({ resource: base.session.resource.with({ fragment: 'attempt' }), status: base.status, title: base.session.title, workspace: base.session.workspace });
+		const parent = upcastPartial<ISession>({ resource: base.session.resource, sessionId: 'parent', chats: constObservable([chat]), status: constObservable(SessionStatus.InProgress) });
+		const needsInput = observableValue<{ title: string } | undefined>('needsInput', undefined);
+		const model = new class extends mock<IChatModel>() {
+			override readonly sessionResource = URI.parse('test:/original-attempt');
+			override readonly requestNeedsInput = needsInput;
+			override readonly requestInProgress = constObservable(true);
+			override readonly lastRequestObs = constObservable(undefined);
+			override readonly lastRequest = undefined;
+			override readonly onDidChangePendingRequests = Event.None;
+			override getPendingRequests() { return []; }
+		}();
+		setChatNotificationResource(model, chat.resource);
+		const chatService = new class extends TestChatService {
+			override getSession(resource: URI) { return resource.toString() === model.sessionResource.toString() ? model : undefined; }
+		}();
+		chatService.chatModels.set([model], undefined);
+		const opened: string[] = [];
+		const widgets = new class extends TestChatWidgetService {
+			override async openSession(resource: URI) { opened.push(resource.toString()); return undefined; }
+		}();
+		const host = new TestHostService();
+		host.toastResult = { supported: true, clicked: true };
+		const configuration = new TestConfigurationService({ [ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.Always });
+		store.add(new TestSessionsWindowNotifier(
+			store.add(new TestSessionsManagementService([parent])), new TestSessionsService(), host, configuration, chatService, widgets,
+			new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([upcastPartial<ISessionComparison>({
+					id: 'comparison', participants: [upcastPartial<ISessionComparisonParticipant>({ sessionResource: parent.resource, chatResource: chat.resource })],
+				})]);
+			}(),
+		));
+		store.add(new class extends ChatWindowNotifier {
+			protected override _getBackgroundNotificationDelay(): number { return 0; }
+		}(chatService, widgets, host, configuration));
+		needsInput.set({ title: 'Question' }, undefined);
+		base.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+		assert.deepStrictEqual({ toasts: host.toasts.map(toast => toast.dedupeKey), opened }, {
+			toasts: ['chat-session:test:/parent#attempt:needsInput'], opened: [chat.resource.toString()],
+		});
 	});
 
 	test('stays silent when a live chat model exists for the session', async () => {

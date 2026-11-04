@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getSessionComparisonChat, getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
@@ -46,7 +47,7 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		}
 		// SessionComparisonGridController hides and later restores the side pane once
 		// the grid is actually shown, so a cancelled or single-attempt open leaves it alone.
-		if (comparison.participants.some(participant => participant.chatResource)) {
+		if (availableAttempts.some(attempt => !isEqual(attempt.chatResource, attempt.session.mainChat.get().resource))) {
 			await this.sessionsService.openChatsInGrid(availableAttempts);
 		} else {
 			await this.sessionsService.openSessionsInGrid(availableAttempts.map(attempt => attempt.session));

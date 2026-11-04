@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -199,10 +199,10 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonChat(participant: ISessionComparisonParticipant, session: ISession | undefined): IChat | undefined {
+export function getSessionComparisonChat(participant: ISessionComparisonParticipant, session: ISession | undefined, reader?: IReader): IChat | undefined {
 	return participant.chatResource
-		? session?.chats.get().find(chat => isEqual(chat.resource, participant.chatResource))
-		: session?.mainChat.get();
+		? session?.chats.read(reader).find(chat => isEqual(chat.resource, participant.chatResource))
+		: session?.mainChat.read(reader);
 }
 
 export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {

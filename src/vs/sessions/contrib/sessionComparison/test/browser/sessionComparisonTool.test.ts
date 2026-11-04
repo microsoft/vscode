@@ -253,6 +253,29 @@ suite('SessionComparisonTool', () => {
 		});
 	});
 
+	test('omits cumulative default-chat summaries but retains peer-chat summaries', async () => {
+		const base = stubComparison();
+		const attempt = stubAttemptSession();
+		const main = { ...attempt.mainChat.get(), workspace: attempt.workspace, changes: constObservable([]), changesSummary: constObservable({ files: 9, additions: 100, deletions: 20 }) };
+		const peer = { ...main, resource: main.resource.with({ fragment: 'peer' }), changesSummary: constObservable({ files: 0, additions: 0, deletions: 0 }) };
+		const parent = { ...attempt, mainChat: constObservable(main), chats: constObservable([main, peer]) };
+		const participant = base.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt)!;
+		const judge = base.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)!;
+		const comparison = {
+			...base,
+			participants: [...[main, peer].map((chat, index) => ({
+				...participant, id: `attempt-${index}`, sessionResource: parent.resource, chatResource: chat.resource,
+			})), judge],
+		};
+		const tool = new ReadSessionComparisonTool(stubComparisonService({ getComparison: () => comparison }), upcastPartial<ISessionsManagementService>({
+			getSession: () => parent, getSessionContextReference: resource => resource.toString(),
+		}));
+		const manifest = JSON.parse(getText(await invoke(tool, { comparisonId: comparison.id }, judge.sessionResource!)));
+		assert.deepStrictEqual(manifest.attempts.map((entry: { changesSummary?: object; changedFilesStatus: string }) => ({
+			summary: entry.changesSummary, files: entry.changedFilesStatus,
+		})), [{ summary: undefined, files: 'unavailable' }, { summary: { files: 0, additions: 0, deletions: 0 }, files: 'noChanges' }]);
+	});
+
 	test('uses the exact live participant binding for moved evaluator manifest and verdict calls', async () => {
 		const comparison = stubComparison();
 		const originalJudge = URI.parse('test:/original-judge');
