@@ -20,10 +20,10 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	public static readonly ID = 'editor.contrib.shrinkEmptyLines';
 
-	private _decorationOptions: { lineHeight: ModelDecorationOptions; fontSize: ModelDecorationOptions } | undefined;
+	private _decorationOptions: { lineHeight: ModelDecorationOptions; whitespaceFontSize: ModelDecorationOptions } | undefined;
 	private _decorationIds = new Set<string>();
 	private readonly _ruleFactory: DynamicCssRules;
-	private readonly _fontSizeRule = this._register(new MutableDisposable<ClassNameReference>());
+	private readonly _whitespaceFontRule = this._register(new MutableDisposable<ClassNameReference>());
 
 	constructor(private readonly editor: ICodeEditor) {
 		super();
@@ -48,43 +48,45 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
 		if (multiplier === 1) {
 			this._decorationOptions = undefined;
-			this._fontSizeRule.clear();
+			this._whitespaceFontRule.clear();
 			this._updateAllDecorations();
 			return;
 		}
 		const previousOptions = this._decorationOptions;
-		const fontSize = `${this.editor.getOption(EditorOption.fontInfo).fontSize * multiplier}px`;
-		let fontSizeOptions = previousOptions?.fontSize;
-		if (!fontSizeOptions || fontSizeOptions.fontSize !== fontSize) {
+		const regularFontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
+		const fontSize = `${regularFontSize}px`;
+		let whitespaceOptions = previousOptions?.whitespaceFontSize;
+		if (!whitespaceOptions || whitespaceOptions.fontSize !== fontSize) {
 			const fontSizeRule = this._ruleFactory.createClassNameRef({ fontSize, verticalAlign: 'top' });
-			this._fontSizeRule.value = fontSizeRule;
-			fontSizeOptions = ModelDecorationOptions.createDynamic({
+			this._whitespaceFontRule.value = fontSizeRule;
+			whitespaceOptions = ModelDecorationOptions.createDynamic({
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				description: 'shrink-empty-line-font-size',
+				description: 'shrink-empty-line-whitespace-font-size',
 				fontSize,
 				inlineClassName: fontSizeRule.className
 			});
 		}
-		let lineHeightOptions = previousOptions?.lineHeight;
-		const lineHeightChanged = event?.hasChanged(EditorOption.lineHeight) ?? false;
-		if (!lineHeightOptions || lineHeightChanged || lineHeightOptions.lineHeight !== multiplier) {
-			lineHeightOptions = ModelDecorationOptions.createDynamic({
+		const lineFontSize = `${regularFontSize * multiplier}px`;
+		let lineOptions = previousOptions?.lineHeight;
+		if (!lineOptions || lineOptions.lineHeight !== multiplier || lineOptions.fontSize !== lineFontSize) {
+			lineOptions = ModelDecorationOptions.createDynamic({
 				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 				description: 'shrink-empty-line-line-height',
 				isWholeLine: true,
 				lineHeight: multiplier,
+				fontSize: lineFontSize,
 			});
 		}
 		const decorationOptions = {
-			lineHeight: lineHeightOptions,
-			fontSize: fontSizeOptions,
+			lineHeight: lineOptions,
+			whitespaceFontSize: whitespaceOptions,
 		};
 		this._decorationOptions = decorationOptions;
 		if (!previousOptions || event?.hasChanged(EditorOption.shrinkEmptyLinesKind)) {
 			this._updateAllDecorations();
 			return;
 		}
-		if (previousOptions.lineHeight === decorationOptions.lineHeight && previousOptions.fontSize === decorationOptions.fontSize) {
+		if (previousOptions.lineHeight === decorationOptions.lineHeight && previousOptions.whitespaceFontSize === decorationOptions.whitespaceFontSize) {
 			return;
 		}
 		const model = this.editor.getModel();
@@ -97,8 +99,8 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 				const options = model.getDecorationOptions(decorationId);
 				if (options === previousOptions.lineHeight && options !== decorationOptions.lineHeight) {
 					accessor.changeDecorationOptions(decorationId, decorationOptions.lineHeight);
-				} else if (options === previousOptions.fontSize && options !== decorationOptions.fontSize) {
-					accessor.changeDecorationOptions(decorationId, decorationOptions.fontSize);
+				} else if (options === previousOptions.whitespaceFontSize && options !== decorationOptions.whitespaceFontSize) {
+					accessor.changeDecorationOptions(decorationId, decorationOptions.whitespaceFontSize);
 				}
 			}
 		});
@@ -120,14 +122,14 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 						options: this._decorationOptions.lineHeight,
 					});
 					const lineStartOffset = model.getOffsetAt({ lineNumber, column: 1 });
-					for (const match of lineContent.matchAll(/\S+/g)) {
+					for (const match of lineContent.matchAll(/\s+/g)) {
 						const startOffset = lineStartOffset + match.index;
 						decorations.push({
 							range: Range.fromPositions(
 								model.getPositionAt(startOffset),
 								model.getPositionAt(startOffset + match[0].length),
 							),
-							options: this._decorationOptions.fontSize,
+							options: this._decorationOptions.whitespaceFontSize,
 						});
 					}
 				}

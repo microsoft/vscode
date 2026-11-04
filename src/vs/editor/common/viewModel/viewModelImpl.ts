@@ -574,14 +574,28 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): string | null {
+	public getFontSizeAtPosition(position: IPosition): string {
+		return this._getFontSizeAtPosition(position, false);
+	}
+
+	public getLineFontSize(lineNumber: number): string {
+		return this._getFontSizeAtPosition(this.model.validatePosition(new Position(lineNumber, 1)), true);
+	}
+
+	private _getFontSizeAtPosition(position: IPosition, wholeLine: boolean): string {
+		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
-			return null;
+			return fontSize;
 		}
-		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
-		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
+		const fontDecorations = this.model.getFontDecorationsInRange(
+			wholeLine ? new Range(position.lineNumber, 1, position.lineNumber, this.model.getLineMaxColumn(position.lineNumber)) : Range.fromPositions(position),
+			this._editorId
+		);
 		for (const fontDecoration of fontDecorations) {
+			if (wholeLine && !fontDecoration.options.isWholeLine) {
+				continue;
+			}
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;
 				break;

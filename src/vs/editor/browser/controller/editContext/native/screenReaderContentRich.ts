@@ -214,10 +214,12 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 		const html = htmlBuilder.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const lineHeight = viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber) + 'px';
+		const fontSize = viewModel.getLineFontSize(viewLineNumber);
 		const domNode = document.createElement('div');
 		domNode.innerHTML = trustedhtml as string;
 		domNode.style.lineHeight = lineHeight;
 		domNode.style.height = lineHeight;
+		domNode.style.fontSize = fontSize;
 		domNode.setAttribute(LINE_NUMBER_ATTRIBUTE, viewLineNumber.toString());
 		return new RichRenderedScreenReaderLine(domNode, renderOutput.characterMapping);
 	}

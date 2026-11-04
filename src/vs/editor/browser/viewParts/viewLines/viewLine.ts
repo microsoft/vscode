@@ -100,7 +100,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, lineFontSize: string, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -196,7 +196,9 @@ export class ViewLine implements IVisibleLine {
 			sb.appendString('px;padding-right:');
 			sb.appendString(String(options.verticalScrollbarSize));
 		}
-		sb.appendString('px;" class="');
+		sb.appendString('px;font-size:');
+		sb.appendString(lineFontSize);
+		sb.appendString(';" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
 
@@ -235,11 +237,12 @@ export class ViewLine implements IVisibleLine {
 		return true;
 	}
 
-	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
+	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number, lineFontSize: string): void {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
 			this._renderedViewLine.domNode.setLineHeight(lineHeight);
+			this._renderedViewLine.domNode.setFontSize(lineFontSize);
 		}
 	}
 

@@ -31,7 +31,8 @@ class ViewCursorRenderData {
 		public readonly width: number,
 		public readonly height: number,
 		public readonly textContent: string,
-		public readonly textContentClassName: string
+		public readonly textContentClassName: string,
+		public readonly fontSize: string
 	) { }
 }
 
@@ -165,6 +166,8 @@ export class ViewCursor {
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
+		const fontSize = this._context.viewModel.getFontSizeAtPosition(modelPosition) ?? `${this._context.configuration.options.get(EditorOption.fontInfo).fontSize}px`;
 		const lineCursorHeight = (
 			this._lineCursorHeight === 0
 				? lineHeight // 0 indicates that the cursor should take the full line height
@@ -200,7 +203,7 @@ export class ViewCursor {
 			}
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta + lineHeightAdjustment;
-			return new ViewCursorRenderData(top, left, paddingLeft, width, lineCursorHeight, textContent, textContentClassName);
+			return new ViewCursorRenderData(top, left, paddingLeft, width, lineCursorHeight, textContent, textContentClassName, fontSize);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
@@ -238,7 +241,7 @@ export class ViewCursor {
 			height = 2;
 		}
 
-		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
+		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName, fontSize);
 	}
 
 	private _getTokenClassName(position: Position): string {
@@ -271,6 +274,7 @@ export class ViewCursor {
 		this._domNode.setWidth(this._renderData.width);
 		this._domNode.setLineHeight(this._renderData.height);
 		this._domNode.setHeight(this._renderData.height);
+		this._domNode.setFontSize(this._renderData.fontSize);
 
 		return {
 			domNode: this._domNode.domNode,

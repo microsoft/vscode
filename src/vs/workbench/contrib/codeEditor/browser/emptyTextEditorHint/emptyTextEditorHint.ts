@@ -156,11 +156,12 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
-				|| e.hasChanged(EditorOption.effectiveShrinkEmptyLines)) {
+				|| e.hasChanged(EditorOption.allowVariableFonts)) {
 				this.updateFontInfo();
 			}
 		}));
 		this._register(this.editor.onDidChangeLineHeight(() => this.updateFontInfo()));
+		this._register(this.editor.onDidChangeFont(() => this.updateFontInfo()));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
 			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
@@ -285,9 +286,10 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		}
 		// Reuse the editor's full font styling, then override only size and line height to match the shrunk first line.
 		this.editor.applyFontInfo(this.domNode);
-		const fontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
-		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
-		this.domNode.style.fontSize = `${fontSize * multiplier}px`;
+		const fontSize = this.editor.getLineFontSize(1);
+		if (fontSize) {
+			this.domNode.style.fontSize = fontSize;
+		}
 		this.domNode.style.lineHeight = `${this.editor.getLineHeightForPosition(new Position(1, 1))}px`;
 	}
 

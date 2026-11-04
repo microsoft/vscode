@@ -119,10 +119,10 @@ suite('Shrink Empty Lines', () => {
 		}
 
 		assert.deepStrictEqual(results, [
-			{ lineHeights: [10, 10, 19, 19], fontSizes: ['14px', '14px', '14px', '14px'] },
-			{ lineHeights: [10, 10, 10, 19], fontSizes: ['14px', '14px', '7px', '14px'] },
-			{ lineHeights: [10, 10, 19, 19], fontSizes: ['14px', '14px', '14px', '14px'] },
-			{ lineHeights: [10, 10, 10, 19], fontSizes: ['14px', '14px', '7px', '14px'] },
+			{ lineHeights: [10, 10, 19, 19], fontSizes: ['7px', '14px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 10, 19], fontSizes: ['7px', '14px', '7px', '14px'] },
+			{ lineHeights: [10, 10, 19, 19], fontSizes: ['7px', '14px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 10, 19], fontSizes: ['7px', '14px', '7px', '14px'] },
 		]);
 	});
 
@@ -159,11 +159,11 @@ suite('Shrink Empty Lines', () => {
 		}
 
 		assert.deepStrictEqual(results, [
-			{ lineHeights: [10, 19, 19], fontSizes: ['14px', '14px', '14px'] },
-			{ lineHeights: [10, 10, 40], fontSizes: ['24px', '6px', '24px'] },
+			{ lineHeights: [10, 19, 19], fontSizes: ['7px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 40], fontSizes: ['6px', '6px', '24px'] },
 			{ lineHeights: [40, 40, 40], fontSizes: ['24px', '24px', '24px'] },
 			{ lineHeights: [40, 40, 40], fontSizes: ['24px', '24px', '24px'] },
-			{ lineHeights: [10, 10, 40], fontSizes: ['24px', '6px', '24px'] },
+			{ lineHeights: [10, 10, 40], fontSizes: ['6px', '6px', '24px'] },
 		]);
 	});
 
@@ -178,6 +178,26 @@ suite('Shrink Empty Lines', () => {
 		}, {
 			fontSizes: ['14px', '7px', '7px', '14px'],
 			variableFonts: [false, true, true, false],
+		});
+	});
+
+	test('distinguishes inherited line fonts from whitespace overrides', () => {
+		const { editor } = createEditor('    }\n\t}\n\n    ', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
+		const positions = [
+			{ lineNumber: 1, column: 1 },
+			{ lineNumber: 1, column: 5 },
+			{ lineNumber: 2, column: 1 },
+			{ lineNumber: 2, column: 2 },
+			{ lineNumber: 3, column: 1 },
+			{ lineNumber: 4, column: 1 },
+		];
+
+		assert.deepStrictEqual({
+			fonts: positions.map(position => editor.getFontSizeAtPosition(position)),
+			lineFonts: [1, 2, 3, 4].map(lineNumber => editor.getLineFontSize(lineNumber)),
+		}, {
+			fonts: ['14px', '14px', '14px', '14px', '7px', '14px'],
+			lineFonts: ['7px', '7px', '7px', '7px'],
 		});
 	});
 
@@ -513,7 +533,7 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(results, multipliers.map(() => ({
 			multiplier: 0.25,
 			lineHeights: [19, 5, 5],
-			fontSizes: ['14px', '14px', '3.5px'],
+			fontSizes: ['14px', '3.5px', '3.5px'],
 		})));
 	});
 
@@ -532,17 +552,21 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 	});
 
-	test('updates punctuation font ranges without changing line height', () => {
+	test('updates line fonts while preserving whitespace ranges and line height', () => {
 		const { editor, model } = createEditor('a\n{ }\n0', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([{ range: new Range(2, 4, 2, 4), text: ';' }]);
 
 		assert.deepStrictEqual({
 			lineHeights: getLineHeights(editor),
-			fontRanges: getShrinkingDecorations(model).filter(decoration => decoration.options.fontSize !== null).map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
+			fontRanges: getShrinkingDecorations(model).filter(decoration => !decoration.options.isWholeLine).map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
+			punctuationFont: editor.getFontSizeAtPosition({ lineNumber: 2, column: 1 }),
+			whitespaceFont: editor.getFontSizeAtPosition({ lineNumber: 2, column: 2 }),
 		}, {
 			lineHeights: [19, 10, 19],
-			fontRanges: [[1, 2], [3, 5]],
+			fontRanges: [[2, 3]],
+			punctuationFont: '7px',
+			whitespaceFont: '14px',
 		});
 	});
 
@@ -577,8 +601,8 @@ suite('Shrink Empty Lines', () => {
 		}, {
 			text: ' {};',
 			decorations: [
+				{ kind: 'font', range: '[2,1 -> 2,2]' },
 				{ kind: 'height', range: '[2,1 -> 2,5]' },
-				{ kind: 'font', range: '[2,2 -> 2,5]' },
 			],
 			lineHeights: [19, 10, 19],
 		});
@@ -633,7 +657,7 @@ suite('Shrink Empty Lines', () => {
 		}, {
 			lines: ['a', '', '', 'b', '}', 'c'],
 			lineHeights: [19, 10, 10, 19, 10, 19],
-			fontSizes: ['14px', '14px', '14px', '14px', '7px', '14px'],
+			fontSizes: ['14px', '7px', '7px', '14px', '7px', '14px'],
 		});
 	});
 
@@ -672,7 +696,7 @@ suite('Shrink Empty Lines', () => {
 		}, {
 			lines: ['a', '', 'b', '}', 'c', 'z'],
 			lineHeights: [19, 10, 19, 10, 19, 19],
-			fontSizes: ['14px', '14px', '14px', '7px', '14px', '14px'],
+			fontSizes: ['14px', '7px', '14px', '7px', '14px', '14px'],
 		});
 	});
 
