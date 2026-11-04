@@ -35,7 +35,7 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { Menus } from '../../../browser/menus.js';
 import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
@@ -44,6 +44,7 @@ import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESS
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { isChangesFileResource } from './changesViewRenderer.js';
+import { mainWindowChangesOwner } from './changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -123,7 +124,7 @@ class OpenPullRequestAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const session = resolveSessionActionTarget(accessor, sessionArg);
+		const session = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
 		if (!session) {
 			return;
 		}
@@ -658,11 +659,12 @@ class OpenChangesAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const changesViewService = accessor.get(IChangesViewService);
 
-		const session = resolveSessionActionTarget(accessor, sessionResource);
+		const target = resolveSessionCommandTarget(accessor, [sessionResource]);
+		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const sessionChanges = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session).changesObs.get();
+		const sessionChanges = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat).changesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
 			resources.some(resource => isChangesFileResource(change, resource))

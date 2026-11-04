@@ -26,6 +26,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
 import { IChat, ISessionWorkspace } from '../../services/sessions/common/session.js';
+import { stubSessionHostsFromSessionsService } from '../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Web Open in Editor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,6 +53,7 @@ suite('Web Open in Editor', () => {
 			});
 			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: connection.address });
 			instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(session) }));
+			stubSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 				getProvider: <T extends ISessionsProvider>() => provider as T,
 			}));

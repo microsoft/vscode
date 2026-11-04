@@ -46,7 +46,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerExternalSessionsFilterMenu } from '../../../../../workbench/contrib/chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -1194,7 +1194,7 @@ function getSessionActionTargets(accessor: ServicesAccessor, context?: ISession 
 		return focusedSessions;
 	}
 
-	const activeSession = accessor.get(ISessionsService).activeSession.get();
+	const activeSession = resolveSessionCommandTarget(accessor, [])?.session;
 	return activeSession ? [activeSession] : [];
 }
 
@@ -1392,9 +1392,8 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
 		if (!context) {
-			const activeSession = sessionsService.activeSession.get();
+			const activeSession = resolveSessionCommandTarget(accessor, [])?.session;
 			if (activeSession) {
 				await sessionsManagementService.unarchiveSession(activeSession);
 			}
@@ -1912,7 +1911,7 @@ abstract class BaseUnarchiveActiveSessionAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const session = resolveSessionActionTarget(accessor, sessionArg);
+		const session = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
 		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return;
 		}

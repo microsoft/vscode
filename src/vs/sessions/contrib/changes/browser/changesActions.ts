@@ -31,7 +31,7 @@ import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
@@ -42,6 +42,7 @@ import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
 import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from './sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { mainWindowChangesOwner } from './changesViewService.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -69,7 +70,7 @@ class ViewAllChangesAction extends Action2 {
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
 		// active session when invoked without an explicit argument.
-		const sessionResource = resolveSessionActionTarget(accessor, sessionArg)?.resource;
+		const sessionResource = resolveSessionCommandTarget(accessor, [sessionArg])?.session?.resource;
 		if (!sessionResource) {
 			return;
 		}
@@ -122,11 +123,12 @@ class OpenChangedFileAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
-		const session = resolveSessionActionTarget(accessor, args[1]);
+		const target = resolveSessionCommandTarget(accessor, [args[1]]);
+		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
+		const changes = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
 		// From a chat window's Changes editor, in its group, not by focus; in the main window, as ever.
 		const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
 		const group = editor instanceof SessionChangesEditor && !accessor.get(IEditorGroupsService).mainPart.groups.includes(editor.group) ? editor.group : undefined;

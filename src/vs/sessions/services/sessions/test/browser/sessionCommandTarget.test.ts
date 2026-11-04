@@ -64,7 +64,7 @@ suite('resolveSessionCommandTarget', () => {
 			const target = instantiationService.invokeFunction(accessor => resolveSessionCommandTarget(accessor, args));
 			return target && { host: target.host?.kind, session: target.session?.sessionId, chat: target.chat?.resource.path.slice(1) };
 		};
-		return { resolve, chatWindowHost };
+		return { resolve, chatWindowHost, mainHost, sessionHostService };
 	}
 
 	test('arguments that name a host, a group or a window resolve to that host', () => {
@@ -98,9 +98,30 @@ suite('resolveSessionCommandTarget', () => {
 			chatResource: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'side' },
 			notShownChat: { host: undefined, session: 'a', chat: 'main' },
 			session: { host: SessionHostKind.MainWindow, session: 'b', chat: 'other' },
-			sessionContext: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'main' },
-			sessionResource: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'main' },
+			sessionContext: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'side' },
+			sessionResource: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'side' },
 		});
+	});
+
+	test('a session that several windows show resolves to the host in the focused window', () => {
+		const resolveIn = (focusedWindow: 'main' | 'chat') => {
+			const { resolve, mainHost, sessionHostService } = setup(focusedWindow);
+			disposables.add(sessionHostService.registerHost(new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(sessionA), contextKeyService: upcastPartial<IContextKeyService>({}) })));
+			return resolve(sessionA.resource);
+		};
+		assert.deepStrictEqual({ main: resolveIn('main'), chat: resolveIn('chat') }, {
+			main: { host: SessionHostKind.Pane, session: 'a', chat: 'main' },
+			chat: { host: SessionHostKind.ChatWindow, session: 'a', chat: 'side' },
+		});
+	});
+
+	test('a session of the grid that also has a detached pane resolves to its slot, with the chat the slot shows', () => {
+		const { resolve, mainHost, sessionHostService } = setup('main');
+		const detached = upcastPartial<IActiveSession>({ ...sessionA, activeChat: constObservable(sideChat), scopedChatResource: sideChat.resource });
+		const pane = (session: IActiveSession) => new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(session), contextKeyService: upcastPartial<IContextKeyService>({}) });
+		disposables.add(sessionHostService.registerHost(pane(sessionA)));
+		disposables.add(sessionHostService.registerHost(pane(detached)));
+		assert.deepStrictEqual(resolve(sessionA.resource), { host: SessionHostKind.Pane, session: 'a', chat: 'main' });
 	});
 
 	test('without arguments, the focused host', () => {

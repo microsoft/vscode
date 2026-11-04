@@ -5,7 +5,8 @@
 
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -13,6 +14,7 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
+import { IChat } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
 /**
@@ -41,7 +43,11 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, state: { readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>; readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; readonly windowSessions: IObservable<readonly IActiveSession[]> }): SessionHostService {
 	let nextChatWindowId = 1000;
 	const hostOf = (kind: SessionHostKind, parent: ISessionHost | undefined, session: IObservable<IActiveSession | undefined>, windowId: number | undefined): ISessionHost => {
-		const chat = derived(reader => session.read(reader)?.activeChat?.read(reader));
+		// A chat window shows the chat it is scoped to; other hosts the active chat of their session.
+		const chat = derived(reader => {
+			const shown = session.read(reader);
+			return shown?.scopedChatResource ? upcastPartial<IChat>({ resource: shown.scopedChatResource }) : shown?.activeChat?.read(reader);
+		});
 		return upcastPartial<ISessionHost>({
 			id: `${kind}:${windowId ?? 'pane'}`,
 			kind,
@@ -98,4 +104,69 @@ export function focusedSessionHostServiceOf(session: IObservable<IActiveSession 
 export function stubFocusedSessionHostFromSessionsService(instantiationService: TestInstantiationService): void {
 	const sessionsService = instantiationService.get(ISessionsService) as Partial<ISessionsService> | undefined;
 	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(sessionsService?.activeSession ?? constObservable(undefined)));
+}
+
+/**
+ * Stubs the host lookups and the focused host on `instantiationService` from the `ISessionsService` it has, for tests of
+ * commands that model the windows with its state, as the real services see them: the main window shows
+ * `mainWindowActiveSession` (else `activeSession`), a pane of it each of `visibleSessions`, a chat window each of
+ * `windowSessions`, with a pane of its own, and the focused host is the window host that shows `activeSession`, else the
+ * main window's. Lookups return the innermost hosts, as {@link SessionHostService} does.
+ */
+export function stubSessionHostsFromSessionsService(instantiationService: TestInstantiationService): void {
+	const sessionsService = instantiationService.get(ISessionsService) as Partial<ISessionsService> | undefined;
+	const none = constObservable(undefined);
+	const activeSession = sessionsService?.activeSession ?? none;
+	let hostIds = 0;
+	const hostOf = (kind: SessionHostKind, session: IObservable<IActiveSession | undefined>, windowId: number | undefined, parent?: ISessionHost): ISessionHost => {
+		const chat = derived(reader => {
+			const shown = session.read(reader);
+			return shown?.scopedChatResource ? upcastPartial<IChat>({ resource: shown.scopedChatResource }) : shown?.activeChat?.read(reader);
+		});
+		return upcastPartial<ISessionHost>({ id: `${kind}:${windowId}:${hostIds++}`, kind, parent, session, chat, chatResource: derived(reader => chat.read(reader)?.resource), windowId: constObservable(windowId) });
+	};
+	const mainHost = hostOf(SessionHostKind.MainWindow, sessionsService?.mainWindowActiveSession ?? activeSession, mainWindow.vscodeWindowId);
+	const panes = new Map<IActiveSession, ISessionHost>();
+	const chatWindows = new Map<IActiveSession, readonly [ISessionHost, ISessionHost]>();
+	let nextWindowId = 1000;
+	const readPanes = (reader: IReader | undefined) => (sessionsService?.visibleSessions?.read(reader) ?? []).filter(session => !!session).map(session => {
+		let host = panes.get(session!);
+		if (!host) {
+			host = hostOf(SessionHostKind.Pane, constObservable(session), mainWindow.vscodeWindowId, mainHost);
+			panes.set(session!, host);
+		}
+		return host;
+	});
+	const readChatWindows = (reader: IReader | undefined) => (sessionsService?.windowSessions?.read(reader) ?? []).map(session => {
+		let hosts = chatWindows.get(session);
+		if (!hosts) {
+			const windowHost = hostOf(SessionHostKind.ChatWindow, constObservable(session), nextWindowId++);
+			hosts = [windowHost, hostOf(SessionHostKind.Pane, constObservable(session), windowHost.windowId.get(), windowHost)];
+			chatWindows.set(session, hosts);
+		}
+		return hosts;
+	});
+	const readHosts = (reader: IReader | undefined) => [mainHost, ...readPanes(reader), ...readChatWindows(reader).flat()];
+	const isNestedIn = (host: ISessionHost, ancestor: ISessionHost) => {
+		for (let current = host.parent; current; current = current.parent) {
+			if (current === ancestor) {
+				return true;
+			}
+		}
+		return false;
+	};
+	const innermost = (hosts: readonly ISessionHost[]) => hosts.filter(host => !hosts.some(other => other !== host && isNestedIn(other, host)));
+	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({
+		hosts: derived(reader => readHosts(reader)),
+		getHost: id => readHosts(undefined).find(host => host.id === id),
+		getHostOfWindow: (windowId, reader) => readHosts(reader).find(host => !host.parent && host.windowId.read(reader) === windowId),
+		getHostOfChat: (chatResource, reader) => innermost(readHosts(reader).filter(host => isEqual(host.chatResource.read(reader), chatResource)))[0],
+		getHostsOfSession: (resource, reader) => innermost(readHosts(reader).filter(host => isEqual(host.session.read(reader)?.resource, resource))),
+		isShown: (resource, reader) => readHosts(reader).some(host => isEqual(host.session.read(reader)?.resource, resource) || isEqual(host.chatResource.read(reader), resource)),
+	}));
+	const focusedHost = derived(reader => {
+		const active = activeSession.read(reader);
+		return readChatWindows(reader).find(([windowHost]) => !!active && windowHost.session.read(reader) === active)?.[0] ?? mainHost;
+	});
+	instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ focusedHost, getFocusedHost: () => focusedHost.get() }));
 }

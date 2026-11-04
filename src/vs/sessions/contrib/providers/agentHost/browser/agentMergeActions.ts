@@ -28,7 +28,7 @@ import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/brow
 import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../changes/browser/sessionActionContextKeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
 import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
@@ -181,9 +181,10 @@ abstract class AgentMergeActionBase extends Action2 {
 		if (accessor.get(IConfigurationService).getValue<boolean>(ArtifactIntegrationsSettingId) === true) {
 			throw new Error(localize('agentMerge.artifactIntegrationsEnabled', "Agent Merge is unavailable while artifact integrations are enabled."));
 		}
-		const session = resolveSessionActionTarget(accessor, sessionArg);
+		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+		const session = target?.session;
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
-		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;
+		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: (target.chat ?? session.mainChat.get()).resource } : undefined;
 	}
 
 	/**

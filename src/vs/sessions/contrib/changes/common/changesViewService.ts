@@ -7,7 +7,7 @@ import { constObservable, IObservable, IReader } from '../../../../base/common/o
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { IActiveSession, IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {
@@ -108,9 +108,14 @@ export function getActiveSessionChanges(service: IChangesViewService): IChangesS
 	};
 }
 
-/** The changes observables of `session`, using the cheaper active-session ones when it is the active session. */
-export function getChangesOfSession(service: IChangesViewService, activeSession: IHostSession | undefined, session: IActiveSession): IChangesSessionObservables {
-	return session === activeSession ? getActiveSessionChanges(service) : service.getSessionChanges(constObservable(session));
+/**
+ * The changes observables of `chat` of `session`, else of its main chat, using the cheaper ones of the active session when
+ * `active`, the session and chat they are of, shows them: the same session, and the same chat unless none is given.
+ */
+export function getChangesOfSession(service: IChangesViewService, active: { readonly session: IHostSession | undefined; readonly chat: IChat | undefined }, session: ISession, chat?: IChat): IChangesSessionObservables {
+	return session === active.session && (!chat || chat === active.chat)
+		? getActiveSessionChanges(service)
+		: service.getSessionChanges(constObservable(session), constObservable(chat ?? session.mainChat.get()));
 }
 
 export interface IChangesViewService {
@@ -118,10 +123,10 @@ export interface IChangesViewService {
 
 	/** Creates the changes observables for the given session; the `activeSession*` observables are this over the active session. */
 	/**
-	 * The changes of a session, of `chatObs` when given, else of the session's active chat: such as for a Changes editor,
-	 * which shows the changes of its own chat whichever chat is active.
+	 * The changes of `chatObs` of a session: such as for a Changes editor, which shows the changes of its own chat whichever
+	 * chat is active.
 	 */
-	getSessionChanges(sessionObs: IObservable<ISession | undefined>, chatObs?: IObservable<IChat | undefined>): IChangesSessionObservables;
+	getSessionChanges(sessionObs: IObservable<ISession | undefined>, chatObs: IObservable<IChat | undefined>): IChangesSessionObservables;
 
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
@@ -153,5 +158,5 @@ export interface IChangesViewService {
 	setDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode, state: IChangesDetailsViewState): void;
 
 	/** Sets the review state of files of the selected changeset of `session`, which defaults to the active session. */
-	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: IActiveSession): void;
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: ISession, chat?: IChat): void;
 }

@@ -11,7 +11,7 @@ import { isEditorCommandsContext } from '../../../../workbench/common/editor.js'
 import { isWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { IChat, ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, isSessionHostCommandContext } from './sessionHost.js';
+import { getHostOfSession, IFocusedSessionHostService, ISessionHost, ISessionHostService, isSessionHostCommandContext } from './sessionHost.js';
 
 /** What a Sessions command acts on; see {@link resolveSessionCommandTarget}. */
 export interface ISessionCommandTarget {
@@ -39,10 +39,11 @@ function ofHost(host: ISessionHost): ISessionCommandTarget {
 	return { host, session: host.session.get(), chat: host.chat.get() };
 }
 
-function ofSession(sessionHostService: ISessionHostService, session: ISession): ISessionCommandTarget {
-	const hosts = sessionHostService.getHostsOfSession(session.resource);
-	const host = hosts.length === 1 ? hosts[0] : undefined;
-	return { host, session: host?.session.get() ?? session, chat: session.mainChat.get() };
+function ofSession(sessionHostService: ISessionHostService, session: ISession, focusedWindowHost: ISessionHost, passed: boolean): ISessionCommandTarget {
+	// A host's own session object, as its toolbars pass it, names that host.
+	const host = (passed ? sessionHostService.getHostsOfSession(session.resource).find(candidate => candidate.session.get() === session) : undefined)
+		?? getHostOfSession(sessionHostService, session.resource, focusedWindowHost);
+	return host ? { host, session: host.session.get() ?? session, chat: host.chat.get() ?? session.mainChat.get() } : { host, session, chat: session.mainChat.get() };
 }
 
 function ofChat(sessionHostService: ISessionHostService, session: ISession, chat: IChat): ISessionCommandTarget {
@@ -57,7 +58,8 @@ function ofChat(sessionHostService: ISessionHostService, session: ISession, chat
  * - an editor command context: the host of the window of its group;
  * - a window command context: the host of that window;
  * - a chat, `{ chat }` or a chat resource: that chat, its session, and the host that shows it, if any;
- * - a session, `{ session }` or a session resource: that session, its main chat, and the host that shows it if exactly one does;
+ * - a session, `{ session }` or a session resource: that session and the host that shows it, with the chat that host shows; when
+ *   several hosts show it, the one in the focused window; without a host, its main chat;
  * - no arguments, as from keybindings and the Command Palette: the window host that has focus.
  *
  * Arguments that name something that is not found, or that are none of these, resolve to `undefined`: the command does
@@ -102,12 +104,12 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 		const sessionContext = value && typeof value === 'object' ? (value as { readonly session?: unknown }).session : undefined;
 		const session = isSession(value) ? value : isSession(sessionContext) ? sessionContext : undefined;
 		if (session) {
-			return ofSession(sessionHostService, session);
+			return ofSession(sessionHostService, session, accessor.get(IFocusedSessionHostService).getFocusedHost(), true);
 		}
 		if (value instanceof URI) {
 			const ofResource = managementService.getSession(value);
 			if (ofResource) {
-				return ofSession(sessionHostService, ofResource);
+				return ofSession(sessionHostService, ofResource, accessor.get(IFocusedSessionHostService).getFocusedHost(), false);
 			}
 			const owner = managementService.getSessionForChatResource(value);
 			return owner && ofChat(sessionHostService, owner.session, owner.chat);

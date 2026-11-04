@@ -19,7 +19,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -269,11 +269,13 @@ suite('Chat window contribution', () => {
 				showEditor: () => { editorShown = true; },
 			});
 			// The session of the window, which its scope provides, differs from the active session of the main window.
-			const windowSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat') }));
+			const windowSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat'), isCreated: constObservable(true) }));
 			const scoped = disposables.add(new TestInstantiationService());
 			scoped.stub(ISessionScope, { session: windowSession });
-			const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
-			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: windowId => windowId === window.windowId ? windowHost : undefined }));
+			const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
+			const mainSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main'), isCreated: constObservable(true), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));
+			const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: mainSession, contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(mainWindowId) });
+			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: windowId => windowId === window.windowId ? windowHost : windowId === mainWindowId ? mainHost : undefined }));
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				activeWindow: focusedWindow === 'chat' ? window : undefined,
 				windows: constObservable([window]),

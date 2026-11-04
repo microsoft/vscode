@@ -137,6 +137,31 @@ export function getFocusedSessionChatSource(focusedSessionHostService: IFocusedS
 	};
 }
 
+/**
+ * The host that shows a session: the one host that does, else, when several do, such as the main window and a chat window
+ * showing other chats of it, the one in `preferredWindowHost`. When several in that window do, such as a slot of its grid
+ * and a detached pane of another chat of the session, the one that shows that window's current session (its active
+ * slot), else the slot of its grid rather than a detached pane. `undefined` when none does, or none of these settles it.
+ */
+export function getHostOfSession(sessionHostService: ISessionHostService, sessionResource: URI, preferredWindowHost: ISessionHost | undefined): ISessionHost | undefined {
+	const hosts = sessionHostService.getHostsOfSession(sessionResource);
+	if (hosts.length <= 1) {
+		return hosts[0];
+	}
+	const inWindow = hosts.filter(host => getWindowHost(host) === preferredWindowHost);
+	if (inWindow.length <= 1) {
+		return inWindow[0];
+	}
+	const windowSession = preferredWindowHost?.session.get();
+	const ofCurrentSession = inWindow.filter(host => !!windowSession && host.session.get() === windowSession);
+	if (ofCurrentSession.length === 1) {
+		return ofCurrentSession[0];
+	}
+	// A detached pane shows its session scoped to one of its chats; the slot of the grid shows the session itself.
+	const ofGrid = inWindow.filter(host => !(host.session.get() as Partial<IActiveSession> | undefined)?.scopedChatResource);
+	return ofGrid.length === 1 ? ofGrid[0] : undefined;
+}
+
 /** The window host a host is in: itself for a window host. */
 export function getWindowHost(host: ISessionHost): ISessionHost {
 	let current = host;
@@ -167,7 +192,7 @@ export function createHostMenuOptions(host: ISessionHost): { readonly arg: ISess
  * Whether `host` is backed by an {@link IActiveSession}, as the grid and chat windows show sessions until hosts own their
  * chat. Hosts registered as services are proxies until first used, so this checks the prototype, not the properties.
  *
- * @internal Transitional, removed with {@link ActiveSessionHost}. Only the legacy aliases and resolvers use it.
+ * @internal Transitional, removed with {@link ActiveSessionHost}. Only the legacy `ISessionScope` alias uses it.
  */
 export function hasActiveSessionSource(host: ISessionHost): host is ActiveSessionHost {
 	return host instanceof ActiveSessionHost;

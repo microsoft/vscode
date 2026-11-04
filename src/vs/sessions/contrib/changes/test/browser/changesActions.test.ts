@@ -37,6 +37,7 @@ import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService }
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,6 +63,7 @@ suite('Changes Actions', () => {
 			override readonly mainWindowActiveSession = this.activeSession;
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const input = args[0] as { readonly resource: URI };
@@ -194,6 +196,7 @@ suite('Changes Actions', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, changesViewService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override readonly mainWindowActiveSession = constObservable(undefined); }());
+		stubSessionHostsFromSessionsService(instantiationService);
 		// The main window's context, bound for its session.
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		disposables.add(bindChangesetOperations({ session: constObservable(undefined), changes: { changesetObs: constObservable(changeset), changesetOperationsObs: operations } }, contextKeyService));
@@ -350,6 +353,7 @@ suite('Changes Actions', () => {
 		disposables.add(bindChangesetOperations({ session: activeSession, changes }, contextKeyService));
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override readonly mainWindowActiveSession = activeSession; }());
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = changes.changesetObs;
 			override readonly activeSessionChangesetOperationsObs = operations;

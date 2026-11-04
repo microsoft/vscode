@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { constObservable, IObservable } from '../../../../base/common/observable.js';
-import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { getWindowHost, hasActiveSessionSource, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from './sessionHost.js';
-import { ISessionsService } from './sessionsService.js';
+import { getWindowHost, hasActiveSessionSource, ISessionHost } from './sessionHost.js';
 
 /**
  * The session the UI of a host acts on. A host (the main side bar, the title
@@ -32,24 +30,6 @@ export class ActiveSessionScope implements ISessionScope {
 		const windowHost = getWindowHost(host);
 		this.session = hasActiveSessionSource(windowHost) ? windowHost.activeSession : constObservable(undefined);
 	}
-}
-
-function activeSessionOf(host: ISessionHost | undefined): IActiveSession | undefined {
-	return host && hasActiveSessionSource(host) ? host.activeSession.get() : undefined;
-}
-
-/** The session `window` acts on: that of its host. */
-export function getChatWindowSession(accessor: ServicesAccessor, window: IChatWindow): IActiveSession | undefined {
-	return activeSessionOf(accessor.get(ISessionHostService).getHostOfWindow(window.windowId));
-}
-
-/**
- * The session the window with focus acts on: that of the chat window with focus, which is the active session only once
- * focus moved into its session, else the active session.
- */
-export function getFocusedWindowSession(accessor: ServicesAccessor): IActiveSession | undefined {
-	const host = accessor.get(IFocusedSessionHostService).getFocusedHost();
-	return host.kind === SessionHostKind.ChatWindow ? activeSessionOf(host) : accessor.get(ISessionsService).activeSession.get();
 }
 
 registerSingleton(ISessionScope, ActiveSessionScope, InstantiationType.Delayed);

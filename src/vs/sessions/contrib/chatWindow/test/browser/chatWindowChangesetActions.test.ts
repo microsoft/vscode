@@ -37,6 +37,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { bindSessionScopeContextKeys } from '../../../changes/browser/sessionActionsHost.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Chat window changeset actions', () => {
 
@@ -86,6 +87,7 @@ suite('Chat window changeset actions', () => {
 		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({ register: () => Disposable.None }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditorPane: undefined }));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ mainWindowActiveSession: constObservable(main), activeSession: constObservable(main) }));
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChangesViewService, upcastPartial<IChangesViewService>({
 			activeSessionChangesetObs: mainChanges.changesetObs,
 			activeSessionChangesetOperationsObs: mainChanges.changesetOperationsObs,

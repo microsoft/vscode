@@ -34,6 +34,7 @@ import { IDecorationsService } from '../../../../../workbench/services/decoratio
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
@@ -426,10 +427,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
-		}, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		}, new class extends mock<IDecorationsService>() {
+		}, sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }), focusedSessionHostServiceOf(constObservable(undefined)), new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
 		}, new NullLogService())),
 		contextKeyService,
@@ -491,6 +489,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly visibleSessions = harness.visibleSessionsObs;
 		override readonly windowSessions = constObservable([]);
 	});
+	stubSessionHostsFromSessionsService(instaService);
 	instaService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 		override readonly shownChatCount = derived(reader =>
 			harness.visibleSessionsObs.read(reader).length + harness.additionalShownChatsObs.read(reader));

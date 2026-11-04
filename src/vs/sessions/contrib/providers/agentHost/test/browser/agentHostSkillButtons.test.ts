@@ -26,7 +26,7 @@ import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessio
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 function makeActiveSession(providerId: string): IActiveSession {
 	const chat = {
@@ -129,6 +129,7 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ISessionsService, sessions);
+		stubSessionHostsFromSessionsService(instantiationService);
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, providers);
 
@@ -254,8 +255,8 @@ suite('agentHostSkillButtons - target', () => {
 		(chatWindowSession.activeChat as ReturnType<typeof observableValue<IChat>>).set(otherChat, undefined);
 		const sent: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, sessions);
-		stubFocusedSessionHostFromSessionsService(instantiationService);
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: sessions.activeSession, mainWindowActiveSession: sessions.activeSession, windowSessions: constObservable([chatWindowSession]) }));
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override async acquireOrLoadSession() { return undefined; }
 			override async sendRequest(resource: URI, message: string) {

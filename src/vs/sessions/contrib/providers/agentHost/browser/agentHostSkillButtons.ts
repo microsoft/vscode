@@ -18,7 +18,7 @@ import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/c
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
 import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
@@ -178,11 +178,12 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 			const chatService = accessor.get(IChatService);
 
 			// The session the button acts on, such as that of a chat window, else the active one; and the chat it shows.
-			const session = resolveSessionActionTarget(accessor, sessionArg);
+			const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+			const session = target?.session;
 			if (!session) {
 				return;
 			}
-			const chatResource = session.activeChat.get().resource;
+			const chatResource = (target.chat ?? session.mainChat.get()).resource;
 
 			// `session.resource.scheme` matches the chat session
 			// contribution `type` registered for the agent-host (e.g.
