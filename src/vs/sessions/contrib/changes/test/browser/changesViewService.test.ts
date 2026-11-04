@@ -16,11 +16,11 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {
 
@@ -125,12 +125,6 @@ suite('ChangesViewService', () => {
 		const onDidDeleteChat = disposables.add(new Emitter<IChatDeletedEvent>());
 		const onDidDiscardNewSession = disposables.add(new Emitter<ISession>());
 		const onDidReplaceNewDraftSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = activeSession;
-			override readonly windowSessions = constObservable(windowSessions);
-			override readonly visibleSessions = constObservable([]);
-		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			override readonly onDidDeleteSession = onDidDeleteSession.event;
@@ -154,7 +148,7 @@ suite('ChangesViewService', () => {
 			agentFeedbackService,
 			codeReviewService,
 			contextKeyService,
-			sessionsService,
+			sessionHostServiceOf({ mainWindowActiveSession: activeSession, visibleSessions: constObservable([]), windowSessions: constObservable(windowSessions) }),
 			storageService,
 			sessionsManagementService,
 		));
@@ -609,7 +603,7 @@ suite('ChangesViewService', () => {
 		const { service } = createHarness(createSession('a', { changesets: [branchChangeset, turnChangeset] }));
 		const other = createSession('b', { changesets: [branchChangeset, turnChangeset] });
 
-		service.setChangesetId(TURN_CHANGES_CHANGESET_ID, other);
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID, other, other.activeChat.get());
 		const otherSelection = service.getSessionChanges(constObservable(other)).changesetObs.get()?.id;
 		const activeSelection = service.activeSessionChangesetObs.get()?.id;
 

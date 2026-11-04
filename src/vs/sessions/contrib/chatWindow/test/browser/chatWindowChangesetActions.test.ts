@@ -97,7 +97,10 @@ suite('Chat window changeset actions', () => {
 		// The context of the chat window, scoped to the global one as a window's is; its main part's groups scope theirs to it.
 		const windowContextKeyService = disposables.add(contextKeyService.createScoped(document.createElement('div')));
 		// The Changes editor of each window: in the chat window's main part in group 1, in the main window in group 2.
-		const scopes = { chat: { session: constObservable(chat), changes: chatChanges }, main: { session: constObservable(main), changes: mainChanges } } satisfies Record<string, IChangesSessionScope>;
+		const scopes = {
+			chat: { session: constObservable(chat), chat: constObservable(chat.activeChat.get()), changes: chatChanges, isMainWindow: false },
+			main: { session: constObservable(main), chat: constObservable(main.activeChat.get()), changes: mainChanges, isMainWindow: true },
+		} satisfies Record<string, IChangesSessionScope>;
 		const editorOf = (scope: IChangesSessionScope) => Object.defineProperty(Object.create(SessionChangesEditor.prototype), 'changesScope', { value: scope }) as SessionChangesEditor;
 		const editors = new Map([[1, editorOf(scopes.chat)], [2, editorOf(scopes.main)]]);
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
@@ -110,6 +113,7 @@ suite('Chat window changeset actions', () => {
 		// The main window's session action keys, bound on the global context as the main window binds them.
 		disposables.add(bindSessionActionContextKeys(instantiationService, {
 			session: scopes.main.session,
+			chat: scopes.main.chat,
 			changes: mainChanges,
 			pullRequest: instantiationService.invokeFunction(accessor => accessor.get(IGitHubService)).getSessionPullRequest(scopes.main.session),
 		}, contextKeyService));

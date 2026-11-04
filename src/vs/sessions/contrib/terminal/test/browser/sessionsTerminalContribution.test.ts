@@ -44,6 +44,8 @@ import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import '../../../../browser/layoutActions.js';
 import { CustomViewVisibleContext } from '../../../../common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -350,6 +352,7 @@ suite('SessionsTerminalContribution', () => {
 			override readonly activeSession = activeSessionObs;
 			override readonly mainWindowActiveSession = this.activeSession;
 		});
+		instantiationService.stub(ISessionHostService, sessionHostServiceOf({ mainWindowActiveSession: activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override onDidCreateInstance = onDidCreateInstance.event;
@@ -1290,7 +1293,7 @@ suite('SessionsTerminalContribution', () => {
 		contribution.trackChatWindowTerminal(session, adopted);
 		contribution.setShownInChatWindow(adopted, false);
 
-		const shown = await contribution.getChatWindowTerminals(session);
+		const shown = await contribution.getChatWindowTerminals(session, session.activeChat.get());
 
 		assert.deepStrictEqual({ reused: shown.some(instance => instance.instanceId === adopted.instanceId), created: shown.length }, { reused: false, created: 1 });
 	});
@@ -1299,14 +1302,14 @@ suite('SessionsTerminalContribution', () => {
 		const worktree = URI.file('/worktree');
 		const session = makeAgentSession({ sessionId: 'test:windowed', worktree, providerType: AgentSessionProviders.Background });
 		const [first] = await contribution.ensureTerminal(worktree, false, session);
-		const second = (await contribution.createChatWindowTerminal(session))!;
+		const second = (await contribution.createChatWindowTerminal(session, session.activeChat.get()))!;
 		contribution.setShownInChatWindow(second, false);
 
-		const all = await contribution.getChatWindowTerminals(session);
+		const all = await contribution.getChatWindowTerminals(session, session.activeChat.get());
 		all.forEach(instance => contribution.setShownInChatWindow(instance, false));
 		activeSessionObs.set(session, undefined);
 		await tick();
-		const whileMainShows = await contribution.getChatWindowTerminals(session);
+		const whileMainShows = await contribution.getChatWindowTerminals(session, session.activeChat.get());
 
 		assert.deepStrictEqual({ all: all.map(instance => instance.instanceId), whileMainShows: whileMainShows.map(instance => instance.instanceId) }, {
 			all: [first.instanceId, second.instanceId],

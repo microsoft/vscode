@@ -236,14 +236,14 @@ suite('Changes View Actions', () => {
 		});
 		const mounted = (uri: URI) => [upcastPartial<IWorkspaceFolder>({ uri })];
 
-		const pending = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		const pending = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(URI.file('/old-folder')), undefined);
 		workspace.set(upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({ workingDirectory: folder })],
 		}), undefined);
-		const wrongFolder = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
-		const ready = isChangesActionsWorkspaceReady(session, mounted(folder), undefined);
+		const wrongFolder = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(URI.file('/old-folder')), undefined);
+		const ready = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(folder), undefined);
 		workspace.set(undefined, undefined);
-		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, [], undefined);
+		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, session.activeChat.get(), [], undefined);
 
 		assert.deepStrictEqual({ pending, wrongFolder, ready, quickChat }, {
 			pending: false,
@@ -569,6 +569,8 @@ suite('Changes View Actions', () => {
 		}();
 		const scope: IChangesSessionScope = {
 			session: constObservable(otherSession),
+			chat: constObservable(undefined),
+			isMainWindow: false,
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesetsObs: constObservable([otherChangeset]),
 				changesetsLoadingObs: constObservable(false),

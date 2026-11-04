@@ -25,7 +25,7 @@ import { derived, derivedOpts, IObservable } from '../../../../base/common/obser
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
@@ -55,7 +55,7 @@ export interface IGitHubService {
 	readonly enterpriseHost: string | undefined;
 
 	/** Creates the pull request observables for the given session; the `activeSession*` observables are this over the active session. */
-	getSessionPullRequest(sessionObs: IObservable<IActiveSession | undefined>): IGitHubSessionPullRequestObservables;
+	getSessionPullRequest(sessionObs: IObservable<ISession | undefined>): IGitHubSessionPullRequestObservables;
 
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
@@ -189,7 +189,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this.activeSessionPullRequestReviewThreadsObs = active.pullRequestReviewThreadsObs;
 	}
 
-	getSessionPullRequest(sessionObs: IObservable<IActiveSession | undefined>): IGitHubSessionPullRequestObservables {
+	getSessionPullRequest(sessionObs: IObservable<ISession | undefined>): IGitHubSessionPullRequestObservables {
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
 				const gitHubInfo = sessionObs.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);

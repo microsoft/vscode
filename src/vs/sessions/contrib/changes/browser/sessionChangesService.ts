@@ -147,9 +147,9 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			if (!session) {
 				this.logService.trace('[SessionChangesService] cannot select a changeset, the session is not shown', sessionResource.toString());
 			} else if (options.changesetSelection.kind === 'transient') {
-				this.changesViewService.showChangeset(options.changesetSelection.changeset, session);
+				this.changesViewService.showChangeset(options.changesetSelection.changeset, session, session.activeChat.get());
 			} else {
-				this.changesViewService.setChangesetId(options.changesetSelection.id, session);
+				this.changesViewService.setChangesetId(options.changesetSelection.id, session, session.activeChat.get());
 			}
 		}
 		let editorOptions: IMultiDiffEditorOptions | undefined;

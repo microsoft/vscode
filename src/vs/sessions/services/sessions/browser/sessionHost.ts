@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -12,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChat } from '../common/session.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
+import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
 
 export const enum SessionHostKind {
 	/** The main window of the Agents window. */
@@ -26,9 +27,6 @@ export const enum SessionHostKind {
 	/** The automation dialog. */
 	AutomationDialog = 'automationDialog',
 }
-
-/** The session as a host sees it: without a chat selected for every place that shows it. */
-export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
 
 /** What a host shows. */
 export type SessionHostContent =
@@ -124,6 +122,18 @@ export function getWindowHost(host: ISessionHost): ISessionHost {
 		current = current.parent;
 	}
 	return current;
+}
+
+/**
+ * The host of the main window, for services created at root that serve the main window, such as its terminal panel.
+ * UI injects the host it is in instead.
+ */
+export function getMainWindowHost(sessionHostService: ISessionHostService): ISessionHost {
+	const host = sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId);
+	if (!host) {
+		throw new Error('The main window has no session host');
+	}
+	return host;
 }
 
 /** The menu options of the toolbars and button bars a host creates, so their commands act on the host. */

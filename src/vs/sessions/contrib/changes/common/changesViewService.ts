@@ -7,7 +7,7 @@ import { constObservable, IObservable, IReader } from '../../../../base/common/o
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {
@@ -78,8 +78,12 @@ export interface IChangesSessionObservables {
 
 /** The session a changes view or actions bar acts on, with that session's changes observables. */
 export interface IChangesSessionScope {
-	readonly session: IObservable<IActiveSession | undefined>;
+	readonly session: IObservable<IHostSession | undefined>;
+	/** The chat the host shows of {@link session}. */
+	readonly chat: IObservable<IChat | undefined>;
 	readonly changes: IChangesSessionObservables;
+	/** Whether the session is that of the main window, whose workspace is mounted and whose keys are bound globally. */
+	readonly isMainWindow: boolean;
 }
 
 /** The changes observables of the active session, assembled from the service's `activeSession*` observables. */
@@ -105,7 +109,7 @@ export function getActiveSessionChanges(service: IChangesViewService): IChangesS
 }
 
 /** The changes observables of `session`, using the cheaper active-session ones when it is the active session. */
-export function getChangesOfSession(service: IChangesViewService, activeSession: IActiveSession | undefined, session: IActiveSession): IChangesSessionObservables {
+export function getChangesOfSession(service: IChangesViewService, activeSession: IHostSession | undefined, session: IActiveSession): IChangesSessionObservables {
 	return session === activeSession ? getActiveSessionChanges(service) : service.getSessionChanges(constObservable(session));
 }
 
@@ -136,10 +140,10 @@ export interface IChangesViewService {
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
-	/** Selects the changeset of the active chat of `session`, which defaults to the active session. */
-	setChangesetId(changesetId: string | undefined, session?: IActiveSession): void;
-	/** Shows a transient changeset in the active chat of `session`, which defaults to the active session. */
-	showChangeset(changeset: ISessionChangeset, session?: IActiveSession): void;
+	/** Selects the changeset of `chat` of `session`, which default to those of the main window. */
+	setChangesetId(changesetId: string | undefined, session?: IHostSession, chat?: IChat): void;
+	/** Shows a transient changeset in `chat` of `session`, which default to those of the main window. */
+	showChangeset(changeset: ISessionChangeset, session?: IHostSession, chat?: IChat): void;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;

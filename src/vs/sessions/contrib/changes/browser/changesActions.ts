@@ -30,9 +30,9 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
@@ -342,7 +342,7 @@ function isChangesetOperationBusy(operation: ISessionChangesetOperation): boolea
  * of its uncommitted changes (except Sync and Checkout), and for an existing session the Commit operation of the
  * changeset selected in its Changes view; the title bar's button bar omits Commit, so that it always lives here.
  */
-export function getChangesetOperations(session: IActiveSession | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
+export function getChangesetOperations(session: IHostSession | undefined, chat: IChat | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
 	const entries: IChangesetOperationEntry[] = [];
 	const changeset = changes.changesetObs.read(reader);
 	for (const operation of changeset?.operations.read(reader) ?? []) {
@@ -358,7 +358,7 @@ export function getChangesetOperations(session: IActiveSession | undefined, chan
 	let operations: readonly ISessionChangesetOperation[];
 	let hasUncommittedChanges = true;
 	if (session.status.read(reader) === SessionStatus.Untitled) {
-		titleChangeset = (session.activeChat.read(reader) ?? session.mainChat.read(reader)).changesets.read(reader)
+		titleChangeset = (chat ?? session.mainChat.read(reader)).changesets.read(reader)
 			?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 		operations = titleChangeset?.operations.read(reader)
 			.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
@@ -389,18 +389,20 @@ function listHas(key: RawContextKey<string[]>, entry: string): ContextKeyExpress
 }
 
 /** The Changes of the Changes editor whose file toolbar or title an action is invoked from, else those of the main window's session. */
-function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: IActiveSession | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
+function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: IHostSession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
 	const fileContext = args[1] as Partial<IChangesEditorFileActionContext> | undefined;
 	const editorContext = args.find(isEditorCommandsContext);
 	const editor = fileContext?.editor instanceof SessionChangesEditor
 		? fileContext.editor
 		: editorContext ? accessor.get(IEditorGroupsService).getGroup(editorContext.groupId)?.activeEditorPane : undefined;
 	if (editor instanceof SessionChangesEditor) {
-		return { session: editor.changesScope.session.get(), changes: editor.changesScope.changes };
+		return { session: editor.changesScope.session.get(), chat: editor.changesScope.chat.get(), changes: editor.changesScope.changes };
 	}
 	const changesViewService = accessor.get(IChangesViewService);
+	const mainWindowSession = accessor.get(ISessionsService).mainWindowActiveSession.get();
 	return {
-		session: accessor.get(ISessionsService).mainWindowActiveSession.get(),
+		session: mainWindowSession,
+		chat: mainWindowSession?.activeChat.get(),
 		changes: {
 			changesObs: changesViewService.activeSessionChangesObs,
 			changesetObs: changesViewService.activeSessionChangesetObs,
@@ -472,8 +474,8 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			const { session, changes } = getInvokingChangesScope(accessor, args);
-			await getChangesetOperations(session, changes, undefined).titleChangeset?.invokeOperation(operation.id);
+			const { session, chat, changes } = getInvokingChangesScope(accessor, args);
+			await getChangesetOperations(session, chat, changes, undefined).titleChangeset?.invokeOperation(operation.id);
 		}
 	});
 }
@@ -511,11 +513,11 @@ const changesetOperationActions = new class {
  * Binds on `contextKeyService` the changeset operations that the Changes of the session of `source` show, and keeps their
  * actions registered meanwhile. The main window binds those of its session, a chat window those of the session it shows.
  */
-export function bindChangesetOperations(source: Pick<ISessionActionContextKeysSource, 'session'> & { readonly changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'> }, contextKeyService: IContextKeyService): IDisposable {
+export function bindChangesetOperations(source: Pick<ISessionActionContextKeysSource, 'session'> & { readonly chat?: ISessionActionContextKeysSource['chat']; readonly changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'> }, contextKeyService: IContextKeyService): IDisposable {
 	const shown = SessionChangesetOperationsContext.bindTo(contextKeyService);
 	const enabled = SessionEnabledChangesetOperationsContext.bindTo(contextKeyService);
 	return autorun(reader => {
-		const { entries } = getChangesetOperations(source.session.read(reader), source.changes, reader);
+		const { entries } = getChangesetOperations(source.session.read(reader), source.chat?.read(reader), source.changes, reader);
 		contextKeyService.bufferChangeEvents(() => {
 			shown.set(entries.map(entry => entry.key));
 			enabled.set(entries.filter(entry => entry.enabled).map(entry => entry.key));

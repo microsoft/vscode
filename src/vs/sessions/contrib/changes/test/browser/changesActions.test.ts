@@ -255,6 +255,7 @@ suite('Changes Actions', () => {
 			});
 			return upcastPartial<IChangesSessionScope>({
 				session: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse(`test-session:${name}`), status: constObservable(SessionStatus.Completed) })),
+				chat: constObservable(undefined),
 				changes: upcastPartial<IChangesSessionObservables>({ changesetObs: constObservable<ISessionChangeset | undefined>(changeset), changesetOperationsObs: operations }),
 			});
 		};

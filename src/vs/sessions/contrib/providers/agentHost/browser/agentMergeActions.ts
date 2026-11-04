@@ -146,8 +146,8 @@ function bindAgentMergeContextKeys(accessor: ServicesAccessor, source: ISessionA
 			return;
 		}
 		const session = source.session.read(reader);
-		// Each folder has its own Agent Merge; follow the one the active chat works in.
-		const chat = session?.activeChat.read(reader);
+		// Each folder has its own Agent Merge; follow the one the host's chat works in.
+		const chat = source.chat.read(reader);
 		const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService, chat).read(reader) : undefined;
 		const enabled = state?.enabled === true;
 		const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);

@@ -330,7 +330,7 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		// main window's does not.
 		SessionChangesEditorFileListContext.bindTo(contextKeyService).set(true);
 		// Those of its changes too, such as the changeset operations its Changes editor shows.
-		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this._session, changes: this._changesViewService.getSessionChanges(this._session) }, contextKeyService));
+		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this.host.session, chat: this.host.chat, isMainWindow: false, changes: this._changesViewService.getSessionChanges(this.host.session, this.host.chat) }, contextKeyService));
 
 		// Its tab offers no close action while other editors are beside it in its group, as the chat closes with its window.
 		store.add(this._trackChatGroup(window));

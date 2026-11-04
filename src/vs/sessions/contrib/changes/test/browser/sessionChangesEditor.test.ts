@@ -30,7 +30,7 @@ import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetti
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
@@ -71,7 +71,7 @@ suite('SessionChangesEditor empty state layout', () => {
 			override readonly mainWindowActiveSession = activeSession;
 			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
-		instantiationService.stub(ISessionScope, { session: activeSession });
+		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
@@ -245,7 +245,7 @@ suite('SessionChangesEditor changed files list', () => {
 			override readonly mainWindowActiveSession = activeSession;
 			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
-		instantiationService.stub(ISessionScope, { session: activeSession });
+		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
@@ -327,7 +327,7 @@ suite('SessionChangesEditor disposal', () => {
 			override readonly mainWindowActiveSession = activeSession;
 			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
-		instantiationService.stub(ISessionScope, { session: activeSession });
+		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
@@ -382,7 +382,7 @@ suite('SessionChangesEditor input', () => {
 			override readonly mainWindowActiveSession = activeSession;
 			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
-		instantiationService.stub(ISessionScope, { session: activeSession });
+		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());

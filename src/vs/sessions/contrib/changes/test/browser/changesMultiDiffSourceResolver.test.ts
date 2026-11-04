@@ -19,6 +19,7 @@ import { ISessionChangesService } from '../../common/sessionChangesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {
@@ -66,7 +67,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, noSessions(), noManagement()));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(noSessions()), noManagement()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observedChanges: string[][] = [];
 		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -111,7 +112,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			override getChatResource(): URI | undefined { return undefined; }
 			override getSessionResource(): URI { return sessionResource; }
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionsService, noManagement()));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(sessionsService), noManagement()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observed: string[][] = [];
 		const record = () => observed.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -152,7 +153,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, noSessions(), noManagement()));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(noSessions()), noManagement()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observedChanges: string[][] = [];
 		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -220,7 +221,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		}();
 		const resolver = disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver() { return Disposable.None; }
-		}(), sessionChangesService, sessionsService, management));
+		}(), sessionChangesService, sessionHostServiceOf(sessionsService), management));
 		return { resolver, sources, chatX, chatY, changesOf, wrapper, mainWindowActiveSession, activeSession, windowSessions, visibleSessions };
 	}
 
@@ -299,7 +300,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				override getChatResource(): URI | undefined { return undefined; }
 				override getSessionResource() { return sessionResource; }
 			}(),
-			noSessions(),
+			sessionHostServiceOf(noSessions()),
 			noManagement(),
 		));
 		const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
@@ -354,7 +355,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 					override getChatResource(): URI | undefined { return undefined; }
 					override getSessionResource() { return sessionResource; }
 				}(),
-				noSessions(),
+				sessionHostServiceOf(noSessions()),
 				noManagement(),
 			));
 			const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));

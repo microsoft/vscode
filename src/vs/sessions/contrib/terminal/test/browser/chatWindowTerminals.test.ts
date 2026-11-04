@@ -12,7 +12,6 @@ import { constObservable, derived, IObservable, observableValue } from '../../..
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
@@ -21,9 +20,9 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ICreateTerminalOptions, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
-import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatWindowTerminals, IChatWindowTerminalsSource } from '../../browser/chatWindowTerminals.js';
 
@@ -220,17 +219,13 @@ suite('Chat window terminals', () => {
 			}
 		}());
 		const otherGroups = Array.from({ length: options.groupsBefore ?? 0 }, (_, index) => upcastPartial<IEditorGroup>({ id: 100 + index }));
-		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: observableValue('session', session) };
+		const host = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, session: constObservable(session), chat: constObservable(undefined) });
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => host }));
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override getGroups() { return [...otherGroups, terminalsGroup]; }
 			override get groups() { return [mainGroup, terminalsGroup, chatGroup, ...otherWindowGroups]; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
-			override getScopedInstantiationService(part: IEditorPart) {
-				assert.strictEqual(part, mainPart);
-				const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => sessionScope as T });
-				return upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(accessor)) as IInstantiationService['invokeFunction'] });
-			}
 		}());
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override readonly windows = windows;
@@ -241,12 +236,12 @@ suite('Chat window terminals', () => {
 		}());
 
 		const source: IChatWindowTerminalsSource = {
-			getChatWindowTerminals: async (forSession: IActiveSession, location?: ITerminalLocationOptions) => {
+			getChatWindowTerminals: async (forSession: ISession, _chat: IChat | undefined, location?: ITerminalLocationOptions) => {
 				calls.push(`terminalOf:${forSession.sessionId}:${JSON.stringify(location)}`);
 				const instance = options.pendingTerminal ? await options.pendingTerminal : options.terminal;
 				return options.terminals ?? (instance ? [instance] : []);
 			},
-			createChatWindowTerminal: async (forSession: IActiveSession, location?: ITerminalLocationOptions) => {
+			createChatWindowTerminal: async (forSession: ISession, _chat: IChat | undefined, location?: ITerminalLocationOptions) => {
 				calls.push(`newOf:${forSession.sessionId}:${JSON.stringify(location)}`);
 				return terminal(100);
 			},

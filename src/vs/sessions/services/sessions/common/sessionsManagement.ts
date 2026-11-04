@@ -200,6 +200,12 @@ export interface IChatDeletedEvent {
 }
 
 /**
+ * The session as a host of the Agents window sees it: an {@link IActiveSession} without the chat selected for every place
+ * that shows it, as the host shows a chat of its own.
+ */
+export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
+
+/**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
