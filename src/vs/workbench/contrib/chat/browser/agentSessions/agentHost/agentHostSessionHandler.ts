@@ -443,10 +443,19 @@ function toVirtualWorkspaceLink(resolved: string, workingDirectory: string | und
 	if (link.scheme !== Schemas.file) {
 		return resolved;
 	}
-	const resource = fromAgentClientPath(link.path);
-	return extUriBiasedIgnorePathCase.isEqualOrParent(resource, root)
-		? resource.with({ query: link.query, fragment: link.fragment }).toString()
-		: resolved;
+	let resource: URI;
+	try {
+		// SDK paths carry no query, so the root's query (such as a ref) is restored for containment.
+		resource = fromAgentClientPath(link.path).with({ query: root.query });
+	} catch {
+		// Host-local links (such as `file:///C:/...`) do not decode as SDK paths.
+		return resolved;
+	}
+	if (!extUriBiasedIgnorePathCase.isEqualOrParent(resource, root)) {
+		return resolved;
+	}
+	const query = [root.query, link.query].filter(Boolean).join('&');
+	return resource.with({ query, fragment: link.fragment }).toString();
 }
 
 function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number | undefined; duration: number | undefined } {

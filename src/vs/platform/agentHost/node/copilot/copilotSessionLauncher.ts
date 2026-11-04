@@ -1551,15 +1551,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
-		const virtualSearchTools = plan.virtualSessionFs ? createCopilotVirtualSearchTools(plan.virtualSessionFs) : [];
+		const bridgedPermissions = this._managedSettingsService.permissions;
+		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken, runtime.reportManagedSettingsActivity);
+		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
+		// The overrides read files without permission checks, so they follow the managed policy that withholds workspace retrieval.
+		const virtualSearchTools = plan.virtualSessionFs && !isManagedWorkspaceRetrievalWithheld(resolved.resolved) ? createCopilotVirtualSearchTools(plan.virtualSessionFs) : [];
 		const hostToolNames = new Set([...virtualSearchTools, ...shellTools, ...serverTools, ...extensionTools, ...computerUseTools].map(tool => tool.name));
 		const promptOverride = await resolveConfiguredPromptOverride(promptOverrideString, promptOverrideFile, this._fileService, this._logService);
 		const applyToolOverrides = (tools: readonly Tool[]) => promptOverride
 			? applyPromptOverridesFromString(promptOverride.content, tools, this._logService, promptOverride.source)
 			: { tools: [...tools], systemPrompt: undefined };
-		const bridgedPermissions = this._managedSettingsService.permissions;
-		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken, runtime.reportManagedSettingsActivity);
-		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
 		const withheldClientToolNames: ReadonlySet<string> = new Set([
 			...(isManagedWorkspaceRetrievalWithheld(resolved.resolved) ? MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS : []),
 			...(plan.workspace?.kind === 'virtual' ? ['copilot_findFiles', 'copilot_findTextInFiles'] : []),

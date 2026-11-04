@@ -551,6 +551,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _computeWorkingSetChangeset(owner: ProtocolURI): Promise<void> {
 		if (this._isVirtualWorkspace(owner)) {
+			this._publishEmptyChangeset(owner, buildWorkingSetChangesetUri(owner));
 			return;
 		}
 
@@ -742,7 +743,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	async computeCompareTurnsChangeset(session: ProtocolURI, originalTurnId: string, modifiedTurnId: string): Promise<ProtocolURI> {
 		if (this._isVirtualWorkspace(session)) {
-			return buildCompareTurnsChangesetUri(session, originalTurnId, modifiedTurnId);
+			return this._publishEmptyChangeset(session, buildCompareTurnsChangesetUri(session, originalTurnId, modifiedTurnId));
 		}
 
 		const compareUri = this._stateManager.registerChangeset(buildCompareTurnsChangesetUri(session, originalTurnId, modifiedTurnId));
@@ -1324,6 +1325,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return directory !== undefined && URI.parse(directory).scheme !== Schemas.file;
 	}
 
+	/** Virtual workspaces have no disk-backed changes, so their advertised changesets settle as empty rather than stay computing. */
+	private _publishEmptyChangeset(session: ProtocolURI, changesetUri: ProtocolURI): ProtocolURI {
+		const uri = this._stateManager.registerChangeset(changesetUri);
+		this._publishChangesetDiffs(session, uri, []);
+		return uri;
+	}
+
 	/**
 	 * Returns the roots that `owner`'s tracked file edits are scoped to. The
 	 * edit tracker records every file the agent edits, including files outside
@@ -1803,6 +1811,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _computeChatChangesSummary(chat: ProtocolURI): Promise<void> {
 		if (this._isVirtualWorkspace(chat)) {
+			this._setChatChangesSummary(chat, []);
 			return;
 		}
 
@@ -2033,6 +2042,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, provider?: string, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<void> {
 		if (this._isVirtualWorkspace(session)) {
+			this._publishEmptyChangeset(session, staticChangesetUri(session, kind));
 			return;
 		}
 

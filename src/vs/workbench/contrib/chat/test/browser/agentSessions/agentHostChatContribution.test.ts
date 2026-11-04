@@ -2804,7 +2804,7 @@ suite('AgentHostChatContribution', () => {
 			const summary: SessionSummary = {
 				resource: backend.toString(), provider: 'copilot', title: 'Virtual', status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
-				workingDirectories: ['vscode-vfs://github/microsoft/vscode'],
+				workingDirectories: ['vscode-vfs://github/microsoft/vscode?ref=main'],
 			};
 			const main = createDefaultChatSummary(summary, defaultChat);
 			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main] });
@@ -2816,10 +2816,12 @@ suite('AgentHostChatContribution', () => {
 				'/vscode-vfs/github/microsoft/vscode/src/a.ts',
 				'/vscode-vfs/github/microsoft/vscode/src/a.ts:42',
 				'/elsewhere/a.ts',
+				'file:///C:/Users/me/plan.md',
 			].map(href => sessionHandler.resolveChatResponseUri(resource, href, 'link')), [
-				'vscode-vfs://github/microsoft/vscode/src/a.ts',
-				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts').with({ fragment: 'L42' }).toString(),
+				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts?ref=main').toString(),
+				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts?ref=main').with({ fragment: 'L42' }).toString(),
 				URI.file('/elsewhere/a.ts').toString(),
+				URI.parse('file:///C:/Users/me/plan.md').toString(),
 			]);
 		});
 

@@ -4140,6 +4140,47 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('withholds the virtual search overrides while managed permission rules are active', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
+		const workspace = { kind: 'virtual' as const, root: workingDirectory };
+		const virtualSessionFs = new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/sess-1'), () => undefined, upcastPartial<IFileService>({}));
+		const build = async (permissions: Record<string, string[]> | undefined) => {
+			const managedSettings = new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+				override resolve = async () => ({
+					resolved: { source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}) },
+					layers: [], diagnostics: [],
+				});
+			}();
+			const { config } = await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+				kind: 'resume',
+				client: { rpc: { managedSettings }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+				sessionId: 'sess-1',
+				workingDirectory, workspace, virtualSessionFs,
+				resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				fallback: { model: undefined },
+			}, {
+				createClientSdkTools: () => [],
+				configureClientTools: () => { },
+				createServerSdkTools: () => [],
+			}, () => { });
+			return config.tools?.map(tool => tool.name);
+		};
+
+		assert.deepStrictEqual({
+			unmanaged: await build(undefined),
+			readDenied: await build({ deny: ['Read(/denied/**)'] }),
+		}, {
+			unmanaged: ['grep', 'glob'],
+			readDenied: [],
+		});
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };

@@ -55,6 +55,9 @@ export function createCopilotVirtualSearchTools(fileSystem: CopilotVirtualSessio
 		const pending: { path: string; type?: 'file' | 'directory' }[] = inputPaths.map(path => ({ path: mapper.toSdkPath(mapper.toUri(posix.resolve(mapper.rootSdkPath, path))) }));
 		const visited = new Set<string>();
 		const results: string[] = [];
+		// Known limitation: a model-supplied pattern can backtrack catastrophically, and a running
+		// match cannot observe cancellation, so it can block the agent host. A non-backtracking
+		// matcher or a worker with a timeout would remove this risk.
 		const pattern = grep ? new RegExp(grep.pattern, `${grep['-i'] ? 'i' : ''}${grep.multiline ? 'gm' : ''}`) : undefined;
 		const include = parse(grep ? grep.glob ?? '**/*' : args.pattern);
 		const typeFilter = grep?.type ? parse(typeGlob(grep.type)) : undefined;
@@ -101,6 +104,9 @@ export function createCopilotVirtualSearchTools(fileSystem: CopilotVirtualSessio
 			}
 			if (!grep || !pattern) {
 				results.push(path);
+				continue;
+			}
+			if ((await fileSystem.stat(path)).size > maxFileSize) {
 				continue;
 			}
 			const bytes = await fileSystem.readFileBytes(path);

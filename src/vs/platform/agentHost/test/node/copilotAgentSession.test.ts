@@ -1623,6 +1623,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
+		stat: async (resource: URI) => ({
+			isDirectory: !storedFileContents.has(resource.toString()) && [...storedFileContents.keys()].some(key => key.startsWith(`${resource.toString()}/`)),
+		}) as Awaited<ReturnType<IFileService['stat']>>,
 		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
 			options?.fileAtomicWrite === true &&
 			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
@@ -6485,7 +6488,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('makes host snapshots readable through the virtual session filesystem and keeps the read-only reminder aligned', async () => {
+	test('makes host snapshots readable through the virtual session filesystem, skips host folders, and keeps the read-only reminder aligned', async () => {
 		const snapshot = URI.file('/data/attachments/id/snapshot.txt');
 		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
 		const workspace = { kind: 'virtual' as const, root: workingDirectory };
@@ -6501,15 +6504,20 @@ suite('CopilotAgentSession', () => {
 		await session.send('read this', [{
 			type: MessageAttachmentKind.Resource, label: 'snapshot.txt', displayKind: 'document',
 			uri: snapshot.toString(), _meta: toHostSnapshotAttachmentMeta('text/plain'),
+		}, {
+			type: MessageAttachmentKind.Resource, label: 'attachments', displayKind: 'directory', uri: URI.file('/data/attachments').toString(),
 		}]);
-		const attachment = (mockSession.sendRequests[0] as MessageOptions).attachments?.[0];
+		const attachments = (mockSession.sendRequests[0] as MessageOptions).attachments;
+		const attachment = attachments?.[0];
 		const path = attachment?.type === 'file' ? attachment.path : '';
 		assert.deepStrictEqual({
 			statePath: path.startsWith('/session-state/files/attachments/') && path.endsWith('/snapshot.txt'),
+			attachmentCount: attachments?.length,
 			content: await virtualSessionFs.readFile(path),
 			additionalContext: session.handleUserPromptSubmitted(),
 		}, {
 			statePath: true,
+			attachmentCount: 1,
 			content: 'shared content',
 			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([path]) },
 		});
