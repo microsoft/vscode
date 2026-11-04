@@ -20,7 +20,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
-import { EditorCloseContext } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
 import { GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -290,9 +291,11 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			return true;
 		}
 		this._closing = true;
-		// The main part first: when an editor of it cannot move to the main window, the window stays as it was, its chat
-		// too. Then the chat part, whose editor closes, and does not move to the main window.
-		if (!this.mainPart.close() || !this.chatPart.close()) {
+		// All or nothing: what the chat part shows beside the chat, such as an editor dropped beside it, moves into the main
+		// part first, so that the chat part, then holding only the chat, which closes without asking, closes once the main
+		// part did. The main part closes first: when an editor of it cannot move to the main window, the window stays as it
+		// was, its chat too.
+		if (!this._leaveOnlyChatInChatPart() || !this.mainPart.close() || !this.chatPart.close()) {
 			this._closing = false;
 			return false;
 		}
@@ -301,6 +304,20 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._host.closeWindow();
 		this._onDidClose.fire();
 		return true;
+	}
+
+	/**
+	 * Moves the editors of the chat part other than the chat into the main part. Whether the chat part then holds only the
+	 * chat: not while an editor that cannot move stays in it.
+	 */
+	private _leaveOnlyChatInChatPart(): boolean {
+		const isOther = (editor: EditorInput) => editor !== this.content.input;
+		for (const group of this.chatPart.groups) {
+			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL).filter(isOther)) {
+				group.moveEditor(editor, this.mainPart.activeGroup, { preserveFocus: true, inactive: true });
+			}
+		}
+		return this.chatPart.groups.every(group => !group.getEditors(EditorsOrder.SEQUENTIAL).some(isOther));
 	}
 
 	/**

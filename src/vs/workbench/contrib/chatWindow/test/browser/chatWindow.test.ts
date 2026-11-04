@@ -36,7 +36,9 @@ suite('Chat window', () => {
 		override readonly onDidModelChange = this.onModelChange.event;
 		override readonly onDidCloseEditor = this.onCloseEditor.event;
 		testEditors: EditorInput[] = [];
+		readonly immovable = new Set<EditorInput>();
 		override get isEmpty() { return this.testEditors.length === 0; }
+		override getEditors() { return [...this.testEditors]; }
 		override contains(editor: EditorInput) { return this.testEditors.includes(editor); }
 		constructor(private readonly _events: string[], private readonly _name: string) { super(); }
 		override focus() { this._events.push(`focus ${this._name}`); }
@@ -49,6 +51,9 @@ suite('Chat window', () => {
 			this.onCloseEditor.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 		}
 		override moveEditor(editor: EditorInput, target: IEditorGroup): boolean {
+			if (this.immovable.has(editor)) {
+				return false;
+			}
 			this._events.push(`move to ${(target as TestGroup)._name}`);
 			(target as TestGroup).open(editor);
 			this.fireCloseEditor(editor, EditorCloseContext.MOVE);
@@ -264,6 +269,34 @@ suite('Chat window', () => {
 		const closed = window.close();
 
 		assert.deepStrictEqual({ closed, events, chatShows: chat.group.contains(chatInput) }, { closed: false, events: ['close main'], chatShows: true });
+	});
+
+	test('an editor beside the chat in the chat part moves into the main part before the parts close, so that the chat part closes without asking', () => {
+		const { window, chat, events } = createWindow();
+		const file = editor();
+		chat.addGroup().open(file);
+
+		const closed = window.close();
+
+		assert.deepStrictEqual({ closed, events }, { closed: true, events: ['move to main', 'close main', 'close chat', 'will close', 'close window', 'closed'] });
+	});
+
+	test('the window stays as it was, none of its parts closed, while an editor beside the chat cannot leave the chat part', () => {
+		const { window, main, chat, chatInput, events } = createWindow();
+		const file = editor();
+		const beside = chat.addGroup();
+		beside.open(file);
+		beside.immovable.add(file);
+
+		const closed = window.close();
+
+		assert.deepStrictEqual({ closed, events, chatShows: chat.group.contains(chatInput), besideChat: beside.contains(file), mainGroups: main.part.groups.length }, {
+			closed: false,
+			events: [],
+			chatShows: true,
+			besideChat: true,
+			mainGroups: 1,
+		});
 	});
 
 	test('its parts closing as its window unloads neither close it again nor change its layout', async () => {
