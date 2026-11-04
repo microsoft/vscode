@@ -156,7 +156,9 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				terminals.delete(instance);
 			}
 		}
-		if (!terminals.size) {
+		// Those the user put in another part of the window, such as its main part, stay there.
+		const toShow = [...terminals].filter(instance => !this._isElsewhereInWindow(window, instance));
+		if (!toShow.length) {
 			// Created in the window's part, rather than in the panel of the main window and moved.
 			const instance = await this._source.getChatWindowTerminal(session, { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) });
 			if (!instance || instance.isDisposed) {
@@ -168,31 +170,48 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				return false;
 			}
 			terminals.add(instance);
+			toShow.push(instance);
 		}
 		// The group of the part now, which may have changed while the terminal was created.
 		const group = part.activeGroup;
 		this._trackPart(window, part);
 		let first = true;
-		for (const instance of [...terminals]) {
+		for (const instance of toShow) {
 			await this._moveToGroup(instance, group, first && focus);
 			first = false;
 		}
 		return true;
 	}
 
-	/** Hides the terminals of `window`: they go back to the background of the panel, still running, to show again. */
+	/**
+	 * Hides the terminals of `window`: those of the part that holds them go back to the background of the panel, still
+	 * running, to show again. Those the user put in another part of the window, such as its main part, stay there.
+	 */
 	hide(window: IChatWindow): void {
-		this._hide(window, true);
+		this._hide(window, true, false);
 	}
 
-	private _hide(window: IChatWindow, keepFocus: boolean): void {
+	/**
+	 * Whether `instance` shows in a group of `window` other than those of the part that holds its terminals, such as one
+	 * the user moved into the window's main part.
+	 */
+	private _isElsewhereInWindow(window: IChatWindow, instance: ITerminalInstance): boolean {
+		if (instance.target !== TerminalLocation.Editor) {
+			return false;
+		}
+		const terminalsGroups = window.terminalsPart.get()?.groups ?? [];
+		return this._editorGroupsService.groups.some(group => group.windowId === window.windowId && !terminalsGroups.includes(group) && group.editors.some(editor => isEqual(editor.resource, instance.resource)));
+	}
+
+	/** Hides the terminals of `window`, or `all` of them, also those in its other parts, as it closes. */
+	private _hide(window: IChatWindow, keepFocus: boolean, all: boolean): void {
 		this._generations.set(window, (this._generations.get(window) ?? 0) + 1);
 		this._partListeners.deleteAndDispose(window);
 		// Focus in the terminals stays in the window, in its chat, rather than going to no element as they hide.
 		const element = window.terminalsPart.get()?.element as HTMLElement | undefined;
 		const hadFocus = keepFocus && !!element && isAncestor(getActiveElement(), element);
 		for (const instance of this._terminals.get(window) ?? []) {
-			if (instance.isDisposed) {
+			if (instance.isDisposed || (!all && this._isElsewhereInWindow(window, instance))) {
 				continue;
 			}
 			this._releaseToPanel(instance);
@@ -276,7 +295,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 
 	/** Gives the terminals of `window` back to their session, still running, as it closes. */
 	release(window: IChatWindow): void {
-		this._hide(window, false);
+		this._hide(window, false, true);
 		this._terminals.delete(window);
 	}
 

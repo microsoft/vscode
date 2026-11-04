@@ -43,7 +43,7 @@ class TestGroup extends mock<IEditorGroup>() {
 		this.editors.push(editor);
 		this.onModelChange.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor });
 	}
-	constructor(override readonly id: number) { super(); }
+	constructor(override readonly id: number, override readonly windowId = 1) { super(); }
 	dispose() { this.onModelChange.dispose(); }
 }
 
@@ -113,6 +113,7 @@ suite('Chat window terminals', () => {
 		const onWillClose = disposables.add(new Emitter<void>());
 		let focused = 0;
 		const window = new class extends mock<IChatWindow>() {
+			override readonly windowId = 1;
 			override readonly mainPart: IContentPart = mainPart;
 			override readonly chatPart: IContentPart = chatPart;
 			override readonly chatEditor = chatEditor;
@@ -160,6 +161,7 @@ suite('Chat window terminals', () => {
 				return terminal(100);
 			}
 		}());
+		const otherWindowGroups: TestGroup[] = [];
 		const panelGroup = options.panelGroup && { instances: options.panelGroup, active: 0 };
 		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
 			override getGroupForInstance(instance: ITerminalInstance) {
@@ -174,7 +176,7 @@ suite('Chat window terminals', () => {
 		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: observableValue('session', session) };
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override getGroups() { return [...otherGroups, terminalsGroup]; }
-			override get groups() { return [mainGroup, terminalsGroup, chatGroup]; }
+			override get groups() { return [mainGroup, terminalsGroup, chatGroup, ...otherWindowGroups]; }
 			override getScopedInstantiationService(part: IEditorPart) {
 				assert.strictEqual(part, mainPart);
 				const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => sessionScope as T });
@@ -198,7 +200,7 @@ suite('Chat window terminals', () => {
 		};
 		windows.set([window], undefined);
 		const terminals = disposables.add(instantiationService.createInstance(ChatWindowTerminals, source));
-		return { calls, shownInChatWindow, window, terminals, terminalsGroup, terminalsElement, mainGroup, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
+		return { calls, shownInChatWindow, window, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
 	}
 
 	test('shows a terminal of the window\'s session in the part that holds its terminals, and gives it back to the panel, still running, as the window closes', async () => {
@@ -321,16 +323,39 @@ suite('Chat window terminals', () => {
 		assert.deepStrictEqual(calls, ['terminalOf:session-1:{"viewColumn":0}', 'fromBackground', 'toEditor:7']);
 	});
 
-	test('showing the terminals moves a terminal of the window that is in an editor of another group, such as one moved into the main part, from that group, not through the panel of the main window, which would show and focus it', async () => {
+	test('a terminal the user moved into another part of the window, such as its main part, stays there as the terminals hide and show: they show a terminal of their own in the part that holds them', async () => {
 		const instance = terminal(9, { target: TerminalLocation.Editor });
-		const { terminals, window, calls, mainGroup, terminalsGroup } = createEnvironment({ instances: [instance], foreground: [instance] });
+		const { terminals, window, calls, mainGroup, terminalsGroup } = createEnvironment({ terminal: terminal(5), instances: [instance], foreground: [instance] });
 		await terminals.showTerminal(window, 9, false);
 		// The user moved it into the main part
 		const terminalEditor = terminalsGroup.editors.find(candidate => candidate.resource?.toString() === instance.resource.toString())!;
 		terminalsGroup.moveEditor(terminalEditor, mainGroup);
 		calls.length = 0;
 
-		await terminals.show(window, true);
+		// Cmd+J twice
+		await terminals.toggle(window);
+		const shown = { visible: window.terminalsVisible.get(), calls: [...calls] };
+		await terminals.toggle(window);
+
+		assert.deepStrictEqual({ shown, hidden: { visible: window.terminalsVisible.get(), calls: calls.slice(shown.calls.length) }, stays: mainGroup.contains(terminalEditor) && !terminalsGroup.contains(terminalEditor) }, {
+			shown: { visible: true, calls: ['terminalOf:session-1:{"viewColumn":0}', 'fromBackground', 'toEditor:7'] },
+			hidden: { visible: false, calls: ['toBackground'] },
+			stays: true,
+		});
+	});
+
+	test('showing the terminals moves a terminal of the window that is in an editor of another window\'s group from that group, not through the panel of the main window, which would show and focus it', async () => {
+		const instance = terminal(9, { target: TerminalLocation.Editor });
+		const { terminals, window, calls, terminalsGroup, otherWindowGroups } = createEnvironment({ instances: [instance], foreground: [instance] });
+		await terminals.showTerminal(window, 9, false);
+		const terminalEditor = terminalsGroup.editors.find(candidate => candidate.resource?.toString() === instance.resource.toString())!;
+		const otherWindowGroup = new TestGroup(12, 2);
+		disposables.add({ dispose: () => otherWindowGroup.dispose() });
+		otherWindowGroups.push(otherWindowGroup);
+		terminalsGroup.moveEditor(terminalEditor, otherWindowGroup);
+		calls.length = 0;
+
+		await terminals.show(window, false);
 		terminals.release(window);
 
 		assert.deepStrictEqual({ calls, movedBack: terminalsGroup.moved.includes(terminalEditor) }, {
