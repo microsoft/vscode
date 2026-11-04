@@ -826,20 +826,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		const variables = new Set<string>();
 		this._collectTaskVariables(variables, task);
-		const resolvedVariables = this._acquireInput(systemInfo, workspaceFolder, task, variables, alreadyResolved);
-
-		return resolvedVariables.then((resolvedVariables) => {
-			if (resolvedVariables && !this._isTaskEmpty(task)) {
-				this._currentTask.resolvedVariables = resolvedVariables;
-				return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
-			} else {
-				// Allows the taskExecutions array to be updated in the extension host
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
-				return Promise.resolve({ exitCode: 0 });
-			}
-		}, reason => {
-			return Promise.reject(reason);
-		});
+		const resolvedVariables = await this._acquireInput(systemInfo, workspaceFolder, task, variables, alreadyResolved);
+		if (!resolvedVariables || this._isTaskEmpty(task)) {
+			// Allows the taskExecutions array to be updated in the extension host.
+			this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
+			return { exitCode: 0 };
+		}
+		this._currentTask.resolvedVariables = resolvedVariables;
+		return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
 	}
 
 	private _isTaskEmpty(task: CustomTask | ContributedTask): boolean {
@@ -850,38 +844,27 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
 		const lastTask = this._lastTask;
 		if (!lastTask) {
-			return Promise.reject(new Error('No task previously run'));
+			throw new Error('No task previously run');
 		}
 		const workspaceFolder = this._currentTask.workspaceFolder = lastTask.workspaceFolder;
 		// Keep the workspace host for reruns, using its current registration after a restart.
 		const systemInfo = this._currentTask.systemInfo = await this._taskSystemInfoResolver(workspaceFolder);
+		const previous = lastTask.getVerifiedTask();
 		const variables = new Set<string>();
 		this._collectTaskVariables(variables, task);
 
-		// Check that the task hasn't changed to include new variables
-		let hasAllVariables = true;
-		variables.forEach(value => {
-			if (Object.hasOwn(lastTask.getVerifiedTask().resolvedVariables, value.substring(2, value.length - 1))) {
-				hasAllVariables = false;
-			}
-		});
-
-		if (!hasAllVariables) {
-			return this._acquireInput(systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
-				if (!resolvedVariables) {
-					// Allows the taskExecutions array to be updated in the extension host
-					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
-					return { exitCode: 0 };
-				}
-				this._currentTask.resolvedVariables = resolvedVariables;
-				return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
-			}, reason => {
-				return Promise.reject(reason);
-			});
-		} else {
-			this._currentTask.resolvedVariables = lastTask.getVerifiedTask().resolvedVariables;
-			return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, systemInfo, lastTask.getVerifiedTask().resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
+		// Check that the task hasn't changed to include new variables.
+		const needsVariableResolution = Array.from(variables).some(value => Object.hasOwn(previous.resolvedVariables, value.substring(2, value.length - 1)));
+		const resolvedVariables = needsVariableResolution
+			? await this._acquireInput(systemInfo, previous.workspaceFolder, task, variables, alreadyResolved)
+			: previous.resolvedVariables;
+		if (!resolvedVariables) {
+			// Allows the taskExecutions array to be updated in the extension host.
+			this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
+			return { exitCode: 0 };
 		}
+		this._currentTask.resolvedVariables = resolvedVariables;
+		return this._executeInTerminal(task, trigger, new VariableResolver(previous.workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
 	}
 
 	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
