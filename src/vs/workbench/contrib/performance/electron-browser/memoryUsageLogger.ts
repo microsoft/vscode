@@ -6,7 +6,7 @@
 import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 
@@ -55,26 +55,41 @@ function sampleRendererHeap(): IHeapUsageSample | undefined {
 	return { usedJSHeapSize: memory.usedJSHeapSize, jsHeapSizeLimit: memory.jsHeapSizeLimit };
 }
 
+/**
+ * Test seams for {@link RendererMemoryUsageLogger}.
+ */
+export interface IRendererMemoryUsageLoggerOptions {
+	/** Samples the heap. Defaults to reading `performance.memory`. */
+	readonly sampleHeap?: () => IHeapUsageSample | undefined;
+	/** Schedules a callback for when the window is idle. Defaults to `runWhenWindowIdle(mainWindow, ...)`. */
+	readonly scheduleWhenIdle?: (callback: () => void) => IDisposable;
+}
+
 export class RendererMemoryUsageLogger extends Disposable implements IWorkbenchContribution {
 
-	private static readonly _sampleInterval = 60 * 1000;
+	static readonly sampleInterval = 60 * 1000;
 
 	private readonly _timer = this._register(new IntervalTimer());
 	private readonly _idleSample = this._register(new MutableDisposable());
+	private readonly _sampleHeap: () => IHeapUsageSample | undefined;
 	private _lastReportedLevel = 0;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		options?: IRendererMemoryUsageLoggerOptions,
 	) {
 		super();
 
+		this._sampleHeap = options?.sampleHeap ?? sampleRendererHeap;
+		const scheduleWhenIdle = options?.scheduleWhenIdle ?? (callback => runWhenWindowIdle(mainWindow, callback));
+
 		this._timer.cancelAndSet(() => {
-			this._idleSample.value = runWhenWindowIdle(mainWindow, () => this._sample());
-		}, RendererMemoryUsageLogger._sampleInterval);
+			this._idleSample.value = scheduleWhenIdle(() => this._sample());
+		}, RendererMemoryUsageLogger.sampleInterval);
 	}
 
 	private _sample(): void {
-		const crossing = findCrossedHeapUsageLevel(sampleRendererHeap, heapUsageWarningLevels, this._lastReportedLevel);
+		const crossing = findCrossedHeapUsageLevel(this._sampleHeap, heapUsageWarningLevels, this._lastReportedLevel);
 		if (!crossing) {
 			return;
 		}

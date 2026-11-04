@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { findCrossedHeapUsageLevel, heapUsageWarningLevels, IHeapUsageSample, RendererMemoryUsageLogger } from '../../electron-browser/memoryUsageLogger.js';
@@ -84,20 +87,40 @@ suite('RendererMemoryUsageLogger', () => {
 		}
 	}
 
-	let memory: { usedJSHeapSize?: number; jsHeapSizeLimit?: number } | undefined;
+	class TestIdleScheduler {
+		readonly pending: (() => void)[] = [];
+
+		readonly schedule = (callback: () => void): IDisposable => {
+			this.pending.push(callback);
+			return toDisposable(() => {
+				const index = this.pending.indexOf(callback);
+				if (index >= 0) {
+					this.pending.splice(index, 1);
+				}
+			});
+		};
+
+		runPending(): void {
+			for (const callback of this.pending.splice(0)) {
+				callback();
+			}
+		}
+	}
+
+	let memory: IHeapUsageSample | undefined;
+	let idleScheduler: TestIdleScheduler;
 
 	setup(() => {
 		memory = undefined;
-		Object.defineProperty(performance, 'memory', { configurable: true, get: () => memory });
-	});
-
-	teardown(() => {
-		delete (performance as unknown as { memory?: unknown }).memory;
+		idleScheduler = new TestIdleScheduler();
 	});
 
 	function createLogger(): { logger: RendererMemoryUsageLogger; logService: TestLogService } {
 		const logService = new TestLogService();
-		const logger = disposables.add(new RendererMemoryUsageLogger(logService));
+		const logger = disposables.add(new RendererMemoryUsageLogger(logService, {
+			sampleHeap: () => memory,
+			scheduleWhenIdle: idleScheduler.schedule,
+		}));
 		return { logger, logService };
 	}
 
@@ -114,18 +137,50 @@ suite('RendererMemoryUsageLogger', () => {
 		assert.strictEqual(isTimerActive(logger), true);
 	});
 
-	test('does not log when performance.memory is unavailable', () => {
+	test('samples the heap when the window is idle after each interval', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { logger, logService } = createLogger();
+		memory = { usedJSHeapSize: 820 * MB, jsHeapSizeLimit: 1000 * MB };
+
+		await timeout(RendererMemoryUsageLogger.sampleInterval - 1);
+		const pendingBeforeInterval = idleScheduler.pending.length;
+
+		await timeout(1);
+		const pendingAfterInterval = idleScheduler.pending.length;
+		const warningsBeforeIdle = [...logService.warnings];
+
+		idleScheduler.runPending();
+		logger.dispose();
+
+		assert.deepStrictEqual({ pendingBeforeInterval, pendingAfterInterval, warningsBeforeIdle, warnings: logService.warnings }, {
+			pendingBeforeInterval: 0,
+			pendingAfterInterval: 1,
+			warningsBeforeIdle: [],
+			warnings: ['[perf] Renderer JS heap usage crossed 80% of its limit (820MB of 1000MB)'],
+		});
+	}));
+
+	test('dispose cancels a pending idle sample', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { logger, logService } = createLogger();
+		memory = { usedJSHeapSize: 820 * MB, jsHeapSizeLimit: 1000 * MB };
+
+		await timeout(RendererMemoryUsageLogger.sampleInterval);
+		const pendingBeforeDispose = idleScheduler.pending.length;
+
+		logger.dispose();
+		idleScheduler.runPending();
+
+		assert.deepStrictEqual({ pendingBeforeDispose, pendingAfterDispose: idleScheduler.pending.length, warnings: logService.warnings }, {
+			pendingBeforeDispose: 1,
+			pendingAfterDispose: 0,
+			warnings: [],
+		});
+	}));
+
+	test('does not log when the heap sample is unavailable', () => {
 		const { logger, logService } = createLogger();
 		sample(logger);
 		assert.deepStrictEqual(logService.warnings, []);
 		assert.strictEqual(isTimerActive(logger), true);
-	});
-
-	test('does not log when performance.memory is incomplete', () => {
-		const { logger, logService } = createLogger();
-		memory = { usedJSHeapSize: 900 * MB };
-		sample(logger);
-		assert.deepStrictEqual(logService.warnings, []);
 	});
 
 	test('does not log when usage is below the first level', () => {
@@ -177,7 +232,7 @@ suite('RendererMemoryUsageLogger', () => {
 	});
 
 	test('dispose stops the sampling timer', () => {
-		const logger = new RendererMemoryUsageLogger(new TestLogService());
+		const logger = new RendererMemoryUsageLogger(new TestLogService(), { sampleHeap: () => memory, scheduleWhenIdle: idleScheduler.schedule });
 		logger.dispose();
 		assert.strictEqual(isTimerActive(logger), false);
 	});
