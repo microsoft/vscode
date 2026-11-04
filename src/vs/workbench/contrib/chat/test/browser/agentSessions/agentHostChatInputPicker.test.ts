@@ -819,6 +819,14 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
+	test('closes the permissions popup when its button moves into overflow', async () => {
+		const { permissionPicker, actionWidget } = setup(false);
+		await permissionPicker['_showPicker'](permissionPicker.triggerElement!);
+		assert.ok(actionWidget.isVisible);
+		permissionPicker.unrender();
+		assert.strictEqual(actionWidget.isVisible, false);
+	});
+
 	test('readonly or nonmutable native approval properties never become runtime writes', async () => {
 		const rig = setup(false);
 		delete rig.config.schema.properties.autoApprove;

@@ -586,6 +586,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	unrender(): void {
+		this._hidePicker();
 		this._container = undefined;
 		this._trigger = undefined;
 		this._splitTrigger.clear();
