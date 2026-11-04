@@ -133,7 +133,7 @@ export interface ITaskSystemInfo {
 }
 
 export interface ITaskSystemInfoResolver {
-	(workspaceFolder: IWorkspaceFolder | undefined): ITaskSystemInfo | undefined;
+	(workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSystemInfo | undefined>;
 }
 
 export interface ITaskSystem {

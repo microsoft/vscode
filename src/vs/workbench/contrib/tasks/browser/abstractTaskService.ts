@@ -63,8 +63,8 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
 
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { toFormattedString } from '../../../../base/common/jsonFormatter.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -223,6 +223,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, ITaskSystemInfo[]>;
+	private readonly _taskSystemInfoSchemes = new Set<string>();
+	private readonly _taskSystemInfoCancellation = cancelOnDispose(this._store);
+	private _taskSystemInfoVersion = 0;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	protected readonly _whenTaskSystemReady: Promise<void>;
@@ -884,6 +887,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (info.platform === Platform.Platform.Web) {
 			key = this.workspaceFolders.length ? this.workspaceFolders[0].uri.scheme : key;
 		}
+		this._taskSystemInfoSchemes.add(key);
 		if (!this._taskSystemInfos.has(key)) {
 			this._taskSystemInfos.set(key, [info]);
 		} else {
@@ -896,9 +900,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 
-		if (this.hasTaskSystemInfo) {
-			this._onDidChangeTaskSystemInfo.fire();
-		}
+		this._taskSystemInfoVersion++;
+		this._workspaceTasksPromise = undefined;
+		this._onDidChangeTaskSystemInfo.fire();
 
 		return toDisposable(() => {
 			const infos = this._taskSystemInfos.get(key);
@@ -915,8 +919,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else {
 				this._taskSystemInfos.set(key, remainingInfos);
 			}
+			this._taskSystemInfoVersion++;
+			this._workspaceTasksPromise = undefined;
 			this._onDidChangeTaskSystemInfo.fire();
 		});
+	}
+
+	private async _waitForTaskSystemInfo(key: string): Promise<ITaskSystemInfo | undefined> {
+		// Virtual folders and empty windows can use the client platform without a
+		// registration. A previously registered scheme must wait for its replacement.
+		while (!this._store.isDisposed) {
+			const info = this._getTaskSystemInfo(key);
+			if (info || (!this._taskSystemInfoSchemes.has(key) && key !== Schemas.vscodeRemote)) {
+				return info;
+			}
+			await Event.toPromise(Event.any(this.onDidChangeTaskSystemInfo, listener => this._taskSystemInfoCancellation.onCancellationRequested(listener)));
+		}
+		throw new CancellationError();
 	}
 
 	private _getTaskSystemInfo(key: string): ITaskSystemInfo | undefined {
@@ -2283,20 +2302,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
 			this._contextKeyService, this._instantiationService,
-			(workspaceFolder: IWorkspaceFolder | undefined) => {
-				if (workspaceFolder) {
-					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
-				} else if (this._taskSystemInfos.size > 0) {
-					const infos = Array.from(this._taskSystemInfos.entries());
-					const notFile = infos.filter(info => info[0] !== Schemas.file);
-					if (notFile.length > 0) {
-						return notFile[0][1][0];
-					}
-					return infos[0][1][0];
-				} else {
-					return undefined;
-				}
-			},
+			(workspaceFolder: IWorkspaceFolder | undefined) => this._waitForTaskSystemInfo(
+				workspaceFolder?.uri.scheme ?? Array.from(this._taskSystemInfos.keys()).find(scheme => scheme !== Schemas.file) ??
+				(this._environmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file)
+			),
 			async (taskKey: string) => {
 				// Look up task by its map key across all workspace tasks
 				const taskMap = await this._getGroupedTasks();
@@ -2590,7 +2599,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
-		this._workspaceTasksPromise = this._computeWorkspaceTasks(runSource);
+		const version = this._taskSystemInfoVersion;
+		this._workspaceTasksPromise = this._computeWorkspaceTasks(runSource).then(result => {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			// A host can restart while configuration or problem matchers are loading.
+			// Neither return nor cache a result computed with an obsolete registration.
+			if (version !== this._taskSystemInfoVersion) {
+				return this._workspaceTasksPromise ?? this._updateWorkspaceTasks(runSource);
+			}
+			const hasAnyTasks = Array.from(result.values()).some(folderResult =>
+				(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
+				(folderResult.configurations?.byIdentifier && Object.keys(folderResult.configurations.byIdentifier).length > 0)
+			);
+			this._tasksAvailableState.set(hasAnyTasks);
+			return result;
+		});
 		return this._workspaceTasksPromise;
 	}
 
@@ -2608,6 +2633,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected async _computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
+		await Promise.all(Array.from(new Set(this.workspaceFolders.map(folder => folder.uri.scheme)), scheme => this._waitForTaskSystemInfo(scheme)));
 		const promises: Promise<IWorkspaceFolderTaskResult | undefined>[] = [];
 		for (const folder of this.workspaceFolders) {
 			promises.push(this._computeWorkspaceFolderTasks(folder, runSource));
@@ -2633,13 +2659,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			result.set(USER_TASKS_GROUP_KEY, userTasks);
 		}
 
-		// Update tasks available context key
-		const hasAnyTasks = Array.from(result.values()).some(folderResult =>
-			(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
-			(folderResult.configurations?.byIdentifier && Object.keys(folderResult.configurations.byIdentifier).length > 0)
-		);
-		this._tasksAvailableState.set(hasAnyTasks);
-
 		return result;
 	}
 
@@ -2653,7 +2672,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
 		}
 		await ProblemMatcherRegistry.onReady();
-		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
+		const taskSystemInfo = await this._waitForTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
 		const problemReporterListener = problemReporter.onDidError(error => this._showOutput(runSource, undefined, error));
 		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
@@ -2760,7 +2779,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._logService.trace('TaskService.computeTasksForSingleConfig: no workspace folder for worskspace', this._workspace?.id);
 			return false;
 		}
-		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
+		const taskSystemInfo = await this._waitForTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
 		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
 		let hasErrors = false;

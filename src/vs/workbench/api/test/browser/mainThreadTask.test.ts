@@ -11,7 +11,6 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as Platform from '../../../../base/common/platform.js';
-import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
@@ -21,10 +20,8 @@ import { RunAutomaticTasks } from '../../../contrib/tasks/browser/runAutomaticTa
 import { ITaskService, IWorkspaceFolderTaskResult } from '../../../contrib/tasks/common/taskService.js';
 import { ContributedTask, ITaskEvent, RunOptions, RuntimeType, TaskEvent, TaskEventKind, TaskScope as InternalTaskScope, TaskSourceKind } from '../../../contrib/tasks/common/tasks.js';
 import { createTaskService, taskSystemInfo } from '../../../contrib/tasks/test/browser/taskTestUtils.js';
-import { ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadTask } from '../../browser/mainThreadTask.js';
 import { ExtHostContext, MainContext, MainThreadTaskShape } from '../../common/extHost.protocol.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';

@@ -813,7 +813,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private _executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private async _executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
 		const taskWorkspaceFolder = task.getWorkspaceFolder();
 		let workspaceFolder: IWorkspaceFolder | undefined;
 		if (taskWorkspaceFolder) {
@@ -822,7 +822,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const folders = this._contextService.getWorkspace().folders;
 			workspaceFolder = folders.length > 0 ? folders[0] : undefined;
 		}
-		const systemInfo: ITaskSystemInfo | undefined = this._currentTask.systemInfo = this._taskSystemInfoResolver(workspaceFolder);
+		const systemInfo: ITaskSystemInfo | undefined = this._currentTask.systemInfo = await this._taskSystemInfoResolver(workspaceFolder);
 
 		const variables = new Set<string>();
 		this._collectTaskVariables(variables, task);
@@ -847,14 +847,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined)));
 	}
 
-	private _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private async _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
 		const lastTask = this._lastTask;
 		if (!lastTask) {
 			return Promise.reject(new Error('No task previously run'));
 		}
 		const workspaceFolder = this._currentTask.workspaceFolder = lastTask.workspaceFolder;
-		// Carry systemInfo forward, else a later rerun resolves the shell on the local host (#175118).
-		this._currentTask.systemInfo = lastTask.systemInfo;
+		// Keep the workspace host for reruns, using its current registration after a restart.
+		const systemInfo = this._currentTask.systemInfo = await this._taskSystemInfoResolver(workspaceFolder);
 		const variables = new Set<string>();
 		this._collectTaskVariables(variables, task);
 
@@ -867,20 +867,20 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		});
 
 		if (!hasAllVariables) {
-			return this._acquireInput(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
+			return this._acquireInput(systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
 				if (!resolvedVariables) {
 					// Allows the taskExecutions array to be updated in the extension host
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
 					return { exitCode: 0 };
 				}
 				this._currentTask.resolvedVariables = resolvedVariables;
-				return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
+				return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
 			}, reason => {
 				return Promise.reject(reason);
 			});
 		} else {
 			this._currentTask.resolvedVariables = lastTask.getVerifiedTask().resolvedVariables;
-			return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
+			return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, systemInfo, lastTask.getVerifiedTask().resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
 		}
 	}
 
