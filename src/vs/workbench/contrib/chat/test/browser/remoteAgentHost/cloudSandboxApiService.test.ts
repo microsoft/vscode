@@ -15,7 +15,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxConnectionRequest, type ICloudSandboxDiscoveryResult, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -42,6 +42,14 @@ import { ITelemetryService, type ITelemetryData } from '../../../../../../platfo
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 import { chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
+
+/**
+ * Drops the checkpoint timestamp, which derives from the wall-clock response
+ * `Date` header in tests that do not pin a discovery date.
+ */
+function withoutCheckpointSince(result: ICloudSandboxDiscoveryResult): ICloudSandboxDiscoveryResult {
+	return (result.kind === 'complete' || result.kind === 'incremental') && result.checkpoint ? { ...result, checkpoint: { ...result.checkpoint, since: '' } } : result;
+}
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
 	return {
@@ -1213,7 +1221,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		tasks.length = 0;
 		await service.listSessions(CancellationToken.None);
 		await pending.complete(jsonResponse(original));
-		assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['task'] });
+		assert.deepStrictEqual(withoutCheckpointSince(await refresh), { kind: 'incremental', sessions: [], removedTaskIds: ['task'], checkpoint: { since: '', pendingTaskIds: [] } });
 	});
 
 	test('an older full scan retains a task discovered by a concurrent feed read', async () => {
@@ -1272,7 +1280,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		await service.listSessions(CancellationToken.None, { taskIds: ['removed'] });
 		await pending.complete(jsonResponse({ tasks: [known] }));
 		const result = await scan;
-		assert.deepStrictEqual(result, { kind: 'complete', sessions: [] });
+		assert.deepStrictEqual(withoutCheckpointSince(result), { kind: 'complete', sessions: [], checkpoint: { since: '', pendingTaskIds: [] } });
 	});
 
 	test('concurrent task refreshes retain each other in the discovery cache', async () => {
@@ -1412,10 +1420,10 @@ suite('CloudSandboxApiService feed task refresh', () => {
 			const start = requestedUrls.length;
 			const result = await service.listSessions(CancellationToken.None, { taskIds: ['one'] });
 			assert.deepStrictEqual({
-				result,
+				result: withoutCheckpointSince(result),
 				urls: requestedUrls.slice(start).map(url => new URL(url).pathname),
 			}, {
-				result: { kind: status === 500 ? 'partial' : 'incremental', sessions: [], removedTaskIds: status === 500 ? [] : ['one'], ...(status === 500 ? { failedTaskIds: ['one'] } : {}) },
+				result: { kind: status === 500 ? 'partial' : 'incremental', sessions: [], removedTaskIds: status === 500 ? [] : ['one'], ...(status === 500 ? { failedTaskIds: ['one'] } : { checkpoint: { since: '', pendingTaskIds: [] } }) },
 				urls: ['/agents/tasks/one'],
 			});
 		});
@@ -2474,7 +2482,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/repo-less')).length,
 			}, {
 				sessions: [{ id: 'session-1', hasRepository: false, repoName: undefined }],
-				incremental: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+				incremental: { kind: 'incremental', sessions: [], removedTaskIds: [], checkpoint: { since: '2026-10-01T00:02:00.000Z', pendingTaskIds: [] } },
 				repositoryLookups: [],
 				detailReads: 1,
 			});
@@ -2671,7 +2679,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 
 		const result = await service.listSessions(CancellationToken.None);
 
-		assert.deepStrictEqual(result, {
+		assert.deepStrictEqual(withoutCheckpointSince(result), {
 			kind: 'complete',
 			sessions: [{
 				environmentId: 'env-1',
@@ -2682,6 +2690,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 				hasRepository: true,
 				updatedAt: undefined,
 			}],
+			checkpoint: { since: '', pendingTaskIds: [] },
 		});
 	});
 
@@ -3366,8 +3375,8 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/stalled')).length,
 		}, {
 			visible: [['stalled'], ['stalled']],
-			expired: { kind: 'incremental', sessions: [], removedTaskIds: ['stalled'] },
-			stillExpired: { kind: 'incremental', sessions: [], removedTaskIds: ['stalled'] },
+			expired: { kind: 'incremental', sessions: [], removedTaskIds: ['stalled'], checkpoint: { since: '2026-09-30T11:59:01.000Z', pendingTaskIds: ['stalled'] } },
+			stillExpired: { kind: 'incremental', sessions: [], removedTaskIds: ['stalled'], checkpoint: { since: '2026-09-30T11:59:01.000Z', pendingTaskIds: ['stalled'] } },
 			detailReads: 1,
 		});
 	}));
@@ -3466,7 +3475,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 			sessions: recovered.kind === 'failed' ? recovered.reason : recovered.sessions.map(session => [session.taskId, session.status]),
 			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/stalled')).length,
 		}, {
-			initial: { kind: 'complete', sessions: [] },
+			initial: { kind: 'complete', sessions: [], checkpoint: { since: '2026-09-30T11:59:00.000Z', pendingTaskIds: ['stalled'] } },
 			kind: 'incremental',
 			sessions: [['stalled', SessionStatus.Idle]],
 			detailReads: 2,
@@ -3613,7 +3622,7 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty') : undefined,
 			});
 
-			assert.deepStrictEqual(await service.listSessions(CancellationToken.None), { kind: 'complete', sessions: [] });
+			assert.deepStrictEqual(await service.listSessions(CancellationToken.None), { kind: 'complete', sessions: [], checkpoint: { since: '2026-10-18T18:59:00.000Z', pendingTaskIds: ['empty'] } });
 		});
 	}
 
@@ -3729,8 +3738,8 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/empty')).length,
 			historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
 		}, {
-			hidden: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] },
-			cached: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] },
+			hidden: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'], checkpoint: { since: '2026-10-18T18:59:01.000Z', pendingTaskIds: ['empty'] } },
+			cached: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'], checkpoint: { since: '2026-10-18T18:59:01.000Z', pendingTaskIds: ['empty'] } },
 			recovered: ['empty'], detailReads: 2, historyReads: 2,
 		});
 	});
@@ -3822,7 +3831,7 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 			initial: initial.kind === 'failed' ? initial : initial.sessions.map(session => session.taskId),
 			retried, requests,
 		}, {
-			initial: ['empty'], retried: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] }, requests: 2,
+			initial: ['empty'], retried: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'], checkpoint: { since: '2026-10-18T18:59:00.000Z', pendingTaskIds: ['empty'] } }, requests: 2,
 		});
 	});
 
@@ -3870,7 +3879,7 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 		await assert.rejects(service.listSessions(CancellationToken.None), isCancellationError);
 		cancelHistory = false;
 
-		assert.deepStrictEqual(await service.listSessions(CancellationToken.None, { incremental: true }), { kind: 'complete', sessions: [] });
+		assert.deepStrictEqual(await service.listSessions(CancellationToken.None, { incremental: true }), { kind: 'complete', sessions: [], checkpoint: { since: '2026-10-18T18:59:00.000Z', pendingTaskIds: ['empty'] } });
 	});
 });
 
@@ -3898,11 +3907,73 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			result,
 			queries: requestedUrls.map(url => Object.fromEntries(new URL(url).searchParams)),
 		}, {
-			result: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+			result: { kind: 'incremental', sessions: [], removedTaskIds: [], checkpoint: { since: '2026-09-22T09:59:00.000Z', pendingTaskIds: [] } },
 			queries: [false, true].flatMap(archived => [true, false].map(withRepository => ({
 				per_page: '100', page: '1', sort: 'updated_at', direction: 'desc',
 				with_repo: String(withRepository), is_archived: String(archived), since: checkpoint, include_environment_kinds: 'managed-sandbox',
 			}))),
+		});
+	});
+
+	test('resumes a cold service from a caller checkpoint without walking the full inventory', async () => {
+		const tasks = [updatedTask('unchanged'), updatedTask('changed', '2026-09-22T10:00:00Z'), { ...updatedTask('pending'), sessions: [] }];
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
+		});
+
+		const result = await service.listSessions(CancellationToken.None, { incremental: true, resume: { since: checkpoint, pendingTaskIds: ['pending'] } });
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			// The restored row of a pending task that has no binding any more is reported for removal.
+			removed: result.kind === 'incremental' ? result.removedTaskIds : [],
+			lists: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => {
+				const query = new URL(url).searchParams;
+				return [query.get('since'), query.get('include_environment_kinds')];
+			}),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+		}, {
+			kind: 'incremental',
+			sessions: ['changed'],
+			removed: ['pending'],
+			lists: Array.from({ length: 4 }, () => [checkpoint, 'managed-sandbox']),
+			details: ['/agents/tasks/pending', '/agents/tasks/changed'],
+		});
+	});
+
+	test('ignores a caller checkpoint once the service has its own discovery state', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [updatedTask('old')], repositories: new Map(), discoveryDate: () => firstScanDate,
+		});
+		await service.listSessions(CancellationToken.None);
+		requestedUrls.length = 0;
+
+		await service.listSessions(CancellationToken.None, { incremental: true, resume: { since: '2026-09-01T00:00:00.000Z', pendingTaskIds: ['other'] } });
+
+		assert.deepStrictEqual({
+			since: [...new Set(requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')))],
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
+		}, { since: [checkpoint], details: 0 });
+	});
+
+	test('ignores a caller checkpoint on a full scan', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [updatedTask('old')], repositories: new Map(), discoveryDate: () => firstScanDate,
+		});
+
+		const result = await service.listSessions(CancellationToken.None, { resume: { since: checkpoint, pendingTaskIds: [] } });
+
+		assert.deepStrictEqual({
+			result,
+			since: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')),
+		}, {
+			result: {
+				kind: 'complete',
+				sessions: [{ environmentId: 'env-old', sessionId: 'session-old', taskId: 'old', name: 'old', hasRepository: false, updatedAt: '2026-09-22T09:58:00Z' }],
+				checkpoint: { since: checkpoint, pendingTaskIds: [] },
+			},
+			since: [null, null, null, null],
 		});
 	});
 
@@ -4012,8 +4083,8 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			stillUnbound,
 			rebound: rebound.kind === 'failed' ? [] : rebound.sessions.map(session => session.taskId),
 		}, {
-			removed: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
-			stillUnbound: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+			removed: { kind: 'incremental', sessions: [], removedTaskIds: ['first'], checkpoint: { since: '2026-09-22T09:59:00.000Z', pendingTaskIds: ['first'] } },
+			stillUnbound: { kind: 'incremental', sessions: [], removedTaskIds: [], checkpoint: { since: '2026-09-22T09:59:00.000Z', pendingTaskIds: ['first'] } },
 			rebound: ['first'],
 		});
 	});
@@ -4044,7 +4115,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 
 		assert.deepStrictEqual({ failed, retried }, {
 			failed: { kind: 'partial', sessions: [], removedTaskIds: [] },
-			retried: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
+			retried: { kind: 'incremental', sessions: [], removedTaskIds: ['first'], checkpoint: { since: '2026-09-22T09:59:00.000Z', pendingTaskIds: ['first'] } },
 		});
 	});
 

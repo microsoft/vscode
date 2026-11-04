@@ -7,6 +7,7 @@ import { RunOnceScheduler, raceCancellation, raceCancellationError } from '../..
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
+import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
@@ -35,6 +36,7 @@ import {
 	type ICloudSandboxCreateSessionRequest,
 	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveryResult,
+	type ICloudSandboxDiscoveryCheckpoint,
 	type ICloudSandboxDiscoveryOptions,
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -59,7 +61,7 @@ import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddr
 import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
-import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { withSessionWorkspaceless, type SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCloudSandboxTaskCreationPath } from './cloudSandboxTelemetry.js';
 import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from './cloudSandboxSessionFeed.js';
 import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
@@ -70,9 +72,37 @@ const DISCOVERY_POLL_JITTER_MS = 60_000;
 const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
 const MAX_DISCOVERY_RETRY_INTERVAL_MS = 15 * 60_000;
 const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
+const DISCOVERY_CHECKPOINT_STORAGE_PREFIX = 'sessions.cloudSandbox.discoveryCheckpoint.';
+/** Each pending task costs one task read on resume; larger sets fall back to a full scan. */
+const MAX_RESUME_PENDING_TASKS = 100;
+const MAX_CHECKPOINT_CLOCK_SKEW_MS = 5 * 60_000;
 
 interface ICloudSandboxDiscoveryRequest extends ICloudSandboxDiscoveryOptions {
 	readonly retry?: boolean;
+}
+
+interface IPersistedDiscoveryCheckpoint extends ICloudSandboxDiscoveryCheckpoint {
+	readonly version: 1;
+	/** Client time of the full scan this checkpoint continues; resuming never extends the full-scan interval. */
+	readonly lastFullDiscovery: number;
+	/** Digest of the exact inventory rows stored with this checkpoint. */
+	readonly rowCount: number;
+	readonly rowHash: number;
+}
+
+function isPersistedDiscoveryCheckpoint(value: unknown): value is IPersistedDiscoveryCheckpoint {
+	const candidate = value as Partial<IPersistedDiscoveryCheckpoint> | undefined;
+	return isObject(candidate) && candidate.version === 1
+		&& typeof candidate.since === 'string' && !Number.isNaN(Date.parse(candidate.since))
+		&& typeof candidate.lastFullDiscovery === 'number' && Number.isFinite(candidate.lastFullDiscovery)
+		&& typeof candidate.rowCount === 'number' && typeof candidate.rowHash === 'number'
+		&& Array.isArray(candidate.pendingTaskIds) && candidate.pendingTaskIds.every(id => typeof id === 'string' && id.length > 0);
+}
+
+/** Order-independent digest of persisted inventory rows, so a checkpoint is only used with the rows it was written with. */
+function inventoryDigest(inventory: ReadonlyMap<string, string>): { readonly rowCount: number; readonly rowHash: number } {
+	const rows = [...inventory].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+	return { rowCount: rows.length, rowHash: hash(rows) };
 }
 
 /** A discovered sandbox environment we can create a provider for. */
@@ -90,6 +120,7 @@ export interface ICloudSandboxSessionEnvironment {
 	readonly repoName?: string;
 	readonly hasRepository?: boolean;
 	readonly updatedAt?: string;
+	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
 }
 
@@ -105,6 +136,7 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
 		&& (candidate.hasRepository === undefined || typeof candidate.hasRepository === 'boolean')
 		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
+		&& (candidate.status === undefined || typeof candidate.status === 'number')
 		&& (candidate.isArchived === undefined || typeof candidate.isArchived === 'boolean');
 }
 
@@ -198,6 +230,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _discoveryIncremental = false;
 	private _lastDiscoveryAttempt: number | undefined;
 	private _lastFullDiscovery: number | undefined;
+	/** The latest consistent service checkpoint, persisted with every inventory write until a partial result. */
+	private _discoveryCheckpoint: ICloudSandboxDiscoveryCheckpoint | undefined;
+	/** A restored checkpoint consistent with the restored rows, offered to the next inventory scan. */
+	private _resumeCheckpoint: ICloudSandboxDiscoveryCheckpoint | undefined;
+	private _persistedCheckpoint: string | undefined;
 	private _discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 	private _accountKey: string | undefined;
 	private readonly _deletedTaskIds = new Set<string>();
@@ -363,7 +400,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		const now = Date.now();
 		this._lastDiscoveryAttempt = now;
-		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
+		this._discoveryIncremental = (incremental || this._canResume(trigger)) && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
 		this._discoveryToken = this._enabledCts.token;
 		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds).finally(() => {
@@ -372,6 +409,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._rearmDiscoveryPoll();
 		});
 		return this._discoveryInFlight;
+	}
+
+	/** Rescans may continue from a restored checkpoint; an explicit refresh always rescans everything. */
+	private _canResume(trigger: CloudSandboxDiscoveryTrigger): boolean {
+		return this._resumeCheckpoint !== undefined && trigger !== 'manual';
 	}
 
 	/** Reschedules an armed poll from the current interval, which a finished pass or a first sandbox may have changed. */
@@ -440,7 +482,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				}
 				token = this._enabledCts.token;
 				this._discoveryToken = token;
-				this._discoveryIncremental = incremental = false;
+				this._discoveryIncremental = incremental = this._canResume(trigger);
 				taskIds = undefined;
 				this._lastDiscoveryAttempt = Date.now();
 			}
@@ -458,7 +500,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!this._discoveryPoll.isScheduled()) {
 				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
-			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}) });
+			const resume = !taskIds && incremental ? this._resumeCheckpoint : undefined;
+			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}), ...(resume ? { resume } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
 			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
 				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
@@ -490,9 +533,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
 			return;
 		}
+		if (!taskIds) {
+			// The service has now either used the restored checkpoint or established its own.
+			this._resumeCheckpoint = undefined;
+		}
 		if (result.kind === 'complete') {
 			this._lastFullDiscovery = Date.now();
 		}
+		// A partial result may leave unresolved tasks the checkpoint does not name, so stop persisting it until a consistent pass.
+		this._discoveryCheckpoint = result.kind === 'partial' ? undefined : result.checkpoint ?? (taskIds ? this._discoveryCheckpoint : undefined);
 
 		const present = new Set<string>();
 		const presentSessions = new Set<string>();
@@ -604,8 +653,38 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (restored) {
 				this._logService.info(`${LOG_PREFIX} Restored ${restored} cached sandbox environment(s).`);
 			}
+			this._restoreDiscoveryCheckpoint(accountKey);
 		}
 		return true;
+	}
+
+	/** Accepts a stored checkpoint only when it is fresh and was written with exactly the restored rows. */
+	private _restoreDiscoveryCheckpoint(accountKey: string): void {
+		let checkpoint: unknown;
+		try {
+			checkpoint = this._storageService.getObject(DISCOVERY_CHECKPOINT_STORAGE_PREFIX + accountKey, StorageScope.PROFILE);
+		} catch (error) {
+			this._logService.warn(`${LOG_PREFIX} Reading the sandbox discovery checkpoint failed; running a full scan.`, error);
+			return;
+		}
+		if (checkpoint === undefined) {
+			return;
+		}
+		const now = Date.now();
+		const digest = inventoryDigest(this._persistedInventory);
+		const rejection = !isPersistedDiscoveryCheckpoint(checkpoint) ? 'invalid'
+			: checkpoint.rowCount !== digest.rowCount || checkpoint.rowHash !== digest.rowHash ? 'inventoryChanged'
+				: checkpoint.lastFullDiscovery > now || now - checkpoint.lastFullDiscovery >= FULL_DISCOVERY_INTERVAL_MS ? 'expired'
+					: Date.parse(checkpoint.since) > now + MAX_CHECKPOINT_CLOCK_SKEW_MS ? 'futureSince'
+						: checkpoint.pendingTaskIds.length > MAX_RESUME_PENDING_TASKS ? 'tooManyPendingTasks'
+							: undefined;
+		if (rejection || !isPersistedDiscoveryCheckpoint(checkpoint)) {
+			this._logService.info(`${LOG_PREFIX} Not resuming sandbox discovery from the stored checkpoint (${rejection}); running a full scan.`);
+			return;
+		}
+		this._resumeCheckpoint = { since: checkpoint.since, pendingTaskIds: checkpoint.pendingTaskIds };
+		this._lastFullDiscovery = checkpoint.lastFullDiscovery;
+		this._logService.info(`${LOG_PREFIX} Resuming sandbox discovery from a checkpoint with ${checkpoint.pendingTaskIds.length} task(s) to recheck.`);
 	}
 
 	private _readInventory(storageKey: string): readonly ICloudSandboxDiscoveredSession[] {
@@ -644,6 +723,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					repoName: environment.repoName,
 					hasRepository: environment.hasRepository,
 					updatedAt: environment.updatedAt,
+					...(environment.status !== undefined ? { status: environment.status } : {}),
 					...(environment.isArchived !== undefined ? { isArchived: environment.isArchived } : {}),
 				};
 				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
@@ -663,6 +743,19 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (this._storageService.get(storageKey, StorageScope.PROFILE) !== undefined) {
 			entries.push({ key: storageKey, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
 		}
+		// The checkpoint is written in the same batch as the rows it covers and names their digest.
+		const checkpointKey = DISCOVERY_CHECKPOINT_STORAGE_PREFIX + this._accountKey;
+		const checkpoint = this._discoveryCheckpoint && this._lastFullDiscovery !== undefined ? JSON.stringify({
+			version: 1,
+			since: this._discoveryCheckpoint.since,
+			pendingTaskIds: this._discoveryCheckpoint.pendingTaskIds,
+			lastFullDiscovery: this._lastFullDiscovery,
+			...inventoryDigest(inventory),
+		} satisfies IPersistedDiscoveryCheckpoint) : undefined;
+		if (checkpoint !== this._persistedCheckpoint || (checkpoint === undefined && this._storageService.get(checkpointKey, StorageScope.PROFILE) !== undefined)) {
+			entries.push({ key: checkpointKey, value: checkpoint, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+		}
+		this._persistedCheckpoint = checkpoint;
 		this._persistedInventory = inventory;
 		this._storageService.storeAll(entries, false);
 	}
@@ -833,6 +926,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._enabledCts = new CancellationTokenSource();
 		this._lastDiscoveryAttempt = undefined;
 		this._lastFullDiscovery = undefined;
+		this._discoveryCheckpoint = undefined;
+		this._resumeCheckpoint = undefined;
+		this._persistedCheckpoint = undefined;
 		this._discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 		this._accountKey = undefined;
 		this._deletedTaskIds.clear();

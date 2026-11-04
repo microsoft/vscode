@@ -42,7 +42,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -260,6 +260,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
 	const discoveryTriggers: ICloudSandboxDiscoveryOptions['trigger'][] = [];
+	const discoveryResumes: ICloudSandboxDiscoveryOptions['resume'][] = [];
 	const errorNotifications: NotificationMessage[] = [];
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
@@ -414,6 +415,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			calls.discovered++;
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			discoveryTriggers.push(discoveryOptions?.trigger);
+			discoveryResumes.push(discoveryOptions?.resume);
 			return options?.listSessions ? options.listSessions() : state.result;
 		}
 		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
@@ -603,7 +605,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, workspaceTrust, preparation, allocations, reservationRequests,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, discoveryResumes, workspaceTrust, preparation, allocations, reservationRequests,
 		whenAllocationStarted: allocationStarted.p,
 		whenTaskDeleted: taskDeleted.p,
 		get taskDispatches() { return taskDispatches; },
@@ -2756,7 +2758,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const offlineTrusted = (await restored.workspaceTrust.getUriTrustInfo(toAgentHostUri(URI.file('/workspaces/repo'), authority))).trusted;
 		await pending.complete({
 			kind: 'complete',
-			sessions: [{ ...discovered, name: 'Renamed after reload', updatedAt: '2026-01-03T03:04:05.000Z', status: SessionStatus.InputNeeded }],
+			sessions: [{ ...discovered, name: 'Renamed after reload', updatedAt: '2026-01-03T03:04:05.000Z', status: SessionStatus.Idle }],
 		});
 		await Promise.all(restored.initialRefreshes);
 
@@ -2767,13 +2769,99 @@ suite('Editor cloud sandbox discovery', () => {
 			connected: restored.calls.connected,
 			created: restored.calls.created,
 		}, {
-			before: [[resource.toString(), discovered.name, ChatSessionStatus.Completed]],
+			before: [[resource.toString(), discovered.name, ChatSessionStatus.NeedsInput]],
 			offlineTrusted: true,
-			after: [[resource.toString(), 'Renamed after reload', ChatSessionStatus.NeedsInput]],
+			after: [[resource.toString(), 'Renamed after reload', ChatSessionStatus.Completed]],
 			connected: [],
 			created: 0,
 		});
 	});
+
+	// Fake timers start at the epoch, so the checkpoint must be relative to the faked clock.
+	const createCheckpoint = () => ({ since: new Date(Date.now() - 60_000).toISOString(), pendingTaskIds: ['pending-task'] });
+	const checkpointKey = 'sessions.cloudSandbox.discoveryCheckpoint.github:editor-account';
+
+	test('resumes startup discovery from a fresh checkpoint written with the restored rows', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const checkpoint = createCheckpoint();
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness(store, { storageService });
+		first.state.result = { kind: 'complete', sessions: [discovered], checkpoint };
+		await Promise.all(first.initialRefreshes);
+		first.contribution.dispose();
+		const stored = storageService.getObject(checkpointKey, StorageScope.PROFILE) as { pendingTaskIds?: string[]; rowCount?: number } | undefined;
+
+		await timeout(60_000);
+		const restored = createHarness(store, { storageService });
+		await Promise.all(restored.initialRefreshes);
+		await restored.refresh();
+
+		assert.deepStrictEqual({
+			stored: { pendingTaskIds: stored?.pendingTaskIds, rowCount: stored?.rowCount },
+			modes: restored.discoveryModes,
+			resumes: restored.discoveryResumes,
+			items: restored.items().map(item => item.label),
+		}, {
+			stored: { pendingTaskIds: ['pending-task'], rowCount: 1 },
+			// The manual refresh after the resumed startup scan is a full scan, and the resume checkpoint is consumed once.
+			modes: [true, false],
+			resumes: [checkpoint, undefined],
+			items: [discovered.name],
+		});
+	}));
+
+	for (const reason of ['expired', 'inventoryChanged', 'partial', 'invalid'] as const) {
+		test(`runs a full startup scan when the stored checkpoint is not usable (${reason})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const checkpoint = createCheckpoint();
+			const storageService = store.add(new InMemoryStorageService());
+			const first = createHarness(store, { storageService });
+			first.state.result = { kind: 'complete', sessions: [discovered], checkpoint };
+			await Promise.all(first.initialRefreshes);
+			if (reason === 'partial') {
+				first.state.result = { kind: 'partial', sessions: [discovered], removedTaskIds: [] };
+				await first.refresh();
+			}
+			first.contribution.dispose();
+			if (reason === 'expired') {
+				await timeout(15 * 60_000);
+			} else if (reason === 'inventoryChanged') {
+				// Another window stores a row this window's checkpoint does not cover.
+				const rowKey = storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.startsWith('sessions.cloudSandbox.inventory.'))!;
+				storageService.store(`${rowKey}.other`, JSON.stringify({ version: 1, sessions: [{ ...discovered, sessionId: 'other', taskId: 'other' }] }), StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else if (reason === 'invalid') {
+				storageService.store(checkpointKey, JSON.stringify({ version: 1, since: 'later' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+
+			const restored = createHarness(store, { storageService });
+			await Promise.all(restored.initialRefreshes);
+
+			assert.deepStrictEqual({
+				modes: restored.discoveryModes,
+				resumes: restored.discoveryResumes,
+			}, { modes: [false], resumes: [undefined] });
+		}));
+	}
+
+	test('keeps discovery checkpoints per account and resumes when the original account returns', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const checkpoint = createCheckpoint();
+		const h = createHarness(store);
+		h.state.result = { kind: 'complete', sessions: [discovered], checkpoint };
+		await Promise.all(h.initialRefreshes);
+		const originalAccount = h.state.accountKey;
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.accountKey = 'github:another-account';
+		h.accountChanged.fire(h.state.accountKey);
+		await h.refresh('automatic');
+		h.state.result = { kind: 'incremental', sessions: [], removedTaskIds: [] };
+		h.state.accountKey = originalAccount;
+		h.accountChanged.fire(h.state.accountKey);
+		await h.refresh('automatic');
+
+		assert.deepStrictEqual({
+			modes: h.discoveryModes,
+			resumes: h.discoveryResumes,
+			items: h.items().map(item => item.label),
+		}, { modes: [false, false, true], resumes: [undefined, undefined, checkpoint], items: [discovered.name] });
+	}));
 
 	test('isolates cached rows by account and restores them when the original account returns', async () => {
 		const h = createHarness(store);
