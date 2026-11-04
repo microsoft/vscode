@@ -11,7 +11,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
+import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
@@ -56,10 +56,25 @@ export function sessionHostServiceOf(state: { readonly mainWindowActiveSession: 
 	};
 	return upcastPartial<ISessionHostService>({
 		getHostOfWindow: windowId => windowId === mainWindow.vscodeWindowId ? mainHost : undefined,
+		getHostOfChat: (chatResource, reader) => [
+			...state.windowSessions.read(reader).map(session => hostOfSession(session, SessionHostKind.ChatWindow, undefined)),
+			...state.visibleSessions.read(reader).filter(session => !!session).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),
+			mainHost,
+		].find(host => isEqual(host.chat.read(reader)?.resource, chatResource)),
 		getHostsOfSession: (resource, reader) => [
 			...(isEqual(state.mainWindowActiveSession.read(reader)?.resource, resource) ? [mainHost] : []),
 			...state.visibleSessions.read(reader).filter(session => !!session && isEqual(session.resource, resource)).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),
 			...state.windowSessions.read(reader).filter(session => isEqual(session.resource, resource)).map(session => hostOfSession(session, SessionHostKind.ChatWindow, undefined)),
 		],
 	});
+}
+
+/** A focused host that shows `session`, for tests modelled on the active session of `ISessionsService`. */
+export function focusedSessionHostServiceOf(session: IObservable<IActiveSession | undefined>): IFocusedSessionHostService {
+	const host = upcastPartial<ISessionHost>({
+		kind: SessionHostKind.MainWindow,
+		session,
+		chat: derived(reader => session.read(reader)?.activeChat?.read(reader)),
+	});
+	return upcastPartial<IFocusedSessionHostService>({ focusedHost: constObservable(host), getFocusedHost: () => host });
 }
