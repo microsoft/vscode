@@ -369,6 +369,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 		list.updateOptions({ indent: 0, defaultIndent: 0 });
+		this._register(list.onDidScroll(e => {
+			container.classList.toggle('can-scroll-down', e.scrollTop + e.height < e.scrollHeight);
+		}));
 
 		ChatContextKeys.agentSessionsViewerFocused.bindTo(list.contextKeyService);
 
