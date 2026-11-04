@@ -470,6 +470,8 @@ export class ChatWindowGrid extends Disposable {
 	 */
 	private _layoutOnceStylesApply(): void {
 		this._styleLayout.value = scheduleAtNextAnimationFrame(getWindow(this._container), () => {
+			// The grid reads the frames of the cards only when asked to, such as once the styles of the density applied.
+			this._grid.value?.updateLook();
 			if (this._dimension) {
 				this.layout(this._dimension.width, this._dimension.height);
 			}
