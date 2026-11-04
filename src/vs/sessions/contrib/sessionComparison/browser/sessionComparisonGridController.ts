@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -30,7 +31,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 
 	static readonly ID = 'workbench.contrib.sessionComparisonGridController';
 	private _comparisonGridActive = false;
-	private _isolatedJudgeSessionId: string | undefined;
+	private _isolatedJudge: { paneId: string; chatResource: URI } | undefined;
 	private _keepSidePaneHidden = false;
 	private _pendingJudgeIsolationSessionId: string | undefined;
 	private _visibleComparison: ISessionComparison | undefined;
@@ -77,17 +78,19 @@ export class SessionComparisonGridController extends Disposable implements IWork
 				&& visibleSessions.length > 2
 				&& comparison !== undefined,
 			);
-			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
+			if (!this._comparisonGridActive && this._isolatedJudge
 				&& (visibleSessions.length !== 1
-					|| getPaneId(visibleSessions[0]) !== this._isolatedJudgeSessionId
-					|| getPaneId(activeSession) !== this._isolatedJudgeSessionId
+					|| getPaneId(visibleSessions[0]) !== this._isolatedJudge.paneId
+					|| !activeSession
+					|| getPaneId(activeSession) !== this._isolatedJudge.paneId
+					|| !isEqual(activeSession.activeChat.read(reader).resource, this._isolatedJudge.chatResource)
 					|| !comparisons.some(candidate => candidate.archivedAt === undefined && candidate.participants.some(participant =>
 						participant.role === SessionComparisonParticipantRole.Judge
-						&& isEqual(participant.sessionResource, activeSession?.resource)
-						&& (!participant.chatResource || isEqual(participant.chatResource, activeSession?.activeChat.read(reader).resource)))))) {
-				this._isolatedJudgeSessionId = undefined;
+						&& isEqual(participant.sessionResource, activeSession.resource)
+						&& (!participant.chatResource || isEqual(participant.chatResource, activeSession.activeChat.read(reader).resource)))))) {
+				this._isolatedJudge = undefined;
 			}
-			const keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudgeSessionId !== undefined;
+			const keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudge !== undefined;
 			const activeJudgeSessionId = this._getJudgeSessionId(activeSession, visibleSessions, comparisons, reader);
 			if (activeJudgeSessionId) {
 				this._scheduleJudgeIsolation(activeJudgeSessionId);
@@ -177,7 +180,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		if (!judgeSession || this._getJudgeSessionId(judgeSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
 			return;
 		}
-		this._isolatedJudgeSessionId = sessionId;
+		this._isolatedJudge = { paneId: sessionId, chatResource: judgeSession.activeChat.get().resource };
 		if (judgeSession.scopedChatResource || visibleSessions.some(session => session !== judgeSession && session?.sessionId === judgeSession.sessionId)) {
 			this.sessionsService.collapseToSession(judgeSession);
 			this._setSidePaneSuppressed(true);

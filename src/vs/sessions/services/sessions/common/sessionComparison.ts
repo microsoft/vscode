@@ -119,6 +119,7 @@ export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
 export const SESSION_COMPARISON_MIN_ATTEMPTS = 2;
 export const SESSION_COMPARISON_MAX_ATTEMPTS = 10;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
+export const COMPARE_AGENTS_TOOLS_ENABLED_SETTING = 'sessions.chat.compareAgents.tools.enabled';
 
 export function getBoundedSessionComparisonManifestText(value: string): string {
 	return value.length <= SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH ? value : value.slice(0, SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH);
@@ -166,6 +167,13 @@ export interface IStartSessionComparisonOptions {
 	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly permissionLevel?: string;
 	readonly branch?: string;
+}
+
+export class SessionComparisonLaunchError extends Error {
+	constructor(message: string, readonly participants: readonly ISessionComparisonParticipant[]) {
+		super(message);
+		this.name = 'SessionComparisonLaunchError';
+	}
 }
 
 export interface ISessionComparisonService {

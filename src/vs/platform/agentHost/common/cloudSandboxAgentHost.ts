@@ -471,17 +471,17 @@ export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[
 
 export interface ICloudSandboxDiscoveryOptions {
 	readonly incremental?: boolean;
-	/** Defaults to all inventory. False omits archived discovery, not targeted reads of known tasks. */
+	/** Defaults to including archived inventory. False omits archived discovery, not targeted reads of known tasks. */
 	readonly includeArchived?: boolean;
 	readonly taskIds?: readonly string[];
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
 }
 
-/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
+/** Successful recent-window refreshes permit eviction only within their requested scope; removal IDs report confirmed changes. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
-	/** Successful non-archived inventory; absence cannot establish deletion or an archive-state change. */
+	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	/** A successful non-archived recent-window refresh; absent cached archives must be retained. */
 	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }

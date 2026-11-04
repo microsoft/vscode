@@ -192,6 +192,9 @@ const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 /** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
 
+/** Maximum pages to read per repository/archive task scope during discovery. */
+const DISCOVERY_TASK_SCAN_MAX_PAGES = 3;
+
 /**
  * Max concurrent task-detail fetches during discovery.
  *
@@ -581,7 +584,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
-	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
+	/** Full scans replace the recent task window; incremental scans preserve absent tasks. */
 	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const stopwatch = StopWatch.create();
 		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
@@ -640,6 +643,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const removedTaskIds: string[] = [];
 		const failedTaskIds = new Set<string>();
 		let truncated = false;
+		let hasUnreadPages = false;
 		let checkpoint: number | undefined;
 		let latestUpdate: number | undefined;
 		if (targeted) {
@@ -687,7 +691,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			};
 			const requestedUrls = new Set<string>();
 			let url: string | undefined = `${this._tasksBaseUrl()}/tasks${toQuery({ ...query, page: '1' })}`;
-			for (let page = 1; url; page++) {
+			for (let page = 1; url && page <= DISCOVERY_TASK_SCAN_MAX_PAGES; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -715,6 +719,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						}
 					}
 					url = nextTaskPageUrl(context.res.headers?.link, url, query);
+					if (page === DISCOVERY_TASK_SCAN_MAX_PAGES && url) {
+						hasUnreadPages = true;
+					}
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
@@ -783,8 +790,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						if (!full) {
 							throw new Error('getTask returned no task');
 						}
+						details.set(task.id, full);
 						const binding = getTaskEnvironmentBinding(full);
-						if (!binding && cached?.session) {
+						if (!binding) {
 							removedTaskIds.push(task.id);
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
@@ -814,7 +822,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						cache.set(task.id, cached);
 						logExcludedTask(task.id, 'stalledQueuedSession');
 						// An unread page may contain this candidate's recovery update.
-						if (!truncated || scannedTaskIds.has(task.id)) {
+						if ((!truncated && !hasUnreadPages) || scannedTaskIds.has(task.id) || details.has(task.id)) {
 							removedTaskIds.push(task.id);
 							this._logService.trace(`${LOG_PREFIX} Hiding stalled queued sandbox task ${task.id} with no AHP resource.`);
 						}
@@ -836,7 +844,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						if (cached.hasEmptyHistory) {
 							cache.set(task.id, cached);
 							logExcludedTask(task.id, 'emptySession');
-							if (!truncated || scannedTaskIds.has(task.id)) {
+							if ((!truncated && !hasUnreadPages) || scannedTaskIds.has(task.id) || details.has(task.id)) {
 								removedTaskIds.push(task.id);
 								this._logService.trace(`${LOG_PREFIX} Hiding abandoned sandbox task ${task.id} with empty recorded history.`);
 							}
@@ -891,9 +899,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					this._archivedDiscoverySince = nextSince;
 				}
 			}
-			if (!since && includeArchived) {
-				for (const id of cache.keys()) {
-					if (!scannedTaskIds.has(id)) {
+			if (!since) {
+				for (const [id, cached] of cache) {
+					if (!scannedTaskIds.has(id) && (includeArchived || !cached.summary.archived_at)) {
 						cache.delete(id);
 					}
 				}
@@ -939,9 +947,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (cached) {
 				this._discoveredTasks.set(id, cached);
 			} else {
-				if (this._discoveredTasks.delete(id)) {
+				if (this._discoveredTasks.delete(id) && !hasUnreadPages && includeArchived) {
 					removed.add(id);
 				}
+			}
+			const observed = scannedTaskIds.has(id) || details.has(id) || updates.has(id);
+			// Window eviction and unobserved cached state cannot invalidate an overlapping read.
+			if (!removed.has(id) && (!cached || !observed)) {
+				continue;
 			}
 			for (const read of this._activeDiscoveryReads) {
 				if (read !== updates) {
@@ -964,7 +977,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		return targeted || since
 			? { kind: 'incremental', sessions, removedTaskIds: [...removed] }
-			: includeArchived ? { kind: 'complete', sessions } : { kind: 'scoped', sessions, removedTaskIds: [...removed] };
+			: includeArchived
+				? { kind: 'complete', sessions, ...(removed.size ? { removedTaskIds: [...removed] } : {}) }
+				: { kind: 'scoped', sessions, removedTaskIds: [...removed] };
 	}
 
 	async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession> {

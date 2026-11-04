@@ -474,25 +474,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			}
 			const mutationVersion = this._sessionMutationVersion;
 			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}) });
-			if (result.kind === 'scoped') {
-				const presentTasks = new Set(result.sessions.map(session => session.taskId));
-				const absentActiveTasks = [...this._sessionEnvironments.values()].flatMap(sessions => [...sessions.values()])
-					.filter(session => !session.isArchived && session.taskId && !presentTasks.has(session.taskId))
-					.map(session => session.taskId!);
-				if (absentActiveTasks.length) {
-					const known = await this._apiService.listSessions(token, { taskIds: [...new Set(absentActiveTasks)], trigger });
-					if (known.kind === 'failed') {
-						this._logService.warn(`${LOG_PREFIX} Known task reconciliation failed: ${known.reason}`);
-						result = { ...result, kind: 'partial' };
-					} else {
-						result = {
-							kind: known.kind === 'partial' ? 'partial' : 'scoped',
-							sessions: [...result.sessions, ...known.sessions],
-							removedTaskIds: [...result.removedTaskIds, ...known.kind === 'complete' ? [] : known.removedTaskIds ?? []],
-						};
-					}
-				}
-			}
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
 			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
 				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
@@ -503,7 +484,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					result = {
 						kind: retried.kind === 'partial' ? 'partial' : 'incremental',
 						sessions: [...result.sessions, ...retried.sessions],
-						removedTaskIds: [...result.removedTaskIds ?? [], ...retried.kind === 'complete' ? [] : retried.removedTaskIds ?? []],
+						removedTaskIds: [...result.removedTaskIds ?? [], ...retried.removedTaskIds ?? []],
 						...(retried.kind === 'partial' ? { failedTaskIds: retried.failedTaskIds } : {}),
 					};
 				}
@@ -550,7 +531,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._seedDiscoveredSession({ ...session, isArchived: session.isArchived === true });
 		}
 
-		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
+		const removedTasks = new Set(result.removedTaskIds);
 		for (const [address, sessions] of this._sessionEnvironments) {
 			if (this._provisioning.has(address)) {
 				continue;
@@ -559,7 +540,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
 			for (const [rawId, session] of sessions) {
 				if (!presentSessions.has(JSON.stringify([address, rawId]))
-					&& (result.kind === 'complete' || !!session.taskId && (removedTasks.has(session.taskId) || updatedTasks.has(session.taskId)))) {
+					&& ((result.kind === 'complete' || result.kind === 'scoped' && !session.isArchived) && !this._hasActiveConnection(address)
+						|| !!session.taskId && (removedTasks.has(session.taskId) || updatedTasks.has(session.taskId)))) {
 					sessions.delete(rawId);
 					this._providerInstances.get(address)?.removeTaskOwnership?.(rawId);
 					if (!connected) {
@@ -579,18 +561,28 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (present.has(address) || this._provisioning.has(address)) {
 				continue;
 			}
-			if (result.kind !== 'complete' && (!environment.taskId || (!removedTasks.has(environment.taskId) && !updatedTasks.has(environment.taskId)))) {
+			const refreshesWindow = result.kind === 'complete' || result.kind === 'scoped' && !environment.isArchived;
+			if (!refreshesWindow && (!environment.taskId || (!removedTasks.has(environment.taskId) && !updatedTasks.has(environment.taskId)))) {
 				continue;
 			}
 			const connected = this._remoteAgentHostService.connections.some(
 				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
-			if (!connected) {
+			const explicitlyChanged = !!environment.taskId && (removedTasks.has(environment.taskId) || updatedTasks.has(environment.taskId));
+			if (!connected && (explicitlyChanged || !this._hasActiveConnection(address))) {
 				this._teardownEnvironment(address);
 			}
 		}
 
 		this._persistInventory();
 		this._logService.info(`${LOG_PREFIX} Seeded ${present.size} discovered sandbox environment(s)${result.kind === 'partial' ? ' (partial scan; kept existing entries)' : ''}.`);
+	}
+
+	private _hasActiveConnection(address: string): boolean {
+		return this._pendingConnects.has(address) || this._remoteAgentHostService.connections.some(c => c.address === address && (
+			RemoteAgentHostConnectionStatus.isConnected(c.status)
+			|| RemoteAgentHostConnectionStatus.isConnecting(c.status)
+			|| RemoteAgentHostConnectionStatus.isReconnecting(c.status)
+		));
 	}
 
 	private _seedDiscoveredSession(session: ICloudSandboxDiscoveredSession): void {

@@ -2373,7 +2373,12 @@ suite('ChatThinkingContentPart', () => {
 				let eligible: boolean | undefined;
 				let acceptTitle: ((title: string) => void) | undefined;
 				let prepare: (() => { readonly content: string }) | undefined;
-				const source: IChatThinkingPart = { ...createThinkingPart(undefined, 'array'), value: ['First reasoning', 'Second reasoning'] };
+				const source: IChatThinkingPart = {
+					...createThinkingPart(undefined, 'array'),
+					value: ['First reasoning', 'Second reasoning'],
+					reasoningTimingSource: 'provider',
+					reasoningDurationMs: 2500,
+				};
 				const first = { ...source, value: 'First reasoning' };
 				const part = createThinkingContentPart(first, {
 					...createMockRenderContext(false),
@@ -2401,9 +2406,10 @@ suite('ChatThinkingContentPart', () => {
 					initial, registered, removed, eligible, content: prepare?.().content,
 					title: part.domNode.querySelector('.monaco-button')?.textContent,
 					modelTitle: source.generatedTitle,
+					durationRows: part.domNode.querySelectorAll('.chat-thinking-run-duration').length,
 				}, {
-					initial: 'Finished thinking', registered: 1, removed: 1, eligible: true, content: 'First reasoning\nSecond reasoning',
-					title: 'Reviewed both approaches', modelTitle: 'Reviewed both approaches',
+					initial: 'Thought for 3s', registered: 1, removed: 1, eligible: true, content: 'First reasoning\nSecond reasoning',
+					title: 'Reviewed both approaches - 3s', modelTitle: 'Reviewed both approaches', durationRows: 0,
 				});
 			});
 		}
@@ -2436,6 +2442,7 @@ suite('ChatThinkingContentPart', () => {
 			};
 			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
 			const titles: (string | null | undefined)[] = [];
+			let durationRows = 0;
 			for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
 				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
 				for (const progress of ['legacy', 'persistent', 'conversation']) {
@@ -2449,6 +2456,7 @@ suite('ChatThinkingContentPart', () => {
 						const source: IChatThinkingPart = {
 							...createThinkingPart(),
 							value: split ? values : values.join('\n\n'),
+							reasoningTimingSource: 'provider',
 							reasoningDurationMs: 1200,
 							generatedTitle: 'Previously generated summary',
 						};
@@ -2460,16 +2468,55 @@ suite('ChatThinkingContentPart', () => {
 						}
 						part.finalizeTitleIfDefault();
 						part.expandContent();
+						durationRows += part.domNode.querySelectorAll('.chat-thinking-run-duration').length;
 						part.collapseContent();
 						titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
 					}
 				}
 			}
 			await timeout(0);
-			assert.deepStrictEqual({ titles, modelSelections }, {
-				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 * 2 }, () => 'Previously generated summary'),
+			assert.deepStrictEqual({ titles, durationRows, modelSelections }, {
+				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 * 2 }, () => 'Previously generated summary - 2s'),
+				durationRows: 0,
 				modelSelections: 0,
 			});
+		});
+
+		test('generated titles use only complete provider-recorded reasoning durations', () => {
+			const cases = [
+				{ name: 'recorded runs', provider: true, durations: [1200, 1800], title: 'Reviewed results - 3s', labels: [] },
+				{ name: 'partially recorded runs', provider: true, durations: [1200, undefined], title: 'Reviewed results', labels: ['Thought for 2s'] },
+				{ name: 'invalid timing', provider: true, durations: [NaN], title: 'Reviewed results', labels: [] },
+				{ name: 'untimed BYOK', provider: false, durations: [undefined], title: 'Reviewed results', labels: [] },
+				{ name: 'unattributed saved timing', provider: false, durations: [2500], title: 'Reviewed results', labels: ['Thought for 3s'] },
+			];
+			const actual = cases.map(({ name, provider, durations }) => {
+				const [first, ...rest] = durations.map((duration, index): IChatThinkingPart => ({
+					...createThinkingPart(`Reasoning ${index}`, `run-${index}`),
+					generatedTitle: 'Reviewed results',
+					reasoningTimingSource: provider ? 'provider' : undefined,
+					reasoningDurationMs: duration,
+				}));
+				const part = createThinkingContentPart(first, {
+					...createMockRenderContext(true),
+					suppressProgressShimmer: true,
+					isConversation: true,
+				}, mockMarkdownRenderer, true);
+				for (const content of rest) {
+					part.setupThinkingContainer(content);
+				}
+				part.finalizeTitleIfDefault();
+				part.expandContent();
+				const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+				return {
+					name,
+					title: button?.textContent,
+					ariaLabel: button?.ariaLabel,
+					labels: Array.from(part.domNode.querySelectorAll('.chat-thinking-run-duration'), label => label.textContent),
+				};
+			});
+
+			assert.deepStrictEqual(actual, cases.map(({ name, title, labels }) => ({ name, title, ariaLabel: title, labels })));
 		});
 
 		test('distinguishes reasoning from grouped tool content', () => {
