@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { EntraAuthOptions, EntraTokenProviderArgs, EntraTokenProviderResult } from '@github/copilot-sdk';
-import { DeferredPromise, raceCancellation, raceTimeout, Sequencer } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, transaction, type IReader } from '../../../../base/common/observable.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
@@ -85,12 +85,12 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return false;
 		}
+		if (!connection || connection.isCancellationRequested || this._store.isDisposed) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
 		if (!params.token) {
 			this.revoke();
 			return true;
-		}
-		if (!connection || connection.isCancellationRequested || this._store.isDisposed) {
-			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
 		return this.acceptCredential(params, connection);
 	}
@@ -168,14 +168,24 @@ export class CopilotEntraAuthentication extends Disposable {
 
 	private async requestCredential(request: EntraTokenProviderArgs, resource: ProtectedResourceMetadata, cancellation: CancellationToken): Promise<EntraTokenProviderResult> {
 		const pending: IEntraAcquisition = { request, resource, completed: new DeferredPromise<EntraTokenProviderResult>() };
-		this._pending.set(pending, undefined);
+		const lifetime = new DisposableStore();
 		try {
-			const result = await raceTimeout(raceCancellation<EntraTokenProviderResult>(pending.completed.p, cancellation, { kind: 'cancelled' }), 30_000);
+			lifetime.add(cancellation.onCancellationRequested(() => {
+				if (!pending.completed.isSettled) {
+					pending.completed.complete({ kind: 'cancelled' });
+					if (this._pending.get() === pending) {
+						this._pending.set(undefined, undefined);
+					}
+				}
+			}));
+			this._pending.set(pending, undefined);
+			const result = await raceTimeout(pending.completed.p, 30_000);
 			if (!result) {
 				throw new Error('Microsoft credential acquisition timed out. Retry authentication in the client.');
 			}
-			return this._pending.get() === pending ? result : { kind: 'unavailable' };
+			return result.kind === 'cancelled' || this._pending.get() === pending ? result : { kind: 'unavailable' };
 		} finally {
+			lifetime.dispose();
 			if (!pending.completed.isSettled) {
 				pending.completed.complete({ kind: 'unavailable' });
 			}

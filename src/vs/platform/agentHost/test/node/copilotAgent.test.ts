@@ -92,7 +92,8 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
-import { copilotEntraClientId } from '../../common/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -5159,6 +5160,52 @@ suite('CopilotAgent', () => {
 				provider: enabled ? 'function' : 'undefined',
 				loggedInUser: false,
 			});
+		});
+	}
+
+	for (const withdrawal of ['signOut', 'disconnect'] as const) {
+		test(`Microsoft ${withdrawal} settles shared-runtime turns and removes stopped sessions immediately`, async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+			afterTest(() => disposeAgent(agent));
+			const connection = disposables.add(new CancellationTokenSource());
+			disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService)).registerSource({
+				hasSeenClient: () => true,
+				isClientConnected: () => !connection.token.isCancellationRequested,
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => false,
+				requestMcpAuthentication: async () => false,
+			}));
+			await agent.listChatsToMigrate();
+			const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
+			assert.ok(provider);
+			const acquisition = provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
+			await waitForState(agent.authenticationRequired);
+			await agent.handleAuthenticationToken({
+				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity',
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+			}, connection.token);
+			await acquisition;
+
+			const settled: string[] = [];
+			const disposed: string[] = [];
+			for (const [id, scoped] of [['shared', false], ['scoped', true]] as const) {
+				setDefaultSessionStub(agent, id, {
+					usesScopedGitHubCredentials: scoped,
+					hasActiveTurn: true,
+					failActiveTurn: () => { settled.push(id); return `${id}-turn`; },
+					dispose: () => { disposed.push(id); },
+				});
+			}
+			if (withdrawal === 'signOut') {
+				await agent.handleAuthenticationToken({ resource: copilotEntraDiscoveryResource, token: '' }, connection.token);
+			} else {
+				connection.cancel();
+			}
+			await client.waitForCalls(() => client.stopCallCount === 1);
+			assert.deepStrictEqual({ settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()] }, { settled: ['shared'], disposed: ['shared'], remaining: ['scoped'] });
 		});
 	}
 

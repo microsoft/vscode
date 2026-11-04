@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -27,7 +28,8 @@ class MicrosoftAuthentication extends mock<IAuthenticationService>() {
 	readonly calls: Parameters<IAuthenticationService['getSessions']>[] = [];
 	readonly created: Parameters<IAuthenticationService['createSession']>[] = [];
 	sessions: readonly AuthenticationSession[] = [];
-	interactiveResult: AuthenticationSession | undefined;
+	interactiveResult: AuthenticationSession | Promise<AuthenticationSession> | undefined;
+	readonly interactiveStarted = new DeferredPromise<void>();
 	pending: DeferredPromise<readonly AuthenticationSession[]> | undefined;
 
 	override async getOrActivateProviderIdForServer(): Promise<string> {
@@ -44,6 +46,7 @@ class MicrosoftAuthentication extends mock<IAuthenticationService>() {
 
 	override async createSession(...args: Parameters<IAuthenticationService['createSession']>): Promise<AuthenticationSession> {
 		this.created.push(args);
+		this.interactiveStarted.complete();
 		assert.ok(this.interactiveResult);
 		return this.interactiveResult;
 	}
@@ -141,7 +144,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		const cache = new AgentHostAuthTokenCache();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		await cache.authenticate(resource.resource, resource.scopes_supported, selected.accessToken, async () => { }, selected.account.id, undefined, undefined, selected.id);
+		await cache.authenticate(resource.resource, resource.scopes_supported, selected.accessToken, async () => { }, selected.account.id, undefined, undefined, { sessionId: selected.id, accountId: selected.account.id });
 		for (const session of [other, selected]) {
 			await f.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions,
 				[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }],
@@ -208,8 +211,70 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const cache = new AgentHostAuthTokenCache();
 		const calls: string[] = [];
 		for (const id of ['old-session', 'new-session']) {
-			await cache.authenticate(resource.resource, resource.scopes_supported, selected.accessToken, async () => { calls.push(id); }, selected.account.id, undefined, undefined, id);
+			await cache.authenticate(resource.resource, resource.scopes_supported, selected.accessToken, async () => { calls.push(id); }, selected.account.id, undefined, undefined, { sessionId: id, accountId: selected.account.id });
 		}
 		assert.deepStrictEqual({ calls, session: cache.getSessionId(resource.resource, resource.scopes_supported) }, { calls: ['old-session'], session: 'new-session' });
+	});
+
+	test('sign-out during interactive Graph recovery still withdraws the forwarded identity', async () => {
+		const f = fixture();
+		const cache = new AgentHostAuthTokenCache();
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const options = { logPrefix: '[test]', authTokenCache: cache, authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
+		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		const interactive = new DeferredPromise<AuthenticationSession>();
+		f.authentication.interactiveResult = interactive.p;
+		const recovering = f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await f.authentication.interactiveStarted.p;
+		const duringRecovery = cache.getSessionId(resource.resource, resource.scopes_supported);
+
+		f.defaults.currentDefaultAccount = null;
+		f.authentication.sessions = [];
+		await f.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'microsoft', [{ id: selected.id, scopes: [] }], options);
+		interactive.complete(selected);
+		await assert.rejects(recovering, /account changed/);
+		assert.deepStrictEqual({ duringRecovery, tokens: forwarded.map(request => request.token) }, { duringRecovery: selected.id, tokens: [selected.accessToken, ''] });
+	});
+
+	for (const hasScopedCredential of [true, false]) {
+		test(`switching to another signed-in default withdraws the old account before acquiring credentials (scoped=${hasScopedCredential})`, async () => {
+			const f = fixture();
+			f.authentication.sessions = [selected, { ...other, scopes: hasScopedCredential ? ['User.Read'] : [] }];
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+			const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
+			await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			f.authentication.calls.length = 0;
+			f.defaults.currentDefaultAccount = {
+				authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+				sessionId: other.id, accountName: other.account.label, enterprise: false,
+			};
+			await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			assert.deepStrictEqual({
+				tokens: forwarded.map(request => request.token),
+				scopedAcquisitions: f.authentication.calls.filter(([, scopes]) => scopes !== undefined).length,
+				remaining: options.authTokenCache.getAccountId(resource.resource, resource.scopes_supported),
+				accounts: f.authentication.sessions.map(session => session.account.id),
+			}, { tokens: [selected.accessToken, ''], scopedAcquisitions: 0, remaining: undefined, accounts: [selected.account.id, other.account.id] });
+		});
+	}
+
+	test('a superseded default-account lookup does not revoke the current account', async () => {
+		const f = fixture();
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
+		await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+		const originalDefault = f.defaults.currentDefaultAccount;
+		f.defaults.currentDefaultAccount = {
+			authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+			sessionId: other.id, accountName: other.account.label, enterprise: false,
+		};
+		const forwarding = f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+		f.defaults.currentDefaultAccount = originalDefault;
+		await assert.rejects(forwarding, isCancellationError);
+		assert.deepStrictEqual(forwarded.map(request => request.token), [selected.accessToken]);
 	});
 });
