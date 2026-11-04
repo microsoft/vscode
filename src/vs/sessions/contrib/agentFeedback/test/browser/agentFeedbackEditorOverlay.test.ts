@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { EditorGroupView } from '../../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
@@ -154,7 +154,7 @@ suite('AgentFeedbackEditorOverlay', () => {
 		}, new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible() { return true; }
-		}));
+		}, upcastPartial<IEditorGroupsService>({ parts: [] })));
 
 		assert.deepStrictEqual({
 			file: getAgentFeedbackOverlayResourceCandidates(fileInput),
