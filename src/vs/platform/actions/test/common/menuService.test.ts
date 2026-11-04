@@ -247,7 +247,7 @@ suite('MenuService', function () {
 			{ id: canvasMenuId, item: { command: { id: 'plan', title: 'Plan' }, group: '1_available' } },
 			{ id: canvasMenuId, item: { command: { id: 'hidden', title: 'Hidden' }, group: '3_discover', order: 0, when: ContextKeyExpr.has('missing') } },
 			{ id: canvasMenuId, item: { command: { id: 'create', title: 'Create a Canvas' }, group: '3_discover', order: 1 } },
-			{ id: canvasMenuId, item: { command: { id: 'browse', title: 'Discover More Canvases' }, group: '3_discover', order: 2 } },
+			{ id: canvasMenuId, item: { command: { id: 'browse', title: 'Browse Canvases' }, group: '3_discover', order: 2 } },
 		]));
 		disposables.add(MenuRegistry.appendMenuGroup(testMenuId, { group: '2_tools', title: 'Tools' }));
 		disposables.add(MenuRegistry.appendMenuGroup(canvasMenuId, { group: '0_recent', title: 'Recent' }));
@@ -267,7 +267,7 @@ suite('MenuService', function () {
 				['navigation', [['Files', undefined]]],
 				['2_tools', [['Canvas', 'Tools']]],
 			],
-			canvas: [['Recent Plan', 'Recent'], '---', ['Plan', undefined], '---', ['Create a Canvas', 'Discover More'], ['Discover More Canvases', 'Discover More']],
+			canvas: [['Recent Plan', 'Recent'], '---', ['Plan', undefined], '---', ['Create a Canvas', 'Discover More'], ['Browse Canvases', 'Discover More']],
 		});
 	});
 
