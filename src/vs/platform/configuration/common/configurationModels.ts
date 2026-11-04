@@ -210,7 +210,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				}
 			}
 
-			contents[key] = contentsForKey;
+			json.setObjectProperty(contents, key, contentsForKey);
 		}
 
 		return new ConfigurationModel(contents, this.keys, this.overrides, undefined, this.logService);
@@ -218,13 +218,13 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	private mergeContents(source: IStringDictionary<unknown>, target: IStringDictionary<unknown>): void {
 		for (const key of Object.keys(target)) {
-			if (key in source) {
+			if (Object.hasOwn(source, key)) {
 				if (types.isObject(source[key]) && types.isObject(target[key])) {
 					this.mergeContents(source[key] as IStringDictionary<unknown>, target[key] as IStringDictionary<unknown>);
 					continue;
 				}
 			}
-			source[key] = objects.deepClone(target[key]);
+			json.setObjectProperty(source, key, objects.deepClone(target[key]));
 		}
 	}
 

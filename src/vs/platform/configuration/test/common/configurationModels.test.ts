@@ -788,6 +788,89 @@ suite('ConfigurationModel', () => {
 		assert.deepStrictEqual(result.keys, ['a.b']);
 	});
 
+	test('merge does not recurse into inherited __proto__ of configuration contents', () => {
+		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [], undefined, new NullLogService());
+		const add = new ConfigurationModel(JSON.parse('{ "a": { "__proto__": { "pollutedByMerge": true } } }'), ['a.__proto__'], [], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(add);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByMerge'],
+				pollutedObject: ({} as Record<string, unknown>)['pollutedByMerge'],
+				prototype: Object.getPrototypeOf(result.getValue('a')),
+				b: result.getValue('a.b'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedObject: undefined,
+				prototype: Object.prototype,
+				b: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByMerge'];
+		}
+	});
+
+	test('merge does not pollute Object.prototype when overriding contents contain __proto__', () => {
+		const base = new ConfigurationModel({}, [], [{ identifiers: ['c'], contents: { 'a': { 'b': 1 } }, keys: ['a.b'] }], undefined, new NullLogService());
+		const add = new ConfigurationModel({}, [], [{ identifiers: ['c'], contents: JSON.parse('{ "a": { "__proto__": { "pollutedByOverrideMerge": true } } }'), keys: [] }], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(add);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByOverrideMerge'],
+				b: result.override('c').getValue('a.b'),
+			}, {
+				pollutedPrototype: undefined,
+				b: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByOverrideMerge'];
+		}
+	});
+
+	test('chained merges with __proto__ contents do not pollute Object.prototype', () => {
+		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [], undefined, new NullLogService());
+		const hostile = new ConfigurationModel(JSON.parse('{ "__proto__": { "pollutedByChain": { "v": true } }, "a": { "__proto__": { "pollutedByChainNested": true } } }'), [], [], undefined, new NullLogService());
+		const other = new ConfigurationModel({ 'c': 1 }, ['c'], [], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(hostile).merge(other).merge(other);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByChain'],
+				pollutedNestedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByChainNested'],
+				b: result.getValue('a.b'),
+				c: result.getValue('c'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedNestedPrototype: undefined,
+				b: 1,
+				c: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByChain'];
+			delete (Object.prototype as Record<string, unknown>)['pollutedByChainNested'];
+		}
+	});
+
+	test('override does not set prototype from __proto__ contents', () => {
+		const testObject = new ConfigurationModel(JSON.parse('{ "__proto__": { "inherited": 1 }, "a": 1 }'), [], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }], undefined, new NullLogService());
+
+		const override = testObject.override('c');
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(override.contents),
+			inherited: (override.contents as Record<string, unknown>)['inherited'],
+			a: override.getValue('a'),
+		}, {
+			prototype: Object.prototype,
+			inherited: undefined,
+			a: 2,
+		});
+	});
+
 	test('simple merge overrides', () => {
 		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }], undefined, new NullLogService());
 		const add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 }, keys: ['b'] }], undefined, new NullLogService());
