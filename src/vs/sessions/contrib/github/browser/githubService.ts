@@ -22,9 +22,10 @@ import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
 import { PullRequestChecksSource } from './fetchers/githubPRChecksSource.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
@@ -160,7 +161,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -183,7 +184,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		// The session the main window shows, whose Changes view, checks and details these feed, also while another window,
 		// with a session of its own, has focus.
-		const active = this.getSessionPullRequest(sessionsService.mainWindowActiveSession);
+		const active = this.getSessionPullRequest(derived(reader => sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader)?.session.read(reader)));
 		this.activeSessionPullRequestObs = active.pullRequestObs;
 		this.activeSessionPullRequestCIObs = active.pullRequestCIObs;
 		this.activeSessionPullRequestReviewThreadsObs = active.pullRequestReviewThreadsObs;

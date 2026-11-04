@@ -24,7 +24,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -177,7 +177,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILogService private readonly logService: ILogService,
@@ -571,7 +571,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _withCleanupState(worktrees: readonly IMeasuredSessionWorktree[], minimumAgeDays: number): readonly ISessionWorktree[] {
-		const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
+		const activeSessionId = this.focusedSessionHostService.focusedHost.get().session.get()?.sessionId;
 		const cutoff = Date.now() - minimumAgeDays * DAY_MS;
 		return worktrees.filter(isWorktreeCleanupBranchSupported).map(worktree => ({
 			...worktree,

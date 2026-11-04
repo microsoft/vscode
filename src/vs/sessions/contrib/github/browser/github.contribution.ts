@@ -14,7 +14,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { GitHubPullRequestState } from '../common/types.js';
 import { getSessionGitHubReferences } from '../common/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../common/utils.js';
@@ -72,13 +72,13 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
 				return undefined;
 			}
@@ -321,7 +321,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	}
 
 	private _isActiveSession(session: ISession, reader: IReader): boolean {
-		const activeSession = this._sessionsService.activeSession.read(reader);
+		const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 		if (!activeSession || activeSession.isArchived.read(reader)) {
 			return false;
 		}

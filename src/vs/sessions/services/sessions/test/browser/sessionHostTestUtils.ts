@@ -6,7 +6,7 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -55,13 +55,15 @@ export function sessionHostServiceOf(state: { readonly mainWindowActiveSession: 
 		}
 		return host;
 	};
+	const readHosts = (reader: IReader | undefined) => [
+		...state.windowSessions.read(reader).map(session => hostOfSession(session, SessionHostKind.ChatWindow, undefined)),
+		...state.visibleSessions.read(reader).filter(session => !!session).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),
+		mainHost,
+	];
 	return upcastPartial<ISessionHostService>({
+		hosts: derived(reader => readHosts(reader)),
 		getHostOfWindow: windowId => windowId === mainWindow.vscodeWindowId ? mainHost : undefined,
-		getHostOfChat: (chatResource, reader) => [
-			...state.windowSessions.read(reader).map(session => hostOfSession(session, SessionHostKind.ChatWindow, undefined)),
-			...state.visibleSessions.read(reader).filter(session => !!session).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),
-			mainHost,
-		].find(host => isEqual(host.chat.read(reader)?.resource, chatResource)),
+		getHostOfChat: (chatResource, reader) => readHosts(reader).find(host => isEqual(host.chat.read(reader)?.resource, chatResource)),
 		getHostsOfSession: (resource, reader) => [
 			...(isEqual(state.mainWindowActiveSession.read(reader)?.resource, resource) ? [mainHost] : []),
 			...state.visibleSessions.read(reader).filter(session => !!session && isEqual(session.resource, resource)).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),

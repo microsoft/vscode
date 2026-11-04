@@ -26,6 +26,7 @@ import { IGitHubService } from '../../browser/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
 
@@ -319,7 +320,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 		return new GitHubPullRequestPollingContribution(
 			gitHubService,
 			sessionsManagementService,
-			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			logService,
 		);
 	}

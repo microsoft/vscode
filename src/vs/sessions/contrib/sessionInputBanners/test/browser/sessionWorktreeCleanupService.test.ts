@@ -23,7 +23,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
@@ -1946,7 +1946,7 @@ function createService(
 			cleanupManagedWorktree: overrides.cleanupManagedWorktree,
 			managedWorktreeExists: overrides.managedWorktreeExists,
 		}),
-		upcastPartial<ISessionsService>({ activeSession: constObservable(activeSession) }),
+		focusedSessionHostServiceOf(constObservable(activeSession)),
 		upcastPartial<ISessionsListModelService>({ isSessionPinned: session => session === pinnedSession }),
 		overrides.dialogService ?? upcastPartial<IDialogService>({}),
 		upcastPartial<ILogService>({ warn: () => { }, error: () => { } }),
