@@ -71,6 +71,7 @@ class TestChatView extends AbstractChatView {
 	split = false;
 	active = true;
 	onInput: (() => void) | undefined;
+	onLayout: (() => void) | undefined;
 	readonly boundChats: { readonly chat: string; readonly sessionId: string | undefined }[] = [];
 	readonly connectedOnBind: boolean[] = [];
 	isDisposed = false;
@@ -93,6 +94,7 @@ class TestChatView extends AbstractChatView {
 	protected doLayout(width: number, height: number): void {
 		this.layoutCount++;
 		this.layouts.push({ width, height });
+		this.onLayout?.();
 	}
 
 	focus(): void {
@@ -606,6 +608,58 @@ suite('Sessions - ChatGroupsView', () => {
 			gapSashes: 3,
 			boundaryOverlays: 0,
 			sashes: 3,
+		});
+	});
+
+	test('a layout while a group is added or removed waits for the grid and lays out once', async () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const right = createChat('right', SessionStatus.Completed, main.resource);
+		const below = createChat('below', SessionStatus.Completed, main.resource);
+		view.setSession(new TestActiveSession([main, right, below]), options);
+		view.layout(1200, 600, 0, 0, 4);
+		await view.openChatInNewGroup(right.resource, main.resource);
+
+		// What lays out the window as a chat lays out, such as a terminal that opens as the grid changes
+		const errors: string[] = [];
+		let relayouts = 0;
+		let relayingOut = false;
+		const relayoutAsChatsLayOut = (on: boolean) => {
+			for (const chat of chatViewFactory.views) {
+				chat.onLayout = on ? () => {
+					if (relayingOut) {
+						return;
+					}
+					relayingOut = true;
+					relayouts++;
+					try {
+						view.layout(1200, 600, 0, 0, 4);
+					} catch (error) {
+						errors.push(String(error));
+					} finally {
+						relayingOut = false;
+					}
+				} : undefined;
+			}
+		};
+		const corners = () => ({
+			bottomLeft: view.element.querySelectorAll('.chat-grid-bottom-left').length,
+			bottomRight: view.element.querySelectorAll('.chat-grid-bottom-right').length,
+		});
+
+		relayoutAsChatsLayOut(true);
+		// Below a chat beside another: the grid nests the two in a branch of their own
+		await view['_openChatInNewGroup'](below.resource, right.resource, 'bottom');
+		relayoutAsChatsLayOut(true); // also as the new chat lays out
+		const added = { groups: view.groupCount.get(), corners: corners() };
+		view['_removeGroups'](group => group.resourceIds.get().includes(below.resource.toString()));
+		relayoutAsChatsLayOut(false);
+
+		assert.deepStrictEqual({ errors, relayedOut: relayouts > 0, added, removed: { groups: view.groupCount.get(), corners: corners() } }, {
+			errors: [],
+			relayedOut: true,
+			added: { groups: 3, corners: { bottomLeft: 1, bottomRight: 1 } },
+			removed: { groups: 2, corners: { bottomLeft: 1, bottomRight: 1 } },
 		});
 	});
 

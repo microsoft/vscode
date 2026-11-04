@@ -118,6 +118,12 @@ export class ChatGroupsView extends Themable {
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
 	private _gridDidLayout = false;
+	/**
+	 * Set while the grid and the groups change together, such as while a group is added or removed: a layout meanwhile,
+	 * such as of the window as a group's view moves focus, waits until both agree again, and then lays out once.
+	 */
+	private _gridMutations = 0;
+	private _layoutDeferred = false;
 	private _gridTopologyChanged = false;
 
 	private readonly _primaryGroup = observableValue<ChatGroupView | undefined>(this, undefined);
@@ -667,9 +673,11 @@ export class ChatGroupsView extends Themable {
 		const id = resource.toString();
 		const wasPinned = source.pinnedResourceId.get() === id;
 		const newGroup = this._createGroupEntry(this._session);
-		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, this._zoneToDirection(zone));
-		this._insertGroup(newGroup, reference, zone);
-		this._setGroupCount(this._groups.length);
+		this._mutateGrid(() => {
+			this._grid!.addView(newGroup.view, Sizing.Distribute, reference.view, this._zoneToDirection(zone));
+			this._insertGroup(newGroup, reference, zone);
+			this._setGroupCount(this._groups.length);
+		});
 
 		transaction(tx => {
 			this._detachChatFromGroup(source, id, tx);
@@ -722,9 +730,11 @@ export class ChatGroupsView extends Themable {
 			return undefined;
 		}
 		const newGroup = this._createGroupEntry(this._session);
-		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, Direction.Right);
-		this._insertGroup(newGroup, reference, 'right');
-		this._setGroupCount(this._groups.length);
+		this._mutateGrid(() => {
+			this._grid!.addView(newGroup.view, Sizing.Distribute, reference.view, Direction.Right);
+			this._insertGroup(newGroup, reference, 'right');
+			this._setGroupCount(this._groups.length);
+		});
 		this._applyLayout();
 		return newGroup;
 	}
@@ -797,9 +807,11 @@ export class ChatGroupsView extends Themable {
 		}
 
 		const newGroup = this._createGroupEntry(session);
-		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, this._zoneToDirection(zone));
-		this._insertGroup(newGroup, reference, zone);
-		this._setGroupCount(this._groups.length);
+		this._mutateGrid(() => {
+			this._grid!.addView(newGroup.view, Sizing.Distribute, reference.view, this._zoneToDirection(zone));
+			this._insertGroup(newGroup, reference, zone);
+			this._setGroupCount(this._groups.length);
+		});
 
 		transaction(tx => {
 			const assignedGroup = this._groups.find(group => group !== newGroup && group.resourceIds.get().includes(id));
@@ -888,8 +900,10 @@ export class ChatGroupsView extends Themable {
 				break;
 			}
 			const hadFocus = group.view.element.contains(group.view.element.ownerDocument.activeElement);
-			this._grid.removeView(group.view, Sizing.Distribute);
-			this._groups = this._groups.filter(g => g !== group);
+			this._mutateGrid(() => {
+				this._grid!.removeView(group.view, Sizing.Distribute);
+				this._groups = this._groups.filter(g => g !== group);
+			});
 			if (this._activeGroup === group) {
 				this._activeGroup = this._groups[0];
 				this._activeGroup?.view.setGroupActive(true);
@@ -1168,7 +1182,25 @@ export class ChatGroupsView extends Themable {
 		this._applyLayout();
 	}
 
+	/** Changes the grid and the groups together; see {@link _gridMutations}. */
+	private _mutateGrid(mutate: () => void): void {
+		this._gridMutations++;
+		try {
+			mutate();
+		} finally {
+			this._gridMutations--;
+			if (!this._gridMutations && this._layoutDeferred) {
+				this._layoutDeferred = false;
+				this._applyLayout();
+			}
+		}
+	}
+
 	private _applyLayout(): void {
+		if (this._gridMutations) {
+			this._layoutDeferred = true;
+			return;
+		}
 		if (!this._lastLayout) {
 			return;
 		}
