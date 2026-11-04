@@ -1027,7 +1027,11 @@ export class ChatService extends Disposable implements IChatService {
 	 * with the input state restored from the session and its persisted draft.
 	 */
 	private createRemoteSessionModel(sessionResource: URI, providedSession: IChatSession, location: ChatAgentLocation, sessionTypeSelectionReason: SessionTypeSelectionReason | undefined): { model: ChatModel; inputRestore: IRemoteSessionInputRestore } {
-		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
+		// The model the session continues with: its transferred draft's selection when it has one,
+		// else the last model its request history used. A draft model wins even when its metadata is
+		// not loaded yet, so a cold restore waits for it rather than settling on an earlier turn's.
+		const modelId = providedSession.transferredState?.selectedModelId
+			?? findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
 		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
 		const storedPermissionLevel = storedMetadata?.permissionLevel;
@@ -1233,6 +1237,8 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
 			let streamingRequest = restored.lastRequest;
 			let streamingResponseCompletedAt = restored.lastResponseCompletedAt;
+			// Only the replayed turn can carry a recorded cancellation; a live turn's is applied as it happens.
+			let streamingResponseCanceled = restored.lastResponseCanceled;
 			let lastProgressLength = 0;
 			// Completion state as of the previous observation, or undefined before the
 			// first one. A session that is already complete when first observed is
@@ -1266,14 +1272,22 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			const completeStreamingResponse = (finishedNow = false) => {
-				if (Number.isFinite(streamingResponseCompletedAt)) {
-					streamingRequest?.response?.complete(streamingResponseCompletedAt);
+				const response = streamingRequest?.response;
+				if (streamingResponseCanceled && !finishedNow) {
+					if (streamingResponseCompletedAt !== undefined && Number.isFinite(streamingResponseCompletedAt)) {
+						response?.cancel(streamingResponseCompletedAt);
+					} else {
+						response?.cancelWithoutTimestamp();
+					}
+				} else if (Number.isFinite(streamingResponseCompletedAt)) {
+					response?.complete(streamingResponseCompletedAt);
 				} else if (finishedNow) {
-					streamingRequest?.response?.complete();
+					response?.complete();
 				} else {
-					streamingRequest?.response?.completeWithoutTimestamp();
+					response?.completeWithoutTimestamp();
 				}
 				streamingResponseCompletedAt = undefined;
+				streamingResponseCanceled = false;
 			};
 			const processProgress = (progressArray: readonly IChatProgress[], isComplete: boolean) => {
 				// The first observation replays whatever the session did before it was watched.
@@ -1320,6 +1334,7 @@ export class ChatService extends Disposable implements IChatService {
 						request.response.reopen();
 						streamingRequest = request;
 						streamingResponseCompletedAt = undefined;
+						streamingResponseCanceled = false;
 						lastProgressLength = 0;
 						ensureCancellationTracking();
 						return;

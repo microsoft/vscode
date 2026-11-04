@@ -10,6 +10,7 @@ import { constObservable, derived, IObservable, ISettableObservable, observableV
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -876,6 +877,11 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }
 		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
+	});
+
+	// The main window has focus: no chat window does.
+	instaService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+		override readonly activeWindow = undefined;
 	});
 
 	return harness;

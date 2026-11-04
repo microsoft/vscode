@@ -725,7 +725,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					...notifications.map(item => { const detail = this.describeItemForPreview(item); return `${detail.contextLabel}: ${detail.detailText}`; }),
 					`Fallback action: ${title}`,
 				].join('\n').slice(0, PREVIEW_MAX_INPUT_CHARS);
-				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash([inputText, notifications.map(item => item.previewSignature)])}` });
+				const previewKey = status === SessionStatus.Completed && row.kind === InboxNotificationKind.Completed
+					? [id, occurrence, timestamp, tab, sessionTitle, workTitle] : [inputText, notifications.map(item => item.previewSignature)];
+				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash(previewKey)}` });
 			}
 			const represented = new Set(rows.flatMap(row => row.notifications.map(item => item.id)));
 			for (const item of allItems.filter(item => !represented.has(item.id) && !dismissed.has(item.id))) {
@@ -1175,16 +1177,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.sortMode.set(sortMode, undefined);
 	}
 
-	requestDetailSummary(item: IInboxNotificationItem): void {
+	requestDetailSummary(item: IInboxNotificationItem, source: 'visibility' | 'interaction' = 'interaction'): void {
 		if (!this._enabled.get() || this._store.isDisposed || this._dismissedIds.get().has(item.id) || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart && !item.pullRequestStates?.length)) {
 			return;
 		}
 		const key = item.id;
 		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource ?? this.getMainChatResource(item);
 		const request = chatResource && this.chatService.getSession(chatResource)?.getRequests().at(-1);
+		const completed = this.sessionsManagementService.getSession(item.sessionResource)?.status.get() === SessionStatus.Completed;
 		const signature = JSON.stringify([
 			item.previewSignature, item.timestamp, chatResource?.toString(),
-			request?.id, request?.response?.isComplete, request?.response?.isCanceled,
+			completed ? undefined : [request?.id, request?.response?.isComplete, request?.response?.isCanceled],
 		]);
 		if (this._detailSummarySignatures.get(key) !== signature) {
 			this._detailSummarySignatures.set(key, signature);
@@ -1195,9 +1198,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 		const existing = this._detailSummaryCache.get(key);
-		// A transient empty result (deps not ready / model unavailable) is re-attemptable;
-		// only a real summary or an in-flight request should block regeneration.
-		if ((existing && existing !== EMPTY_DETAIL_SUMMARY) || this._detailSummaryInFlight.has(key)) {
+		// Re-observing a card must not retry an empty result from loading and releasing its history.
+		if ((existing && (source === 'visibility' || existing !== EMPTY_DETAIL_SUMMARY)) || this._detailSummaryInFlight.has(key)) {
 			return;
 		}
 		void this.generateDetailSummary(key, item);
@@ -1254,7 +1256,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				if (summary) {
 					this.publishDetailSummary(key, summary);
 				} else {
-					// Empty summaries settle loading but remain retryable.
+					// Interactions or invalidated inputs can retry an empty summary.
 					this.publishDetailSummary(key, EMPTY_DETAIL_SUMMARY);
 				}
 			}

@@ -33,6 +33,7 @@ suite('Chat window grid', () => {
 			override readonly isEmpty = false;
 			override readonly onDidModelChange = Event.None;
 			override getEditors() { return []; }
+			override focus(): void { }
 		}();
 		return new class extends mock<IContentPart>() {
 			override readonly element = $(`.${name}`);
@@ -42,6 +43,7 @@ suite('Chat window grid', () => {
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
 			override readonly groups = [group];
+			override readonly activeGroup = group;
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -610,7 +612,7 @@ suite('Chat window grid', () => {
 		});
 	});
 
-	test('the chat and the main part keep their widths as the terminals walk through every position, show and hide, after a mode round trip, a resize and a change of density', () => {
+	test('the chat and the main part keep their widths as the terminals walk through every position, show and hide, after a mode round trip and a resize, and their share of the grid as the outer insets change', () => {
 		const { mode, position, grid, open, terminalsPart, userResize } = setupWithTerminals();
 		open();
 		userResize(ChatWindowGridCell.Chat, 'right', 400);
@@ -636,7 +638,80 @@ suite('Chat window grid', () => {
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 		read();
 
-		assert.deepStrictEqual(widths, [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]);
+		// With the outer insets, the grid is narrower than it started, and the chat keeps its share of it
+		assert.deepStrictEqual(widths, [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 397]);
+	});
+
+	test('as the window is resized, such as to full screen, the chat and the main part keep their shares of it, the title row, the strip and the terminals keep their sizes, and the way back gives the sizes they had', () => {
+		const { mode, grid, open, userResize } = setupWithTerminals();
+		open();
+		userResize(ChatWindowGridCell.Chat, 'right', 400);
+		const size = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell);
+		const sideBySide = () => `${size(ChatWindowGridCell.Chat).width}/${size(ChatWindowGridCell.Main).width} title ${size(ChatWindowGridCell.TitleRow).height} terminals ${size(ChatWindowGridCell.Terminals).height}`;
+		const stacked = () => `${size(ChatWindowGridCell.Main).height}/${size(ChatWindowGridCell.Chat).height} title ${size(ChatWindowGridCell.TitleRow).height} terminals ${size(ChatWindowGridCell.Terminals).height} strip ${size(ChatWindowGridCell.Strip).width}`;
+		const resize = (read: () => string) => [1000, 1600, 800, 1000].map(width => {
+			grid.layout(width, width * 0.8);
+			return read();
+		});
+
+		const sideBySideSizes = resize(sideBySide);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const stackedSizes = resize(stacked);
+
+		assert.deepStrictEqual({ sideBySideSizes, stackedSizes }, {
+			sideBySideSizes: ['400/600 title 30 terminals 240', '640/960 title 30 terminals 240', '320/480 title 30 terminals 240', '400/600 title 30 terminals 240'],
+			stackedSizes: ['292/238 title 30 terminals 240 strip 34', '556/454 title 30 terminals 240 strip 34', '204/166 title 30 terminals 240 strip 34', '292/238 title 30 terminals 240 strip 34']
+		});
+	});
+
+	test('in Stacked, resizing the window by small uneven steps, out and back, as a window is dragged, gives the main part and the chat back their exact heights', () => {
+		const { mode, grid, open, userResize } = setupWithTerminals();
+		open();
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		userResize(ChatWindowGridCell.Chat, 'top', 177);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals, ChatWindowGridCell.TitleRow].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const strip = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Strip).width;
+		const before = heights();
+		const chrome = new Set<string>();
+		// As a window is dragged: by uneven steps, out and back
+		const steps = [1, 3, 2, 7, 1, 5, 4, 1, 9, 2];
+		let height = 800;
+		for (let i = 0; i < 60; i++) {
+			height += steps[i % steps.length];
+			grid.layout(1000, height);
+			chrome.add(`${heights()[3]}/${strip()}`);
+		}
+		for (let i = 0; i < 60; i++) {
+			height -= steps[(i * 3) % steps.length];
+			grid.layout(1000, height);
+			chrome.add(`${heights()[3]}/${strip()}`);
+		}
+		grid.layout(1000, 800);
+
+		// The title row and the strip keep their sizes at every step
+		assert.deepStrictEqual({ heights: heights(), chrome: [...chrome] }, { heights: before, chrome: ['30/34'] });
+	});
+
+	test('in Stacked, with a part dropped at the bottom edge of the window, below the parts and the strip, the parts keep their shares of the window as it is resized, and the title row and the strip their sizes', () => {
+		const { mode, grid } = setup({ createPart: () => ({ id: 'created', part: createPart('created') }) });
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Down }, { dropped: true });
+		const size = (cell: string) => grid.partGrid!.getCellSize(cell);
+		const sizes = () => `${size(ChatWindowGridCell.Main).height + size(ChatWindowGridCell.Chat).height}/${size('created').height} title ${size(ChatWindowGridCell.TitleRow).height} strip ${size(ChatWindowGridCell.Strip).width}`;
+		const resized = [800, 1200, 700, 800].map(height => {
+			grid.layout(1000, height);
+			return sizes();
+		});
+
+		assert.deepStrictEqual({ shape: grid.partGrid!.describe(), resized }, {
+			shape: 'column(titleRow, row(column(main, chat), strip), created)',
+			resized: ['556/214 title 30 strip 34', '845/325 title 30 strip 34', '484/186 title 30 strip 34', '556/214 title 30 strip 34'],
+		});
 	});
 
 	test('QA\'s INFO-2 sequence: side by side, only the chat (its sizes saved meanwhile), a part moved, stacked, and side by side again: the split the user had, never the main part at its minimum', () => {
@@ -798,7 +873,8 @@ suite('Chat window grid', () => {
 		gap.set(4, undefined);
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 
-		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/716', compact: '476/724', after: '476/716' });
+		// Compact, the chat and the main part keep their shares of the room the insets leave
+		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/716', compact: '479/721', after: '476/716' });
 	});
 
 	test('a change of density lays the grid out again once its styles apply, so that the cards read the frames of the new density', async () => {

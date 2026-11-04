@@ -78,7 +78,8 @@ function createSubagentChatLookup(sessionsService: ISessionsService, backendChat
 	const allChats = new SubagentChatIndex(0);
 	const bySession = new ResourceMap<SubagentChatIndex>();
 	const byLegacyPath = new Map<string, SubagentChatIndex>();
-	const sessions = [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader)];
+	// Chat windows too, such as for a link in a chat window that is not the active session.
+	const sessions = [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader), ...sessionsService.windowSessions.read(reader)];
 	let order = 0;
 	for (const session of sessions) {
 		if (!session || bySession.has(session.resource)) {

@@ -803,7 +803,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		refreshChat: (() => Promise<void>) | undefined,
 		private readonly _forkSession: NonNullable<IChatSession['forkSession']>,
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
-		inputState: ISerializableChatModelInputState | undefined,
+		transferredState: IChatSession['transferredState'],
 		initialProgress: IChatProgress[] | undefined,
 		historySubagentObservations: IDisposable,
 		onDispose: () => void,
@@ -869,7 +869,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		}
 
 		const hasActiveTurn = initialProgress !== undefined;
-		this.transferredState = inputState ? { editingSession: undefined, inputState } : undefined;
+		this.transferredState = transferredState;
 		if (hasActiveTurn) {
 			this.isCompleteObs.set(false, undefined);
 			this.progressObs.set(initialProgress, undefined);
@@ -1778,6 +1778,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let activeTurnId: string | undefined;
 		let chatTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
+		let draftModelId: string | undefined;
 		let sessionSubscription: IAgentSubscription<SessionState> | undefined;
 		let chatSubscription: IAgentSubscription<ChatState> | undefined;
 		const historySubagentObservations = new DisposableStore();
@@ -1826,6 +1827,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						chatTitle = this._getHostChatTitle(sessionResource, sessionState, chatURI);
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
+						draftModelId = this._toLanguageModelId(sessionResource, draft?.model?.id);
 						if (!sessionState.draft && draft) {
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
@@ -1999,7 +2001,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					});
 					return Promise.resolve();
 				},
-				draftInputState,
+				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId } : {}) } : undefined,
 				initialProgress?.filter(part => !isUnstartedSubagent(part)),
 				historySubagentObservations,
 				() => {

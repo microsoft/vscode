@@ -208,6 +208,13 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	}
 }
 
+/**
+ * Separates groups of actions.
+ *
+ * A separator with a {@link Separator.label label} introduces the actions after it with a
+ * non-interactive header. Menus render the label as a section header and native menus as a
+ * disabled item, while toolbars show a plain separator.
+ */
 export class Separator implements IAction {
 
 	/**
@@ -250,11 +257,16 @@ export class Separator implements IAction {
 
 	readonly id: string = Separator.ID;
 
-	readonly label: string = '';
 	readonly tooltip: string = '';
 	readonly class: string = 'separator';
 	readonly enabled: boolean = false;
 	readonly checked: undefined = undefined;
+
+	/**
+	 * @param label An optional header shown above the actions that follow the separator.
+	 */
+	constructor(readonly label: string = '') { }
+
 	async run() { }
 }
 

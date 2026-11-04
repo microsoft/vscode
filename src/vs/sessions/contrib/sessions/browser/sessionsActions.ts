@@ -51,7 +51,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { OS } from '../../../../base/common/platform.js';
+import { isWeb, OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -724,12 +724,12 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.list.openChatToSide',
-			title: localize2('openChatToSide', "Open to the Side"),
+			title: localize2('splitView', "Split View"),
 			f1: false,
 			menu: {
-				id: Menus.SessionChatItemContext,
+				id: Menus.SessionChatItemOpenIn,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 			},
 		});
 	}
@@ -743,6 +743,31 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		await sessionsService.openChatToSide(context.session, context.chat.resource);
+	}
+});
+
+registerAction2(class OpenSessionListChatInEditorWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.openInEditorWindow',
+			title: localize2('editorWindow', "Editor Window"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			menu: [Menus.SessionItemOpenIn, Menus.SessionChatItemOpenIn].map(id => ({
+				id,
+				group: '1_editor',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+			})),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISession[] | ISessionChatItem): Promise<void> {
+		const target = Array.isArray(context)
+			? context.length === 1 ? { session: context[0], chat: context[0].mainChat.get() } : undefined
+			: context;
+		if (target) {
+			await accessor.get(ICommandService).executeCommand(isWeb ? 'sessions.openInVSCode' : 'agents.openSessionInVSCode', target);
+		}
 	}
 });
 
