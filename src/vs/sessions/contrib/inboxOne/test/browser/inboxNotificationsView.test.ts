@@ -1754,8 +1754,10 @@ suite('InboxNotificationsView', () => {
 			const dismiss = spy();
 			const error = spy();
 			const read = spy();
+			const openSession = spy(async () => { });
 			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
 			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', read);
+			instantiationService.stub(ISessionsService, 'openSession', openSession);
 			instantiationService.stub(INotificationService, 'error', error);
 			view.render(container);
 			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
@@ -1777,9 +1779,9 @@ suite('InboxNotificationsView', () => {
 			changes.fire({ reason: 'other' });
 			await completion.complete();
 			await timeout(0);
-			assert.deepStrictEqual({ accepted, dismissed: dismiss.callCount, read: read.callCount, errors: error.args }, {
+			assert.deepStrictEqual({ accepted, dismissed: dismiss.callCount, read: read.callCount, errors: error.args, opened: openSession.callCount }, {
 				accepted: 0, dismissed: outcome === 'success' || outcome === 'queued' ? 1 : 0,
-				read: 0,
+				read: 0, opened: 0,
 				errors: outcome === 'failure' ? [['Backend rejected the reply']] : outcome === 'rejected' ? [['Queued request rejected']] : [],
 			});
 		});
@@ -2164,7 +2166,8 @@ suite('InboxNotificationsView', () => {
 			};
 			const { view, container, instantiationService, chatViews } = createView(constObservable([item]));
 			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
-			instantiationService.stub(ISessionsService, 'openSession', async () => { });
+			const openSession = spy(async () => { });
+			instantiationService.stub(ISessionsService, 'openSession', openSession);
 			instantiationService.stub(ICommandService, 'executeCommand', async () => undefined);
 			stub(accessView(view), 'runInboxPullRequestAction').resolves('success');
 			stub(accessView(view), 'runMergedSessionCleanupAction').resolves('success');
@@ -2181,9 +2184,11 @@ suite('InboxNotificationsView', () => {
 			assert.deepStrictEqual({
 				dismissed: dismiss.args, read: markRead.args, replyDisposed: chatViews[0].disposed,
 				selected: !!container.querySelector('.inbox-notifications-item.selected'), done: done.callCount,
+				opened: openSession.args,
 			}, {
 				dismissed: dismisses ? [[item.id, item]] : [], read: kind !== InboxNotificationActionKind.OpenSession && kind !== InboxNotificationActionKind.Dismiss ? [[session, chat]] : [], replyDisposed: false, selected: kind !== InboxNotificationActionKind.MarkDone,
-				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0
+				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0,
+				opened: kind === InboxNotificationActionKind.OpenSession ? [[session.resource, { source: 'inbox' }]] : [],
 			});
 		});
 	}
@@ -2261,7 +2266,9 @@ suite('InboxNotificationsView', () => {
 					},
 				});
 				const dismiss = spy();
+				const openSession = spy(async () => { });
 				instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+				instantiationService.stub(ISessionsService, 'openSession', openSession);
 				instantiationService.stub(INotificationService, 'error', () => { });
 				view.render(container);
 				container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
@@ -2277,8 +2284,8 @@ suite('InboxNotificationsView', () => {
 				}
 				summaries.set(new Map([[item.id, { status: 'Late interpretation', decisions: [], evidence: [] }]]), undefined);
 				assert.deepStrictEqual({
-					dismissed: dismiss.args, evidence: view.getDetailAccessibleContent()?.includes('Late interpretation'),
-				}, { dismissed: succeeds ? [[item.id, item]] : [], evidence: true });
+					dismissed: dismiss.args, evidence: view.getDetailAccessibleContent()?.includes('Late interpretation'), opened: openSession.callCount,
+				}, { dismissed: succeeds ? [[item.id, item]] : [], evidence: true, opened: 0 });
 			});
 		}
 	}
@@ -3185,9 +3192,11 @@ suite('InboxNotificationsView', () => {
 				const completion = new DeferredPromise<void>();
 				const cleanupStarted = new DeferredPromise<void>();
 				const cleanup = async () => { items.set([], undefined); await cleanupStarted.complete(); await completion.p; };
+				const openSession = spy(async () => { });
 				instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 				instantiationService.stub(ISessionsManagementService, 'archiveSession', cleanup);
 				instantiationService.stub(ISessionsManagementService, 'deleteSession', cleanup);
+				instantiationService.stub(ISessionsService, 'openSession', openSession);
 				instantiationService.stub(IDialogService, 'confirm', async () => ({ confirmed: outcome !== 'cancelled' }));
 				instantiationService.stub(INotificationService, 'notify', () => upcastPartial<ReturnType<INotificationService['notify']>>({}));
 				const notifications = spy();
@@ -3229,11 +3238,13 @@ suite('InboxNotificationsView', () => {
 						errors: errors.map(error => error.message),
 						notifications: notifications.callCount,
 						dismissed: dismiss.args,
+						opened: openSession.callCount,
 					}, {
 						before: null, bounds: celebrated ? ['120px', '80px', '48px', '24px'] : null,
 						particles: celebrated ? 24 : 0, buttonConnected: outcome === 'cancelled',
 						errors: outcome === 'failed' ? ['Cleanup failed'] : [], notifications: outcome === 'failed' ? 1 : 0,
 						dismissed: outcome === 'cancelled' || outcome === 'failed' ? [] : [[item.id, item]],
+						opened: 0,
 					});
 				} finally {
 					setUnexpectedErrorHandler(previousHandler);
@@ -3763,12 +3774,14 @@ suite('InboxNotificationsView', () => {
 		};
 		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 		const confirm = spy(async () => ({ confirmed: true }));
+		const openSession = spy(async () => { });
 		instantiationService.stub(IDialogService, 'confirm', confirm);
+		instantiationService.stub(ISessionsService, 'openSession', openSession);
 		const merged = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeMergePullRequest);
 		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
 		const disabled = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeMergePullRequest);
-		assert.deepStrictEqual({ merged, disabled, confirmations: confirm.callCount, invocations: invoke.getCalls().map(call => call.args) }, {
-			merged: 'success', disabled: 'skipped', confirmations: 0, invocations: [['pr-merge']],
+		assert.deepStrictEqual({ merged, disabled, confirmations: confirm.callCount, invocations: invoke.getCalls().map(call => call.args), opened: openSession.callCount }, {
+			merged: 'success', disabled: 'skipped', confirmations: 0, invocations: [['pr-merge']], opened: 0,
 		});
 	});
 });
