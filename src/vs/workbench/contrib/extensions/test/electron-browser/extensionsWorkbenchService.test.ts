@@ -13,7 +13,7 @@ import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsW
 import '../../browser/extensions.contribution.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IExtensionInfo, IExtensionQueryOptions, ExtensionManagementError, ExtensionManagementErrorCode
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IExtensionInfo, IExtensionQueryOptions, ExtensionManagementError, ExtensionManagementErrorCode, IDeprecationInfo, MarketplaceDeprecationConfigKey
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -413,6 +413,78 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		blockingOrigins.push(unblocked.firstPage[0].blockingInfo?.origin);
 
 		assert.deepStrictEqual(blockingOrigins, [ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service, undefined]);
+	});
+
+	test('Marketplace deprecation selects whole records and preserves operational migrations', () => {
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher message' };
+		const legacy: IDeprecationInfo = { disallowInstall: true, extension: { id: 'pub.legacy', displayName: 'Legacy' }, settings: ['legacy.setting'] };
+		const migration: IDeprecationInfo = { ...legacy, extension: { id: 'pub.migration', displayName: 'Migration', autoMigrate: { storage: true }, preRelease: true } };
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { deprecationInfo: marketplace }), undefined);
+		const states: (IDeprecationInfo | undefined)[] = [];
+		for (const record of [legacy, migration, undefined]) {
+			extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: record ? { 'pub.deprecated': record } : {} });
+			states.push(extension.deprecationInfo);
+		}
+		extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { 'pub.deprecated': legacy } });
+		const changed = extension.setMarketplaceDeprecationInfo(undefined);
+		assert.deepStrictEqual({ states, changed, fallback: extension.deprecationInfo }, { states: [marketplace, migration, marketplace], changed: true, fallback: legacy });
+	});
+
+	test('Marketplace deprecation refreshes same-version returned models without replacing their gallery', async () => {
+		const local = aLocalExtension('deprecated');
+		let gallery = aGalleryExtension(local.manifest.name);
+		const initialGallery = gallery;
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		testObject = await aWorkbenchService();
+		const initialSync = Event.toPromise(Event.filter(testObject.onChange, extension => extension?.gallery === initialGallery));
+		await testObject.queryGallery(CancellationToken.None);
+		await initialSync;
+
+		const records: (IDeprecationInfo | undefined)[] = [
+			{ source: 'marketplace', additionalInfo: 'First' },
+			{ source: 'marketplace', extension: { id: 'pub.replacement', displayName: 'Replacement' }, additionalInfo: 'Updated' },
+			undefined
+		];
+		const observed: (IDeprecationInfo | undefined)[] = [];
+		for (const deprecationInfo of records) {
+			gallery = aGalleryExtension(local.manifest.name, { deprecationInfo });
+			gallery.identifier = initialGallery.identifier;
+			const result = await testObject.queryGallery(CancellationToken.None);
+			observed.push(result.firstPage[0].deprecationInfo);
+		}
+		assert.deepStrictEqual({ observed, sameGallery: testObject.local[0].gallery === initialGallery }, { observed: records, sameGallery: true });
+	});
+
+	test('Marketplace deprecation from a different version is available before compatibility resolution', async () => {
+		const local = aLocalExtension('deprecated');
+		const deprecationInfo: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', false);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', null);
+		testObject = await aWorkbenchService();
+		const [extension] = await testObject.getExtensions([{ id: local.identifier.id }], CancellationToken.None);
+		assert.deepStrictEqual({ deprecation: extension.deprecationInfo, version: extension.version }, { deprecation: deprecationInfo, version: '1.0.0' });
+	});
+
+	test('Marketplace deprecation switch updates existing gallery models and broadcasts invalidation', async () => {
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher message' };
+		const legacy: IDeprecationInfo = { additionalInfo: 'Legacy message' };
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('deprecated', { deprecationInfo: marketplace })));
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', { malicious: [], search: [], deprecated: { 'pub.deprecated': legacy } });
+		testObject = await aWorkbenchService();
+		const [extension] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
+		const states = [extension.deprecationInfo];
+		let invalidations = 0;
+		disposableStore.add(testObject.onChange(e => { if (!e) { invalidations++; } }));
+		for (const enabled of [false, true]) {
+			await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, enabled);
+			states.push(extension.deprecationInfo);
+		}
+		assert.deepStrictEqual({ states, invalidations }, { states: [marketplace, legacy, marketplace], invalidations: 2 });
 	});
 
 	test('test same-version blocking metadata refresh preserves the server gallery and fires a change', async () => {
@@ -2178,6 +2250,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
 		const values: any = {
+			[MarketplaceDeprecationConfigKey]: true,
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
 			[AutoUpdateDelayConfigurationKey]: 2,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
@@ -2195,7 +2268,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 					source: ConfigurationTarget.USER,
 					change: { keys: [], overrides: [] },
 					affectsConfiguration(configuration, overrides) {
-						return true;
+						return configuration === key;
 					},
 				});
 			},
