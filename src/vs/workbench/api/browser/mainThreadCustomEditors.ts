@@ -917,8 +917,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			});
 			return true;
 		} else {
-			// Since the editor is readonly, just copy the file over
-			await this.fileService.copy(resource, targetResource, false /* overwrite */);
+			// Since the editor is readonly, just copy the file over. The save dialog already asked whether to replace the target.
+			await this.fileService.copy(resource, targetResource, true /* overwrite */);
 			return true;
 		}
 	}

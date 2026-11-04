@@ -2635,6 +2635,7 @@ export default defineConfig(
 			'extensions/markdown-language-features/preview-src/**/*.ts',
 			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
 			'extensions/mermaid-markdown-features/src/**/*.ts',
+			'extensions/pdf-preview/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
@@ -2654,6 +2655,10 @@ export default defineConfig(
 					// Mermaid markdown features
 					'extensions/mermaid-markdown-features/tsconfig.json',
 					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
+
+					// PDF preview
+					'extensions/pdf-preview/tsconfig.json',
+					'extensions/pdf-preview/preview-src/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',

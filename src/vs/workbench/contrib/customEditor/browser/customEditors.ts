@@ -14,6 +14,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { AccessibleViewType, ExtensionContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { FileOperation, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IResourceDiffEditorInput } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext } from '../../../common/contextkeys.js';
+import { ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext, EditorAreaFocusContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorDiffEditorLayout, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService, isCustomEditorCompatibleInput } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
@@ -276,6 +279,20 @@ export class CustomEditorResolverContribution extends Disposable implements IWor
 		this._editorResolverDisposables.clear();
 
 		for (const contributedEditor of this._contributedEditors) {
+			const accessibilityHelpContent = contributedEditor.accessibilityHelpContent;
+			if (accessibilityHelpContent) {
+				this._editorResolverDisposables.add(AccessibleViewRegistry.register({
+					type: AccessibleViewType.Help,
+					priority: 95,
+					name: contributedEditor.id,
+					when: ContextKeyExpr.and(CONTEXT_ACTIVE_CUSTOM_EDITOR_ID.isEqualTo(contributedEditor.id), EditorAreaFocusContext),
+					getProvider: accessor => {
+						const editorService = accessor.get(IEditorService);
+						return new ExtensionContentProvider(contributedEditor.id, { type: AccessibleViewType.Help }, () => accessibilityHelpContent, () => editorService.activeEditorPane?.focus());
+					},
+				}));
+			}
+
 			for (const globPattern of contributedEditor.selector) {
 				if (!globPattern.filenamePattern) {
 					continue;

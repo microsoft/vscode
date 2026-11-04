@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+#viewerContainer {
+	position: absolute;
+	inset: 0;
+	overflow: auto;
+	outline: none;
+	background-color: var(--vscode-editor-background);
+	/* Outline the pages instead of the wide transparent border of pdf.js, so that they stand out in light themes */
+	--page-border: 0 solid transparent;
+	--page-margin: 8px auto;
+}
+
+.pdfViewer .page {
+	box-shadow: 0 0 0 1px var(--vscode-widget-border, transparent), 0 1px 6px var(--vscode-widget-shadow, transparent);
+}
+
+.textLayer .highlight {
+	--highlight-bg-color: var(--vscode-editor-findMatchHighlightBackground);
+	--highlight-selected-bg-color: var(--vscode-editor-findMatchBackground);
+}
+
+.textLayer .highlight.selected {
+	outline: 1px solid var(--vscode-editor-findMatchBorder, transparent);
+}
+
+#message {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	text-align: center;
+	background-color: var(--vscode-editor-background);
+}
+
+#message:empty {
+	display: none;
+}

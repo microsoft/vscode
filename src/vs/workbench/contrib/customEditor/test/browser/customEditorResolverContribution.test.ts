@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../../common/memento.js';
@@ -49,6 +51,35 @@ suite('CustomEditorResolverContribution', () => {
 		}, {
 			registered: true,
 			customEditorServiceUsed: false,
+		});
+	});
+
+	test('Registers the accessibility help of custom editors for when they have focus', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.get(IStorageService).store('memento/customEditors', JSON.stringify({
+			editors: [{
+				id: 'test.pdfEditor',
+				displayName: 'Test PDF Editor',
+				providerDisplayName: 'Test',
+				selector: [{ filenamePattern: '*.pdf' }],
+				priority: RegisteredEditorPriority.builtin,
+				accessibilityHelpContent: 'Find with <keybinding:test.find>.',
+			}]
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const contribution = disposables.add(instantiationService.createInstance(CustomEditorResolverContribution));
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'test.pdfEditor');
+		const provider = help && disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+		const registered = { type: help?.type, when: help?.when?.serialize(), content: provider?.provideContent() };
+		contribution.dispose();
+
+		assert.deepStrictEqual({ registered, unregisteredWithContribution: !AccessibleViewRegistry.getImplementations().includes(help!) }, {
+			registered: {
+				type: AccessibleViewType.Help,
+				when: `editorAreaFocus && activeCustomEditorId == 'test.pdfEditor'`,
+				content: 'Find with <keybinding:test.find>.',
+			},
+			unregisteredWithContribution: true,
 		});
 	});
 });
