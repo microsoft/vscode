@@ -196,7 +196,7 @@ export class Chat {
 		return await this.pollForResponseText(CHAT_RESPONSE, CHAT_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 	}
 
-	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
+	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean; waitForCommittedResource?: boolean }): Promise<string> {
 		const matched = await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 		// After a contributed chat session (e.g. Copilot CLI, Claude) returns
 		// its first response, the workbench commits the untitled session into
@@ -207,7 +207,11 @@ export class Chat {
 		// container after binding its widget to the loaded chat model, and
 		// clears it during rebind — so we can wait for the swap to land via
 		// Playwright's push-based `waitForSelector` (no polling on our side).
-		await this.waitForEditorChatBoundToCommittedResource();
+		// Agent Host chat editors keep their untitled resource, so callers
+		// skip this wait for them.
+		if (options?.waitForCommittedResource !== false) {
+			await this.waitForEditorChatBoundToCommittedResource();
+		}
 		return matched;
 	}
 
@@ -220,7 +224,7 @@ export class Chat {
 	 * untitled → committed swap).
 	 */
 	private async waitForEditorChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
-		const selector = `.editor-instance .chat-editor-relative[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		const selector = `.editor-instance.chat-editor-relative[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
 		try {
 			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
 		} catch {
