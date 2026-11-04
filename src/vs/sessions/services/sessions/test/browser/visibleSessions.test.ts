@@ -1366,16 +1366,17 @@ suite('VisibleSessions', () => {
 			model.removeFromWindow(replacement!);
 		});
 
-		test('a window session keeps showing the subagent chats beside its chat when its session is replaced', () => {
+		test('a window session keeps showing the subagent chats beside its chat, and its active chat, when its session is replaced', () => {
 			const model = createModel();
 			const subagent: IChat = { ...stubChat, resource: URI.parse('test:///subagent'), origin: { kind: ChatOriginKind.Tool, parentChat: stubChat.resource } };
 			const b = { ...stubSession('b'), chats: constObservable([stubChat, subagent]) };
 			const windowSession = model.showInWindow(b, stubChat);
 			model.openChat(windowSession, subagent);
+			model.setActiveChat(windowSession, subagent);
 			model.updateSession(b, { ...b });
 			const replacement = model.getWindowSession('b', stubChat.resource)!;
-			assert.deepStrictEqual({ replaced: replacement !== windowSession, tabs: replacement.visibleChatTabs.get().map(chat => chat.resource.path) }, {
-				replaced: true, tabs: ['/chat', '/subagent'],
+			assert.deepStrictEqual({ replaced: replacement !== windowSession, tabs: replacement.visibleChatTabs.get().map(chat => chat.resource.path), active: replacement.activeChat.get().resource.path }, {
+				replaced: true, tabs: ['/chat', '/subagent'], active: '/subagent',
 			});
 			model.removeFromWindow(replacement);
 		});

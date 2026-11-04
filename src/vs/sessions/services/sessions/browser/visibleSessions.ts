@@ -502,8 +502,12 @@ export class VisibleSessions extends Disposable {
 			}
 			this._windowSessionsByChat.delete(key);
 			const chat = updatedSession.chats.get().find(candidate => candidate.resource.toString() === key);
-			// It keeps showing the subagent chats it showed beside its chat.
+			// It keeps showing the subagent chats it showed beside its chat, and the chat that was active.
 			const replacement = chat ? new VisibleSession(updatedSession, chat, undefined, [key, ...wrapper.shownRelatedChatUris], chat.resource, true) : undefined;
+			const active = replacement && updatedSession.chats.get().find(candidate => candidate.resource.toString() === wrapper.activeChat.get().resource.toString());
+			if (active && active !== chat) {
+				replacement.setActiveChat(active);
+			}
 			if (replacement) {
 				this._windowSessionsByChat.set(key, replacement);
 			} else {
@@ -1156,15 +1160,12 @@ export class VisibleSessions extends Disposable {
 			transaction(tx => this._setActiveSession(detached.wrapper, this._activePreserveFocus.get(), tx));
 			return;
 		}
-		// A window session shows its own chat and the subagent chats it shows beside it as active; other chats of its
-		// session, such as side chats, stay the grid's.
+		// A window session makes its own chat and the subagent chats it shows beside it active itself; other chats of its
+		// session, such as side chats, stay the grid's, which does not show the window's chats.
 		if (this.isWindowSession(session)) {
 			const windowSession = session as VisibleSession;
-			const shownBeside = this._chatWrapperOf(session, chat) === windowSession;
-			if (shownBeside || windowSession.scopedChatResource!.toString() === chat.resource.toString()) {
+			if (this._chatWrapperOf(session, chat) === windowSession || windowSession.scopedChatResource!.toString() === chat.resource.toString()) {
 				windowSession.setActiveChat(chat);
-			}
-			if (shownBeside) {
 				return;
 			}
 		}

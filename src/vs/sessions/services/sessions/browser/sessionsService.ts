@@ -1665,8 +1665,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return undefined;
 		}
 		if (referenceChatResource) {
-			return this._visibility.getWindowSession(session.sessionId, referenceChatResource)
-				?? this._visibility.windowSessions.get().find(candidate => candidate.sessionId === session.sessionId && candidate.visibleChatTabs.get().some(shown => extUri.isEqual(shown.resource, referenceChatResource)));
+			const windowOfReference = this._visibility.getWindowSession(session.sessionId, referenceChatResource);
+			if (windowOfReference) {
+				return windowOfReference;
+			}
+			// A subagent of a subagent shown beside a chat: opened from a surface that shows its parent, it opens there,
+			// such as the grid, which can show the same subagent as a window; else in a window that shows its parent.
+			const shows = (candidate: IActiveSession) => candidate.visibleChatTabs.get().some(shown => extUri.isEqual(shown.resource, referenceChatResource));
+			if (this._visibility.isWindowSession(session) && shows(session as IActiveSession)) {
+				return session as IActiveSession;
+			}
+			const grid = this._visibility.gridSessions.get().find(candidate => candidate === session);
+			if (grid && shows(grid)) {
+				return undefined;
+			}
+			return this._visibility.windowSessions.get().find(candidate => candidate.sessionId === session.sessionId && shows(candidate));
 		}
 		return this._visibility.isWindowSession(session) ? session as IActiveSession : undefined;
 	}
