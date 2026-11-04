@@ -783,7 +783,7 @@ class Extensions extends Disposable {
 				extension.gallery = gallery;
 				metadataChanged.delete(extension);
 				this._onChange.fire({ extension });
-			} else if (installedBlockingInfoChanged || metadataChanged.delete(extension)) {
+			} else if (metadataChanged.delete(extension) || installedBlockingInfoChanged) {
 				this._onChange.fire({ extension });
 			}
 		}
