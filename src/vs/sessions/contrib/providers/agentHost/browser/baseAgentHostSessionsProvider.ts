@@ -58,7 +58,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
-import { resolveAgentModelPreference, resolveAgentReasoningEffort } from '../../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
+import { getAgentModelPolicyError, IAgentModelPreferences, resolveAgentModelPreference, resolveAgentModelPreferences, resolveAgentReasoningEffort } from '../../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
@@ -1380,6 +1380,11 @@ function toSessionSideChatSelection(selection: { text: string; responsePartId?: 
 	};
 }
 
+/** The sessions shown anywhere: in the grid of the Sessions part, or in windows of their own. */
+function readShownSessions(sessionsService: ISessionsService, reader: IReader): readonly (IActiveSession | undefined)[] {
+	return [...sessionsService.visibleSessions.read(reader), ...sessionsService.windowSessions.read(reader)];
+}
+
 export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	readonly sessionId: string;
@@ -1732,7 +1737,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = derived(this, reader => {
-			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource));
+			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource))
+				|| _sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
 			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
 		});
 		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
@@ -1755,9 +1761,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.isRead.set(isSessionStatusRead(metadata.status), undefined);
 		}
 
+		// Also while the main window shows it, or a chat window does, when another one is the active session.
 		this.isActiveSessionObs = derived(this, reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			return isEqual(activeSession?.resource, this.resource);
+			return isEqual(activeSession?.resource, this.resource)
+				|| isEqual(this._sessionsService.mainWindowActiveSession.read(reader)?.resource, this.resource)
+				|| this._sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
 		});
 
 		// Set the changes summary from the aggregate. While the session is active,
@@ -4901,6 +4910,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
+			this.onDidChangeCustomAgents,
 		), false, this._store);
 		this._register(this.onDidChangeModels(() => {
 			for (const draft of this._newSessions.values()) {
@@ -4922,14 +4932,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// live, instead of relying on the idle timer that only client actions
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
-		// A chat's own config is subscribed while the chat is active in a visible session (and briefly
-		// after an explicit write); reads never subscribe. Re-run when a session's config, and so whether
-		// its host lets chats set values, becomes known.
+		// A chat's own config is subscribed while the chat is active in a visible session, including one
+		// shown in a window of its own (and briefly after an explicit write); reads never subscribe. Re-run
+		// when a session's config, and so whether its host lets chats set values, becomes known.
 		const sessionConfigChanged = observableSignalFromEvent(this, this.onDidChangeSessionConfig);
 		this._register(autorun(reader => {
 			sessionConfigChanged.read(reader);
 			this._onDidChangeChatCatalogs.read(reader);
-			this._syncActiveChatConfigPins(reader, this._sessionsService.visibleSessions.read(reader));
+			this._syncActiveChatConfigPins(reader, readShownSessions(this._sessionsService, reader));
 		}));
 		this._register(this._onDidChangeSessionsImmediately(() => {
 			if (this.connection?.connectionAvailable) {
@@ -7213,7 +7223,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				modelTarget: undefined,
 			};
 		}
-		return this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
+		const snapshot = this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
+		const agentModelPreferences = this._getAgentModelPreferences(sessionId, chat);
+		if (!agentModelPreferences) {
+			return snapshot;
+		}
+		const models = agentModelPreferences.required ? resolveAgentModelPreferences(agentModelPreferences.models, snapshot.models) : snapshot.models;
+		const resolvedModelId = snapshot.desiredModelResolution.kind === 'available' ? snapshot.desiredModelResolution.model.identifier : desiredModelId;
+		return {
+			...snapshot,
+			models,
+			agentModelPreferences,
+			desiredModelResolution: agentModelPreferences.required
+				? resolveModelIdentifier(models, resolvedModelId, snapshot.desiredModelResolution.kind !== 'pending')
+				: snapshot.desiredModelResolution,
+		};
+	}
+
+	private _getAgentModelPreferences(sessionId: string, chat?: URI): IAgentModelPreferences | undefined {
+		const newSession = this._getNewSession(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const uri = newSession?.getSelectedAgent()?.uri ?? (cached && cached.getChatMode(chat ?? this._activeChatResource(cached))?.id);
+		const published = uri ? this.resolveCustomAgent(sessionId, uri) : undefined;
+		const agent = published ?? (uri ? this.getCustomAgents(sessionId).find(agent => agent.uri === uri) : undefined);
+		if (!agent) {
+			return undefined;
+		}
+		const meta = readAgentCustomizationMeta(agent);
+		const models = meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined);
+		const source = newSession?.getSelectedAgentSource();
+		const sourceUri = newSession && source ? newSession.getClientAgentSourceUri(URI.parse(source.uri))
+			: published ? this._toClientAgentUri(published) : URI.parse(agent.uri);
+		return models?.length ? { models, required: meta['vscode.modelPolicy'] === 'required', source: { name: agent.name, uri: sourceUri } } : undefined;
 	}
 
 	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
@@ -7246,9 +7288,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this._resolveSessionResourceScheme(sessionId, chat);
 		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
-			showUnavailableFeatured: true,
+			showUnavailableFeatured: !this._getAgentModelPreferences(sessionId, chat)?.required,
 			showManageModelsAction: true,
-			showAutoModel,
+			showAutoModel: showAutoModel && !this._getAgentModelPreferences(sessionId, chat)?.required,
 		};
 	}
 
@@ -7259,10 +7301,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * to its stale backend model) so the request is explicitly reset to Auto.
 	 */
 	private _resolveSendModelId(sessionId: string, selectedModelId: string | undefined, chat?: URI): string | undefined {
-		if (!selectedModelId) {
+		if (!selectedModelId && !this._getAgentModelPreferences(sessionId, chat)?.required) {
 			return selectedModelId;
 		}
 		const snapshot = this.getModelsSnapshot(sessionId, selectedModelId, chat);
+		const resolvedModelId = snapshot.desiredModelResolution.kind === 'available' ? snapshot.desiredModelResolution.model.identifier : selectedModelId;
+		const policyError = getAgentModelPolicyError(snapshot.agentModelPreferences, resolvedModelId, snapshot.models);
+		if (policyError) {
+			throw new Error(policyError);
+		}
+		if (!selectedModelId) {
+			return selectedModelId;
+		}
 		if (snapshot.desiredModelResolution.kind !== 'unavailable') {
 			// Available, pending (list not yet populated) or not requested: keep the selection.
 			return selectedModelId;
@@ -7292,6 +7342,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 		this._assertSessionAvailable(sessionId);
+		if (this._getAgentModelPreferences(sessionId, chatResource)?.required) {
+			const snapshot = this.getModelsSnapshot(sessionId, modelId, chatResource);
+			const resolvedModelId = snapshot.desiredModelResolution.kind === 'available' ? snapshot.desiredModelResolution.model.identifier : modelId;
+			const policyError = getAgentModelPolicyError(snapshot.agentModelPreferences, resolvedModelId, snapshot.models);
+			if (policyError) {
+				throw new Error(policyError);
+			}
+		}
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			if (source === ChatModelSource.Chosen && newSession.getSelectedAgent()) {
@@ -7454,7 +7512,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!preferences?.length && !effort) {
 			return undefined;
 		}
-		const models = this.getModelsSnapshot(sessionId, currentModelId, chatResource).models;
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId, chatResource);
+		const models = resourceScheme ? this._getModelsSnapshotForTarget(resourceScheme, currentModelId).models : [];
 		const model = preferences?.length ? resolveAgentModelPreference(preferences, models) : models.find(model => model.identifier === currentModelId);
 		if (!model) {
 			if (models.length > 0) {
@@ -7536,6 +7595,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				id: `${sessionUri.authority}/${server.id}`,
 				name: server.name,
 				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+				skillBundle: server.children?.length && isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin))
+					? { id: server.id, count: server.children.length } : undefined,
 				enablement: server.enablement,
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
@@ -9150,7 +9211,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * viewport. Driven reactively by {@link ISessionsService.visibleSessions}.
 	 */
 	private _syncVisibleSessionStatePins(reader: IReader): void {
-		const visible = this._sessionsService.visibleSessions.read(reader);
+		const visible = readShownSessions(this._sessionsService, reader);
 		const nowVisible = new Set<string>();
 		for (const session of visible) {
 			if (!session) {

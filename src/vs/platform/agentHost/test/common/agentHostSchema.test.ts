@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -92,6 +92,18 @@ suite('agentHostSchema', () => {
 		}, { type: 'array', default: [], acceptsNames: true, acceptsEmpty: true, rejectsInvalid: [true, true, true, true] });
 	});
 
+	test('MCP skills approvals are host-owned allow or deny decisions keyed by server identity', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMcpSkillsServerApprovalsConfigKey];
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			decisions: property.additionalProperties?.enum,
+			accepts: [{}, { 'test-server': 'allow', 'other-server': 'deny' }, { constructor: 'allow', toString: 'deny' }].map(value => platformRootSchema.validate(AgentHostMcpSkillsServerApprovalsConfigKey, value)),
+			rejects: [[], null, 'allow', { server: true }, { server: 'always' }, { constructor: true }].map(value => !platformRootSchema.validate(AgentHostMcpSkillsServerApprovalsConfigKey, value)),
+			sessionProperty: platformSessionSchema.toProtocol().properties[AgentHostMcpSkillsServerApprovalsConfigKey],
+		}, { type: 'object', default: {}, decisions: ['allow', 'deny'], accepts: [true, true, true], rejects: [true, true, true, true, true, true], sessionProperty: undefined });
+	});
+
 	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
 		assert.strictEqual(property.type, 'boolean');
@@ -168,6 +180,23 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(prop.validate({ name: 42 }), false);
 			assert.strictEqual(prop.validate([]), false);
 			assert.strictEqual(prop.validate(null), false);
+		});
+
+		test('validates additional properties alongside explicitly declared properties', () => {
+			const prop = schemaProperty<{ count: number } & Record<string, string | number>>({
+				type: 'object', title: 'map',
+				properties: { count: { type: 'number', title: 'count' } },
+				required: ['count'],
+				additionalProperties: { type: 'string', title: 'value', enum: ['allow', 'deny'] },
+			});
+			assert.deepStrictEqual([
+				prop.validate({ count: 1, server: 'allow' }),
+				prop.validate({ count: 1, server: 'deny' }),
+				prop.validate({ count: 'allow' }),
+				prop.validate({ server: 'allow' }),
+				prop.validate({ count: 1, server: true }),
+				prop.validate({ count: 1, server: 'unknown' }),
+			], [true, true, false, false, false, false]);
 		});
 
 		test('validates arrays with item schema', () => {

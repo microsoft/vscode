@@ -29,14 +29,15 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
 
@@ -144,7 +145,16 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this._activeRunState = derivedOpts<IRunScriptActionContext | undefined>({
+		this._activeRunState = this._createRunState(this._sessionsService.activeSession);
+		this._activeRunState.recomputeInitiallyAndOnChange(this._store);
+
+		this._registerActionViewItemProvider();
+		this._registerActions();
+	}
+
+	/** What the Run actions act on for the session `session` shows. */
+	private _createRunState(session: IObservable<IActiveSession | undefined>): IObservable<IRunScriptActionContext | undefined> {
+		return derivedOpts<IRunScriptActionContext | undefined>({
 			owner: this,
 			equalsFn: (a, b) => {
 				if (a === b) { return true; }
@@ -161,7 +171,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = session.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
@@ -173,10 +183,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
 			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);
 			return { session: activeSession, chat: activeChat, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
-		}).recomputeInitiallyAndOnChange(this._store);
-
-		this._registerActionViewItemProvider();
-		this._registerActions();
+		});
 	}
 
 	private _registerActionViewItemProvider(): void {
@@ -188,11 +195,14 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				if (!(action instanceof SubmenuItemAction)) {
 					return undefined;
 				}
+				// The session of the title bar it shows in, such as that of a chat window, whether or not it is active.
+				const session = instantiationService.invokeFunction(accessor => accessor.get(ISessionScope)).session;
 				return instantiationService.createInstance(
 					RunScriptActionViewItem,
 					action,
 					options,
-					that._activeRunState,
+					that._createRunState(session),
+					state => that._runPrimary(state),
 					(session: ISession, chat: IChat) => that._showConfigureQuickPick(session, chat),
 					(session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, chat, existingTask, mode),
 					(session: ISession, chat: IChat) => that._generateNewTask(session, chat),
@@ -217,32 +227,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			async run(): Promise<void> {
-				const activeState = that._activeRunState.get();
-				if (!activeState) {
-					return;
-				}
-
-				logSessionsInteraction(that._telemetryService, 'runPrimaryTask');
-
-				const { tasks, session, chat, pinnedBrowser, browserUrl } = activeState;
-				if (pinnedBrowser) {
-					await that._commandService.executeCommand('simpleBrowser.show', browserUrl);
-					return;
-				}
-
-				if (tasks.length === 0) {
-					const task = await that._showConfigureQuickPick(session, chat);
-					if (task) {
-						await that._sessionsConfigService.runTask(task, session, chat);
-					}
-					return;
-				}
-
-				const primaryTask = getPrimaryTask(tasks, activeState.pinnedTaskLabel);
-				if (!primaryTask) {
-					return;
-				}
-				await that._sessionsConfigService.runTask(primaryTask.task, session, chat);
+				await that._runPrimary(that._activeRunState.get());
 			}
 		}));
 
@@ -292,6 +277,34 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				await that._generateNewTask(state.session, state.chat);
 			}
 		}));
+	}
+
+	private async _runPrimary(state: IRunScriptActionContext | undefined): Promise<void> {
+		if (!state) {
+			return;
+		}
+
+		logSessionsInteraction(this._telemetryService, 'runPrimaryTask');
+
+		const { tasks, session, chat, pinnedBrowser, browserUrl } = state;
+		if (pinnedBrowser) {
+			await this._commandService.executeCommand('simpleBrowser.show', browserUrl);
+			return;
+		}
+
+		if (tasks.length === 0) {
+			const task = await this._showConfigureQuickPick(session, chat);
+			if (task) {
+				await this._sessionsConfigService.runTask(task, session, chat);
+			}
+			return;
+		}
+
+		const primaryTask = getPrimaryTask(tasks, state.pinnedTaskLabel);
+		if (!primaryTask) {
+			return;
+		}
+		await this._sessionsConfigService.runTask(primaryTask.task, session, chat);
 	}
 
 	private async _generateNewTask(session: ISession, chat: IChat): Promise<void> {
@@ -530,6 +543,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		_options: IActionViewItemOptions,
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
+		private readonly _runPrimary: (state: IRunScriptActionContext | undefined) => Promise<void>,
 		private readonly _showConfigureQuickPick: (session: ISession, chat: IChat) => Promise<ITaskEntry | undefined>,
 		private readonly _showCustomCommandInput: (session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
 		private readonly _generateNewTask: (session: ISession, chat: IChat) => Promise<void>,
@@ -552,7 +566,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			this._getPrimaryActionTooltip(state),
 			ThemeIcon.asClassName(Codicon.play),
 			isPrimaryEnabled,
-			() => this._commandService.executeCommand(RUN_SCRIPT_ACTION_PRIMARY_ID)
+			() => this._runPrimary(this._activeRunState.get())
 		));
 		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
 
@@ -842,7 +856,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 6,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
+	when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -858,7 +872,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 6,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
+				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}
@@ -870,10 +884,12 @@ registerAction2(RunScriptNotAvailableAction);
 
 // Register F5 keybinding at module level to ensure it's in the registry
 // before the keybinding resolver is cached. The command handler is
-// registered later by RunScriptContribution.
+// registered later by RunScriptContribution. It applies wherever the Run
+// button shows: the main window and chat windows, which run for the session
+// they show as it is the active session while they have focus.
 KeybindingsRegistry.registerKeybindingRule({
 	id: RUN_SCRIPT_ACTION_PRIMARY_ID,
 	primary: KeyCode.F5,
 	weight: KeybindingWeight.WorkbenchContrib + 100,
-	when: IsAuxiliaryWindowContext.toNegated()
+	when: ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)
 });

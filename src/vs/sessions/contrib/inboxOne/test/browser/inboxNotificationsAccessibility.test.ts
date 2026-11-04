@@ -80,6 +80,21 @@ suite('InboxNotificationsAccessibility', () => {
 		}, { working: true, completed: false });
 	});
 
+	test('includes the plan summary and review actions in accessible content', () => {
+		const content = buildInboxNotificationsAccessibleContent([{
+			kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Plan ready', description: 'Review the plan below.',
+			needsInputPart: {
+				kind: 'planReview', chatResource: URI.parse('test:///chat'), requestId: 'request', reviewIndex: 0,
+				title: 'Review Plan', content: '# Plan\n\nCheck the **Inbox**.',
+				actions: [{ id: 'implement', label: 'Implement Plan' }, { id: 'auto', label: 'Use Autopilot' }],
+				planUri: URI.file('/plan.md').toJSON(),
+			},
+		}]);
+		assert.deepStrictEqual(content.split('\n').slice(-5), [
+			'Review Plan', 'Plan', 'Check the Inbox.', 'Plan actions: Implement Plan, Use Autopilot, Reject', 'Open Full Plan',
+		]);
+	});
+
 	test('builds numbered accessible content for notifications', () => {
 		assert.strictEqual(
 			buildInboxNotificationsAccessibleContent([

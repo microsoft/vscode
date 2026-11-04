@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
@@ -15,7 +16,6 @@ import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.j
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';
@@ -36,17 +37,17 @@ export class OpenInVSCodeAction extends Action2 {
 			id: OpenInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { readonly session: ISession; readonly chat: IChat }): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
@@ -67,13 +68,14 @@ export class OpenInVSCodeAction extends Action2 {
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 
-		const activeSession = sessionsService.activeSession.get();
+		const activeSession = context?.session ?? sessionsService.activeSession.get();
 		if (!activeSession) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
-		const workspace = activeSession.activeChat.get().workspace.get();
+		const chat = context?.chat ?? sessionsService.activeSession.get()?.activeChat.get();
+		const workspace = chat?.workspace.get();
 		const folder = workspace?.folders[0];
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 
@@ -87,7 +89,7 @@ export class OpenInVSCodeAction extends Action2 {
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
-		params.set('session', activeSession.resource.toString());
+		params.set('session', (context?.chat.resource ?? activeSession.resource).toString());
 
 		if (remoteAuthority) {
 			await openerService.open(URI.from({

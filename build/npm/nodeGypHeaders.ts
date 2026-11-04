@@ -43,8 +43,9 @@ function runNodeGyp(nodeGypScript: string, args: readonly string[], timeoutMs: n
 }
 
 /**
- * Runs `node-gyp install --dist-url <distUrl> <target>`, which downloads and unpacks the
- * headers into node-gyp's cache. The headers come from nodejs.org or electronjs.org, and a
+ * Runs `node-gyp install --ensure --dist-url <distUrl> <target>`, which downloads and unpacks
+ * the headers into node-gyp's cache unless that version's headers are already there. The
+ * preinstall runs this on every install. The headers come from nodejs.org or electronjs.org, and a
  * single failed or stalled download used to fail the whole dependency install. node-gyp is
  * run through the current Node.js directly, so the deadline kills node-gyp itself.
  */
@@ -55,7 +56,7 @@ export async function installNodeGypHeaders(nodeGypScript: string, distUrl: stri
 	const attempts = retryDelaysMs.length + 1;
 
 	for (let attempt = 1; ; attempt++) {
-		const failure = await runNodeGyp(nodeGypScript, ['install', '--dist-url', distUrl, target], timeoutMs);
+		const failure = await runNodeGyp(nodeGypScript, ['install', '--ensure', '--dist-url', distUrl, target], timeoutMs);
 		if (failure === undefined) {
 			return;
 		}

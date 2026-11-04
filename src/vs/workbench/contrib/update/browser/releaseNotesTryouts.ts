@@ -66,6 +66,7 @@ export class ReleaseNotesTryouts extends Disposable {
 	private _webview: IWebview | undefined;
 	private _canRestoreFocus: (() => boolean) | undefined;
 	private _ready = false;
+	onInteraction: ((index: number, action: 'run' | 'setup', runId?: string) => void) | undefined;
 
 	constructor(
 		@IOnboardingTryoutService private readonly _tryoutService: IOnboardingTryoutService,
@@ -148,7 +149,7 @@ export class ReleaseNotesTryouts extends Disposable {
 	}
 
 	private replaceInvalidLink(link: HTMLAnchorElement, message: string): void {
-		const fallback = $('span');
+		const fallback = $('span.release-notes-tryout-fallback');
 		fallback.textContent = localize('releaseNotes.tryout.fallback', "{0} ({1})", link.textContent || localize('releaseNotes.tryout.label', "Try This"), message);
 		link.replaceWith(fallback);
 	}
@@ -203,6 +204,14 @@ export class ReleaseNotesTryouts extends Disposable {
 				message: localize('releaseNotes.tryout.failed', "This feature example could not be loaded."),
 			};
 		}
+	}
+
+	getTelemetryState(index: number): { id: string; kind: 'ready' | 'hidden' | 'unavailable'; hasSetup: boolean } | undefined {
+		const state = this._states.get(index);
+		if (!state) {
+			return undefined;
+		}
+		return { id: state.id, kind: state.kind, hasSetup: !!state.setupLabel };
 	}
 
 	private onMessage(message: unknown): void {
@@ -262,6 +271,7 @@ export class ReleaseNotesTryouts extends Disposable {
 			}
 			if (action === 'setup') {
 				if (availability.kind === 'unavailable' && availability.action) {
+					this.onInteraction?.(index, action);
 					const command = availability.action.command;
 					await this._commandService.executeCommand(command.id, ...(command.arguments ?? []));
 				} else {
@@ -269,7 +279,9 @@ export class ReleaseNotesTryouts extends Disposable {
 					this.restoreFocus(index, 'run');
 				}
 			} else {
-				const result = await this._tryoutService.run(id, tokenSource.token, { source: 'releaseNotes' });
+				const runId = generateUuid();
+				this.onInteraction?.(index, action, runId);
+				const result = await this._tryoutService.run(id, tokenSource.token, { source: 'releaseNotes', runId });
 				if (tokenSource.token.isCancellationRequested || this._store.isDisposed) {
 					return;
 				}
@@ -331,6 +343,7 @@ export class ReleaseNotesTryouts extends Disposable {
 		this._interactionTarget = undefined;
 		this._webview = undefined;
 		this._canRestoreFocus = undefined;
+		this.onInteraction = undefined;
 		this._states.clear();
 		this._links.clear();
 		super.dispose();

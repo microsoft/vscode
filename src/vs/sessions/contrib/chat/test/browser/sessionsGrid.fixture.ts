@@ -17,7 +17,7 @@ import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/c
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../browser/parts/agentsPartCard.js';
 import { AbstractChatView, ChatViewKind } from '../../../../browser/parts/chatView.js';
-import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/gridGap.js';
+import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -209,6 +209,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const multipleChatsSession = options.multipleChats ? sessions[multipleChatsIndex] : undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
+		override readonly mainWindowActiveSession = this.activeSession;
 		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
 		override setActive(session: IActiveSession | undefined): void {
 			this.activeSession.set(session, undefined);

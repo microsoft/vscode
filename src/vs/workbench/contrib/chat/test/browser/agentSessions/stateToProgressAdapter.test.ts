@@ -530,6 +530,15 @@ suite('stateToProgressAdapter', () => {
 
 	suite('turnsToHistory', () => {
 
+		test('marks only cancelled turns\' responses as cancelled', () => {
+			const history = turnsToHistory(URI.parse('ahp-session:/cancel'), [
+				createTurn({ state: TurnState.Cancelled }),
+				createTurn({ state: TurnState.Complete }),
+			], 'participant');
+
+			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.isCanceled), [true, undefined]);
+		});
+
 		const planDecisions: { response?: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; expected?: IChatPlanReviewResult }[] = [
 			{ response: ChatInputResponseKind.Accept, answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' } } }, expected: { rejected: false, action: 'Implement Plan', actionId: 'interactive' } },
 			{ response: ChatInputResponseKind.Decline, answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } }, expected: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' } },
@@ -4716,6 +4725,32 @@ suite('stateToProgressAdapter', () => {
 				status: 'complete',
 				explanation: 'This command modifies protected files.',
 				safety: 0.1,
+			});
+		});
+
+		test('explains a request Assisted permissions did not review in the confirmation disclaimer', () => {
+			const confirmationMessages = (meta: Record<string, unknown> | undefined) => {
+				const state = toolCallStateToInvocation({
+					toolCallId: 'tc-unreviewed',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Run command',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Run command',
+					toolInput: 'echo hello',
+					...(meta ? { _meta: meta } : {}),
+				}).state.get();
+				return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined;
+			};
+
+			assert.deepStrictEqual({
+				notice: confirmationMessages({ 'vscode.assistedApprovalNotice': 'Assisted permissions couldn\'t review this request in time.' })?.disclaimer,
+				blank: confirmationMessages({ 'vscode.assistedApprovalNotice': ' ' })?.disclaimer,
+				absent: confirmationMessages(undefined)?.disclaimer,
+			}, {
+				notice: 'Assisted permissions couldn\'t review this request in time.',
+				blank: undefined,
+				absent: undefined,
 			});
 		});
 

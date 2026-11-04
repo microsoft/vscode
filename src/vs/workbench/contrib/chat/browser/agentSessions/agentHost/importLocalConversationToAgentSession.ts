@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { detectImageMimeType } from '../../../../../../base/common/image.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
+import { IRange } from '../../../../../../editor/common/core/range.js';
+import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ErrorInfo, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { MessageAttachmentKind, MessageKind, readUsageInfoMeta, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentSelection, type ErrorInfo, type ITurnTokenTotal, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, type IChatContentInlineReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
+import type { ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 
@@ -229,18 +237,251 @@ function turnOutcomeFromRequest(request: IChatRequestModel): { state: TurnState;
 }
 
 /**
+ * Options for {@link importedTurnsFromChatModel}.
+ */
+export interface IImportedTurnsOptions {
+	/** Maps attachment URIs into the target agent host's URI space. Defaults to identity (local host). */
+	readonly resourceUris?: IAgentHostResourceUriMapper;
+	/** Resolves the language model identifier a request was sent with to the target's model selection. */
+	readonly resolveModel?: (languageModelIdentifier: string) => ModelSelection | undefined;
+}
+
+/**
+ * Resolves a local language model identifier (e.g. `copilot/gpt-5`) to the raw
+ * Copilot catalog id that Copilot agent-host sessions use. Models from other
+ * vendors are not in that catalog and resolve to `undefined`, so the session's
+ * model applies.
+ */
+export function resolveImportedCopilotModel(languageModelsService: ILanguageModelsService, languageModelIdentifier: string): ModelSelection | undefined {
+	const metadata = languageModelsService.lookupLanguageModel(languageModelIdentifier);
+	if (metadata) {
+		return metadata.vendor === 'copilot' ? { id: metadata.id } : undefined;
+	}
+	const prefix = 'copilot/';
+	return languageModelIdentifier.startsWith(prefix) && languageModelIdentifier.length > prefix.length
+		? { id: languageModelIdentifier.substring(prefix.length) }
+		: undefined;
+}
+
+function toTextRange(range: IRange) {
+	return {
+		start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
+		end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
+	};
+}
+
+function resourceAttachment(uri: URI, label: string, displayKind: string, resourceUris: IAgentHostResourceUriMapper, location?: Location): MessageAttachment {
+	return {
+		type: MessageAttachmentKind.Resource,
+		uri: resourceUris.toAgentHost(uri).toString(),
+		label,
+		displayKind,
+		...(location ? { selection: { range: toTextRange(location.range) } } : {}),
+	};
+}
+
+function simpleAttachment(label: string, modelRepresentation: string, displayKind?: string): MessageAttachment {
+	return { type: MessageAttachmentKind.Simple, label, modelRepresentation, ...(displayKind ? { displayKind } : {}) };
+}
+
+/**
+ * Maps a persisted request variable to an agent-host attachment. Covers the
+ * context a user attaches (files, selections, folders, symbols, prompt files,
+ * images and text); live-only context (browser pages, elements, tool sets)
+ * has no meaningful replay and is omitted.
+ */
+function variableToAttachment(variable: IChatRequestVariableEntry, resourceUris: IAgentHostResourceUriMapper): MessageAttachment | undefined {
+	const value = variable.value;
+	switch (variable.kind) {
+		case 'file':
+		case 'implicit':
+			if (isLocation(value)) {
+				return variable.kind === 'file' || variable.isSelection
+					? resourceAttachment(value.uri, variable.name, 'selection', resourceUris, value)
+					: resourceAttachment(value.uri, variable.name, 'document', resourceUris);
+			}
+			return URI.isUri(value) ? resourceAttachment(value, variable.name, 'document', resourceUris) : undefined;
+		case 'directory':
+			return URI.isUri(value) ? resourceAttachment(value, variable.name, 'directory', resourceUris) : undefined;
+		case 'symbol':
+			return isLocation(value) ? resourceAttachment(value.uri, variable.name, 'symbol', resourceUris, value) : undefined;
+		case 'promptFile':
+			return URI.isUri(value) ? resourceAttachment(value, variable.name, 'document', resourceUris) : undefined;
+		case 'paste':
+			return simpleAttachment(variable.name, variable.code);
+		case 'promptText':
+		case 'string':
+			return typeof value === 'string' ? simpleAttachment(variable.name, value) : undefined;
+		case 'workspace':
+			return simpleAttachment(variable.name, variable.value, 'workspace');
+	}
+	if (isImageVariableEntry(variable)) {
+		const bytes = coerceImageBuffer(variable.value);
+		if (bytes) {
+			return {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: variable.name,
+				displayKind: 'image',
+				data: encodeBase64(VSBuffer.wrap(bytes)),
+				// The bytes are authoritative: older entries omit `mimeType`, and unresized images keep their original encoding.
+				contentType: detectImageMimeType(bytes) ?? variable.mimeType ?? 'image/png',
+			};
+		}
+		const reference = variable.references?.find(r => URI.isUri(r.reference))?.reference;
+		return URI.isUri(reference) ? resourceAttachment(reference, variable.name, 'image', resourceUris) : undefined;
+	}
+	return undefined;
+}
+
+function attachmentsFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper): MessageAttachment[] | undefined {
+	const attachments: MessageAttachment[] = [];
+	for (const variable of request.variableData?.variables ?? []) {
+		try {
+			const attachment = variableToAttachment(variable, resourceUris);
+			if (attachment) {
+				attachments.push(attachment);
+			}
+		} catch {
+			// A resource this host cannot address is left out rather than failing the import.
+		}
+	}
+	return attachments.length ? attachments : undefined;
+}
+
+/** When a request was sent and, when known, how long its response spent generating. */
+function timingFromRequest(request: IChatRequestModel): { startedAt?: string; duration?: number } {
+	if (!Number.isFinite(request.timestamp) || request.timestamp <= 0) {
+		return {};
+	}
+	const startedAt = new Date(request.timestamp).toISOString();
+	const duration = generationDuration(request);
+	return duration !== undefined ? { startedAt, duration } : { startedAt };
+}
+
+/**
+ * How long a request's response spent generating, excluding time spent waiting
+ * for confirmations. Only known for a response with a recorded completion:
+ * legacy responses get a completion time synthesized on restore, which would
+ * yield a bogus duration.
+ */
+function generationDuration(request: IChatRequestModel): number | undefined {
+	const response = request.response;
+	if (response?.completionTimestamp === undefined) {
+		return undefined;
+	}
+	const duration = response.elapsedMs ?? response.completionTimestamp - request.timestamp;
+	return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
+}
+
+/**
+ * The custom agent a request was sent with, by the URI of its agent file. Built-in
+ * modes (Agent, Ask, Edit, Plan) have no agent file; the target's own default applies.
+ */
+function agentFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper): AgentSelection | undefined {
+	const uri = request.modeInfo && !request.modeInfo.isBuiltin ? request.modeInfo.modeInstructions?.uri : undefined;
+	if (!uri) {
+		return undefined;
+	}
+	try {
+		return { uri: resourceUris.toAgentHost(uri).toString() };
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * The tokens and Copilot credits a response consumed, in the shape a natively
+ * reported agent-host turn carries: the input/output counters describe the
+ * latest model call (the context the response ended on), while the credits and
+ * per-model token totals describe the whole response. Session-wide totals are
+ * left out: they describe the source session, not this turn. A response
+ * without per-model totals (most Local responses) only records its whole
+ * output total (`completionTokenCount`); an agent-host turn has no field for
+ * an output total without the matching input totals, so it is not carried
+ * rather than presented with invented input figures. A response restored from
+ * an older save kept only that total, so its latest call's output is omitted.
+ */
+function usageFromRequest(request: IChatRequestModel): UsageInfo | undefined {
+	const usage = request.response?.usage;
+	if (!usage) {
+		return undefined;
+	}
+	const credits = usage.copilotCredits;
+	const nanoAiu = credits !== undefined && Number.isFinite(credits) && credits >= 0 ? Math.round(credits * 1_000_000_000) : undefined;
+	const turnTokenTotals = usage.modelTotals?.length ? usage.modelTotals.map(({ model, inputTokens, cachedTokens, outputTokens }) => ({ model, inputTokens, cachedTokens, outputTokens })) : undefined;
+	// A response restored from an older save only kept the whole-response output total, so its latest call's output is unknown.
+	const counters: UsageInfo = request.response.lastCallCompletionTokensKnown
+		? { inputTokens: usage.promptTokens, outputTokens: usage.completionTokens }
+		: { inputTokens: usage.promptTokens };
+	return withWholeTurnUsage(counters, nanoAiu, turnTokenTotals);
+}
+
+function withWholeTurnUsage(usage: UsageInfo, nanoAiu: number | undefined, turnTokenTotals: readonly ITurnTokenTotal[] | undefined): UsageInfo {
+	const meta = {
+		...(nanoAiu !== undefined ? { copilotUsage: { totalNanoAiu: nanoAiu } } : {}),
+		...(turnTokenTotals?.length ? { turnTokenTotals } : {}),
+	};
+	return Object.keys(meta).length ? { ...usage, _meta: meta } : usage;
+}
+
+/**
+ * Combines the usage of a turn's responses (its own, then any continuations
+ * folded into it, in order). The last response ran last, so its latest-call
+ * counters describe the context the turn ended on; when it reported none,
+ * that context is unknown. Credits and per-model totals are whole-turn
+ * consumption: they are summed only when every response reported them, since
+ * a sum missing any response would understate the turn.
+ */
+function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo | undefined {
+	const last = usages.at(-1);
+	const metas = usages.map(usage => usage && readUsageInfoMeta(usage));
+	let nanoAiu: number | undefined = 0;
+	let turnTokenTotals: Map<string, ITurnTokenTotal> | undefined = new Map();
+	for (const meta of metas) {
+		const responseNanoAiu = meta?.copilotUsage?.totalNanoAiu;
+		nanoAiu = nanoAiu !== undefined && responseNanoAiu !== undefined ? nanoAiu + responseNanoAiu : undefined;
+		if (!turnTokenTotals || !meta?.turnTokenTotals) {
+			turnTokenTotals = undefined;
+			continue;
+		}
+		for (const total of meta.turnTokenTotals) {
+			const current = turnTokenTotals.get(total.model);
+			turnTokenTotals.set(total.model, current ? {
+				model: total.model,
+				inputTokens: current.inputTokens + total.inputTokens,
+				cachedTokens: current.cachedTokens + total.cachedTokens,
+				outputTokens: current.outputTokens + total.outputTokens,
+			} : total);
+		}
+	}
+	const counters: UsageInfo = {
+		...(last?.inputTokens !== undefined ? { inputTokens: last.inputTokens } : {}),
+		...(last?.outputTokens !== undefined ? { outputTokens: last.outputTokens } : {}),
+	};
+	const usage = withWholeTurnUsage(counters, usages.length ? nanoAiu : undefined, turnTokenTotals?.size ? [...turnTokenTotals.values()] : undefined);
+	return Object.keys(usage).length ? usage : undefined;
+}
+
+/**
  * Translates a local {@link IChatModel} into agent-host {@link Turn}s suitable
  * for {@link IAgentHostService.createSession}'s `importConversation` option.
  *
- * Each user request becomes a user turn whose response stream is mapped by
- * {@link responsePartsFromRequest} and whose end state is mapped by
+ * Each user request becomes a user turn carrying its attachments, the model
+ * and custom agent it was sent with, when it was sent, how long it took and
+ * what it consumed; its response stream is mapped by
+ * {@link responsePartsFromRequest} and its end state by
  * {@link turnOutcomeFromRequest}. System-initiated requests (e.g. background
  * terminal-completion notifications that were auto-sent back to the agent) are
  * not real user turns, so their synthetic message is dropped and their response
- * (and end state) is folded into the preceding turn as a continuation.
+ * (and end state) is folded into the preceding turn as a continuation, adding
+ * its generation time and whole-turn consumption (see
+ * {@link combineTurnUsage}).
  */
-export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
+export function importedTurnsFromChatModel(model: IChatModel, options?: IImportedTurnsOptions): Turn[] {
+	const resourceUris = options?.resourceUris ?? identityAgentHostResourceUriMapper;
 	const turns: Turn[] = [];
+	// Every response's usage per turn, its own first, combined once the turn is complete.
+	const turnUsages = new Map<Turn, (UsageInfo | undefined)[]>();
 	for (const request of model.getRequests()) {
 		const responseParts = responsePartsFromRequest(request);
 		const outcome = turnOutcomeFromRequest(request);
@@ -257,16 +498,37 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 			if (previous) {
 				previous.responseParts.push(...responseParts);
 				previous.state = outcome.state;
+				// Generation time: idle and confirmation waits between the two are not part of it.
+				const continuationDuration = generationDuration(request);
+				previous.duration = previous.duration !== undefined && continuationDuration !== undefined
+					? previous.duration + continuationDuration
+					: undefined;
+				turnUsages.get(previous)?.push(usageFromRequest(request));
 			}
 			continue;
 		}
-		turns.push({
+		const attachments = attachmentsFromRequest(request, resourceUris);
+		const messageModel = request.modelId ? options?.resolveModel?.(request.modelId) : undefined;
+		const agent = agentFromRequest(request, resourceUris);
+		const turn: Turn = {
 			id: generateUuid(),
-			message: { text: request.message.text, origin: { kind: MessageKind.User } },
+			...timingFromRequest(request),
+			message: {
+				text: request.message.text,
+				origin: { kind: MessageKind.User },
+				...(attachments ? { attachments } : {}),
+				...(messageModel ? { model: messageModel } : {}),
+				...(agent ? { agent } : {}),
+			},
 			responseParts,
 			usage: undefined,
 			state: outcome.state,
-		} satisfies Turn);
+		};
+		turns.push(turn);
+		turnUsages.set(turn, [usageFromRequest(request)]);
+	}
+	for (const [turn, usages] of turnUsages) {
+		turn.usage = combineTurnUsage(usages);
 	}
 	return turns;
 }
