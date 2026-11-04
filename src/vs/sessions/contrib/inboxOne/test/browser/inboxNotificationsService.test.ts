@@ -289,13 +289,58 @@ suite('InboxNotificationsService', () => {
 				description: '',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
-			{
-				kind: InboxNotificationKind.Completed,
-				priority: InboxNotificationPriority.Later,
-				description: '',
-				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
-			},
 		]);
+	});
+
+	test('does not resurrect historical read completions when sessions arrive after an update', () => {
+		const fixture = createFixture([]);
+		const old = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const unread = createSession({ id: 'unread', status: SessionStatus.Completed, updatedAt: 200 });
+		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: 300, isRead: true });
+		fixture.setSessions([old, unread, pending]);
+		const snapshot = (service: InboxNotificationsService) => ({
+			notifications: service.notifications.get().map(item => item.id),
+			rows: service.sessionRows.get().map(row => [row.sessionTitle, row.tab]),
+			count: service.attentionCount.get(),
+		});
+		const initial = snapshot(fixture.service);
+		(old.updatedAt as ISettableObservable<Date>).set(new Date(400), undefined);
+		const restored = createFixture([old, unread, pending], fixture.storageService);
+		assert.deepStrictEqual({ initial, restored: snapshot(restored.service) }, {
+			initial: {
+				notifications: ['pending:needsInput:300', 'unread:completed:200'],
+				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done]],
+				count: 2,
+			},
+			restored: {
+				notifications: ['pending:needsInput:300', 'unread:completed:200'],
+				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done]],
+				count: 2,
+			},
+		});
+	});
+
+	test('a historical read session returns to the inbox when another turn completes', () => {
+		const session = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const fixture = createFixture([session]);
+		const initial = fixture.service.sessionRows.get()[0].tab;
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		const working = fixture.service.sessionRows.get()[0].tab;
+		transaction(tx => {
+			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
+			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), tx);
+			(session.isRead as ISettableObservable<boolean>).set(false, tx);
+		});
+		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		const restored = createFixture([session], fixture.storageService);
+		assert.deepStrictEqual({
+			initial, working,
+			tab: restored.service.sessionRows.get()[0].tab,
+			notifications: restored.service.notifications.get().map(item => item.id),
+		}, {
+			initial: InboxTab.Done, working: InboxTab.Working,
+			tab: InboxTab.ReadyForYou, notifications: ['old:completed:200'],
+		});
 	});
 
 	test('switches between priority and recency sorting', () => {
@@ -2512,8 +2557,8 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
-	test('read sessions require explicit Done and return to Ready for you after another response', () => {
-		const session = createSession({ id: 'read-completion', status: SessionStatus.Completed, updatedAt: 100, lastTurnEnd: 100, isRead: true });
+	test('admitted completions remain pending after reading and reloading until explicitly Done', () => {
+		const session = createSession({ id: 'read-completion', status: SessionStatus.Completed, updatedAt: 100, lastTurnEnd: 100 });
 		const fixture = createFixture([session]);
 		const snapshot = () => {
 			const row = fixture.service.sessionRows.get()[0];
@@ -2524,6 +2569,7 @@ suite('InboxNotificationsService', () => {
 		(session.isRead as ISettableObservable<boolean>).set(false, undefined);
 		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
 		const opened = snapshot();
+		const reloadedPending = createFixture([session], fixture.storageService).service.sessionRows.get()[0].tab;
 		fixture.service.markSessionDone(row);
 		const done = snapshot();
 		const restored = createFixture([session], fixture.storageService).service.sessionRows.get()[0].tab;
@@ -2532,10 +2578,12 @@ suite('InboxNotificationsService', () => {
 		transaction(tx => {
 			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), tx);
+			(session.isRead as ISettableObservable<boolean>).set(false, tx);
 		});
-		assert.deepStrictEqual({ initial, opened, done, restored, working, next: snapshot() }, {
+		assert.deepStrictEqual({ initial, opened, reloadedPending, done, restored, working, next: snapshot() }, {
 			initial: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:100'], count: 1 },
 			opened: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:100'], count: 1 },
+			reloadedPending: InboxTab.ReadyForYou,
 			done: { tab: InboxTab.Done, notifications: ['read-completion:completed:100'], count: 0 },
 			restored: InboxTab.Done, working: InboxTab.Working,
 			next: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:200'], count: 1 },

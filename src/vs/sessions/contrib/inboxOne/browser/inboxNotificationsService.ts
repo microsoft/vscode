@@ -412,6 +412,12 @@ interface INeedsInputPartCandidate {
 	readonly part: IInboxNotificationNeedsInputPart;
 }
 
+interface IInboxWorkflowState {
+	readonly hold?: boolean;
+	readonly done?: string;
+	readonly pendingCompletion?: number;
+}
+
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -468,7 +474,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
 	readonly attentionCount: IObservable<number>;
-	private readonly _workflow = observableValue<ReadonlyMap<string, { hold?: boolean; done?: string }>>(this, new Map());
+	private readonly _workflow = observableValue<ReadonlyMap<string, IInboxWorkflowState>>(this, new Map());
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _enabled: IObservable<boolean>;
@@ -513,6 +519,29 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
+				return;
+			}
+			sessionsChanged.read(reader);
+			const state = new Map(this._workflow.read(undefined));
+			let changed = false;
+			for (const session of this.sessionsManagementService.getSessions()) {
+				if (session.isArchived.read(reader) || session.status.read(reader) !== SessionStatus.Completed || session.isRead.read(reader)) {
+					continue;
+				}
+				const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
+				const id = `session:${session.sessionId}`;
+				const saved = state.get(id);
+				if (saved?.pendingCompletion !== turnEnd) {
+					state.set(id, { ...saved, pendingCompletion: turnEnd });
+					changed = true;
+				}
+			}
+			if (changed) {
+				this.persistWorkflow(state);
+			}
+		}));
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
 			for (const type of removed) {
 				this._unregisteredChatProviders.add(type);
@@ -672,7 +701,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
 					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou;
+						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge
+							: status === SessionStatus.Completed && !this.hasPendingCompletion(session, reader) ? InboxTab.Done : InboxTab.ReadyForYou;
 				const lead = notifications[0];
 				const title = this.getRowActionTitle(tab, lead, sessionTitle);
 				const chatResource = lead?.chatResource ?? lead?.needsInputPart?.chatResource;
@@ -1502,16 +1532,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			if (!Array.isArray(entries)) {
 				throw new Error('Invalid Inbox workflow state');
 			}
-			const state = new Map<string, { hold?: boolean; done?: string }>();
+			const state = new Map<string, IInboxWorkflowState>();
 			for (const entry of entries) {
 				if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'object' || !entry[1]) {
 					throw new Error('Invalid Inbox workflow entry');
 				}
 				const value = entry[1];
-				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')) {
+				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')
+					|| (value.pendingCompletion !== undefined && (typeof value.pendingCompletion !== 'number' || !Number.isFinite(value.pendingCompletion)))) {
 					throw new Error('Invalid Inbox workflow value');
 				}
-				state.set(entry[0], { hold: value.hold, done: value.done });
+				state.set(entry[0], { hold: value.hold, done: value.done, pendingCompletion: value.pendingCompletion });
 			}
 			this._workflow.set(state, undefined);
 		} catch (error) {
@@ -1519,12 +1550,16 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private saveWorkflow(id: string, value: { hold?: boolean; done?: string }): void {
+	private saveWorkflow(id: string, value: IInboxWorkflowState): void {
 		const state = new Map(this._workflow.get());
 		state.delete(id);
-		if (value.hold || value.done) {
+		if (value.hold || value.done || value.pendingCompletion !== undefined) {
 			state.set(id, value);
 		}
+		this.persistWorkflow(state);
+	}
+
+	private persistWorkflow(state: Map<string, IInboxWorkflowState>): void {
 		while (state.size > MAX_DISMISSED_NOTIFICATION_IDS) {
 			state.delete(state.keys().next().value!);
 		}
@@ -1533,11 +1568,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void {
-		this.saveWorkflow(row.id, { hold: onHold });
+		this.saveWorkflow(row.id, { ...this._workflow.get().get(row.id), hold: onHold, done: undefined });
 	}
 
 	markSessionDone(row: IInboxSessionRow): void {
-		this.saveWorkflow(row.id, { done: row.occurrence });
+		this.saveWorkflow(row.id, { ...this._workflow.get().get(row.id), hold: undefined, done: row.occurrence });
 	}
 
 	publishExternalNotification(notification: IExternalInboxNotification): void {
@@ -1674,7 +1709,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		// Use provider state rather than a resident chat model, so loading/unloading history
 		// does not change the id or resurrect a dismissed notification.
-		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
+		if (status === SessionStatus.Completed && this.hasPendingCompletion(session, reader) && itemsById.size === sizeBeforePullRequests) {
 			const turnId = session.lastTurnEnd.read(reader)?.getTime() ?? updatedAt;
 			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
@@ -1689,6 +1724,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				actions: this.sessionActions(true),
 			});
 		}
+	}
+
+	private hasPendingCompletion(session: ISession, reader: IReader): boolean {
+		const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
+		// Reading an admitted completion must not clear it, including after a restart.
+		return !session.isRead.read(reader) || this._workflow.read(reader).get(`session:${session.sessionId}`)?.pendingCompletion === turnEnd;
 	}
 
 	private ensureGitHubModels(session: ISession, reader: IReaderWithStore): void {
