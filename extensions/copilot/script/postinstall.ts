@@ -293,15 +293,6 @@ async function main() {
 		'node_modules/@github/blackbird-external-ingest-utils/pkg/nodejs/external_ingest_utils_bg.wasm',
 	], 'dist');
 
-	const copilotCliSourceDir = await materializeCopilotCliSdkLayout();
-	await removeCopilotCLIShim();
-	await removeCopilotCliWorkerFiles();
-	await copyCopilotCliDefinitionFiles(copilotCliSourceDir);
-	await copyCopilotCliSkillsFiles(copilotCliSourceDir);
-	await copyCopilotCliTGrepFiles(copilotCliSourceDir);
-	await copyCopilotCliQueryFiles(copilotCliSourceDir);
-	await copyCopilotCliPrebuildFiles(copilotCliSourceDir);
-
 	// Check if the base cache file exists (dev-only sanity check, non-fatal in CI)
 	const baseCachePath = path.join('test', 'simulation', 'cache', 'base.sqlite');
 	if (!fs.existsSync(baseCachePath)) {

@@ -26,7 +26,7 @@ import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
-import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from './lib/copilot.ts';
+import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, renderCopilotShimLauncher } from './lib/copilot.ts';
 import { getLockedVersion } from './lib/pnpmLock.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
@@ -551,22 +551,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
-function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinationFolderName: string) {
-	const outputDir = path.join(path.dirname(root), destinationFolderName);
-
-	return async () => {
-		// On Windows with win32VersionedUpdate, app resources live under a
-		// commit-hash prefix: {output}/{commitHash}/resources/app/
-		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
-		const appBase = platform === 'darwin'
-			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
-			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
-		const appNodeModulesDir = path.join(appBase, 'node_modules.asar.unpacked');
-
-		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
-		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
-	};
-}
 
 function generateNodeCompileCacheTask(platform: string, destinationFolderName: string) {
 	const outputDirectory = path.join(path.dirname(root), destinationFolderName);
@@ -604,7 +588,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
-			prepareCopilotRipgrepShimTask(platform, arch, destinationFolderName)
 		];
 
 		if (platform === 'win32') {

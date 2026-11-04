@@ -6546,62 +6546,7 @@
       }
     ],
     "chatSessions": [
-      {
-        "type": "copilotcli",
-        "name": "cli",
-        "displayName": "Copilot CLI",
-        "icon": "$(copilot)",
-        "welcomeTitle": "Copilot CLI",
-        "welcomeMessage": "Run tasks in the background with the Copilot CLI",
-        "inputPlaceholder": "Run tasks in the background with the Copilot CLI, type `#` for adding context",
-        "order": 1,
-        "canDelegate": true,
-        "description": "%github.copilot.session.providerDescription.background%",
-        "when": "config.github.copilot.chat.backgroundAgent.enabled",
-        "supportsAutoModel": true,
-        "requiresCopilotSignIn": true,
-        "capabilities": {
-          "supportsFileAttachments": true,
-          "supportsProblemAttachments": true,
-          "supportsToolAttachments": false,
-          "supportsImageAttachments": true,
-          "supportsSymbolAttachments": true,
-          "supportsSearchResultAttachments": true,
-          "supportsSourceControlAttachments": true,
-          "supportsPromptAttachments": true,
-          "supportsHandOffs": true
-        },
-        "commands": [
-          {
-            "name": "delegate",
-            "description": "Delegate chat session to cloud agent and create associated PR",
-            "when": "config.github.copilot.chat.cloudAgent.enabled"
-          },
-          {
-            "name": "compact",
-            "description": "%github.copilot.command.cli.compact.description%"
-          },
-          {
-            "name": "plan",
-            "description": "%github.copilot.command.cli.plan.description%",
-            "when": "config.github.copilot.chat.cli.planCommand.enabled"
-          },
-          {
-            "name": "fleet",
-            "description": "%github.copilot.command.cli.fleet.description%",
-            "when": "false"
-          },
-          {
-            "name": "remote",
-            "description": "%github.copilot.command.cli.remote.description%",
-            "when": "config.github.copilot.chat.cli.remote.enabled"
-          }
-        ],
-        "customAgentTarget": "github-copilot",
-        "requiresCustomModels": true,
-        "autoAttachReferences": true,
-        "useRequestToPopulateBuiltInPickers": true
-      },
+
       {
         "type": "copilot-cloud-agent",
         "alternativeIds": [
@@ -6884,7 +6829,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.73",
     "@google/genai": "1.30.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
