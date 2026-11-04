@@ -1290,6 +1290,32 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('a dragged card goes back where it was as its window loses focus, and nothing moves', async () => {
+		const { grid, container, cellOf, middleY } = await createRowOfThree(true);
+		dragCard(container, 'c', [[30, middleY]], { hold: true });
+		const lifted = cellOf('c').classList.contains('part-grid-lifted');
+		mainWindow.dispatchEvent(new FocusEvent('blur'));
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		pointer(mainWindow.document.body, 'pointerup', 30, middleY);
+
+		assert.deepStrictEqual({ lifted, shape: grid.describe(), moving: container.querySelectorAll('.part-grid-lifted, .part-grid-reflow, .part-grid-frame-layer').length }, { lifted: true, shape: 'row(a, b, c)', moving: 0 });
+	});
+
+	test('a grid disposed while a drop still settles drops it: no part is created, and no part moves', async () => {
+		const editorDrag = await createEditorDragGrid(true);
+		const main = editorDrag.card('main');
+		editorDrag.over('dragover', main.left + 6, main.top + main.height / 2);
+		editorDrag.over('drop', main.left + 6, main.top + main.height / 2);
+		editorDrag.grid.dispose();
+
+		const cardDrag = await createRowOfThree(true);
+		dragCard(cardDrag.container, 'c', [[30, cardDrag.middleY]]);
+		cardDrag.grid.dispose();
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ created: editorDrag.created(), arrangementChanges: cardDrag.arrangementChanges() }, { created: 0, arrangementChanges: 0 });
+	});
+
 	test('a part that does not lay out in previews, such as one showing terminals, is not laid out as the cards make way or go back, only clipped', async () => {
 		const { grid, main, card, over, feedback } = await createEditorDragGrid(true);
 		grid.setPreviewLayoutAllowed(id => id !== 'main');

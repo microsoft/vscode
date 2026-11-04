@@ -108,7 +108,9 @@ export class PartGridCardDrag extends Disposable {
 			return false;
 		}
 
-		this.session.clear(); // a card still settling settles at once
+		// A card still settling settles at once
+		this.session.value?.settle();
+		this.session.clear();
 		const session = new CardDragSession(this.host, cell, e, () => {
 			if (this.session.value === session) {
 				this.session.clear();
@@ -205,12 +207,27 @@ class CardDragSession extends Disposable {
 				this.cancel();
 			}
 		}, true));
-		// A drop that still settles, such as when another drag starts, moves the part at once
-		this._register(toDisposable(() => this.pendingDrop ? this.finish() : this.cleanUp()));
+		// The window losing focus, such as to another window, cancels the drag: the pointer goes on elsewhere
+		this._register(addDisposableListener(this.targetWindow, EventType.BLUR, () => this.isDragging ? this.cancel() : undefined));
+		// Disposed, such as with its grid, a drop that still settles is dropped: nothing moves into a grid that goes
+		this._register(toDisposable(() => {
+			this.pendingDrop = undefined;
+			this.cleanUp();
+		}));
 	}
 
 	get isDragging(): boolean {
 		return this.phase === 'dragging';
+	}
+
+	/**
+	 * Moves the part at once, if it was dropped and still settles, such as
+	 * when another drag starts.
+	 */
+	settle(): void {
+		if (this.pendingDrop) {
+			this.finish();
+		}
 	}
 
 	private get motion(): boolean {
