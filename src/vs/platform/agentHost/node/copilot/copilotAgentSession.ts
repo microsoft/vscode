@@ -757,6 +757,12 @@ export interface ICopilotAgentSessionOptions {
 	readonly onConnectorRefreshRetryable?: (session: CopilotAgentSession) => void;
 	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
 	readonly canvasHandoff?: ICopilotCanvasHandoff;
+	/**
+	 * Reports this chat's projected canvases, without sources, whenever they change while its
+	 * runtime is live, so they can be restored once that runtime is gone. `undefined` means the
+	 * chat projects no canvases and owes its runtime no closes.
+	 */
+	readonly onDidChangeCanvasContinuity?: (snapshot: ICopilotCanvasHandoff | undefined) => void;
 }
 
 /** A live canvas channel and its current presentation state. */
@@ -2032,6 +2038,7 @@ export class CopilotAgentSession extends Disposable {
 	private _canvasPhase: CanvasProjectionPhase = 'starting';
 	/** Canvases handed over by a configuration refresh; their membership stays unpublished until that refresh adopts this session. */
 	private _pendingCanvasHandoff: ICopilotCanvasHandoff | undefined;
+	private readonly _onDidChangeCanvasContinuity: ((snapshot: ICopilotCanvasHandoff | undefined) => void) | undefined;
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
@@ -2213,6 +2220,7 @@ export class CopilotAgentSession extends Disposable {
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._pendingCanvasHandoff = options.canvasHandoff;
+		this._onDidChangeCanvasContinuity = options.onDidChangeCanvasContinuity;
 		for (const instanceId of options.canvasHandoff?.pendingCloseInstanceIds ?? []) {
 			this._deferredCanvasCloseInstanceIds.add(instanceId);
 		}
@@ -5002,11 +5010,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
-		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({
-			resource,
-			canvas,
-		}));
-		const pendingCloseInstanceIds = new Set(this._deferredCanvasCloseInstanceIds);
+		const handoff = this._snapshotCanvasContinuity();
 		this._releaseCanvasRegistrySnapshot();
 		this._canvasPhase = 'released';
 		this._canvasByInstanceId.clear();
@@ -5014,13 +5018,28 @@ export class CopilotAgentSession extends Disposable {
 		this._expectedCanvasClosedEvents.clear();
 		this._deferredCanvasCloseInstanceIds.clear();
 		this._settledDeferredCanvasCloseInstanceIds.clear();
-		if (projections.length === 0 && pendingCloseInstanceIds.size === 0) {
+		if (!handoff) {
 			return undefined;
 		}
-		for (const projection of projections) {
+		for (const projection of handoff.projections) {
 			this._publishCanvasState(projection);
 		}
-		return { projections, pendingCloseInstanceIds };
+		return handoff;
+	}
+
+	/** The projected canvases without sources, plus the closes this chat still owes its runtime. */
+	private _snapshotCanvasContinuity(): ICopilotCanvasHandoff | undefined {
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({ resource, canvas }));
+		const pendingCloseInstanceIds = new Set(this._deferredCanvasCloseInstanceIds);
+		return projections.length === 0 && pendingCloseInstanceIds.size === 0 ? undefined : { projections, pendingCloseInstanceIds };
+	}
+
+	/** Reports the canvases of a live projection; teardown and pending handoffs never overwrite what was reported. */
+	private _reportCanvasContinuity(): void {
+		if (!this._onDidChangeCanvasContinuity || this._canvasPhase !== 'live' || this._pendingCanvasHandoff || this._store.isDisposed || !this._wrapper.canvasRuntimeEnabled) {
+			return;
+		}
+		this._onDidChangeCanvasContinuity(this._snapshotCanvasContinuity());
 	}
 
 	/** Takes ownership of canvases handed to this session once its refresh keeps it, publishing membership changes made meanwhile. */
@@ -5210,6 +5229,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatCanvasesChanged,
 			canvases: canvases.length > 0 ? canvases.map(canvas => ({ resource: canvas.resource.toString() })) : undefined,
 		});
+		this._reportCanvasContinuity();
 	}
 
 	private _publishCanvasProjectionStates(): void {
@@ -5349,6 +5369,7 @@ export class CopilotAgentSession extends Disposable {
 			resource: projection.resource,
 			state: projection.canvas,
 		});
+		this._reportCanvasContinuity();
 	}
 
 	private _markCanvasProjectionLive(): void {

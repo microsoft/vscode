@@ -1475,6 +1475,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	realpath?: (path: string) => Promise<string>;
 	/** Canvases handed over by a replaced runtime. */
 	canvasHandoff?: ICopilotCanvasHandoff;
+	/** Receives the continuity the session reports while its runtime is live. */
+	onDidChangeCanvasContinuity?: (snapshot: ICopilotCanvasHandoff | undefined) => void;
 	/** Collects signals even when initialization fails before the harness returns. */
 	signals?: AgentSignal[];
 	/** Receives the session before it initializes, so tests can dispose a session whose initialization fails. */
@@ -1886,6 +1888,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
 			onConnectorRefreshRetryable: options?.onConnectorRefreshRetryable,
 			canvasHandoff: options?.canvasHandoff,
+			onDidChangeCanvasContinuity: options?.onDidChangeCanvasContinuity,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
 			telemetryContext: () => options?.telemetryContext,
 			restrictedTelemetryEnabled: () => options?.restrictedTelemetryEnabled ?? false,
@@ -4753,6 +4756,33 @@ suite('CopilotAgentSession', () => {
 				membership: [[]],
 			});
 			replacement.session.dispose();
+		});
+
+		test('reports source-less continuity while live, but not while handing over or tearing down', async () => {
+			const reported: (readonly string[] | undefined)[] = [];
+			const { session, mockSession } = await createAgentSession(disposables, {
+				onDidChangeCanvasContinuity: snapshot => reported.push(snapshot && [
+					...snapshot.projections.map(projection => projection.canvas.url === undefined ? projection.canvas.instanceId : `${projection.canvas.instanceId} with source`),
+					...[...snapshot.pendingCloseInstanceIds ?? []].map(instanceId => `close ${instanceId}`),
+				]),
+			});
+
+			mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/preview' });
+			const afterOpen = reported.at(-1);
+			mockSession.fire('session.canvas.closed', preview);
+			const afterClose = reported.at(-1);
+			mockSession.fire('session.canvas.opened', { ...chart, url: 'https://example.test/chart' });
+			const beforeTeardown = reported.length;
+			session.takeCanvasProjection();
+			await session.destroySession();
+
+			assert.deepStrictEqual({ afterOpen, afterClose, last: reported.at(-1), reportedDuringTeardown: reported.length - beforeTeardown }, {
+				afterOpen: [preview.instanceId],
+				afterClose: undefined,
+				last: [chart.instanceId],
+				reportedDuringTeardown: 0,
+			});
+			session.dispose();
 		});
 
 		test('takes a handoff when only deferred close intent remains', async () => {
