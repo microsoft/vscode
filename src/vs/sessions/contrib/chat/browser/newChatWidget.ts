@@ -2408,8 +2408,9 @@ export class NewChatWidget extends Disposable {
 		if (blocked) {
 			return blocked;
 		}
-		this.selectNoWorkspace(undefined, options);
-		return this._workspacePicker.selectionSnapshot.state === 'noWorkspace' ? 'applied' : 'notReady';
+		// Without a quick chat, for example while the environment has no compatible target yet, the previous draft is still the session.
+		const session = this.selectNoWorkspace(undefined, options);
+		return session && this._workspacePicker.selectionSnapshot.state === 'noWorkspace' ? 'applied' : 'notReady';
 	}
 
 	/** Why an inferred default must not replace the current workspace choice, if it must not. */
