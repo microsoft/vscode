@@ -286,9 +286,21 @@ suite('Session comparison grid controller', () => {
 		const before = fixture.visibleSessions.get().length;
 		currentChat.set(chat('judge'), undefined);
 		await Promise.resolve();
+		const isolated = {
+			panes: fixture.visibleSessions.get().length,
+			editor: fixture.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBar: fixture.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		};
+		currentChat.set(chat('attempt-2'), undefined);
+		await Promise.resolve();
 		assert.deepStrictEqual({
-			before, after: fixture.visibleSessions.get().length, activeChat: fixture.activeSession.get()?.activeChat.get().resource.toString(),
-		}, { before: 2, after: 1, activeChat: 'test:/parent#judge' });
+			before, isolated, activeChat: fixture.activeSession.get()?.activeChat.get().resource.toString(),
+			editor: fixture.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBar: fixture.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			before: 2, isolated: { panes: 1, editor: false, auxiliaryBar: false }, activeChat: 'test:/parent#attempt-2',
+			editor: true, auxiliaryBar: true,
+		});
 	});
 
 	test('does not collapse unrelated multi-session layouts', async () => {

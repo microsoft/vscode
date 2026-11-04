@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -22,6 +23,7 @@ import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
+import { setChatNotificationResource } from '../../../../workbench/contrib/chat/common/chatNotification.js';
 import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
@@ -101,7 +103,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 						|| !isEqual(participant.chatResource ?? from.session.mainChat.get().resource, from.chat)) {
 						return participant;
 					}
-					this._retainMovedParticipantModel(comparison, participant, from.chat);
+					this._retainMovedParticipantModel(comparison, participant, from.chat, to.chat);
 					return { ...participant, sessionResource: to.session.resource, chatResource: to.chat, missingSession: undefined, launchError: undefined };
 				});
 				if (participants.some((participant, index) => participant !== comparison.participants[index])) {
@@ -113,6 +115,22 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (event.groupsChanged) {
 				this._archiveComparisonsWithMissingGroups();
 			}
+		}));
+		const checkComparisons = this._register(new RunOnceScheduler(() => this._checkComparisons(this._comparisons.get()), 0));
+		const sessionsChanged = observableSignalFromEvent(this, Event.filter(this.sessionsManagementService.onDidChangeSessions,
+			event => [...event.added, ...event.removed, ...event.changed].some(session => this._comparisonIdsBySession.has(session.resource.toString()))));
+		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
+			for (const comparison of this._comparisons.read(reader)) {
+				if (comparison.archivedAt !== undefined || comparison.cancelledAt !== undefined) {
+					continue;
+				}
+				for (const participant of comparison.participants) {
+					const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
+					getSessionComparisonChat(participant, session, reader)?.status.read(reader);
+				}
+			}
+			checkComparisons.schedule();
 		}));
 		this._checkComparisons(this._comparisons.get());
 	}
@@ -222,7 +240,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				launchFailures
 			));
 		}
-		await this._nestComparisonParticipants(comparison);
+		const launchedSessions = launchedAttempts.flatMap(participant => {
+			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
+			return session ? [session] : [];
+		});
+		await this._nestComparisonParticipants(comparison, launchedSessions);
 		comparison = { ...this._requireComparison(comparison.id), launching: undefined };
 		this._replaceComparison(comparison);
 		this._archiveFullyArchivedComparisons([comparison]);
@@ -262,15 +284,21 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		});
 	}
 
-	private _retainMovedParticipantModel(comparison: ISessionComparison, participant: ISessionComparisonParticipant, resource: URI): void {
+	private _retainMovedParticipantModel(comparison: ISessionComparison, participant: ISessionComparisonParticipant, resource: URI, destination: URI): void {
 		const key = `${comparison.id}/${participant.id}`;
-		if (this._movedParticipantModels.has(key) || comparison.archivedAt !== undefined) {
+		const retained = this._movedParticipantModels.get(key);
+		if (retained) {
+			setChatNotificationResource(retained.object, destination);
+			return;
+		}
+		if (comparison.archivedAt !== undefined) {
 			return;
 		}
 		const model = this.chatService.acquireExistingSession(resource, 'sessionComparison');
 		if (!model) {
 			return;
 		}
+		setChatNotificationResource(model.object, destination);
 		// The original model still owns the live response and tool context. Release it once both
 		// the response and catalog settle, after capturing metrics, even if no grid was opened.
 		const lifetime = new DisposableStore();
@@ -494,7 +522,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 					: [...current.participants, synthesis],
 			};
 			this._replaceComparison(updated);
-			await this._nestComparisonParticipants(updated);
+			await this._nestComparisonParticipants(updated, session ? [session] : []);
+			await this._cleanupOrphanedEvaluator(comparisonId, synthesisParticipantId, session);
 			this._checkComparison(this._requireComparison(comparisonId));
 		} catch (error) {
 			const current = this.getComparison(comparisonId);
@@ -539,17 +568,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
-	private async _nestComparisonParticipants(comparison: ISessionComparison): Promise<void> {
-		if ((!comparison.launching && !comparison.sessionResource) || comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
+	private async _nestComparisonParticipants(comparison: ISessionComparison, sessionsToNest: readonly ISession[]): Promise<void> {
+		if (!sessionsToNest.length || (!comparison.launching && !comparison.sessionResource) || comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
 			return;
 		}
-		const participants = comparison.participants.filter(participant => participant.sessionResource && !participant.launchError);
-		const parentResource = comparison.sessionResource ?? participants[0]?.sessionResource;
+		const parentResource = comparison.sessionResource ?? sessionsToNest[0].resource;
 		const parent = parentResource && this.sessionsManagementService.getSession(parentResource);
-		const sessions = participants.flatMap(participant => {
-			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
-			return session && !isEqual(session.resource, parentResource) ? [session] : [];
-		});
+		const sessions = sessionsToNest.filter(session => !isEqual(session.resource, parentResource));
 		if (!parent || parent.isArchived.get()) {
 			return;
 		}
@@ -879,8 +904,22 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				: participant),
 		};
 		this._replaceComparison(updated);
-		await this._nestComparisonParticipants(updated);
+		await this._nestComparisonParticipants(updated, session ? [session] : []);
+		await this._cleanupOrphanedEvaluator(comparison.id, judgeParticipantId, session);
 		this._checkComparison(this._requireComparison(comparison.id));
+	}
+
+	private async _cleanupOrphanedEvaluator(comparisonId: string, participantId: string, session: ISession | undefined): Promise<void> {
+		const comparison = this.getComparison(comparisonId);
+		if (!session || comparison?.archivedAt === undefined) {
+			return;
+		}
+		const participant = comparison.participants.find(candidate => candidate.id === participantId);
+		if (!isEqual(participant?.sessionResource, session.resource)) {
+			return;
+		}
+		this._replaceComparison({ ...comparison, participants: comparison.participants.filter(candidate => candidate.id !== participantId) });
+		await this._cancelAndDeleteSessions([session], 'orphaned evaluator cleanup');
 	}
 
 	private async _cancelAndDeleteSessions(sessions: readonly ISession[], context: string): Promise<void> {

@@ -106,6 +106,24 @@ suite('Session comparison navigation', () => {
 		});
 	});
 
+	test('keeps main-chat attempts in ordinary session slots even with explicit chat identities', async () => {
+		const fixture = setup();
+		for (let index = 0; index < fixture.sessions.length; index++) {
+			const session = fixture.sessions[index];
+			fixture.sessions[index] = { ...session, chats: constObservable([session.mainChat.get()]) };
+		}
+		fixture.comparisons.set([{
+			...fixture.comparisons.get()[0],
+			participants: fixture.comparisons.get()[0].participants.map((participant, index) => ({
+				...participant, chatResource: fixture.sessions[index].mainChat.get().resource,
+			})),
+		}], undefined);
+		await fixture.service.open('comparison');
+		assert.deepStrictEqual({ grids: fixture.openedGrids, chats: fixture.openedChats }, {
+			grids: [['attempt-0', 'attempt-1']], chats: [],
+		});
+	});
+
 	test('opens attempts in the grid when synthesis is running', async () => {
 		const fixture = setup();
 		fixture.statuses[3].set(SessionStatus.InProgress, undefined);

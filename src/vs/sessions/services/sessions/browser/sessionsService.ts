@@ -2059,14 +2059,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	collapseToSession(session: IActiveSession | undefined): void {
-		const sessionId = session?.sessionId;
 		const visible = this._visibility.gridSessions.get();
-		if (!visible.some(candidate => candidate?.sessionId === sessionId)) {
+		const survivor = visible.find(candidate => candidate?.sessionId === session?.sessionId
+			&& this.uriIdentityService.extUri.isEqual(candidate?.scopedChatResource, session?.scopedChatResource));
+		if (!survivor && (session || !visible.includes(undefined))) {
 			return;
 		}
-		this._visibility.removeMany(visible
-			.filter(candidate => candidate?.sessionId !== sessionId)
-			.map(candidate => candidate?.sessionId));
+		this._visibility.restoreGrid([{
+			session: survivor,
+			sticky: survivor?.sticky.get() ?? false,
+			chatResource: survivor?.scopedChatResource,
+			gridId: survivor ? this._visibility.getRenderedGridSlots().find(slot => this._visibility.getGridSession(slot.id) === survivor)?.id : undefined,
+		}], 0);
 	}
 
 	closeAllSessions(): void {

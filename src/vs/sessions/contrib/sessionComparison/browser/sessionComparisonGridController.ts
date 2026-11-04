@@ -80,7 +80,11 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
 				&& (visibleSessions.length !== 1
 					|| getPaneId(visibleSessions[0]) !== this._isolatedJudgeSessionId
-					|| getPaneId(activeSession) !== this._isolatedJudgeSessionId)) {
+					|| getPaneId(activeSession) !== this._isolatedJudgeSessionId
+					|| !comparisons.some(candidate => candidate.archivedAt === undefined && candidate.participants.some(participant =>
+						participant.role === SessionComparisonParticipantRole.Judge
+						&& isEqual(participant.sessionResource, activeSession?.resource)
+						&& (!participant.chatResource || isEqual(participant.chatResource, activeSession?.activeChat.read(reader).resource)))))) {
 				this._isolatedJudgeSessionId = undefined;
 			}
 			const keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudgeSessionId !== undefined;
