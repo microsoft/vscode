@@ -86,6 +86,7 @@ import {
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
+	type IAgentImportSessionOptions,
 } from '../common/agentService.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
@@ -567,8 +568,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().refreshSandboxCertificate(chat, scopeId);
 	}
 
-	importSession(session: URI): Promise<void> {
-		return this._requireClient().importSession(session);
+	importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void> {
+		return this._requireClient().importSession(session, options);
 	}
 
 	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {

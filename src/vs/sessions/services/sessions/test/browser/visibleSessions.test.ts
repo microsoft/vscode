@@ -1224,6 +1224,148 @@ suite('VisibleSessions', () => {
 			});
 		});
 	});
+
+	suite('window sessions', () => {
+
+		test('a window session shows one chat outside the grid and is active while focused, then falls back to the grid', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			model.restoreGrid([{ session: a, sticky: false }], 0);
+			const windowSession = model.showInWindow(b, stubChat);
+			const shown = {
+				...snapshot(model),
+				windows: model.windowSessions.get().map(session => ({ session: session.sessionId, chat: session.scopedChatResource?.toString() })),
+				isWindowSession: model.isWindowSession(windowSession),
+				sameAgain: model.showInWindow(b, stubChat) === windowSession,
+			};
+			model.setActive(windowSession);
+			const focused = { ...snapshot(model), activeIsWindow: model.activeSession.get() === windowSession };
+			model.removeFromWindow(windowSession);
+			assert.deepStrictEqual({ shown, focused, closed: { ...snapshot(model), windows: model.windowSessions.get().length } }, {
+				shown: { visible: ['a'], active: 'a', sticky: [], windows: [{ session: 'b', chat: stubChat.resource.toString() }], isWindowSession: true, sameAgain: true },
+				focused: { visible: ['a'], active: 'b', sticky: [], activeIsWindow: true },
+				closed: { visible: ['a'], active: 'a', sticky: [], windows: 0 },
+			});
+		});
+
+		test('a chat in a window leaves the tabs of its session in the grid, and returns when the window closes', () => {
+			const model = createModel();
+			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer') };
+			const nested: IChat = { ...stubChat, resource: URI.parse('test:///nested') };
+			const session = { ...stubSession('a'), chats: constObservable([stubChat, peer, nested]) };
+			model.restoreGrid([{ session, sticky: false }], 0);
+			const tabs = () => model.visibleSessions.get()[0]!.visibleChatTabs.get().map(chat => chat.resource.path);
+
+			const peerWindow = model.showInWindow(session, peer);
+			const nestedWindow = model.showInWindow(session, nested);
+			const shown = { tabs: tabs(), windows: model.windowSessions.get().map(window => window.scopedChatResource?.path) };
+			model.removeFromWindow(peerWindow);
+			const oneClosed = tabs();
+			model.removeFromWindow(nestedWindow);
+
+			assert.deepStrictEqual({ shown, oneClosed, closed: tabs() }, {
+				shown: { tabs: ['/chat'], windows: ['/peer', '/nested'] },
+				oneClosed: ['/chat', '/peer'],
+				closed: ['/chat', '/peer', '/nested'],
+			});
+		});
+
+		test('the active chat of a grid session moves on when it is shown in a window', () => {
+			const model = createModel();
+			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer') };
+			const session = { ...stubSession('a'), chats: constObservable([stubChat, peer]) };
+			model.restoreGrid([{ session, sticky: false }], 0);
+			model.setActiveChat(session, peer);
+			model.showInWindow(session, peer);
+			assert.strictEqual(model.visibleSessions.get()[0]!.activeChat.get().resource.path, '/chat');
+		});
+
+		test('opening a session in the grid while a window is focused replaces the grid slot that was active', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			const c = stubSession('c');
+			model.restoreGrid([{ session: a, sticky: false }], 0);
+			const windowSession = model.showInWindow(b, stubChat);
+			model.setActive(windowSession);
+			model.setActive(c);
+			const opened = snapshot(model);
+			model.removeFromWindow(windowSession);
+			assert.deepStrictEqual({ opened, closed: snapshot(model) }, {
+				opened: { visible: ['c'], active: 'c', sticky: [] },
+				closed: { visible: ['c'], active: 'c', sticky: [] },
+			});
+		});
+
+		test('the main window stays laid out for its grid session while a window session is active', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			const c = stubSession('c');
+			model.restoreGrid([{ session: a, sticky: false }], 0);
+			const windowSession = model.showInWindow(b, stubChat);
+			const mainWindow = () => model.mainWindowActiveSession.get()?.sessionId;
+			const before = mainWindow();
+			model.setActive(windowSession);
+			const windowFocused = { active: model.activeSession.get()?.sessionId, mainWindow: mainWindow() };
+			model.setActive(c);
+			const gridOpened = { active: model.activeSession.get()?.sessionId, mainWindow: mainWindow() };
+			model.setActive(windowSession);
+			model.removeFromWindow(windowSession);
+			assert.deepStrictEqual({ before, windowFocused, gridOpened, windowClosed: mainWindow() }, {
+				before: 'a',
+				windowFocused: { active: 'b', mainWindow: 'a' },
+				gridOpened: { active: 'c', mainWindow: 'c' },
+				windowClosed: 'c',
+			});
+		});
+
+		test('removing grid panes keeps a focused window session active', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			model.restoreGrid([{ session: a, sticky: false }, { session: b, sticky: false }], 0);
+			const windowSession = model.showInWindow(a, stubChat);
+			model.removeMany(['a']);
+			model.setActive(windowSession);
+			model.removeMany(['b']);
+			assert.deepStrictEqual({ ...snapshot(model), activeIsWindow: model.activeSession.get() === windowSession }, {
+				visible: [], active: 'a', sticky: [], activeIsWindow: true,
+			});
+			model.removeFromWindow(windowSession);
+		});
+
+		test('the main window and closing the window agree on the new-session slot that was active', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			model.restoreGrid([{ session: a, sticky: false }, { session: undefined, sticky: false }], 1);
+			const windowSession = model.showInWindow(b, stubChat);
+			model.setActive(windowSession);
+			const windowFocused = { active: model.activeSession.get()?.sessionId, mainWindow: model.mainWindowActiveSession.get()?.sessionId ?? 'composer' };
+			model.removeFromWindow(windowSession);
+			assert.deepStrictEqual({ windowFocused, closed: { ...snapshot(model), mainWindow: model.mainWindowActiveSession.get()?.sessionId ?? 'composer' } }, {
+				windowFocused: { active: 'b', mainWindow: 'composer' },
+				closed: { visible: ['a', undefined], active: undefined, sticky: [], mainWindow: 'composer' },
+			});
+		});
+
+		test('a passive window session stays passive when its session is replaced', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			model.restoreGrid([{ session: a, sticky: false }], 0);
+			const passive = model.showInWindow(b, stubChat, undefined, true);
+			const shown = model.isPassiveWindowSession(passive);
+			model.updateSession(b, { ...stubSession('b') });
+			const replacement = model.getWindowSession('b', stubChat.resource);
+			assert.deepStrictEqual({ shown, replaced: replacement !== passive, passiveAfterUpdate: model.isPassiveWindowSession(replacement) }, {
+				shown: true, replaced: true, passiveAfterUpdate: true,
+			});
+			model.removeFromWindow(replacement!);
+		});
+	});
 });
 
 suite('VisibleSession - property forwarding', () => {

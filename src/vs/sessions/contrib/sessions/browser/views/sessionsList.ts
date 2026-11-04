@@ -108,7 +108,7 @@ import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResett
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, onDidEndSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -3906,6 +3906,8 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 	/** The chat row this list is dragging and what it moves, resolved once when the drag starts. */
 	private _draggedChat: { readonly item: ISessionChatItem; readonly movable: { readonly session: ISession; readonly chat: IChat } | undefined } | undefined;
+	/** The one session this list is dragging, which stands for the chat it shows. */
+	private _draggedSession: ISession | undefined;
 
 	constructor(private readonly delegate: ISessionsListDndDelegate) {
 		super();
@@ -3968,6 +3970,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return;
 		}
 
+		this._draggedSession = sessions.length === 1 ? sessions[0] : undefined;
 		const identifiers = sessions.map(s => new DraggedSessionIdentifier(s.sessionId, s.resource));
 		this._transfer.setData(identifiers, DraggedSessionIdentifier.prototype);
 
@@ -3979,7 +3982,18 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 	}
 
-	onDragEnd(): void {
+	onDragEnd(originalEvent: DragEvent): void {
+		const draggedChat = this._draggedChat?.item;
+		const draggedSession = this._draggedSession;
+		if (DOM.isHTMLElement(originalEvent.target)) {
+			if (draggedChat) {
+				onDidEndSessionChatDrag(originalEvent, originalEvent.target, draggedChat.session, draggedChat.chat.resource, getChatTitle(draggedChat.chat));
+			} else if (draggedSession) {
+				onDidEndSessionChatDrag(originalEvent, originalEvent.target, draggedSession, undefined, draggedSession.title.get());
+			}
+		}
+		this._draggedSession = undefined;
+
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
 		this._draggedChat = undefined;
 		this.delegate.setDropTargetHeader(undefined);
@@ -5464,9 +5478,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
 
-		// Re-render when the active session changes.
+		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			activeSession?.activeChat.read(reader);
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
@@ -5488,7 +5502,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
-		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
+		this.syncActiveChatSelection(this._sessionsService.mainWindowActiveSession.get());
 	}
 
 	/**
@@ -5561,7 +5575,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshPending = false;
 			this.refreshSessions();
 		}
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
 			this.sessions
@@ -6876,7 +6890,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reveals and selects where `move` puts what it moves once the list shows it: the moved chat's row, or the new
+	 * Reveals and focuses where `move` puts what it moves once the list shows it: the moved chat's row, or the new
 	 * session's row for a chat moved into a new session. Call it before the move starts, as the provider reports where
 	 * the chat went while the move runs, then call the returned function with whether the move succeeded. Doesn't move
 	 * focus into the list. Gives up when the row doesn't show within a few updates of the list or a few seconds, and when
@@ -6931,7 +6945,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reveals and selects the row of the session `sessionId`, or of its chat `chat`; whether the list shows it. A find
+	 * Reveals and focuses the row of the session `sessionId`, or of its chat `chat`, selecting it only when it is the open chat; whether the list shows it. A find
 	 * filter that hides the row is cleared, keeping focus where it was.
 	 */
 	private revealMoved(sessionId: string, chat: URI | undefined): boolean {
@@ -6963,7 +6977,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.tree.reveal(element, 0.5);
 		this.tree.setFocus([element]);
-		this.tree.setSelection([element]);
+		const [rowSession, rowChat] = isSessionChatItem(element) ? [element.session, element.chat] : [session, session.mainChat.get()];
+		if (isOpenChat(rowSession, rowChat, this._sessionsService.activeSession, undefined)) {
+			this.tree.setSelection([element]);
+		}
 		return true;
 	}
 

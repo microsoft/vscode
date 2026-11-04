@@ -276,7 +276,6 @@
     "@mermaid-js/layout-tidy-tree": "^0.2.0",
     "@mermaid-js/mermaid-zenuml": "^0.2.0",
     "@vscode/web-editors": "^0.0.2-104",
-    "dompurify": "^3.4.16",
     "mermaid": "^11.16.1"
   }
 }

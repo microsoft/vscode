@@ -373,6 +373,9 @@ suite_json() {
 # estimated seconds, from the Linux CI runners, run the longest suites first in parallel.
 should_run_suite api-folder && add_suite api api-folder 45 "API tests (folder)" suite_api_folder
 should_run_suite api-workspace && add_suite api api-workspace 5 "API tests (workspace)" suite_api_workspace
+# The API tests wait a fixed time for tools to register and for browser pages to respond, which
+# another VS Code instance competing for the CPU delays past that time.
+run_group_alone api
 should_run_suite colorize && add_suite colorize colorize 30 "Colorize tests" suite_colorize
 should_run_suite terminal-suggest && add_suite terminal-suggest terminal-suggest 6 "Terminal Suggest tests" suite_terminal_suggest
 should_run_suite typescript && add_suite typescript typescript 5 "TypeScript tests" suite_typescript

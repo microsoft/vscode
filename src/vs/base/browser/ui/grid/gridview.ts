@@ -1131,7 +1131,7 @@ export class GridView implements IDisposable {
 	/**
 	 * The maximum width of the grid.
 	 */
-	get maximumWidth(): number { return this.root.maximumHeight; }
+	get maximumWidth(): number { return this.root.maximumWidth; }
 
 	/**
 	 * The maximum height of the grid.

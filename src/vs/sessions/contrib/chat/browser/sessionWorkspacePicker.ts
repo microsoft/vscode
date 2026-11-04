@@ -263,6 +263,7 @@ export class WorkspacePicker extends Disposable {
 	private _sessionRestoreGeneration = 0;
 	private readonly _sessionRestoreState = observableValue<{ readonly generation: number; readonly selectionGeneration: number; readonly state: WorkspaceSessionFallbackState } | undefined>(this, undefined);
 	private readonly _sessionWorkspaceFallback: SessionWorkspaceFallback | undefined;
+	private readonly _localWorkspaceChecks = this._register(new Limiter<void>(4));
 
 	/**
 	 * Set to `true` once the user has explicitly picked or cleared a workspace.
@@ -805,6 +806,7 @@ export class WorkspacePicker extends Disposable {
 			this._activeTab = undefined;
 		}
 		this._showFlatPicker(triggerElement);
+		void this._removeMissingLocalWorkspaces().catch(onUnexpectedError);
 		if (!alreadyVisible && (preferredGroup === undefined || preferredGroup === SESSION_WORKSPACE_GROUP_REMOTE)
 			&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 			&& !this.agentHostFilterService.isDiscovering) {
@@ -1508,7 +1510,26 @@ export class WorkspacePicker extends Disposable {
 		return undefined;
 	}
 
-	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined, attachesContext = false): Promise<boolean> {
+	/** Rechecks the selected folder before a draft becomes a persistent session. */
+	async validateSelectedWorkspace(): Promise<boolean> {
+		const folderUri = this._selectedFolderUri;
+		// Keep the draft alive so the composer can restore its input after a rejected send.
+		return !folderUri || this._validateLocalWorkspace(folderUri, false);
+	}
+
+	protected async _removeMissingLocalWorkspaces(): Promise<void> {
+		await Promise.all(this._getRecentWorkspaces(true).map(({ workspace }) => {
+			const folderUri = workspace.folders[0]?.root ?? workspace.uri;
+			return this._localWorkspaceChecks.queue(async () => {
+				if (folderUri.scheme === Schemas.file && this.fileService.hasProvider(folderUri)
+					&& !await this.fileService.exists(folderUri) && !this._store.isDisposed) {
+					this._removeRecentWorkspace(folderUri);
+				}
+			});
+		}));
+	}
+
+	private async _validateLocalWorkspace(folderUri: URI, removeMissingWorkspace = true): Promise<boolean> {
 		if (folderUri.scheme === Schemas.file && this.fileService.hasProvider(folderUri)) {
 			const generation = this._selectionGeneration;
 			const exists = await this.fileService.exists(folderUri);
@@ -1516,13 +1537,22 @@ export class WorkspacePicker extends Disposable {
 				return false;
 			}
 			if (!exists) {
-				this._removeRecentWorkspace(folderUri);
+				if (removeMissingWorkspace) {
+					this._removeRecentWorkspace(folderUri);
+				}
 				await this.dialogService.info(
 					localize('pathNotExistTitle', "Path does not exist"),
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", folderUri.fsPath),
 				);
 				return false;
 			}
+		}
+		return true;
+	}
+
+	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined, attachesContext = false): Promise<boolean> {
+		if (!await this._validateLocalWorkspace(folderUri)) {
+			return false;
 		}
 		const environment = attachesContext ? undefined : this._getEnvironment();
 		if (environment) {

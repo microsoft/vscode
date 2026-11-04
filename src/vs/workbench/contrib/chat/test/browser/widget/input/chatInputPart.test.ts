@@ -1137,6 +1137,36 @@ suite('ChatInputPart', () => {
 		});
 	});
 
+	test('lays the input editor out one line tall while single-line, whatever its content and minimum lines', () => {
+		const editorLayouts: number[] = [];
+		let contentHeight = 120;
+		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			options: { isSessionsWindow: true },
+			inputContainer: dom.$('div'),
+			followupsContainer: dom.$('div'),
+			_inputEditor: {
+				getScrollWidth: () => 100,
+				getContentHeight: () => contentHeight,
+				layout: (dimension: { width: number; height: number }) => editorLayouts.push(dimension.height),
+			},
+			inputEditorMaxHeight: 250,
+			inputEditorTrailingSpace: 0,
+			ignoreInputEditorContentSizeChanges: false,
+			height: observableValue('height', 0),
+		}) as ChatInputPart;
+		// Getters on the part, computed from the input font size
+		Object.defineProperty(inputPart, 'inputEditorMinHeight', { value: 52 });
+		Object.defineProperty(inputPart, 'singleLineInputEditorHeight', { value: 32 });
+
+		inputPart.layout(800);
+		inputPart.setSingleLine(true);
+		contentHeight = 400;
+		inputPart.layout(800);
+		inputPart.setSingleLine(false);
+
+		assert.deepStrictEqual(editorLayouts, [120, 32, 250]);
+	});
+
 	test('working borders rotate fixed gradients inside masks at any input aspect ratio', async () => {
 		const host = mainWindow.document.body.appendChild(dom.$('.monaco-workbench'));
 		host.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';

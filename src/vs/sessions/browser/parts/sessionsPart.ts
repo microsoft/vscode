@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPart.css';
-import { triggerConfettiAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { localize } from '../../../nls.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -35,8 +31,7 @@ import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workben
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
-import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatSurface } from '../../services/chatBackground/browser/sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
@@ -51,13 +46,6 @@ interface IGridSlot {
 	boundSessionId: string | undefined;
 	session?: IActiveSession;
 }
-
-type CodiconConfettiActivationEvent = {};
-
-type CodiconConfettiActivationClassification = {
-	owner: 'tyleonha';
-	comment: 'Tracks how often users discover and activate the Codicon background confetti button.';
-};
 
 export class SessionsPart extends Part {
 
@@ -124,9 +112,6 @@ export class SessionsPart extends Part {
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -151,11 +136,7 @@ export class SessionsPart extends Part {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(parent, true));
-		this._register(backgroundRenderer.onDidActivateCodicon(element => this.activateCodicon(element)));
-		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
-		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
-		updateBackground();
+		this._register(this.instantiationService.createInstance(SessionsChatSurface, parent));
 
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
@@ -197,14 +178,6 @@ export class SessionsPart extends Part {
 		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
 
 		return contentArea;
-	}
-
-	private activateCodicon(element: HTMLElement): void {
-		if (!this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(element);
-		}
-		this.accessibilityService.status(localize('sessionsChatBackground.confetti', "Confetti!"));
-		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly gridSlotId: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined {
@@ -429,7 +402,7 @@ export class SessionsPart extends Part {
 
 	private _createSlot(id: string): IGridSlot {
 		const disposables = new DisposableStore();
-		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		const view = disposables.add(this.instantiationService.createInstance(SessionView, undefined));
 		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { id, view, disposables, boundSessionId: undefined };
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
