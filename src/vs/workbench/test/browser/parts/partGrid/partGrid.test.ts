@@ -1330,6 +1330,33 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('as the grid is resized, beside a part that keeps its size, a row of columns only keeps its share as every other part does', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const created = [createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all(created.map((part, index) => openEditor(part, `/${index}.txt`)));
+		const [a, b, c, d, f, e, kept] = created;
+		grid.addPart('a', a);
+		grid.addPart('b', b, { reference: 'a', direction: Direction.Right });
+		grid.addPart('c', c, { reference: 'a', direction: Direction.Down });
+		grid.addPart('d', d, { reference: 'b', direction: Direction.Down });
+		grid.addPart('f', f, { reference: 'd', direction: Direction.Down });
+		grid.addPart('e', e, { edge: Direction.Down });
+		grid.addPart('kept', kept, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.resizeCell('e', { height: 150 });
+		grid.resizeCell('kept', { height: 200 });
+		const heights = () => `${grid.getCellSize('a').height + grid.getCellSize('c').height}/${grid.getCellSize('e').height}/${grid.getCellSize('kept').height}`;
+		const resized = [800, 1200, 700, 800].map(height => {
+			grid.layout(1000, height);
+			return heights();
+		});
+
+		assert.deepStrictEqual({ shape: grid.describe(), resized }, {
+			shape: 'column(row(column(a, c), column(b, d, f)), e, kept)',
+			resized: ['266/334/200', '443/557/200', '222/278/200', '266/334/200'],
+		});
+	});
+
 	test('Move Part to the edge a part is at already leaves the parts as they are, sizes included', async () => {
 		const parts = await createParts();
 		const grid = createGrid();
