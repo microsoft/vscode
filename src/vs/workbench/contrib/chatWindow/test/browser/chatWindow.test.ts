@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { EditorCloseContext, GroupModelChangeKind, IActiveEditorChangeEvent, IEditorCloseEvent, IMatchEditorOptions, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorCloseContext, GroupModelChangeKind, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorWillMoveEvent, IMatchEditorOptions, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -47,7 +47,9 @@ suite('Chat window', () => {
 		readonly onCloseEditor = disposables.add(new Emitter<IEditorCloseEvent>());
 		readonly onActiveEditorChange = disposables.add(new Emitter<IActiveEditorChangeEvent>());
 		readonly onWillClose = disposables.add(new Emitter<IEditorCloseEvent>());
+		readonly onWillMove = disposables.add(new Emitter<IEditorWillMoveEvent>());
 		override readonly onWillCloseEditor = this.onWillClose.event;
+		override readonly onWillMoveEditor = this.onWillMove.event;
 		override readonly onDidModelChange = this.onModelChange.event;
 		override readonly onDidCloseEditor = this.onCloseEditor.event;
 		override readonly onDidActiveEditorChange = this.onActiveEditorChange.event;
@@ -75,16 +77,31 @@ suite('Chat window', () => {
 			this.onModelChange.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor });
 			this.onActiveEditorChange.fire({ editor });
 		}
+		/** As a group closes an editor: it leaves the group first, then the group says it will close, then that it closed. */
 		fireCloseEditor(editor: EditorInput, context = EditorCloseContext.UNKNOWN) {
-			this.onWillClose.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 			this.testEditors = this.testEditors.filter(candidate => candidate !== editor);
+			this.onWillClose.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 			this.onCloseEditor.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
+		}
+		/** As a group closes all its editors without asking, such as as it moves to another part: the active one last. */
+		forceCloseAll() {
+			const active = this.activeEditor;
+			for (const editor of this.testEditors.filter(candidate => candidate !== active)) {
+				this.fireCloseEditor(editor);
+			}
+			if (active) {
+				this.fireCloseEditor(active);
+			}
+		}
+		override moveEditors(editors: { editor: EditorInput }[], target: IEditorGroup): boolean {
+			return editors.every(({ editor }) => this.moveEditor(editor, target));
 		}
 		override moveEditor(editor: EditorInput, target: IEditorGroup): boolean {
 			if (this.immovable.has(editor)) {
 				return false;
 			}
 			this._events.push(`move to ${(target as TestGroup)._name}`);
+			this.onWillMove.fire({ editor, groupId: 0, target: 0 });
 			(target as TestGroup).open(editor);
 			this.fireCloseEditor(editor, EditorCloseContext.MOVE);
 			return true;
@@ -95,8 +112,10 @@ suite('Chat window', () => {
 		const group = new TestGroup(events, name);
 		const onWillClose = disposables.add(new Emitter<void>());
 		const onDidAddGroup = disposables.add(new Emitter<IEditorGroup>());
+		const onWillMoveGroupOut = disposables.add(new Emitter<IEditorGroup>());
 		const part = new class extends mock<IContentPart>() {
 			override readonly onWillClose = onWillClose.event;
+			override readonly onWillMoveGroupOut = onWillMoveGroupOut.event;
 			override readonly groups: IEditorGroup[] = [group];
 			override readonly activeGroup = group;
 			override readonly onDidAddGroup = onDidAddGroup.event;
@@ -126,7 +145,14 @@ suite('Chat window', () => {
 			onDidAddGroup.fire(added);
 			return added;
 		};
-		return { part, group, addGroup };
+		/** As a group moves to another part: a copy of it opens there, then its editors close here, and it goes away. */
+		const moveGroupOut = (moved: TestGroup, target: TestGroup) => {
+			onWillMoveGroupOut.fire(moved);
+			moved.testEditors.forEach(editor => target.open(editor));
+			moved.forceCloseAll();
+			part.groups.splice(part.groups.indexOf(moved), 1);
+		};
+		return { part, group, addGroup, moveGroupOut };
 	}
 
 	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean }; otherPart?: boolean }) {
@@ -438,16 +464,25 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ events, chat: chat.group.contains(chatInput), elsewhere: elsewhere.group.contains(chatInput) }, { events: ['move to elsewhere', 'veto cannot move', 'move to chat'], chat: true, elsewhere: false });
 	});
 
-	test('the chat\'s group moving to another window, which opens the chat there and closes it in the group it leaves rather than moving it, takes the chat out of the window, with the groups split beside it, rather than closing the window', async () => {
+	test('the chat\'s group moving to another window, which opens the chat there and closes it in the group it leaves rather than moving it, takes the chat out of the window, with the tabs beside it and the groups split beside it, rather than closing the window', async () => {
 		const { window, chat, elsewhere, chatInput, events } = createWindow();
+		chat.group.open(editor());
+		await chat.group.openEditor(chatInput);
 		chat.addGroup().open(editor());
-		// As a group moves to another part: its editors open there, then close where they were, and the group goes away
-		elsewhere.group.open(chatInput);
-		chat.group.fireCloseEditor(chatInput, EditorCloseContext.UNKNOWN);
-		chat.part.groups.splice(chat.part.groups.indexOf(chat.group), 1);
+		// Its editors open there, then close here without asking, the tab beside the active chat first
+		chat.moveGroupOut(chat.group, elsewhere.group);
 		await timeout(0);
 
-		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['moved out'], captured: { state: { groups: [1, 1] }, chatGroup: 0 } });
+		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['moved out'], captured: { state: { groups: [2, 1] }, chatGroup: 0 } });
+	});
+
+	test('the chat\'s group merging into a group of another window, such as a new one, moves its editors one by one: the tabs ahead of the chat still go back with it', () => {
+		const { window, chat, elsewhere, chatInput, events } = createWindow();
+		const tab = editor();
+		chat.group.open(tab);
+		chat.group.moveEditors([{ editor: tab }, { editor: chatInput }], elsewhere.group);
+
+		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['move to elsewhere', 'move to elsewhere', 'moved out'], captured: { state: { groups: [2] }, chatGroup: 0 } });
 	});
 
 	test('the chat moved into another part of the window, such as its main part, no longer has the chat part as it left it to open the window with', () => {

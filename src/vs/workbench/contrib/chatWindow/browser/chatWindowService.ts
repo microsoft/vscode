@@ -162,6 +162,22 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 	/** The groups of the chat part as the chat last left its group in it, captured as it was about to. */
 	private _chatPartAsChatLeft: IChatWindowChatPart | undefined;
+	/** Set while editors move out of the chat's group at once, such as with the group, once the chat part was captured. */
+	private _capturingChatPart = false;
+
+	/**
+	 * Captures the chat part before an editor leaves `group`, the chat's group of the chat part: editors leave a group
+	 * before the group says so, and several leave one by one as their group merges into another. Only the first of
+	 * them captures, with all of them still there.
+	 */
+	private _captureChatPartAsChatLeaves(group: IEditorGroup): void {
+		if (this._closing || this._capturingChatPart || !this.chatPart.groups.includes(group)) {
+			return;
+		}
+		this._chatPartAsChatLeft = captureChatPart(this.chatPart, this.content.input);
+		this._capturingChatPart = true;
+		queueMicrotask(() => this._capturingChatPart = false);
+	}
 
 	private _willClose = false;
 
@@ -239,13 +255,19 @@ export class ChatWindow extends Disposable implements IChatWindow {
 					disposableTimeout(() => this._host.findGroup(content.input)?.moveEditor(content.input, this.chatPart.groups.includes(group) ? group : this.chatPart.activeGroup), 0, this._store);
 				}
 			}
-		}), group.onWillCloseEditor(e => {
-			// Before the chat leaves its group of the chat part, such as for another window, with its group or not: the chat
-			// part as it is then is what the chat goes back to
-			if (e.editor === content.input && !this._closing && this.chatPart.groups.includes(group)) {
-				this._chatPartAsChatLeft = captureChatPart(this.chatPart, content.input);
+		}), group.onWillMoveEditor(() => {
+			// Before an editor moves out of the chat's group, such as the chat, or the tabs beside it ahead of the chat as
+			// the group merges into another, one by one: the chat part as it is then is what the chat goes back to
+			if (group.contains(content.input)) {
+				this._captureChatPartAsChatLeaves(group);
 			}
 		})));
+		// The chat's group moving to another part, as a copy there, after which its editors close here: none moves
+		this._register(chatPart.onWillMoveGroupOut(group => {
+			if (group.contains(content.input)) {
+				this._captureChatPartAsChatLeaves(group);
+			}
+		}));
 		windowGroups.groups.forEach(trackChatGroup);
 		this._register(windowGroups.onDidAddGroup(trackChatGroup));
 		this._register(windowGroups.onDidRemoveGroup(group => chatGroupListeners.deleteAndDispose(group)));
