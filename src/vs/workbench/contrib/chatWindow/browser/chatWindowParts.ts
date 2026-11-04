@@ -23,7 +23,7 @@ export function trackMainPartEditors(part: Pick<IEditorPart, 'groups' | 'onDidAd
 		groups.clear();
 		for (const group of part.groups) {
 			groups.add(group.onDidModelChange(e => {
-				if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
+				if (e.kind === GroupModelChangeKind.EDITOR_OPEN && !handlers.isClosing()) {
 					handlers.onDidOpenEditor();
 				}
 			}));

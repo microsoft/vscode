@@ -293,9 +293,15 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._closing = true;
 		// All or nothing: what the chat part shows beside the chat, such as an editor dropped beside it, moves into the main
 		// part first, so that the chat part, then holding only the chat, which closes without asking, closes once the main
-		// part did. The main part closes first: when an editor of it cannot move to the main window, the window stays as it
-		// was, its chat too.
-		if (!this._leaveOnlyChatInChatPart() || !this.mainPart.close() || !this.chatPart.close()) {
+		// part did. The main part closes first: when an editor cannot move to the main window, the window stays as it was,
+		// its chat too, and the editors that moved go back beside the chat.
+		const moved = this._moveEditorsBesideChatToMainPart();
+		if (!this._chatPartHoldsOnlyChat() || !this.mainPart.close()) {
+			moved.moveBack();
+			this._closing = false;
+			return false;
+		}
+		if (!this.chatPart.close()) {
 			this._closing = false;
 			return false;
 		}
@@ -306,18 +312,31 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		return true;
 	}
 
-	/**
-	 * Moves the editors of the chat part other than the chat into the main part. Whether the chat part then holds only the
-	 * chat: not while an editor that cannot move stays in it.
-	 */
-	private _leaveOnlyChatInChatPart(): boolean {
-		const isOther = (editor: EditorInput) => editor !== this.content.input;
+	/** Moves the editors of the chat part other than the chat into the main part, those that can move. */
+	private _moveEditorsBesideChatToMainPart(): { moveBack(): void } {
+		const moved: { readonly editor: EditorInput; readonly from: IEditorGroup }[] = [];
 		for (const group of this.chatPart.groups) {
-			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL).filter(isOther)) {
-				group.moveEditor(editor, this.mainPart.activeGroup, { preserveFocus: true, inactive: true });
+			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => editor !== this.content.input)) {
+				if (group.moveEditor(editor, this.mainPart.activeGroup, { preserveFocus: true, inactive: true })) {
+					moved.push({ editor, from: group });
+				}
 			}
 		}
-		return this.chatPart.groups.every(group => !group.getEditors(EditorsOrder.SEQUENTIAL).some(isOther));
+		return {
+			moveBack: () => {
+				for (const { editor, from } of moved) {
+					const group = this.mainPart.groups.find(candidate => candidate.contains(editor, { strictEquals: true }));
+					if (group && this.chatPart.groups.includes(from)) {
+						group.moveEditor(editor, from, { preserveFocus: true, inactive: true });
+					}
+				}
+			},
+		};
+	}
+
+	/** Whether the chat part holds only the chat: not while an editor that cannot move stays beside it. */
+	private _chatPartHoldsOnlyChat(): boolean {
+		return this.chatPart.groups.every(group => group.getEditors(EditorsOrder.SEQUENTIAL).every(editor => editor === this.content.input));
 	}
 
 	/**

@@ -107,7 +107,9 @@ suite('Chat window', () => {
 			override readonly input = chatInput;
 			override readonly onDidEnd = onDidEnd.event;
 		}();
-		const state = new ChatWindowState(new ChatWindowDefaults(disposables.add(new InMemoryStorageService())));
+		const storage = disposables.add(new InMemoryStorageService());
+		const remembered: unknown[] = [];
+		const state = new ChatWindowState(new ChatWindowDefaults(storage), { initial: undefined, set: layout => remembered.push(layout) });
 		const main = createPart(events, 'main', { veto: options?.vetoMain });
 		const chat = createPart(events, 'chat');
 		chat.group.testEditors.push(chatInput);
@@ -133,7 +135,7 @@ suite('Chat window', () => {
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
-		return { window, state, main, chat, other, chatInput, onDidEnd, events };
+		return { window, state, main, chat, other, chatInput, onDidEnd, events, storage, remembered };
 	}
 
 	const editor = () => disposables.add(new TestInput());
@@ -296,6 +298,39 @@ suite('Chat window', () => {
 			chatShows: true,
 			besideChat: true,
 			mainGroups: 1,
+		});
+	});
+
+	test('closing a window that shows only its chat, with an editor beside the chat, changes neither its mode, nor what is remembered for it, nor the default of new windows', () => {
+		const { window, state, chat, storage, remembered } = createWindow();
+		state.showChatOnly();
+		chat.addGroup().open(editor());
+		const before = { mode: state.layoutMode.get(), remembered: remembered.length, defaults: new ChatWindowDefaults(storage).getLayoutMode() };
+
+		const closed = window.close();
+
+		assert.deepStrictEqual({ closed, mode: state.layoutMode.get(), remembered: remembered.length, defaults: new ChatWindowDefaults(storage).getLayoutMode() }, { closed: true, ...before });
+	});
+
+	test('when an editor beside the chat cannot move, the window stays as it was: the editors that moved go back beside the chat, and its mode stays', () => {
+		const { window, state, main, chat, events } = createWindow();
+		state.showChatOnly();
+		const beside = chat.addGroup();
+		const movable = editor();
+		const immovable = editor();
+		beside.open(movable);
+		beside.open(immovable);
+		beside.immovable.add(immovable);
+		const mode = state.layoutMode.get();
+
+		const closed = window.close();
+
+		assert.deepStrictEqual({ closed, besideChat: [beside.contains(movable), beside.contains(immovable)], inMain: main.group.contains(movable), mode: state.layoutMode.get(), events }, {
+			closed: false,
+			besideChat: [true, true],
+			inMain: false,
+			mode,
+			events: ['move to main', 'move to chat 2'],
 		});
 	});
 
