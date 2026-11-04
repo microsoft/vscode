@@ -347,6 +347,8 @@ export interface ISessionsService {
 	openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection, options?: IOpenSessionsOptions): Promise<void>;
 	/** Open an ordered set in a balanced arrangement, retaining the included live views. */
 	openSessionsInGrid(sessions: readonly ISession[]): Promise<void>;
+	/** Opens exact chats, including multiple chats of one session, in a tiled grid. */
+	openChatsInGrid(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void>;
 	arrangeSessions(): void;
 	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
 	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
@@ -1556,20 +1558,49 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSessionsInGrid(sessions: readonly ISession[]): Promise<void> {
+		return this._openGrid(sessions.map(session => ({ session })));
+	}
+
+	async openChatsInGrid(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void> {
+		return this._openGrid(chats);
+	}
+
+	private async _openGrid(targets: readonly { readonly session: ISession; readonly chatResource?: URI }[]): Promise<void> {
 		this._cancelRestore();
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
-		const prepared = await this.prepareGridSessions(sessions, token);
+		const hasChats = targets.some(target => target.chatResource);
+		const resolved = hasChats ? await Promise.all(targets.map(async target => {
+			const { session, chatUri } = await this._resolveSessionForOpen(target.session, target.chatResource);
+			return { session, chatResource: chatUri };
+		})) : targets;
+		if (token.isCancellationRequested || (hasChats && !this.areGridSessionsCurrent(resolved.map(target => target.session)))) {
+			return;
+		}
+		const prepared = await this.prepareGridSessions(resolved.map(target => target.session), token);
 		if (!prepared || token.isCancellationRequested || !prepared.length || !this.areGridSessionsCurrent(prepared)) {
 			return;
 		}
 		const active = this.activeSession.get();
-		const slots = prepared.map(session => ({ session, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
+		const keys = new Set<string>();
+		const candidates = hasChats ? resolved : prepared.map(session => ({ session, chatResource: undefined }));
+		const slots = candidates.filter(({ session, chatResource }) => {
+			const key = chatResource?.toString() ?? session.sessionId;
+			if (keys.has(key)) {
+				return false;
+			}
+			keys.add(key);
+			return true;
+		}).map(({ session, chatResource }) => ({ session, chatResource, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
+		if (slots.some(({ session, chatResource }) => chatResource && !session.chats.get().some(chat => this.uriIdentityService.extUri.isEqual(chat.resource, chatResource)))) {
+			return;
+		}
 		transaction(tx => {
 			this.customViewService.hideCustomView(tx);
 			this.windowCanvasService.deactivateCanvas(tx);
 			this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
-			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)), tx);
+			this._visibility.restoreGrid(slots, Math.max(0, slots.findIndex(({ session, chatResource }) => session.sessionId === active?.sessionId
+				&& (!chatResource || this.uriIdentityService.extUri.isEqual(chatResource, active?.activeChat.get().resource)))), tx);
 			this._gridRequest.set({ type: 'arrange' }, tx);
 		});
 	}
@@ -2068,14 +2099,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	collapseToSession(session: IActiveSession | undefined): void {
-		const sessionId = session?.sessionId;
 		const visible = this._visibility.gridSessions.get();
-		if (!visible.some(candidate => candidate?.sessionId === sessionId)) {
+		const survivor = visible.find(candidate => candidate?.sessionId === session?.sessionId
+			&& this.uriIdentityService.extUri.isEqual(candidate?.scopedChatResource, session?.scopedChatResource));
+		if (!survivor && (session || !visible.includes(undefined))) {
 			return;
 		}
-		this._visibility.removeMany(visible
-			.filter(candidate => candidate?.sessionId !== sessionId)
-			.map(candidate => candidate?.sessionId));
+		this._visibility.restoreGrid([{
+			session: survivor,
+			sticky: survivor?.sticky.get() ?? false,
+			chatResource: survivor?.scopedChatResource,
+			gridId: survivor ? this._visibility.getRenderedGridSlots().find(slot => this._visibility.getGridSession(slot.id) === survivor)?.id : undefined,
+		}], 0);
 	}
 
 	closeAllSessions(): void {
