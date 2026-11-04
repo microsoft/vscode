@@ -491,6 +491,11 @@ jobs:
     name: Linux
     needs: changes
     if: ${{ !cancelled() }}
+    # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true' }}
@@ -508,6 +513,11 @@ jobs:
     name: macOS
     needs: changes
     if: ${{ !cancelled() }}
+    # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
@@ -528,6 +538,11 @@ jobs:
     name: Windows
     needs: changes
     if: ${{ !cancelled() }}
+    # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
