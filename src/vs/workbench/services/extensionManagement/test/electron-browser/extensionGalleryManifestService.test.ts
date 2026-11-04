@@ -19,7 +19,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { ExtensionGalleryManifestIPCService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { ExtensionGalleryAuthorizationChannel, ExtensionGalleryManifestIPCService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
@@ -1057,14 +1057,14 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		scopes_supported: ['api://marketplace.example.com/.default'],
 	};
 	/** Mints `resource-token` only for a request that names the advertised authorization server. */
-	function stubResourceScopedAuthentication(getResourceSession: () => AuthenticationSession | Promise<AuthenticationSession> = () => createMicrosoftSession('resource-token')): void {
+	function stubResourceScopedAuthentication(getResourceSession: (options: IAuthenticationGetSessionsOptions) => AuthenticationSession | Promise<AuthenticationSession> = () => createMicrosoftSession('resource-token')): void {
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override async getSessions(providerId: string, _scopes?: readonly string[], options?: IAuthenticationGetSessionsOptions) {
 				if (providerId !== 'microsoft') {
 					return [];
 				}
-				return options?.authorizationServer ? [await getResourceSession()] : microsoftSessions;
+				return options?.authorizationServer ? [await getResourceSession(options)] : microsoftSessions;
 			}
 			override async createSession() { return createMicrosoftSession(); }
 		}());
@@ -1303,21 +1303,216 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
-	test('a rejected unchanged token retracts access after bounded recovery fails', async () => {
+	test('remote rejection of each replacement shares a cooldown across callers and token rotations', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		const forced: boolean[] = [];
+		let resourceToken = 'resource-1';
+		stubResourceScopedAuthentication(options => {
+			forced.push(options._workbenchForceRefresh === true);
+			resourceToken = `resource-${forced.length}`;
+			return { ...createMicrosoftSession(resourceToken), expiresAfter: 60 * 60 * 1000 };
+		});
+		let indexRequests = 0;
+		requestHandler = options => {
+			if (options.url === MARKETPLACE_URL) {
+				indexRequests++;
+			}
+			return gatedMarketplace(resourceToken, PROTECTED_RESOURCE_METADATA)(options);
+		};
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		const shared = new ExtensionGalleryAuthorizationChannel(service);
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const reject = (channel: ExtensionGalleryAuthorizationChannel, accessToken = resourceToken) =>
+			channel.call<boolean>('replica', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken });
+		const first = await Promise.all([reject(remote, 'resource-1'), reject(shared, 'resource-1')]);
+		const previous = await reject(remote, 'resource-1');
+		const results: boolean[] = [];
+		for (let i = 0; i < 10; i++) {
+			results.push(await reject(i % 2 ? shared : remote));
+		}
+		const duringCooldown = { forced: [...forced], indexRequests, resourceToken, results };
+		await clock.tickAsync(59_999);
+		const beforeBoundary = await reject(shared);
+		await clock.tickAsync(1);
+		const atBoundary = await reject(remote);
+
+		assert.deepStrictEqual({
+			first, previous, duringCooldown, beforeBoundary, atBoundary, forced, indexRequests,
+			status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			first: [true, true], previous: true,
+			duringCooldown: { forced: [false, true], indexRequests: 2, resourceToken: 'resource-2', results: Array.from({ length: 10 }, () => false) },
+			beforeBoundary: false, atBoundary: true, forced: [false, true, true], indexRequests: 3,
+			status: ExtensionGalleryManifestStatus.Available,
+			token: 'resource-3', published: ['resource-1', 'resource-2', 'resource-3'],
+		});
+	});
+
+	test('the rejection cooldown starts after a slow forced refresh completes', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let complete!: (session: AuthenticationSession) => void;
+		let started!: () => void;
+		const pending = new Promise<AuthenticationSession>(resolve => complete = resolve);
+		const began = new Promise<void>(resolve => started = resolve);
+		const forced: boolean[] = [];
+		let resourceToken = 'resource-1';
+		stubResourceScopedAuthentication(async options => {
+			forced.push(options._workbenchForceRefresh === true);
+			if (options._workbenchForceRefresh) {
+				started();
+				const session = await pending;
+				resourceToken = session.accessToken;
+				return session;
+			}
+			return { ...createMicrosoftSession(resourceToken), expiresAfter: 60 * 60 * 1000 };
+		});
+		requestHandler = options => gatedMarketplace(resourceToken, PROTECTED_RESOURCE_METADATA)(options);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const reject = () => remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: resourceToken });
+		const renewing = reject();
+		await began;
+		await clock.tickAsync(60_000);
+		complete({ ...createMicrosoftSession('resource-2'), expiresAfter: 60 * 60 * 1000 });
+		const renewed = await renewing;
+		const immediately = await reject();
+		await clock.tickAsync(59_999);
+		const beforeBoundary = await reject();
+		const beforeBoundaryRequests = [...forced];
+		await clock.tickAsync(1);
+		const atBoundary = await reject();
+
+		assert.deepStrictEqual({
+			renewed, immediately, beforeBoundary, beforeBoundaryRequests, atBoundary, forced,
+			status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL),
+		}, {
+			renewed: true, immediately: false, beforeBoundary: false, beforeBoundaryRequests: [false, true],
+			atBoundary: false, forced: [false, true, true],
+			status: ExtensionGalleryManifestStatus.Available, token: 'resource-2',
+		});
+	});
+
+	test('a rejected unchanged token retains an index-accepted catalog without another forced attempt', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		const forced: boolean[] = [];
+		stubResourceScopedAuthentication(options => {
+			forced.push(options._workbenchForceRefresh === true);
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60 * 60 * 1000 };
+		});
+		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+		const service = createService();
+		const manifest = await service.getExtensionGalleryManifest();
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const renewed = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-token' });
+		await clock.tickAsync(60_000);
+		const repeated = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-token' });
+
+		assert.deepStrictEqual({
+			renewed, repeated, forced, status: service.extensionGalleryManifestStatus,
+			sameManifest: await service.getExtensionGalleryManifest() === manifest,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			publishedTokens: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			renewed: false, repeated: false, forced: [false, true], status: ExtensionGalleryManifestStatus.Available,
+			sameManifest: true, token: 'resource-token', publishedTokens: ['resource-token'],
+		});
+	});
+
+	test('a failed rejection refresh consumes the attempt without retracting the accepted catalog', async () => {
 		fakeClock();
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
-		stubResourceScopedAuthentication(() => ({ ...createMicrosoftSession('resource-token'), expiresAfter: 60_000 }));
+		const forced: boolean[] = [];
+		stubResourceScopedAuthentication(options => {
+			forced.push(options._workbenchForceRefresh === true);
+			if (options._workbenchForceRefresh) {
+				throw new Error('Authentication provider unavailable');
+			}
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60 * 60 * 1000 };
+		});
 		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
 		const service = createService();
-		await service.getExtensionGalleryManifest();
-		const renewed = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-token');
+		const manifest = await service.getExtensionGalleryManifest();
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const reject = () => remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-token' });
+		const first = await reject();
+		const repeated = await Promise.all(Array.from({ length: 10 }, reject));
 
 		assert.deepStrictEqual({
-			renewed, manifest: await service.getExtensionGalleryManifest(),
+			first, repeated, forced, status: service.extensionGalleryManifestStatus,
+			sameManifest: await service.getExtensionGalleryManifest() === manifest,
 			token: await service.getAccessToken(MARKETPLACE_URL),
-			publishedTokens: authorizationUpdates.map(update => update.accessToken),
-		}, { renewed: false, manifest: null, token: undefined, publishedTokens: ['resource-token', undefined] });
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			first: false, repeated: Array.from({ length: 10 }, () => false), forced: [false, true],
+			status: ExtensionGalleryManifestStatus.Available, sameManifest: true,
+			token: 'resource-token', published: ['resource-token'],
+		});
+	});
+
+	test('the rejection cooldown does not postpone ordinary expiry renewal', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		const forced: boolean[] = [];
+		let resourceToken = 'resource-1';
+		stubResourceScopedAuthentication(options => {
+			forced.push(options._workbenchForceRefresh === true);
+			resourceToken = `resource-${forced.length}`;
+			return { ...createMicrosoftSession(resourceToken), expiresAfter: 20_000 };
+		});
+		requestHandler = options => gatedMarketplace(resourceToken, PROTECTED_RESOURCE_METADATA)(options);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const first = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-1' });
+		await clock.tickAsync(15_000);
+		const repeated = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-3' });
+
+		assert.deepStrictEqual({
+			first, repeated, forced, status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+		}, {
+			first: true, repeated: false, forced: [false, true, false],
+			status: ExtensionGalleryManifestStatus.Available, token: 'resource-3',
+		});
+	});
+
+	test('a genuine service-index rejection still retracts access during recovery', async () => {
+		fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let indexRejects = false;
+		const forced: boolean[] = [];
+		stubResourceScopedAuthentication(options => {
+			forced.push(options._workbenchForceRefresh === true);
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60 * 60 * 1000 };
+		});
+		requestHandler = options => gatedMarketplace(indexRejects ? 'different-token' : 'resource-token', PROTECTED_RESOURCE_METADATA)(options);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		indexRejects = true;
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const renewed = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-token' });
+
+		assert.deepStrictEqual({
+			renewed, forced, status: service.extensionGalleryManifestStatus,
+			manifest: await service.getExtensionGalleryManifest(), token: await service.getAccessToken(MARKETPLACE_URL),
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			renewed: false, forced: [false, true], status: ExtensionGalleryManifestStatus.RequiresSignIn,
+			manifest: null, token: undefined, published: ['resource-token', undefined],
+		});
 	});
 
 	test('a service-index 401 silently retries the resource session once', async () => {
@@ -1390,8 +1585,11 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 		const renewed = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-1');
+		const repeated = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-2');
 
-		assert.deepStrictEqual({ renewed, forced, token: await service.getAccessToken(MARKETPLACE_URL) }, { renewed: true, forced: 1, token: 'resource-2' });
+		assert.deepStrictEqual({ renewed, repeated, forced, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+			renewed: true, repeated: false, forced: 1, token: 'resource-2',
+		});
 	});
 
 	test('sign-out supersedes an in-flight authenticated rejection recovery', async () => {
@@ -1438,10 +1636,11 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const began = new Promise<void>(resolve => started = resolve);
 		let calls = 0;
 		let acceptedToken = 'resource-1';
+		let accountResourceRequests = 0;
 		stubResourceScopedAuthentication(() => {
 			calls++;
 			if (microsoftSessions[0].account.id === 'ms-account-2') {
-				acceptedToken = 'resource-2';
+				acceptedToken = `resource-${++accountResourceRequests + 1}`;
 				return { ...createMicrosoftSession(acceptedToken, 'ms-account-2'), expiresAfter: 60_000 };
 			}
 			if (calls === 1) {
@@ -1461,8 +1660,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		complete({ ...createMicrosoftSession('obsolete-token'), expiresAfter: 60_000 });
 		const renewed = await renewing;
 		const stale = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-1');
-		assert.deepStrictEqual({ renewed, stale, calls, token: await service.getAccessToken(MARKETPLACE_URL), published: authorizationUpdates.map(update => update.accessToken) }, {
-			renewed: false, stale: false, calls: 3, token: 'resource-2', published: ['resource-1', 'resource-2'],
+		const current = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-2');
+		assert.deepStrictEqual({ renewed, stale, current, calls, token: await service.getAccessToken(MARKETPLACE_URL), published: authorizationUpdates.map(update => update.accessToken) }, {
+			renewed: false, stale: false, current: true, calls: 4, token: 'resource-3', published: ['resource-1', 'resource-2', 'resource-3'],
 		});
 	});
 
