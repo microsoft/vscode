@@ -18,6 +18,7 @@ import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/brow
 import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** What the terminals of chat windows need of the sessions' terminals. */
@@ -48,6 +49,11 @@ export interface IChatWindowTerminalsService {
 	addTerminal(window: IChatWindow): Promise<void>;
 	/** Shows the terminal `instanceId`, such as the terminal of a task, in the terminals of `window`; resolves to whether it did. */
 	showTerminal(window: IChatWindow, instanceId: number, focus: boolean): Promise<boolean>;
+	/**
+	 * Shows the terminal `instanceId`, such as the terminal of a task, in the terminals of a chat window that shows
+	 * `session`; resolves to whether one does and showed it.
+	 */
+	showSessionTerminal(session: ISession, instanceId: number, focus: boolean): Promise<boolean>;
 }
 
 /** Whether `editor` is a terminal. */
@@ -82,11 +88,11 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		private readonly _source: IChatWindowTerminalsSource,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IChatWindowService chatWindowService: IChatWindowService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) {
 		super();
 		this._register(autorun(reader => {
-			const windows = chatWindowService.windows.read(reader);
+			const windows = this._chatWindowService.windows.read(reader);
 			for (const window of windows) {
 				if (!this._windows.has(window)) {
 					this._windows.set(window, this._trackWindow(window));
@@ -260,6 +266,11 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		terminals.add(instance);
 		await this._moveToGroup(instance, part.activeGroup, focus);
 		return true;
+	}
+
+	async showSessionTerminal(session: ISession, instanceId: number, focus: boolean): Promise<boolean> {
+		const window = this._chatWindowService.windows.get().find(candidate => this._sessionOf(candidate)?.sessionId === session.sessionId);
+		return window ? this.showTerminal(window, instanceId, focus) : false;
 	}
 
 	/** Gives the terminals of `window` back to their session, still running, as it closes. */

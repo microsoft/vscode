@@ -22,6 +22,7 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ICreateTerminalOptions, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatWindowTerminals, IChatWindowTerminalsSource } from '../../browser/chatWindowTerminals.js';
 
@@ -212,6 +213,23 @@ suite('Chat window terminals', () => {
 			calls: ['createPart', 'toEditor:7', 'toBackground'],
 			shownInChatWindow: ['9:true', '9:false'],
 			shownInWindow: false,
+		});
+	});
+
+	test('shows a terminal of a session, such as of a task run for it, in the window that shows the session; for another session it does not', async () => {
+		const instance = terminal(9);
+		const { terminals, window, calls } = createEnvironment({ instances: [instance], foreground: [instance] });
+
+		const otherSession = await terminals.showSessionTerminal(upcastPartial<ISession>({ sessionId: 'session-2' }), 9, false);
+		const shownSession = await terminals.showSessionTerminal(upcastPartial<ISession>({ sessionId: 'session-1' }), 9, false);
+		const shownInWindow = window.terminalsVisible.get();
+		terminals.release(window);
+
+		assert.deepStrictEqual({ otherSession, shownSession, shownInWindow, calls }, {
+			otherSession: false,
+			shownSession: true,
+			shownInWindow: true,
+			calls: ['createPart', 'toEditor:7', 'toBackground'],
 		});
 	});
 
