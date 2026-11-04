@@ -691,27 +691,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]);
 	}
 
-	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
-		const command = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
-		cwd = cwd ? await this._configurationResolverService.resolveAsync(workspaceFolder, cwd) : undefined;
-		// If the command still contains a `${...}` placeholder, it is a variable
-		// (for example `${command:...}` or `${input:...}`) that this resolver
-		// cannot expand on its own. Returning it as-is lets the variable be
-		// substituted later by the task system instead of producing a malformed
-		// path like `<cwd>\${command:python.interpreterPath}` (microsoft/vscode#160891).
-		if (/\$\{.+?\}/.test(command)) {
+	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined, resolvedVariables: Map<string, string>): Promise<string> {
+		const resolver = new VariableResolver(workspaceFolder, systemInfo, resolvedVariables, this._configurationResolverService);
+		const command = await resolver.resolve(CommandString.value(task.command.name!));
+		if (!command) {
 			return command;
 		}
-		const delimiter = (await this._pathService.path).delimiter;
-		const paths = envPath ? await Promise.all(envPath.split(delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
+		cwd = cwd ? await resolver.resolve(cwd) : undefined;
+		const pathLib = await this._pathService.path;
+		const paths = envPath ? (await resolver.resolve(envPath)).split(pathLib.delimiter) : undefined;
 		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
 		if (foundExecutable) {
 			return foundExecutable;
 		}
-		if (path.isAbsolute(command)) {
+		if (pathLib.isAbsolute(command)) {
 			return command;
 		}
-		return path.join(cwd ?? '', command);
+		return pathLib.join(cwd ?? '', command);
 	}
 
 	private _findUnresolvedVariables(variables: Set<string>, alreadyResolved: Map<string, string>): Set<string> {
@@ -782,7 +778,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (isProcess) {
 					let process = CommandString.value(task.command.name!);
 					if (taskSystemInfo.platform === Platform.Platform.Windows) {
-						process = await this._resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath);
+						process = await this._resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath, resolved.variables);
 					}
 					resolved.variables.set(TerminalTaskSystem.ProcessVarName, process);
 				}
@@ -801,7 +797,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						if (isProcess) {
 							let processVarValue: string;
 							if (Platform.isWindows) {
-								processVarValue = await this._resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath);
+								processVarValue = await this._resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath, resolvedVariablesMap);
 							} else {
 								processVarValue = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 							}
@@ -1563,6 +1559,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
+
+			if (task.command.runtime === RuntimeType.Process && !CommandString.value(command)) {
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
+				return [undefined, new TaskError(Severity.Error, nls.localize('task.emptyProcessCommand', "The process task command resolved to an empty string."), TaskErrors.ConfigValidationError)];
+			}
 
 			this._currentTask.shellLaunchConfig = launchConfigs = await this._createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit, presentationOptions);
 			if (launchConfigs === undefined) {
