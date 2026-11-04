@@ -743,6 +743,7 @@ export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences')
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
 export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
 export const ExtensionRequestsTimeoutConfigKey = 'extensions.requestTimeout';
+export const MarketplaceDeprecationConfigKey = 'extensions.experimental.marketplaceDeprecation';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
@@ -751,6 +752,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		title: localize('extensionsConfigurationTitle', "Extensions"),
 		type: 'object',
 		properties: {
+			[MarketplaceDeprecationConfigKey]: {
+				type: 'boolean',
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				included: false,
+				experiment: { mode: 'auto' },
+				description: localize('extensions.marketplaceDeprecation', "Use deprecation details from the extension Marketplace, with existing deprecation details as a fallback.")
+			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
