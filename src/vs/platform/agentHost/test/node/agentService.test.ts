@@ -5791,6 +5791,24 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('dispatchAction', () => {
 
+		test('rejects forged host-owned account state and preserves it on root replacement', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const configuration = getConfigurationService(svc);
+			configuration.publishRootTransientValues?.({ 'test.accountContext': { kind: 'signedOut' } }, true);
+			const actions: { rejected: boolean; context: unknown }[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				if (envelope.origin?.clientId === 'test-client') {
+					actions.push({ rejected: !!envelope.rejectionReason, context: getStateManager(svc).rootState.config?.values['test.accountContext'] });
+				}
+			}));
+			await svc.dispatchAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { 'test.accountContext': { kind: 'ready' } } }, 'test-client', 1);
+			await svc.dispatchAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: {}, replace: true }, 'test-client', 2);
+			assert.deepStrictEqual(actions, [
+				{ rejected: true, context: { kind: 'signedOut' } },
+				{ rejected: false, context: { kind: 'signedOut' } },
+			]);
+		});
+
 		test('stale and duplicate Stop requests do not abort another turn', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));

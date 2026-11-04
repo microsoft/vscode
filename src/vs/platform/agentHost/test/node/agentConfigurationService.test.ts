@@ -555,6 +555,15 @@ suite('AgentConfigurationService', () => {
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 
+	test('protects read-only transient context without changing writable transient inputs', () => {
+		service.publishRootTransientValues({ context: { kind: 'signedOut' } }, true);
+		service.publishRootTransientValues({ assignment: '' });
+		assert.throws(() => service.prepareRootConfigUpdate({ context: { kind: 'ready' } }, false), /owned by the agent host/);
+		assert.deepStrictEqual(service.prepareRootConfigUpdate({ assignment: 'client-value' }, true), {
+			assignment: 'client-value', context: { kind: 'signedOut' },
+		});
+	});
+
 	test('loads manually configured proxy settings from persisted Agent Host config', () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));

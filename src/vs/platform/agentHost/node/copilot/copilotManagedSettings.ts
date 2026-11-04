@@ -20,6 +20,7 @@ const COPILOT_MANAGED_SETTINGS_TIMEOUT_MS = 30_000;
 
 type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 type ManagedSettingsResult = Awaited<ReturnType<ManagedSettingsRpc['resolve']>>;
+type ManagedSettingsAuthentication = string | { readonly selectionId: string } | undefined;
 
 /**
  * Receives the localized activity to show while a caller is still waiting on a
@@ -62,7 +63,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 		this._pending = new WeakMap();
 	}
 
-	async resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory?: string, cancellationToken = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter): Promise<ManagedSettingsResult> {
+	async resolve(rpc: ManagedSettingsRpc, authentication: ManagedSettingsAuthentication, workingDirectory?: string, cancellationToken = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter): Promise<ManagedSettingsResult> {
 		if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -71,13 +72,13 @@ export class CopilotManagedSettingsResolver extends Disposable {
 			requests = new Map();
 			this._pending.set(rpc, requests);
 		}
-		const key = JSON.stringify([token, workingDirectory]);
+		const key = JSON.stringify([authentication, workingDirectory]);
 		let pending = requests.get(key);
 		if (!pending) {
 			const generation = this._generation.value!.token;
 			const progress: IManagedSettingsQueryProgress = { elapsed: StopWatch.create(false), delayed: false, waiters: new Set() };
 			pending = {
-				promise: this._resolve(rpc, token, workingDirectory, generation, progress).finally(() => requests.delete(key)),
+				promise: this._resolve(rpc, authentication, workingDirectory, generation, progress).finally(() => requests.delete(key)),
 				progress,
 			};
 			requests.set(key, pending);
@@ -110,7 +111,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 		}
 	}
 
-	private async _resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory: string | undefined, generation: CancellationToken, progress: IManagedSettingsQueryProgress): Promise<ManagedSettingsResult> {
+	private async _resolve(rpc: ManagedSettingsRpc, authentication: ManagedSettingsAuthentication, workingDirectory: string | undefined, generation: CancellationToken, progress: IManagedSettingsQueryProgress): Promise<ManagedSettingsResult> {
 		this._activeProgress.add(progress);
 		const timer = disposableTimeout(() => {
 			progress.delayed = true;
@@ -120,7 +121,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 			}
 		}, COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS);
 		try {
-			return await resolveCopilotManagedSettings(rpc, token, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, workingDirectory, generation);
+			return await resolveCopilotManagedSettings(rpc, authentication, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, workingDirectory, generation);
 		} catch (error) {
 			if (generation.isCancellationRequested && !this._store.isDisposed) {
 				throw new AgentPolicyError(localize('copilot.managedSettings.changed', "Your account or organization settings changed while loading. Please try again."));
@@ -151,7 +152,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 /** Resolves policy through the runtime without independently composing or validating model options. */
 export async function resolveCopilotManagedSettings(
 	managedSettings: ManagedSettingsRpc,
-	token: string | undefined,
+	authentication: ManagedSettingsAuthentication,
 	timeoutMs: number,
 	workingDirectory?: string,
 	cancellationToken = CancellationToken.None,
@@ -162,7 +163,7 @@ export async function resolveCopilotManagedSettings(
 	try {
 		const result = await raceCancellationError(raceTimeout(managedSettings.resolve({
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(token ? { gitHubToken: token } : {}),
+			...(typeof authentication === 'object' ? authentication : authentication ? { gitHubToken: authentication } : {}),
 			...(workingDirectory ? { workingDirectory } : {}),
 		}), timeoutMs), cancellationToken);
 		if (!result) {

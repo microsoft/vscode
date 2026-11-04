@@ -20,6 +20,7 @@ import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSession
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { CopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 
 export const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
@@ -88,5 +89,6 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		sessionOpenTelemetry,
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
 		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
+		upcastPartial<ICopilotAccountService>({ verifySessionContext: async () => { } }),
 	);
 }

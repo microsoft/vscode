@@ -28,7 +28,7 @@ interface IEntraTokenChallenge {
 	pending: boolean;
 }
 
-const discoveryResource: ProtectedResourceMetadata = {
+export const copilotEntraDiscoveryMetadata: ProtectedResourceMetadata = {
 	resource: copilotEntraDiscoveryResource,
 	authorization_servers: [copilotEntraAuthorizationServer],
 	scopes_supported: ['User.Read'],
@@ -62,7 +62,7 @@ export class CopilotEntraAuthentication extends Disposable {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
 				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()
 					&& this._requirements.get().some(requirement => requirement.resource.resource === copilotEntraDiscoveryResource)) {
-					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: discoveryResource.scopes_supported })?.account;
+					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported })?.account;
 					if (account?.providerId === 'microsoft') {
 						this._authority.set({ accountId: account.accountId, ...(account.label !== undefined ? { username: account.label } : {}) }, undefined);
 					}
@@ -78,7 +78,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		const authority = this._authority.read(reader);
 		const requirements = this._requirements.read(reader);
 		return [
-			...(authority ? [discoveryResource] : []),
+			...(authority ? [copilotEntraDiscoveryMetadata] : []),
 			...requirements.map(requirement => requirement.resource).filter(resource => !authority || resource.resource !== copilotEntraDiscoveryResource),
 		];
 	}
@@ -105,6 +105,27 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (params.token) {
 			this.validateCredential(params);
 		}
+	}
+
+	/** Accepts an explicit identity handoff before starting the runtime login flow. */
+	authorizeDiscovery(params: AuthenticateParams, connection: CancellationToken): string {
+		if (!params.token || params.target || connection.isCancellationRequested || this._store.isDisposed) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		const account = validateEntraCredential(params, copilotEntraDiscoveryMetadata);
+		validateEntraAccount(account.accountId, this._authority.get()?.accountId);
+		if (!this.getCredential(params.resource, params.scopes ?? [])) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		return account.accountId;
+	}
+
+	validateSelection(params: AuthenticateParams, resource: ProtectedResourceMetadata): void {
+		const authority = this._authority.get();
+		if (!params.token || params.target || !authority) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		validateEntraAccount(validateEntraCredential(params, resource).accountId, authority.accountId);
 	}
 
 	private validateCredential(params: AuthenticateParams): void {
@@ -260,7 +281,7 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 
 function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
 	if (request.kind === 'identity') {
-		return discoveryResource;
+		return copilotEntraDiscoveryMetadata;
 	}
 	if (request.tenant !== undefined && request.tenant !== 'organizations') {
 		return undefined;

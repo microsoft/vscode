@@ -54,6 +54,8 @@ import { IAgentHostCustomizationService } from './agentHostCustomizationService.
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
+import { readCopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import './agentHostCopilotAccountService.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
 
@@ -517,6 +519,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
+				copilotAccountChoice: this._copilotAccountContext() !== undefined,
 				logPrefix: '[AgentHost]',
 				isCurrent: () => this._isAuthenticationCurrent(generation),
 				authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -543,6 +546,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._agentHostService.setAuthenticationPending(true);
 		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: this._authTokenCache,
+			microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
 			logPrefix: '[AgentHost]',
 			isCurrent: () => this._isAuthenticationCurrent(generation),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -557,6 +561,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 					this._agentHostService.setAuthenticationPending(false);
 				}
 			});
+	}
+
+	private _copilotAccountContext() {
+		const root = this._agentHostService.rootState.value;
+		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
+		return context ? { ...context, entraAccountId: context.kind === 'signedOut' ? undefined : context.entraAccountId } : undefined;
 	}
 
 	/**

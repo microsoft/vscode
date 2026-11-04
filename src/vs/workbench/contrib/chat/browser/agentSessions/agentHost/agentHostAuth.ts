@@ -664,6 +664,9 @@ export interface IAgentHostAuthenticationOptions {
 	readonly logPrefix: string;
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
+	/** Exact Microsoft identity from the host's current shared account context. */
+	readonly microsoftAccountId?: string;
+	readonly copilotAccountChoice?: boolean;
 	readonly isCurrent?: () => boolean;
 	/** Returns true after renewing a connection-owned credential, or false to use normal provider recovery. */
 	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<boolean>;
@@ -1004,7 +1007,7 @@ async function resolveSessionForProtectedResource(
 	defaultAccountService: IDefaultAccountService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession'>,
+	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession' | 'microsoftAccountId'>,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
 	const defaultAccount = defaultAccountService.currentDefaultAccount;
