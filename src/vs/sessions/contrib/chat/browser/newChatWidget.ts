@@ -1147,7 +1147,8 @@ export class NewChatWidget extends Disposable {
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
-					this.selectNoWorkspace(target);
+					// Restoring the previous choice is not a new user choice, so it must not supersede a window-open workspace either.
+					this.selectNoWorkspace(target, { userSelection: false, preserveNavigation: true });
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
 					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
