@@ -179,10 +179,13 @@ suite('SCM structural diff model', () => {
 	function createResult(): StructuralDiff {
 		const originalEntity = { name: 'Calculator', kind: SymbolKind.Class, range: original.getFullModelRange() };
 		const modifiedEntity = { name: 'Calculator', kind: SymbolKind.Class, range: modified.getFullModelRange() };
+		// All compared versions differ only in the returned digit. Covering it on the file keeps the result complete
+		// without annotating the symbols.
+		const change = { textChangeIndex: 0, range: new Range(2, 17, 2, 18), classification: StructuralDiffClassification.Implementation };
 		return {
 			root: {
 				id: 'file', original: { ...originalEntity, kind: SymbolKind.File }, modified: { ...modifiedEntity, kind: SymbolKind.File },
-				originalChanges: [], modifiedChanges: [],
+				originalChanges: [change], modifiedChanges: [change],
 				children: [{
 					id: 'class', original: originalEntity, modified: modifiedEntity, originalChanges: [], modifiedChanges: [],
 					children: [{
