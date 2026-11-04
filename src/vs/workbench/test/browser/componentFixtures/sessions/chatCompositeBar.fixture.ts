@@ -151,7 +151,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	container.style.width = `${options.width ?? 360}px`;
 	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs', 'noeditorpane');
 	container.classList.toggle('modern-ui-connected-editor-tabs', options.connected !== false);
-	const card = $('.part.sessionspart.agents-part-card');
+	const card = $('.part.sessionspart.agents-part-card.agents-card-surface');
 	applyAgentsPartCardStyles(card, ctx.theme);
 	container.appendChild(card);
 	const cardContent = $('.content');

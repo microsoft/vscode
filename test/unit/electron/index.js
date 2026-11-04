@@ -50,6 +50,7 @@ protocol.registerSchemesAsPrivileged([
  * runGlob: string;
  * excludeRunGlob: string;
  * testSplit: string;
+ * testShard: string;
  * dev: boolean;
  * reporter: string;
  * 'reporter-options': string;
@@ -70,7 +71,7 @@ protocol.registerSchemesAsPrivileged([
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'testShard', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -105,6 +106,7 @@ Options:
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
+--testShard <i>/<n>           run every <n>th test of the loaded files, starting with the <i>th, for example to run the tests of one file in several processes
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
 --per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
@@ -115,7 +117,7 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
---workers <count>             run all test files, or those of --runList, in <count> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep, --testSplit, --dev, --waitServer or coverage; reruns use one window
+--workers <count>             run all test files, or those of --runList, in <count> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep, --testSplit, --testShard, --dev, --waitServer or coverage; reruns use one window
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -142,9 +144,9 @@ try {
 	console.error(/** @type {Error} */ (error).message);
 	app.exit(1);
 }
-const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.testShard && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
 if (workerCount > 1 && !workersApply) {
-	console.log('Running in a single window, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep, --testSplit, --dev, --waitServer or coverage');
+	console.log('Running in a single window, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep, --testSplit, --testShard, --dev, --waitServer or coverage');
 }
 // The number of workers for --runList depends on the listed files that run, so find them while the app starts
 const listedTestFiles = workersApply && args.runList ? findTestFiles(args, path.join(__dirname, `../../../${args.build ? 'out-build' : 'out'}`)) : undefined;
@@ -813,7 +815,7 @@ app.on('ready', async () => {
 			console.log(plan.byTitle
 				? `\nRerunning ${targets.size} failed test(s) in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}\n`
 				: `\nRerunning the test files of ${targets.size} failed test(s) in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${plan.files.map(file => `  ${file}`).join('\n')}\n`);
-			runArgs = { ...args, run: plan.files, grep: plan.grep, runGlob: undefined, excludeRunGlob: undefined, testSplit: undefined, waitServer: undefined };
+			runArgs = { ...args, run: plan.files, grep: plan.grep, runGlob: undefined, excludeRunGlob: undefined, testSplit: undefined, testShard: undefined, waitServer: undefined };
 			continue;
 		}
 

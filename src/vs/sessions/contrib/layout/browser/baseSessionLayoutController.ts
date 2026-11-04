@@ -634,12 +634,7 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
-		this._register(this._sessionManagementService.onDidReplaceNewDraftSession(({ from }) => {
-			if (!this._chatLayoutEnabled) {
-				return;
-			}
-			this._forgetPeerChatState(this._chatLayoutOwnerKeys.forgetSession(from.resource));
-		}));
+		this._register(this._sessionManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onSessionReplaced(from, to)));
 
 		this._register(this._layoutService.onWillToggleSidePane(() => {
 			this._togglingSidePane = true;
@@ -815,9 +810,9 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	protected _onSessionReplaced(from: ISession, to: ISession): void {
-		// `onDidReplaceSession` fires only when an untitled draft is atomically
-		// replaced by its committed session on submit, so the committed session
-		// inherits the draft's on-screen layout.
+		// `onDidReplaceSession` and `onDidReplaceNewDraftSession` fire when a draft is
+		// replaced (on submit by its committed session, or pre-send by another draft),
+		// so the incoming session inherits the outgoing draft's on-screen layout.
 		const activeSession = this._sessionsService.activeSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
 		if (!isEqual(from.resource, to.resource)) {

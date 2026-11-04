@@ -65,3 +65,7 @@ Common pitfalls:
 Excluding users who can't be affected, such as reduced-motion users for an animation, is fine when the condition is the same in every arm. Agent host telemetry only carries the assignment context once the workbench has forwarded it, so hold earlier triggers until then (see `AgentHostGitStateService`).
 
 Test each trigger in every arm with `TestExperimentTriggerTelemetryService`. After adding or moving a trigger, start a new experiment iteration, because earlier exposures have no trigger events.
+
+## Reporting results
+
+Scorecard results are internal data. When a pull request ships, changes or removes an experiment, describe the outcome without numbers, for example "the treatment improved the primary metric without regressing any guardrail" (see "Public Content" in [copilot-instructions.md](../../copilot-instructions.md)).

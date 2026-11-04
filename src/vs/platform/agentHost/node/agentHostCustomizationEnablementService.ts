@@ -59,6 +59,7 @@ interface IPendingReplacement {
 
 export interface ICustomizationEnablementTarget {
 	readonly id: string;
+	/** Skill targets are MCP-served and support only in-memory Session decisions. */
 	readonly type: CustomizationType;
 	readonly name: string;
 	readonly source: URI;
@@ -142,7 +143,7 @@ export function targetForUnownedMcpServer(name: string): ICustomizationEnablemen
 /**
  * Owns host global, workspace, and session decisions, resolving them over a client global base.
  *
- * Global and workspace decisions use host JSON storage; session decisions remain in that session's database across restarts.
+ * Global and workspace decisions use host JSON storage; session decisions remain in that session's database across restarts, except MCP skills, which remain in memory only.
  */
 export class AgentHostCustomizationEnablementService extends Disposable implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -158,6 +159,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	 * An async read here could mistake an unavailable result for an absent decision.
 	 */
 	private readonly _sessionEnablement = new Map<string, Map<string, boolean>>();
+	private readonly _mcpSkillEnablement = new Map<string, Map<string, boolean>>();
 	private readonly _sessionLoads = new Map<string, Promise<void>>();
 	private readonly _sessionsById = new Map<string, string>();
 	private readonly _pendingSessionWrites = new Set<Promise<void>>();
@@ -183,6 +185,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		this._persistent = this._readPersistentEnablement();
 		this._lru = this._readLru();
 		this._reconcileLru();
+		this._register(this._sessionState.onDidRemoveSession(session => this._mcpSkillEnablement.delete(session)));
 		this._register(this._sessionState.onDidEmitEnvelope(envelope => {
 			const session = isAhpChatChannel(envelope.channel)
 				? this._chatOwnership.getChatOwner(envelope.channel)
@@ -255,6 +258,16 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			const enabled = this._mcpSkillEnablement.get(session)?.get(this._sessionKey(target));
+			return {
+				kind: 'resolved',
+				enablement: enabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Session, enabled }],
+				enabled: enabled ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED,
+				// MCP skills have no workspace inheritance, even while the working directory is pending.
+				workingDirectory: { kind: 'workspaceless' },
+			};
+		}
 		const sessionEnablement = this._sessionEnablement.get(session);
 		if (sessionEnablement === undefined) {
 			return { kind: 'pending', reason: 'session' };
@@ -299,6 +312,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			throw new Error('MCP skills only support session enablement');
+		}
 		const global = enablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
 		if (global === undefined) {
 			throw new Error(`Client customization ${target.source.toString()} is missing its required global enablement entry`);
@@ -392,6 +408,12 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			if (kind !== CustomizationEnablementKind.Session) {
+				throw new Error('MCP skills only support session enablement');
+			}
+			return this.replaceEnablement(session, target, [{ kind, enabled }]);
+		}
 		const before = this._captureDecisionSnapshot(session, target);
 		const resolution = this._replaceEnablement(session, target, { replacementKind: 'scoped', scope: kind, enabled });
 		this._notifyDecisionChanged(this._getAffectedSessions(session, target, before));
@@ -399,6 +421,28 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			if (enablement.some(entry => entry.kind !== CustomizationEnablementKind.Session)) {
+				throw new Error('MCP skills only support session enablement');
+			}
+			let decisions = this._mcpSkillEnablement.get(session);
+			if (!decisions) {
+				decisions = new Map();
+				this._mcpSkillEnablement.set(session, decisions);
+			}
+			const key = this._sessionKey(target);
+			const before = decisions.get(key);
+			const enabled = enablement[0]?.enabled;
+			if (enabled === undefined) {
+				decisions.delete(key);
+			} else {
+				decisions.set(key, enabled);
+			}
+			if (before !== enabled) {
+				this._notifyDecisionChanged([session]);
+			}
+			return this.resolve(session, target);
+		}
 		const before = this._captureDecisionSnapshot(session, target);
 		const resolution = this._replaceEnablement(session, target, { replacementKind: 'full', enablement });
 		this._notifyDecisionChanged(this._getAffectedSessions(session, target, before));
