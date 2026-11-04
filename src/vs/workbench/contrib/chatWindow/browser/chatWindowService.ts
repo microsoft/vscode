@@ -188,6 +188,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	}
 
 	get chat(): IObservable<URI> { return this.content.chat; }
+	get chatEditor(): EditorInput { return this.content.input; }
 	get title(): IObservable<string> { return this.content.title; }
 	get layoutMode(): IObservable<ChatWindowLayoutMode> { return this.state.layoutMode; }
 	get splitLayout(): IObservable<ChatWindowSplitLayout> { return this.state.splitLayout; }

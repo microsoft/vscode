@@ -97,8 +97,11 @@ suite('Chat window terminals', () => {
 		// The window: its main part, and the part that holds its terminals once created.
 		const mainGroup = new TestGroup(5);
 		const terminalsGroup = new TestGroup(7);
-		disposables.add({ dispose: () => { mainGroup.dispose(); terminalsGroup.dispose(); } });
+		const chatGroup = new TestGroup(9);
+		disposables.add({ dispose: () => { mainGroup.dispose(); terminalsGroup.dispose(); chatGroup.dispose(); } });
 		const mainPart = createPart(mainGroup);
+		const chatPart = createPart(chatGroup);
+		const chatEditor = editor('workbench.editors.viewEditor');
 		const terminalsElement = $('div');
 		const terminalsPart = createPart(terminalsGroup, terminalsElement);
 		const terminalsPartObs = observableValue<IContentPart | undefined>('terminalsPart', options.restoredWithTerminals ? terminalsPart : undefined);
@@ -106,6 +109,8 @@ suite('Chat window terminals', () => {
 		let focused = 0;
 		const window = new class extends mock<IChatWindow>() {
 			override readonly mainPart: IContentPart = mainPart;
+			override readonly chatPart: IContentPart = chatPart;
+			override readonly chatEditor = chatEditor;
 			override readonly terminalsPart: IObservable<IContentPart | undefined> = terminalsPartObs;
 			override readonly terminalsVisible = derived(reader => !!terminalsPartObs.read(reader) && terminalsGroup.editors.length > 0);
 			override readonly onWillClose = onWillClose.event;
@@ -172,7 +177,7 @@ suite('Chat window terminals', () => {
 		};
 		windows.set([window], undefined);
 		const terminals = disposables.add(instantiationService.createInstance(ChatWindowTerminals, source));
-		return { calls, shownInChatWindow, window, terminals, terminalsGroup, terminalsElement, mainGroup, onWillClose, get focused() { return focused; } };
+		return { calls, shownInChatWindow, window, terminals, terminalsGroup, terminalsElement, mainGroup, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
 	}
 
 	test('shows a terminal of the window\'s session in the part that holds its terminals, and gives it back to the panel, still running, as the window closes', async () => {
@@ -311,18 +316,21 @@ suite('Chat window terminals', () => {
 		});
 	});
 
-	test('the part that holds the terminals holds only terminals: another editor that opens in it, such as one dropped on it, goes to the main part of the window; a terminal stays', async () => {
-		const { mainGroup, terminalsGroup } = createEnvironment({ restoredWithTerminals: true });
+	test('the part that holds the terminals holds only terminals: another editor that opens in it, such as one dropped on it, goes to the main part of the window, and the chat to the chat part; a terminal stays', async () => {
+		const { mainGroup, terminalsGroup, chatGroup, chatEditor } = createEnvironment({ restoredWithTerminals: true });
 		const terminalEditor = editor('workbench.editors.terminal');
 		const file = editor('workbench.editors.files.fileEditorInput');
 
 		terminalsGroup.open(terminalEditor);
 		terminalsGroup.open(file);
+		// The chat goes back to the chat part
+		terminalsGroup.open(chatEditor);
 		await timeout(0);
 
-		assert.deepStrictEqual({ terminals: terminalsGroup.editors.map(candidate => candidate.typeId), main: mainGroup.moved.map(candidate => candidate.typeId) }, {
+		assert.deepStrictEqual({ terminals: terminalsGroup.editors.map(candidate => candidate.typeId), main: mainGroup.moved.map(candidate => candidate.typeId), chat: chatGroup.moved.map(candidate => candidate.typeId) }, {
 			terminals: ['workbench.editors.terminal'],
 			main: ['workbench.editors.files.fileEditorInput'],
+			chat: ['workbench.editors.viewEditor'],
 		});
 	});
 

@@ -174,6 +174,8 @@ export interface IChatWindow {
 	readonly mainPart: IContentPart;
 	/** The part that shows the chat. */
 	readonly chatPart: IEditorPart;
+	/** The editor that shows the chat, in its chat part. */
+	readonly chatEditor: EditorInput;
 	/**
 	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
 	 * chat can move into another part of the window, and parts can move, such as when dragged.

@@ -325,7 +325,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 
 	/**
 	 * The part that holds the terminals of a window holds only terminals, as the panel does: another editor in it, such
-	 * as one dropped on it, moved there or restored there, goes to the window's main part.
+	 * as one dropped on it, moved there or restored there, goes to the window's main part, and the chat to its chat part.
 	 */
 	private _keepOnlyTerminals(window: IChatWindow, part: IEditorPart): IDisposable {
 		const moveToMainPart = (group: IEditorGroup, editor: EditorInput | undefined) => {
@@ -337,7 +337,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				if (this._store.isDisposed || !this._windows.has(window) || !group.contains(editor, { strictEquals: true })) {
 					return;
 				}
-				group.moveEditor(editor, window.mainPart.activeGroup);
+				group.moveEditor(editor, editor === window.chatEditor ? window.chatPart.activeGroup : window.mainPart.activeGroup);
 			});
 		};
 		return this._trackGroups(part, group => {
