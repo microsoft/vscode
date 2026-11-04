@@ -69,6 +69,7 @@ import { IChatViewFactory } from '../../../../services/chatView/browser/chatView
 import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../browser/parts/chatView.js';
 import { getChatRequestOutcome } from '../../../chat/browser/chatView.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { WelcomeName } from '../../../chat/browser/welcomeName.js';
 import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
@@ -184,9 +185,11 @@ suite('InboxNotificationsView', () => {
 			reducedMotion?: boolean;
 			rows?: IObservable<readonly IInboxSessionRow[]>;
 			sortMode?: IObservable<InboxNotificationsSortMode>;
+			welcomeName?: IObservable<string | undefined>;
 		} = {},
 	) {
 		const instantiationService = options.instantiationService ?? disposables.add(new TestInstantiationService());
+		instantiationService.stubInstance(WelcomeName, { name: options.welcomeName ?? constObservable(undefined), dispose: () => { } });
 		instantiationService.stub(IInboxNotificationsService, {
 			notifications: items,
 			sessionRows: options.rows ?? items.map(items => items.map(item => ({
@@ -280,6 +283,51 @@ suite('InboxNotificationsView', () => {
 		disposables.add({ dispose: () => container.remove() });
 		return { view, container, instantiationService, chatViews, chatOptions, newChatViews, newChatOptions, hovers, navigationRequest, sessionsVisible: () => sessionsVisible };
 	}
+
+	test('rotates personalized empty messages on visits but not passive updates', () => {
+		const name = observableValue<string | undefined>('name', 'Megan');
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', []);
+		const { view, container } = createView(constObservable([]), { rows, welcomeName: name });
+		view.render(container);
+		const messages = [view.getEmptyAccessibleContent()];
+		rows.set([], undefined);
+		messages.push(view.getEmptyAccessibleContent());
+		name.set(undefined, undefined);
+		messages.push(view.getEmptyAccessibleContent());
+		for (let i = 0; i < 3; i++) {
+			view.setVisible(false);
+			view.setVisible(true);
+			messages.push(view.getEmptyAccessibleContent());
+		}
+		assert.deepStrictEqual(messages, [
+			'All caught up, Megan. Enjoy a little breathing room.',
+			'All caught up, Megan. Enjoy a little breathing room.',
+			'All caught up. Enjoy a little breathing room.',
+			'Nothing needs your attention. Take a moment for yourself.',
+			'You\'re in a good place. We\'ll be here when you\'re ready.',
+			'All caught up. Enjoy a little breathing room.',
+		]);
+	});
+
+	test('mentions working agents only when there are working sessions and preserves filtered copy', () => {
+		const working = {
+			id: 'working', tab: InboxTab.Working, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Working', sessionTitle: 'Working', occurrence: 'working', notifications: [], hasImages: false,
+			description: '', timestamp: 1, actions: [],
+		};
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [working]);
+		const { view, container } = createView(constObservable([]), { rows, welcomeName: constObservable('Megan') });
+		view.render(container);
+		const messages = [view.getEmptyAccessibleContent()];
+		const search = container.querySelector<HTMLInputElement>('.inbox-notifications-search input')!;
+		search.value = 'missing';
+		search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		messages.push(view.getEmptyAccessibleContent());
+		assert.deepStrictEqual(messages, [
+			'All caught up, Megan. Your agents are working.',
+			'No notifications match the current filter.',
+		]);
+	});
 
 	for (const { hour, before, after } of [
 		{ hour: 11, before: 'Good morning', after: 'Good afternoon' },
