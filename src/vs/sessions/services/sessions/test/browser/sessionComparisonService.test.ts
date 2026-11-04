@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -17,10 +17,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
 import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
@@ -61,15 +61,30 @@ suite('SessionComparisonService', () => {
 			readonly groupedSessionIds: string[] = [];
 			readonly deletedGroupIds: string[] = [];
 			private readonly membership = new Map<string, string>();
+			private readonly explicitlyUngrouped = new Set<string>();
 			override readonly onDidChange = groupChanges.event;
-			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
+			override createGroup(name: string): ISessionGroup {
+				return { id: this.deletedGroupIds.includes('group') ? 'fallback-group' : 'group', name, createdAt: 1 };
+			}
 			override getGroupOfSession(sessionId: string): string | undefined { return this.membership.get(sessionId); }
-			override isExplicitlyUngrouped(): boolean { return false; }
+			override isExplicitlyUngrouped(sessionId: string): boolean { return this.explicitlyUngrouped.has(sessionId); }
+			override removeFromGroup(sessionId: string): void {
+				this.membership.delete(sessionId);
+				this.explicitlyUngrouped.add(sessionId);
+			}
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
 			}
-			override deleteGroup(groupId: string): IDeletedSessionGroups | undefined {
+			override deleteGroup(groupId: string, options?: { readonly automatic?: boolean }): IDeletedSessionGroups | undefined {
 				this.deletedGroupIds.push(groupId);
+				for (const [sessionId, group] of this.membership) {
+					if (group === groupId) {
+						this.membership.delete(sessionId);
+						if (!options?.automatic) {
+							this.explicitlyUngrouped.add(sessionId);
+						}
+					}
+				}
 				groupChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
 				return undefined;
 			}
@@ -77,6 +92,7 @@ suite('SessionComparisonService', () => {
 				for (const sessionId of typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds) {
 					if (this.membership.get(sessionId) !== groupId) {
 						this.membership.set(sessionId, groupId);
+						this.explicitlyUngrouped.delete(sessionId);
 						this.groupedSessionIds.push(sessionId);
 					}
 				}
@@ -147,19 +163,25 @@ suite('SessionComparisonService', () => {
 		const secondStatus = observableValue('second', SessionStatus.InProgress);
 		const archived = observableValue('archived', false);
 		const first = stubSession('first', firstStatus, undefined, archived);
-		const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+		const subagent = { ...stubSession('subagent').mainChat.get(), origin: { kind: ChatOriginKind.Tool } };
+		const hidden = { ...stubSession('hidden').mainChat.get(), interactivity: constObservable(ChatInteractivity.Hidden) };
+		const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get(), subagent, hidden]);
 		const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true, supportsChatHarnesses: ['claude'] }) };
 		const second = { ...stubSession('second', secondStatus), harness: 'claude' };
-		sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+		sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat, subagent, hidden], undefined);
 		sessionsManagementService.enqueue(parent);
 		sessionsManagementService.enqueue(second);
 		sessionsManagementService.enqueue(stubSession('judge'));
+		chatService.setUsage(second.mainChat.get().resource, []);
 		const comparison = await service.startComparison(startOptions());
+		await sessionsManagementService.renameSession(parent, 'My comparison');
 		const beforeCompletion = sessionsManagementService.createCalls.length;
-		const secondChat = chats.get()[1];
-		chatService.setUsage(secondChat.resource, [{ kind: 'usage', promptTokens: 10, completionTokens: 20 }], 75);
+		const secondChat = chats.get().find(chat => chat.resource.fragment === 'second')!;
+		chatService.setUsage(second.mainChat.get().resource, [{ kind: 'usage', promptTokens: 10, completionTokens: 20 }], 75);
 		secondStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
+		chatService.setUsage(second.mainChat.get().resource, [{ kind: 'usage', promptTokens: 15, completionTokens: 25 }], 75);
+		chatService.requestInProgress.set(false, undefined);
 		await timeout(0);
 		service.submitVerdict(comparison.id, verdict('attempt-two', ['attempt-one', 'attempt-two']));
 		sessionsManagementService.enqueue(stubSession('synthesis'));
@@ -181,6 +203,9 @@ suite('SessionComparisonService', () => {
 			groupRemoved: groupsService.deletedGroupIds.includes('group'),
 			archive: [wasArchived, service.getComparison(comparison.id)?.archivedAt],
 			worktrees: sessionsManagementService.createCalls.map(call => call.createOptions?.isolationMode),
+			renames: sessionsManagementService.renameCalls.map(call => call.title),
+			anchors: sessionsManagementService.moveAnchors.map(anchor => anchor?.resource.toString()),
+			releasedModels: chatService.releasedModels,
 		}, {
 			beforeCompletion: 2,
 			parent: 'test:/first',
@@ -190,11 +215,14 @@ suite('SessionComparisonService', () => {
 				['test:/first', 'test-chat:/first#judge'],
 				['test:/first', 'test-chat:/first#synthesis'],
 			],
-			secondMetrics: { elapsedMs: 75, tokenCount: 30, tokenCountIsComplete: false },
+			secondMetrics: { elapsedMs: 75, tokenCount: 40, tokenCountIsComplete: false },
 			restored: ['test:/first', 'test-chat:/first', 'test-chat:/first#second', 'test-chat:/first#judge', 'test-chat:/first#synthesis'],
 			groupRemoved: true,
 			archive: [true, undefined],
 			worktrees: ['worktree', 'worktree', 'worktree', 'worktree'],
+			renames: [comparison.title, 'My comparison'],
+			anchors: ['test-chat:/first', 'test-chat:/first#second', 'test-chat:/first#judge'],
+			releasedModels: ['test-chat:/second'],
 		});
 		await sessionsManagementService.deleteChat(parent, secondChat.resource);
 		const afterChatDeletion = service.getComparison(comparison.id)!;
@@ -218,6 +246,157 @@ suite('SessionComparisonService', () => {
 			deleted: groupsService.deletedGroupIds,
 		}, { parent: undefined, participants: ['test:/first', 'test:/second'], deleted: [] });
 	});
+
+	test('shared owners retain both comparisons through chat moves and deletions', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const parents = ['first', 'second'].map(id => {
+			const session = stubSession(id);
+			return { ...session, chats: observableValue<readonly IChat[]>(id, [session.mainChat.get()]), capabilities: constObservable({ supportsMultipleChats: true }) };
+		});
+
+		sessionsManagementService.nestChat = (chat, destination) => {
+			const parent = parents.find(parent => parent === destination)!;
+			parent.chats.set([...parent.chats.get(), chat], undefined);
+		};
+		const comparisons = [];
+		for (const parent of parents) {
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession(`${parent.sessionId}-attempt`));
+			comparisons.push(await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined }));
+		}
+		const [source, destination] = parents;
+		const moved = source.chats.get()[1];
+		const movedResource = destination.resource.with({ fragment: 'moved' });
+		source.chats.set([source.mainChat.get()], undefined);
+		destination.chats.set([...destination.chats.get(), { ...moved, resource: movedResource }], undefined);
+		sessionsManagementService.fireMove({ from: { session: source, chat: moved.resource }, to: { session: destination, chat: movedResource } });
+		const destinationComparison = service.getComparisonForSession(destination.resource)?.id;
+		await sessionsManagementService.deleteChat(destination, movedResource);
+		const afterChatDelete = comparisons.map(comparison => service.getComparison(comparison.id)!.participants.filter(participant => participant.launchError).map(participant => participant.id));
+		await sessionsManagementService.deleteSession(destination);
+		assert.deepStrictEqual({
+			destinationComparison,
+			afterChatDelete,
+			afterSessionDelete: comparisons.map(comparison => ({
+				archived: service.getComparison(comparison.id)!.archivedAt !== undefined,
+				unavailable: service.getComparison(comparison.id)!.participants.filter(participant => participant.launchError).map(participant => participant.id),
+			})),
+		}, {
+			destinationComparison: comparisons[1].id,
+			afterChatDelete: [['attempt-two'], []],
+			afterSessionDelete: [{ archived: false, unavailable: ['attempt-two'] }, { archived: true, unavailable: ['attempt-one', 'attempt-two'] }],
+		});
+	});
+
+	for (const role of [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis]) {
+		test(`moved ${role} resolves only its exact live chat and retains that identity through another move`, async () => {
+			const { service, sessionsManagementService, chatService } = createServices();
+			const status = observableValue('status', SessionStatus.Completed);
+			const first = stubSession('first', status);
+			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+			sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession('second', status));
+			sessionsManagementService.enqueue(stubSession('judge'));
+			const originalResource = URI.parse(`test-chat:/${role}`);
+			chatService.setUsage(originalResource, []);
+			const comparison = await service.startComparison(startOptions());
+			await timeout(0);
+			if (role === SessionComparisonParticipantRole.Synthesis) {
+				service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+				sessionsManagementService.enqueue(stubSession('synthesis'));
+				await service.synthesize(comparison.id);
+			}
+			const roles = [originalResource, parent.mainChat.get().resource, URI.parse('test-chat:/unrelated')]
+				.map(resource => service.getParticipantForChat(comparison.id, resource)?.role);
+			const destination = stubSession('promoted-evaluator');
+			sessionsManagementService.addSession(destination);
+			const evaluator = service.getComparison(comparison.id)!.participants.find(participant => participant.role === role)!;
+			sessionsManagementService.fireMove({ from: { session: parent, chat: evaluator.chatResource! }, to: { session: destination, chat: destination.mainChat.get().resource } });
+			const retained = service.getParticipantForChat(comparison.id, originalResource)?.chatResource?.toString();
+			chatService.requestInProgress.set(false, undefined);
+			const expired = service.getParticipantForChat(comparison.id, originalResource);
+			service.archiveComparison(comparison.id);
+			assert.deepStrictEqual({
+				roles,
+				retained,
+				expired,
+				released: chatService.releasedModels,
+			}, {
+				roles: [role, SessionComparisonParticipantRole.Attempt, undefined],
+				retained: destination.mainChat.get().resource.toString(),
+				expired: undefined,
+				released: [originalResource.toString()],
+			});
+		});
+	}
+
+	for (const evaluator of ['judge', 'synthesis'] as const) {
+		test(`archiving a native parent cleans up a ${evaluator} registered during creation`, async () => {
+			const { service, sessionsManagementService } = createServices();
+			const status = observableValue('status', SessionStatus.InProgress);
+			const archived = observableValue('archived', false);
+			const first = stubSession('first', status, undefined, archived);
+			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+			sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession('second', status));
+			const comparison = await service.startComparison(startOptions());
+			sessionsManagementService.enqueue(stubSession('judge'));
+			const archiveParent = () => {
+				archived.set(true, undefined);
+				sessionsManagementService.fireArchive(parent);
+			};
+			if (evaluator === 'judge') {
+				sessionsManagementService.beforeCreateAndSendReturn = archiveParent;
+			}
+			status.set(SessionStatus.Completed, undefined);
+			sessionsManagementService.fireChange();
+			await timeout(0);
+			if (evaluator === 'synthesis') {
+				service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+				sessionsManagementService.enqueue(stubSession('synthesis'));
+				sessionsManagementService.beforeCreateAndSendReturn = archiveParent;
+				await service.synthesize(comparison.id);
+			}
+			assert.deepStrictEqual({
+				archived: service.getComparison(comparison.id)!.archivedAt !== undefined,
+				parent: service.getComparison(comparison.id)!.sessionResource?.toString(),
+				cancelled: sessionsManagementService.cancelledSessionIds,
+				deleted: sessionsManagementService.deletedSessionIds,
+			}, { archived: true, parent: parent.resource.toString(), cancelled: [evaluator], deleted: [evaluator] });
+		});
+	}
+
+	for (const manuallyUngrouped of [false, true]) {
+		test(`failed evaluator nesting restores automatic grouping but preserves user organization (${manuallyUngrouped})`, async () => {
+			const { service, sessionsManagementService, groupsService } = createServices();
+			const status = observableValue('status', SessionStatus.InProgress);
+			const first = stubSession('first', status);
+			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+			sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession('second', status));
+			const comparison = await service.startComparison(startOptions());
+			if (manuallyUngrouped) {
+				groupsService.removeFromGroup(parent.sessionId);
+			}
+			sessionsManagementService.nestChat = () => { throw new Error('Move refused'); };
+			sessionsManagementService.enqueue(stubSession('judge'));
+			status.set(SessionStatus.Completed, undefined);
+			sessionsManagementService.fireChange();
+			await timeout(0);
+			const current = service.getComparison(comparison.id)!;
+			assert.deepStrictEqual({
+				parent: current.sessionResource,
+				archived: current.archivedAt,
+				groups: ['first', 'judge'].map(id => groupsService.getGroupOfSession(id)),
+			}, { parent: undefined, archived: undefined, groups: [manuallyUngrouped ? undefined : current.groupId, current.groupId] });
+		});
+	}
 
 	test('folderless comparisons launch quick chats without worktrees and survive reload', async () => {
 		const { service, sessionsManagementService, groupsService, storageService } = createServices();
@@ -1834,7 +2013,8 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	override readonly onDidDeleteChat = this._onDidDeleteChat.event;
 	private readonly _onDidMoveChat = new Emitter<IChatMovedEvent>();
 	override readonly onDidMoveChat = this._onDidMoveChat.event;
-	nestChat: ((chat: IChat) => void) | undefined;
+	nestChat: ((chat: IChat, destination: ISession) => void) | undefined;
+	readonly moveAnchors: (IChat | undefined)[] = [];
 	private readonly _results: Array<(createOptions?: ICreateNewSessionOptions) => Promise<ISession | undefined>> = [];
 	private readonly _sessions = new Map<string, ISession>();
 	readonly createCalls: Array<{ folderUri: URI | undefined; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
@@ -1919,10 +2099,11 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		return !!this.nestChat;
 	}
 
-	override async moveSessionUnder(session: ISession, destination: ISession): Promise<void> {
+	override async moveSessionUnder(session: ISession, destination: ISession, after?: IChat): Promise<void> {
+		this.moveAnchors.push(after);
 		const from = session.mainChat.get().resource;
 		const to = destination.mainChat.get().resource.with({ fragment: session.sessionId });
-		this.nestChat?.({ ...session.mainChat.get(), resource: to, harness: session.harness });
+		this.nestChat?.({ ...session.mainChat.get(), resource: to, harness: session.harness }, destination);
 		this.removeSession(session);
 		this.fireChange({ added: [], removed: [session], changed: [destination] });
 		this._onDidMoveChat.fire({ from: { session, chat: from }, to: { session: destination, chat: to } });
@@ -1954,6 +2135,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		this._onDidArchiveSession.fire(session);
 	}
 
+	fireMove(event: IChatMovedEvent): void {
+		this._onDidMoveChat.fire(event);
+	}
+
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
 		this._onDidArchiveSession.dispose();
@@ -1965,6 +2150,8 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 
 class TestChatService extends mock<IChatService>() {
 	private readonly _responses = new Map<string, readonly { usage: IChatUsage; elapsedMs?: number }[]>();
+	readonly releasedModels: string[] = [];
+	readonly requestInProgress = observableValue('requestInProgress', true);
 
 	setUsage(resource: URI, usages: readonly IChatUsage[], firstTurnElapsedMs?: number): void {
 		this._responses.set(resource.toString(), usages.map((usage, index) => ({
@@ -1976,10 +2163,17 @@ class TestChatService extends mock<IChatService>() {
 	override getSession(resource: URI): IChatModel | undefined {
 		const responses = this._responses.get(resource.toString());
 		return responses ? upcastPartial<IChatModel>({
-			getRequests: () => responses.map(response => upcastPartial<IChatRequestModel>({
+			sessionResource: resource,
+			requestInProgress: this.requestInProgress,
+			getRequests: () => (this._responses.get(resource.toString()) ?? []).map(response => upcastPartial<IChatRequestModel>({
 				response: upcastPartial<IChatResponseModel>(response),
 			})),
 		}) : undefined;
+	}
+
+	override acquireExistingSession(resource: URI): IChatModelReference | undefined {
+		const object = this.getSession(resource);
+		return object ? Object.assign(toDisposable(() => this.releasedModels.push(resource.toString())), { object }) : undefined;
 	}
 }
 

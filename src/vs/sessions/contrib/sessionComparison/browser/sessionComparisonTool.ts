@@ -8,7 +8,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -95,11 +94,10 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis])) {
+		const invokingParticipant = invocation.context && this.comparisonService.getParticipantForChat(comparison.id, invocation.context.sessionResource);
+		if (!invokingParticipant || ![SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis].includes(invokingParticipant.role)) {
 			return toolError('Only the Judge or synthesis session for this comparison can read its manifest.');
 		}
-		const invokingParticipant = comparison.participants.find(participant =>
-			isEqual(invocation.context?.sessionResource, participant.chatResource ?? participant.sessionResource));
 		const invokingSession = invokingParticipant?.sessionResource
 			? this.sessionsManagementService.getSession(invokingParticipant.sessionResource) : undefined;
 
@@ -286,7 +284,8 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge])) {
+		const invokingParticipant = invocation.context && this.comparisonService.getParticipantForChat(comparison.id, invocation.context.sessionResource);
+		if (invokingParticipant?.role !== SessionComparisonParticipantRole.Judge) {
 			return toolError('Only the judge session for this comparison can submit its verdict.');
 		}
 		const allAttemptParticipants = comparison.participants
@@ -381,14 +380,6 @@ function parseReadInput(value: unknown): IReadSessionComparisonInput | undefined
 	return isRecord(value) && typeof value.comparisonId === 'string'
 		? { comparisonId: value.comparisonId }
 		: undefined;
-}
-
-function isInvokingParticipant(comparison: ISessionComparison, invocation: IToolInvocation, roles: readonly SessionComparisonParticipantRole[]): boolean {
-	const invokingSession = invocation.context?.sessionResource;
-	return !!invokingSession && comparison.participants.some(participant =>
-		roles.includes(participant.role)
-		&& !!participant.sessionResource
-		&& isEqual(invokingSession, participant.chatResource ?? participant.sessionResource));
 }
 
 function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined {

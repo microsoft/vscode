@@ -175,6 +175,8 @@ export interface ISessionComparisonService {
 	startComparison(options: IStartSessionComparisonOptions, token?: CancellationToken): Promise<ISessionComparison>;
 	getComparison(comparisonId: string): ISessionComparison | undefined;
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
+	/** Resolves an exact participant chat, including the live request model retained across its move. */
+	getParticipantForChat(comparisonId: string, resource: URI): ISessionComparisonParticipant | undefined;
 	cancelComparison(comparisonId: string): void;
 	archiveComparison(comparisonId: string): void;
 	/** Restores an automatically removed comparison group for bulk archive Undo and returns its group ID. */
