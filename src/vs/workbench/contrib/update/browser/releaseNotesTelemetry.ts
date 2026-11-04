@@ -551,7 +551,7 @@ export function indexReleaseNotesContent(container: HTMLElement): IReleaseNotesM
 		const targetKind: TargetKind = occurrence || fallback ? 'command'
 			: href.startsWith('#') ? 'anchor' : uri.scheme === Schemas.command ? 'command'
 				: uri.scheme === Schemas.http || uri.scheme === Schemas.https ? uri.authority === 'code.visualstudio.com' ? 'documentation' : 'external' : 'other';
-		links.push({ index, contentIndex, targetKind, ...(uri.scheme === Schemas.codeSetting ? { settingUri: href } : {}) });
+		links.push({ index, contentIndex, targetKind, ...(uri.scheme === Schemas.codeSetting ? { settingUri: (anchor as HTMLAnchorElement).href } : {}) });
 		element.setAttribute('data-release-notes-link-index', String(index));
 		if (occurrence) {
 			tryouts.push({ index: Number(occurrence.dataset.releaseNotesTryoutIndex), linkIndex: index, contentIndex });
