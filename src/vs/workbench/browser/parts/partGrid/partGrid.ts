@@ -6,7 +6,7 @@
 import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { findOverlayAnchorAt, findOverlayAnchorOf, findOverlayAnchorUnderPointer } from '../../../../base/browser/overlayLayoutElement.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, Grid, GridBranchNode, GridLeafNode, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -143,6 +143,13 @@ export interface IPartGridPartOptions {
 	 * of a window. By default it hides then.
 	 */
 	readonly showWhileEmpty?: boolean;
+
+	/**
+	 * Whether the part keeps its size as the grid is resized, such as
+	 * terminals below the other parts. By default parts keep their shares of
+	 * the grid.
+	 */
+	readonly keepsSize?: boolean;
 }
 
 interface ICardFrame {
@@ -162,6 +169,15 @@ class PartGridCell implements ISerializableView {
 
 	private insets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+
+	/**
+	 * Parts keep their shares of the grid as it is resized, such as with
+	 * its window; views that are not parts, such as a title row, keep their
+	 * sizes. Parts that keep their sizes get them back once the grid is laid
+	 * out (see `PartGrid.keepSizes`): opting out here would keep the size of
+	 * the row or column around them too.
+	 */
+	get proportionalLayout(): boolean { return !!this.part; }
 
 	get minimumWidth(): number { return this.view.minimumWidth + this.horizontalFrame; }
 	get maximumWidth(): number { return this.view.maximumWidth + this.horizontalFrame; }
@@ -1021,7 +1037,7 @@ export class PartGrid extends Disposable {
 	 */
 	private addCell(cell: PartGridCell, location: PartGridLocation, size: number | undefined, donorId?: string): void {
 		if (!this.grid) {
-			this.setGrid(new SerializableGrid<PartGridCell>(cell, { proportionalLayout: false }));
+			this.setGrid(new SerializableGrid<PartGridCell>(cell, { proportionalLayout: true }));
 		} else if (hasKey(location, { reference: true })) {
 			this.grid.addView(cell, size ?? Sizing.Split, this.getCell(location.reference), location.direction);
 		} else {
@@ -1186,7 +1202,8 @@ export class PartGrid extends Disposable {
 	}
 
 	private deserialize(state: ISerializedGrid): SerializableGrid<PartGridCell> {
-		return SerializableGrid.deserialize<PartGridCell>(state, { fromJSON: (data: { id: string }) => this.getCell(data.id) }, { proportionalLayout: false });
+		// The parts keep their shares of the grid as it is resized
+		return SerializableGrid.deserialize<PartGridCell>(state, { fromJSON: (data: { id: string }) => this.getCell(data.id) }, { proportionalLayout: true });
 	}
 
 	private setGrid(grid: SerializableGrid<PartGridCell>): void {
@@ -1384,7 +1401,10 @@ export class PartGrid extends Disposable {
 		return this.grid ? this.grid.getViewSize(this.getCell(id)) : { width: 0, height: 0 };
 	}
 
-	resizeCell(id: string, size: IViewSize): void {
+	/**
+	 * Resizes a cell; a dimension left out keeps its size.
+	 */
+	resizeCell(id: string, size: Partial<IViewSize>): void {
 		this.grid?.resizeView(this.getCell(id), size);
 	}
 
@@ -1453,6 +1473,7 @@ export class PartGrid extends Disposable {
 		grid.element.style.height = `${height}px`;
 
 		// Once the grid knows its neighbors, the look applies before the layout, so that it lays out once
+		const kept = this.keptSizes(grid);
 		if (this.laidOut) {
 			this.applyLook(false);
 			grid.layout(width, height);
@@ -1460,6 +1481,74 @@ export class PartGrid extends Disposable {
 			grid.layout(width, height);
 			this.laidOut = true;
 			this.applyLook();
+		}
+		this.keepSizes(grid, kept);
+	}
+
+	/**
+	 * The sizes of the parts that keep their sizes (see
+	 * {@link IPartGridPartOptions.keepsSize}) along their rows or columns.
+	 */
+	private keptSizes(grid: SerializableGrid<PartGridCell>): Map<PartGridCell, number> {
+		const sizes = new Map<PartGridCell, number>();
+		for (const cell of this.cells.values()) {
+			const line = cell.part && cell.options.keepsSize ? findLineOf(grid, cell) : undefined;
+			if (line && grid.isViewVisible(cell)) {
+				sizes.set(cell, sizeAlong(line.branch.children[line.index], line.orientation));
+			}
+		}
+
+		return sizes;
+	}
+
+	/**
+	 * Gives the parts that keep their sizes the sizes they had before the
+	 * grid was laid out, the other parts in their rows or columns making
+	 * room in proportion to their sizes, as they do as the grid is resized.
+	 */
+	private keepSizes(grid: SerializableGrid<PartGridCell>, sizes: ReadonlyMap<PartGridCell, number>): void {
+		for (const [cell, size] of sizes) {
+			const line = findLineOf(grid, cell);
+			if (!line) {
+				continue;
+			}
+			const delta = sizeAlong(line.branch.children[line.index], line.orientation) - size;
+			if (delta === 0) {
+				continue;
+			}
+
+			const resize = (node: GridNode<PartGridCell>, value: number) => {
+				// A row or column across the line is resized by a view in it, across the row or column
+				const view = isGridBranchNode(node) ? node.children.find((child): child is GridLeafNode<PartGridCell> => !isGridBranchNode(child))?.view : node.view;
+				if (view) {
+					grid.resizeView(view, line.orientation === Orientation.VERTICAL ? { height: value } : { width: value });
+				}
+			};
+			const others = line.branch.children
+				.map((node, index) => ({ node, index }))
+				.filter(({ node, index }) => index !== line.index && (isGridBranchNode(node) || (node.cachedVisibleSize === undefined && maximumAlong(node.view, line.orientation) > minimumAlong(node.view, line.orientation))));
+			const total = others.reduce((sum, { node }) => sum + sizeAlong(node, line.orientation), 0);
+			if (others.length < 2 || total <= 0) {
+				resize(line.branch.children[line.index], size);
+				continue;
+			}
+
+			// The last of the others takes what the rest leaves: each resize goes to the last flexible view of the line
+			// that is not resized. The order keeps that view from going below the size it ends with: it grows first.
+			const last = others[others.length - 1];
+			const steps = others.slice(0, -1).map(({ node }) => () => {
+				const scaled = Math.round(sizeAlong(node, line.orientation) * (total + delta) / total);
+				resize(node, isGridBranchNode(node) ? scaled : Math.min(Math.max(scaled, minimumAlong(node.view, line.orientation)), maximumAlong(node.view, line.orientation)));
+			});
+			const keep = () => resize(line.branch.children[line.index], size);
+			if (delta > 0 && line.index < last.index) {
+				steps.unshift(keep);
+			} else {
+				steps.push(keep);
+			}
+			for (const step of steps) {
+				step();
+			}
 		}
 	}
 
@@ -1687,6 +1776,38 @@ function addAtEdgeOfParts<T extends IArrangedView>(arrangement: IArrangement<T>,
  * in it along that orientation, such as the cells of a row in a row in it,
  * takes its share in proportion too, rather than the last of them all of it.
  */
+/**
+ * The row or column that a cell is in, the index of the cell in it, and
+ * whether it is a row or a column.
+ */
+function findLineOf(grid: Grid<PartGridCell>, cell: PartGridCell): { readonly branch: GridBranchNode<PartGridCell>; readonly index: number; readonly orientation: Orientation } | undefined {
+	const find = (branch: GridBranchNode<PartGridCell>, orientation: Orientation): ReturnType<typeof findLineOf> => {
+		for (let index = 0; index < branch.children.length; index++) {
+			const child = branch.children[index];
+			const found = isGridBranchNode(child) ? find(child, orthogonal(orientation)) : child.view === cell ? { branch, index, orientation } : undefined;
+			if (found) {
+				return found;
+			}
+		}
+
+		return undefined;
+	};
+
+	return find(grid.getViews(), grid.orientation);
+}
+
+function sizeAlong(node: GridNode<PartGridCell>, orientation: Orientation): number {
+	return orientation === Orientation.VERTICAL ? node.box.height : node.box.width;
+}
+
+function minimumAlong(view: IView, orientation: Orientation): number {
+	return orientation === Orientation.VERTICAL ? view.minimumHeight : view.minimumWidth;
+}
+
+function maximumAlong(view: IView, orientation: Orientation): number {
+	return orientation === Orientation.VERTICAL ? view.maximumHeight : view.maximumWidth;
+}
+
 function scaleAlong(node: ISerializedNode, size: number): ISerializedNode {
 	const factor = node.size ? size / node.size : 1;
 	const scale = (inner: ISerializedNode): ISerializedNode => {
