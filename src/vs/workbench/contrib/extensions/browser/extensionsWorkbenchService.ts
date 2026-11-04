@@ -1671,6 +1671,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
 		} else if (!extension.gallery) {
 			extension.gallery = gallery;
+			this.onDidChangeExtensions(extension);
 		}
 		return extension;
 	}
