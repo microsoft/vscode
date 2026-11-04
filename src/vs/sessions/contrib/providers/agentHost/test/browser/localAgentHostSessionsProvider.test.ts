@@ -730,6 +730,16 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 	}();
 }
 
+class RefreshableProvider extends LocalAgentHostSessionsProvider {
+	refreshForTest(): Promise<void> { return this._refreshSessions(); }
+}
+
+function createRefreshableProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, options?: Parameters<typeof createProvider>[3]): RefreshableProvider {
+	const provider = createProvider(disposables, agentHostService, undefined, { ...options, providerCtor: RefreshableProvider });
+	assert.ok(provider instanceof RefreshableProvider);
+	return provider;
+}
+
 class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 	protected override _backendSessionScheme(agentProvider: string): string {
 		return agentProvider === 'copilotcli' ? 'ahp-session' : agentProvider;
@@ -1897,13 +1907,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 				return { ...value, policyValue: key === setting ? value.value : undefined };
 			}
 		}({ [setting]: false });
-		class RefreshableProvider extends LocalAgentHostSessionsProvider {
-			refreshForTest(): Promise<void> { return this._refreshSessions(); }
-		}
 		agentHost.addSession(createSession('claude-kept', { provider: 'claude', summary: 'Kept' }));
 		agentHost.addSession(createSession('claude-omitted', { provider: 'claude', summary: 'Omitted' }));
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true, providerCtor: RefreshableProvider });
-		assert.ok(provider instanceof RefreshableProvider);
+		const provider = createRefreshableProvider(disposables, agentHost, { configurationService, isSessionsWindow: true });
 		await provider.refreshForTest();
 		const original = provider.getSessions();
 		agentHost.stopListingSessions('claude-omitted');
@@ -2528,20 +2534,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.addSession(createSession('codex-1', { provider: 'codex', summary: 'Codex One' }));
 		agentHost.addSession(createSession('cli-1', { provider: 'copilotcli', summary: 'CLI One' }));
 
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		const provider = createRefreshableProvider(disposables, agentHost, { configurationService });
 		await timeout(0);
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		agentHost.stopListingSessions('codex-1');
-		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'cli-1').toString()),
-			action: { type: ActionType.ChatTurnComplete },
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-		await timeout(0);
+		await provider.refreshForTest();
 
 		assert.deepStrictEqual({
 			removed: changes.flatMap(c => c.removed.map(s => s.title.get())),
@@ -2558,20 +2558,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.addSession(createSession('cli-gone', { provider: 'copilotcli', summary: 'Gone' }));
 		agentHost.addSession(createSession('cli-kept', { provider: 'copilotcli', summary: 'Kept' }));
 
-		const provider = createProvider(disposables, agentHost);
+		const provider = createRefreshableProvider(disposables, agentHost);
 		await timeout(0);
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		agentHost.stopListingSessions('cli-gone');
-		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'cli-kept').toString()),
-			action: { type: ActionType.ChatTurnComplete },
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-		await timeout(0);
+		await provider.refreshForTest();
 
 		assert.deepStrictEqual({
 			removed: changes.flatMap(c => c.removed.map(s => s.title.get())),
@@ -2601,6 +2595,83 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes.length, 0, 'no change event for an empty list');
 		assert.strictEqual(provider.getSessions().length, 0);
 	}));
+
+	test('turn completions do not list all sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('turn-1'));
+		agentHost.addSession(createSession('turn-2'));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const listCallsAfterStartup = agentHost.listSessionsCallCount;
+
+		for (const rawId of ['turn-1', 'turn-2', 'turn-1']) {
+			agentHost.fireAction({
+				channel: buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString()),
+				action: { type: ActionType.ChatTurnComplete, turnId: `turn-${rawId}`, duration: 1 },
+				serverSeq: 1,
+				origin: undefined,
+			} as ActionEnvelope);
+		}
+		await timeout(100);
+
+		assert.deepStrictEqual({
+			listCallsAfterStartup,
+			listCallsAfterTurns: agentHost.listSessionsCallCount,
+			sessions: provider.getSessions().length,
+		}, {
+			listCallsAfterStartup: 1,
+			listCallsAfterTurns: 1,
+			sessions: 2,
+		});
+	}));
+
+	test('concurrent refreshes share the in-flight listing and coalesce into one trailing listing', async () => {
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await timeout(0);
+		const listCallsAfterStartup = agentHost.listSessionsCallCount;
+
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const first = provider.refreshForTest();
+		agentHost.addSession(createSession('added-during-listing', { summary: 'Fresh' }));
+		const burst = [provider.refreshForTest(), provider.refreshForTest(), provider.refreshForTest()];
+		const listCallsWhileInFlight = agentHost.listSessionsCallCount;
+		const barrier = agentHost.listSessionsBarrier;
+		agentHost.listSessionsBarrier = undefined;
+		barrier.complete();
+		await Promise.all([first, ...burst]);
+
+		assert.deepStrictEqual({
+			listCallsAfterStartup,
+			listCallsWhileInFlight,
+			listCallsAfterBurst: agentHost.listSessionsCallCount,
+			titles: provider.getSessions().map(session => session.title.get()),
+		}, {
+			listCallsAfterStartup: 1,
+			listCallsWhileInFlight: 2,
+			listCallsAfterBurst: 3,
+			titles: ['Fresh'],
+		});
+	});
+
+	test('startup triggers share a single first listing', async () => {
+		agentHost.addSession(createSession('startup-1', { summary: 'Startup' }));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const provider = createProvider(disposables, agentHost);
+		agentHost.fireAgentHostStart();
+		provider.getSessions();
+		const listCallsBeforeResponse = agentHost.listSessionsCallCount;
+		agentHost.listSessionsBarrier.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			listCallsBeforeResponse,
+			listCalls: agentHost.listSessionsCallCount,
+			titles: provider.getSessions().map(session => session.title.get()),
+		}, {
+			listCallsBeforeResponse: 1,
+			listCalls: 1,
+			titles: ['Startup'],
+		});
+	});
 
 	test('retries with backoff until listSessions succeeds', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// First two attempts fail, third succeeds. Verifies the retry keeps
@@ -3360,7 +3431,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// workspace (or a fresh quick-chat promotion) alongside the previous
 		// archived/read flags.
 		agentHost.addSession(createSession('atomic-1', { summary: 'One', workingDirectory: URI.file('/repo') }));
-		const provider = createProvider(disposables, agentHost);
+		const provider = createRefreshableProvider(disposables, agentHost);
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
@@ -3379,13 +3450,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived,
 			_meta: withSessionGitState(undefined, { branchName: 'feature' }),
 		});
-		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'atomic-1').toString()),
-			action: { type: ActionType.ChatTurnComplete },
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-		await timeout(0);
+		await provider.refreshForTest();
 
 		assert.deepStrictEqual(observed, [
 			{ branch: undefined, isArchived: false },
@@ -10163,7 +10228,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let sessionTools: readonly ToolDefinition[] = [];
 		let appTools: readonly ToolDefinition[] = [];
 		agentHost.addSession(createSession('active-client-tools'));
-		const provider = createProvider(disposables, agentHost, undefined, {
+		const provider = createRefreshableProvider(disposables, agentHost, {
 			activeSession,
 			activeClient: { tools: [scopeTool], customizations: [] },
 			sessionTools: sessionResource => isEqual(sessionResource, resource) ? sessionTools : [],
@@ -10185,13 +10250,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ name: sessionTool.name, description: 'Shadowed app definition' },
 			appTool,
 		];
-		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'active-client-tools').toString()),
-			action: chatTurnComplete('turn-1', 1000),
-			serverSeq: 1,
-			origin: undefined,
-		});
-		await timeout(0);
+		await provider.refreshForTest();
 
 		assert.deepStrictEqual(agentHost.dispatchedActions
 			.flatMap(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet ? [dispatch.action.activeClient.tools] : []), [
@@ -15308,35 +15367,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes.length, 0);
 	});
 
-	// ---- Refresh on turnComplete -------
-
-	test('turnComplete action triggers session refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('turn-sess', { summary: 'Before', modifiedTime: 1000 }));
-
-		const provider = createProvider(disposables, agentHost);
-		provider.getSessions();
-		await timeout(0);
-
-		// Update on connection side
-		agentHost.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
-
-		const changes: ISessionChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
-
-		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
-			action: chatTurnComplete('turn-1', 1000),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-
-		await timeout(0);
-
-		assert.ok(changes.length > 0);
-		const updatedSession = provider.getSessions().find(s => s.title.get() === 'After');
-		assert.ok(updatedSession);
-	}));
-
 	// ---- Session data adapter -------
 
 	test('session adapter has correct workspace from working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -16043,12 +16073,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 		await timeout(30_001);
 		agentHost.addSession(createSession(ownRawId, { summary: 'Committed Late' }));
-		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', ownRawId).toString()),
-			action: { type: ActionType.ChatTurnComplete },
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
+		fireSessionAdded(agentHost, ownRawId, { title: 'Committed Late' });
 		await timeout(0);
 
 		const committed = await request;
