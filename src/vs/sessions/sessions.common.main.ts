@@ -234,6 +234,7 @@ import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
+import '../workbench/contrib/chatWindow/browser/chatWindow.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Voice Mode (voice UI actions, settings and context keys)
@@ -482,6 +483,7 @@ import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/sharedChatInputComposer.contribution.js';
 import './contrib/chat/browser/requestOriginProvider.contribution.js';
 import './contrib/chat/browser/sideChatProvider.contribution.js';
+import './contrib/chatWindow/browser/chatWindow.contribution.js';
 import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
