@@ -22,14 +22,15 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { ChatWindowLayoutCommandsContext, resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const OPEN_BROWSER_COMMAND_ID = 'workbench.action.agentSessions.openBrowser';
@@ -71,6 +72,23 @@ const filesAddTabWhen = ContextKeyExpr.and(
 	DesktopFilesTabAvailableContext,
 	ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext));
 
+/*
+ * The actions also apply in a chat window, which shows the tabs of its session in its main part: a keybinding to them, as
+ * the user's own, works there too. Their menu entries stay in the main window, as a chat window offers its own entries.
+ */
+const changesTabCommandWhen = ContextKeyExpr.or(changesTabActionWhen, ContextKeyExpr.and(ChatWindowLayoutCommandsContext, SessionWithWorkspaceContext));
+const filesTabCommandWhen = ContextKeyExpr.or(filesTabActionWhen, ContextKeyExpr.and(ChatWindowLayoutCommandsContext, SessionWithWorkspaceContext));
+const browserTabCommandWhen = ContextKeyExpr.or(addTabActionWhen, ChatWindowLayoutCommandsContext);
+const searchTabCommandWhen = ContextKeyExpr.or(searchTabActionWhen, ContextKeyExpr.and(ChatWindowLayoutCommandsContext, IsQuickChatSessionContext.negate()));
+
+/**
+ * Runs the chat window's own command for a tab while the action runs in a chat window, such as from a keybinding while the
+ * window has focus: it opens the tab in the main part of that window, for its session. Undefined in the main window.
+ */
+function runInChatWindow(accessor: ServicesAccessor, args: readonly unknown[], chatWindowCommandId: string): Promise<unknown> | undefined {
+	return resolveChatWindow(accessor, args) ? accessor.get(ICommandService).executeCommand(chatWindowCommandId, ...args) : undefined;
+}
+
 /**
  * Shows a Session Activity Bar entry as checked while the side pane shows its editor; clicking it then hides the side pane.
  * The side pane can show just the detail panel of the active editor while the editor area is collapsed.
@@ -89,10 +107,10 @@ export class NewFileTabAction extends Action2 {
 			// Same icon as the Files tab it opens.
 			icon: EmptyFileEditorInput.ICON,
 			f1: true,
-			precondition: filesTabActionWhen,
+			precondition: filesTabCommandWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: filesTabActionWhen,
+				when: filesTabCommandWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: [{
@@ -109,7 +127,12 @@ export class NewFileTabAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const inChatWindow = runInChatWindow(accessor, args, CHAT_WINDOW_OPEN_FILES_COMMAND_ID);
+		if (inChatWindow) {
+			await inChatWindow;
+			return;
+		}
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
@@ -132,10 +155,10 @@ export class NewBrowserTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.globe,
 			f1: true,
-			precondition: addTabActionWhen,
+			precondition: browserTabCommandWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: browserTabCommandWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
 			menu: [{
@@ -152,7 +175,12 @@ export class NewBrowserTabAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const inChatWindow = runInChatWindow(accessor, args, CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID);
+		if (inChatWindow) {
+			await inChatWindow;
+			return;
+		}
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		const editorService = accessor.get(IEditorService);
 		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
@@ -173,7 +201,7 @@ export class OpenBrowserAction extends Action2 {
 			id: OPEN_BROWSER_COMMAND_ID,
 			title: localize2('openBrowser', "Browser"),
 			icon: Codicon.globe,
-			precondition: addTabActionWhen,
+			precondition: browserTabCommandWhen,
 			toggled: sessionActivityBarEntryToggled(BrowserEditorInput.EDITOR_ID),
 			menu: {
 				id: Menus.SessionActivityBar,
@@ -184,7 +212,12 @@ export class OpenBrowserAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const inChatWindow = runInChatWindow(accessor, args, CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID);
+		if (inChatWindow) {
+			await inChatWindow;
+			return;
+		}
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
@@ -211,10 +244,10 @@ export class NewSearchTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.search,
 			f1: true,
-			precondition: searchTabActionWhen,
+			precondition: searchTabCommandWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: searchTabActionWhen,
+				when: searchTabCommandWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
@@ -227,8 +260,14 @@ export class NewSearchTabAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
+		const chatWindow = resolveChatWindow(accessor, args);
+		if (chatWindow) {
+			// In a chat window, the search opens in its main part, as the window's other tabs do, not beside its chat.
+			chatWindow.showEditor();
+			accessor.get(IEditorGroupsService).activateGroup(chatWindow.mainPart.activeGroup);
+		}
 		await instantiationService.invokeFunction(openNewSearchEditor, { location: 'new' });
 	}
 }
@@ -243,10 +282,10 @@ export class NewChangesTabAction extends Action2 {
 			// Same icon as the Changes tab it opens.
 			icon: Codicon.diffMultiple,
 			f1: false,
-			precondition: changesTabActionWhen,
+			precondition: changesTabCommandWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: changesTabActionWhen,
+				when: changesTabCommandWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
@@ -264,7 +303,12 @@ export class NewChangesTabAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const inChatWindow = runInChatWindow(accessor, args, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID);
+		if (inChatWindow) {
+			await inChatWindow;
+			return;
+		}
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);

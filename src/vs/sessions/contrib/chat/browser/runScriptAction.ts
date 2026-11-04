@@ -884,10 +884,12 @@ registerAction2(RunScriptNotAvailableAction);
 
 // Register F5 keybinding at module level to ensure it's in the registry
 // before the keybinding resolver is cached. The command handler is
-// registered later by RunScriptContribution.
+// registered later by RunScriptContribution. It applies wherever the Run
+// button shows: the main window and chat windows, which run for the session
+// they show as it is the active session while they have focus.
 KeybindingsRegistry.registerKeybindingRule({
 	id: RUN_SCRIPT_ACTION_PRIMARY_ID,
 	primary: KeyCode.F5,
 	weight: KeybindingWeight.WorkbenchContrib + 100,
-	when: IsAuxiliaryWindowContext.toNegated()
+	when: ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)
 });
