@@ -46,6 +46,7 @@ import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/b
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from '../../terminal/common/terminal.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -85,30 +86,17 @@ export interface IReconnectionTaskData {
 const TaskTerminalType = 'Task';
 
 class VariableResolver {
-	private static _regex = /\$\{(.*?)\}/g;
 	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: ITaskSystemInfo | undefined, public readonly values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
 	}
 	async resolve(value: string): Promise<string> {
-		const replacers: Promise<string>[] = [];
-		value.replace(VariableResolver._regex, (match, ...args) => {
-			replacers.push(this._replacer(match, args));
-			return match;
-		});
-		const resolvedReplacers = await Promise.all(replacers);
-		return value.replace(VariableResolver._regex, () => resolvedReplacers.shift()!);
-
-	}
-
-	private async _replacer(match: string, args: string[]): Promise<string> {
-		// Strip out the ${} because the map contains them variables without those characters.
-		const result = this.values.get(match.substring(2, match.length - 1));
-		if ((result !== undefined) && (result !== null)) {
-			return result;
+		const expression = ConfigurationResolverExpression.parse(value);
+		for (const variable of expression.unresolved()) {
+			const result = this.values.get(variable.inner) ?? await this._service?.resolveAsync(this.workspaceFolder, variable.id);
+			if (result !== undefined) {
+				expression.resolve(variable, result);
+			}
 		}
-		if (this._service) {
-			return this._service.resolveAsync(this.workspaceFolder, match);
-		}
-		return match;
+		return expression.toObject();
 	}
 }
 
@@ -699,6 +687,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		cwd = cwd ? await resolver.resolve(cwd) : undefined;
 		const pathLib = await this._pathService.path;
+		if (cwd && !pathLib.isAbsolute(cwd) && workspaceFolder?.uri.scheme === Schemas.file) {
+			cwd = pathLib.join(workspaceFolder.uri.fsPath, cwd);
+		}
 		const paths = envPath ? (await resolver.resolve(envPath)).split(pathLib.delimiter) : undefined;
 		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
 		if (foundExecutable) {
@@ -789,30 +780,22 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const variablesArray = new Array<string>();
 			unresolved.forEach(variable => variablesArray.push(variable));
 
-			return new Promise<IResolvedVariables | undefined>((resolve, reject) => {
-				this._configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks', undefined, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolvedVariablesMap: Map<string, string> | undefined) => {
-					if (resolvedVariablesMap) {
-						this._mergeMaps(alreadyResolved, resolvedVariablesMap);
-						resolvedVariablesMap = new Map(alreadyResolved);
-						if (isProcess) {
-							let processVarValue: string;
-							if (Platform.isWindows) {
-								processVarValue = await this._resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath, resolvedVariablesMap);
-							} else {
-								processVarValue = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
-							}
-							resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
-						}
-						const resolvedVariablesResult: IResolvedVariables = {
-							variables: resolvedVariablesMap,
-						};
-						resolve(resolvedVariablesResult);
+			return this._configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks', undefined, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolvedVariablesMap) => {
+				if (!resolvedVariablesMap) {
+					return undefined;
+				}
+				this._mergeMaps(alreadyResolved, resolvedVariablesMap);
+				resolvedVariablesMap = new Map(alreadyResolved);
+				if (isProcess) {
+					let processVarValue: string;
+					if (Platform.isWindows) {
+						processVarValue = await this._resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath, resolvedVariablesMap);
 					} else {
-						resolve(undefined);
+						processVarValue = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 					}
-				}, reason => {
-					reject(reason);
-				});
+					resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
+				}
+				return { variables: resolvedVariablesMap };
 			});
 		}
 	}
@@ -889,6 +872,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
+		if (task.command.runtime === RuntimeType.Process && !CommandString.value(await this._resolveVariable(resolver, task.command.name))) {
+			this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
+			throw new Error(nls.localize('task.emptyProcessCommand', "The process task command resolved to an empty string."));
+		}
+
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
@@ -1364,7 +1352,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			const commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
 			const executable = !isShellCommand
-				? await this._resolveVariable(variableResolver, await this._resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}'))
+				? await this._resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
@@ -1559,11 +1547,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
-
-			if (task.command.runtime === RuntimeType.Process && !CommandString.value(command)) {
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
-				return [undefined, new TaskError(Severity.Error, nls.localize('task.emptyProcessCommand', "The process task command resolved to an empty string."), TaskErrors.ConfigValidationError)];
-			}
 
 			this._currentTask.shellLaunchConfig = launchConfigs = await this._createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit, presentationOptions);
 			if (launchConfigs === undefined) {
