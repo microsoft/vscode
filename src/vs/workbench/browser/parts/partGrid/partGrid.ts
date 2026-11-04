@@ -499,7 +499,13 @@ export class PartGrid extends Disposable {
 		}, true));
 		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
 		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, e => this.setPointerOverCellAt(e.clientX, e.clientY)));
-		this._register(addDisposableListener(targetWindow, EventType.BLUR, () => this.setPointerOverCell(undefined)));
+		// Without focus, the window does not look for the pointer over a webview, until it has focus or a pointer event again
+		this._register(addDisposableListener(targetWindow, EventType.BLUR, () => {
+			this.overlayPointerCheck.cancel();
+			this.pointerInOverlay = false;
+			this.setPointerOverCell(undefined);
+		}));
+		this._register(addDisposableListener(targetWindow, EventType.FOCUS, () => this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET)));
 	}
 
 	private pointerOverCard: HTMLElement | undefined;

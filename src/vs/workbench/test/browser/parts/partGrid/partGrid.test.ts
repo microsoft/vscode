@@ -794,6 +794,41 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('the grid does not look for the pointer over a webview while its window has no focus, and looks again once it has', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt')]);
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Down });
+		grid.layout(1000, 800);
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		const anchor = cardOf('main').appendChild(mainWindow.document.createElement('div'));
+		const overlay = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add(toDisposable(() => overlay.remove()));
+		let looked = 0;
+		disposables.add(registerOverlayAnchor(anchor, { setHidden: () => { }, element: overlay, isPointerOver: () => { looked++; return true; } }));
+		const showing = () => ['main', 'chat'].filter(id => cardOf(id).classList.contains('part-grid-pointer-over'));
+
+		cardOf('chat').dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+		await timeout(150);
+		const inWebview = showing();
+		mainWindow.dispatchEvent(new FocusEvent('blur'));
+		const lookedAtBlur = looked;
+		await timeout(600);
+		const whileBlurred = { showing: showing(), looksAgain: looked > lookedAtBlur };
+		mainWindow.dispatchEvent(new FocusEvent('focus'));
+		await timeout(150);
+
+		assert.deepStrictEqual({ inWebview, whileBlurred, focusedAgain: showing() }, {
+			inWebview: ['main'],
+			whileBlurred: { showing: [], looksAgain: false },
+			focusedAgain: ['main']
+		});
+	});
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
