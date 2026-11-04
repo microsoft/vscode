@@ -94,6 +94,10 @@ interface IRawGalleryExtension {
 	readonly categories: string[] | undefined;
 	readonly flags: string;
 	readonly blocking?: IRawGalleryExtensionBlocking;
+	readonly deprecation?: {
+		readonly replacementExtension?: { readonly name: string; readonly displayName?: string };
+		readonly customMessage?: string;
+	} | null;
 	readonly linkType?: string;
 	readonly ratingLinkType?: string;
 }
@@ -571,7 +575,28 @@ export function getGalleryLinkTemplate(manifest: IExtensionGalleryManifest, link
 	return (linkType ? getExtensionGalleryManifestResourceUri(manifest, linkType) : undefined) ?? getExtensionGalleryManifestResourceUri(manifest, defaultType);
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], extensionGalleryManifest: IExtensionGalleryManifest, productService: IProductService, queryContext?: IStringDictionary<unknown>): IGalleryExtension {
+function getDeprecationInfo(galleryExtension: IRawGalleryExtension, logService: ILogService): IDeprecationInfo | undefined {
+	const deprecation = galleryExtension.deprecation;
+	if (!deprecation) {
+		return undefined;
+	}
+	let extension: IDeprecationInfo['extension'];
+	if (deprecation.replacementExtension) {
+		const { name, displayName } = deprecation.replacementExtension;
+		if (typeof name === 'string' && EXTENSION_IDENTIFIER_REGEX.test(name)) {
+			extension = { id: name, displayName: displayName || name };
+		} else {
+			logService.warn('Invalid Marketplace deprecation replacement identifier');
+		}
+	}
+	return {
+		source: 'marketplace',
+		extension,
+		additionalInfo: deprecation.customMessage
+	};
+}
+
+function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], extensionGalleryManifest: IExtensionGalleryManifest, productService: IProductService, logService: ILogService, queryContext?: IStringDictionary<unknown>): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
 	const assets: IGalleryExtensionAssets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -628,6 +653,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		hasReleaseVersion: true,
 		private: isPrivateExtension(latestVersion),
 		blockingInfo: getBlockingInfo(galleryExtension, version),
+		deprecationInfo: getDeprecationInfo(galleryExtension, logService),
 		preview: getIsPreview(galleryExtension.flags),
 		isSigned: !!assets.signature,
 		queryContext,
@@ -931,7 +957,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return 'NOT_COMPATIBLE';
 		}
 
-		return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService);
+		return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, this.logService);
 	}
 
 	private async getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension: IRawGalleryExtension, latestVersions: IRawGalleryExtensionVersion[], extensionInfo: IExtensionInfo, options: IExtensionQueryOptions, allTargetPlatforms: TargetPlatform[]): Promise<IRawGalleryExtensionVersion | null> {
@@ -1306,7 +1332,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					allTargetPlatforms
 				);
 				if (rawGalleryExtensionVersion) {
-					extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, context));
+					extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, this.logService, context));
 				}
 			}
 			return { extensions, total };
@@ -1342,7 +1368,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				},
 				allTargetPlatforms
 			);
-			const extension = rawGalleryExtensionVersion ? toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, context) : null;
+			const extension = rawGalleryExtensionVersion ? toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, this.logService, context) : null;
 			if (!extension
 				/** Need all versions if the extension is a pre-release version but
 				 * 		- the query is to look for a release version or

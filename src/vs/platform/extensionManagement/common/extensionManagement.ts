@@ -258,6 +258,7 @@ export interface IGalleryExtension {
 	private: boolean;
 	/** Set when this extension, or the version in hand, must not be acquired or used. Absence means "not known to be blocked", not "known to be safe". */
 	blockingInfo?: IExtensionBlockingInfo;
+	deprecationInfo?: IDeprecationInfo;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
 	isSigned: boolean;
@@ -358,6 +359,7 @@ export const enum StatisticType {
 }
 
 export interface IDeprecationInfo {
+	readonly source?: 'marketplace';
 	readonly disallowInstall?: boolean;
 	readonly extension?: {
 		readonly id: string;
