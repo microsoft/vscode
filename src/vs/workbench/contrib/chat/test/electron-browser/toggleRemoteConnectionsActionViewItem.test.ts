@@ -44,8 +44,11 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionListItemKind, ActionListWidget, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingValue } from '../../../../../base/common/policy.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	stops = 0;
@@ -218,6 +221,16 @@ suite('RemoteConnectionsActionViewItem', () => {
 		instantiation.stub(INotificationService, notifications);
 		instantiation.stub(IActionViewItemService, new NullActionViewItemService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
+		const managedSettings: Record<string, ManagedSettingValue> = {};
+		const managedSettingsChange = store.add(new Emitter<void>());
+		instantiation.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+			override getManagedSettingValue(key: string) { return managedSettings[key]; }
+		}());
+		const opened: { target: string; openExternal: boolean | undefined }[] = [];
+		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(target: string | URI, options?: OpenOptions) { opened.push({ target: target.toString(), openExternal: options?.openExternal }); return true; }
+		}());
 		const commands = new TestCommandService();
 		const executeCommand = stub(commands, 'executeCommand').callsFake(async id => {
 			if (id === RemoteTunnelCommandIds.turnOn) {
@@ -249,7 +262,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings };
+		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
@@ -346,6 +359,41 @@ suite('RemoteConnectionsActionViewItem', () => {
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
 		});
+	});
+
+	test('the policy explanation offers the organization support page instead of the setting when one is configured', async () => {
+		const { configuration, openMenu, listOptions, managedSettings, opened, openSettings, sharing } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		managedSettings[COPILOT_COMMUNICATION_SUPPORT_URL_KEY] = 'https://example.com/copilot-help';
+		openMenu();
+		const options = listOptions();
+		await options?.footerAction?.run();
+		assert.deepStrictEqual({
+			footer: options?.footerText,
+			action: { id: options?.footerAction?.id, tooltip: options?.footerAction?.tooltip },
+			opened,
+			openSettings: openSettings.callCount,
+			sharing: sharing.calls,
+		}, {
+			footer: 'GitHub Environments is disabled by your organization. Contact Admin',
+			action: { id: 'remoteConnections.organizationSupport', tooltip: 'Opens your organization\'s help page (example.com)' },
+			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
+			openSettings: 0,
+			sharing: [],
+		});
+	});
+
+	test('closes the open policy menu when the organization support URL changes, but not for other managed settings', async () => {
+		const { configuration, openMenu, managedSettings, fireManagedSettingsChange, isMenuOpen } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		openMenu();
+		fireManagedSettingsChange();
+		const afterUnrelatedChange = isMenuOpen();
+		managedSettings[COPILOT_COMMUNICATION_SUPPORT_URL_KEY] = 'https://example.com/copilot-help';
+		fireManagedSettingsChange();
+		assert.deepStrictEqual({ afterUnrelatedChange, afterUrlChange: isMenuOpen() }, { afterUnrelatedChange: true, afterUrlChange: false });
 	});
 
 	test('hard experiment disablement hides GitHub Environments despite user enablement', () => {
