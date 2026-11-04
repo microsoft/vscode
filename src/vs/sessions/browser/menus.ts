@@ -96,6 +96,8 @@ export const Menus = {
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
 	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
+	SessionItemOpenIn: new MenuId('SessionsSessionItemOpenIn'),
+	SessionChatItemOpenIn: new MenuId('SessionsSessionChatItemOpenIn'),
 	SessionChatItemToolbar: new MenuId('SessionsSessionChatItemToolbar'),
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
