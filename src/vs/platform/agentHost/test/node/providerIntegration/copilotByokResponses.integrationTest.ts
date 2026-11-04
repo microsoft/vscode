@@ -74,6 +74,12 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				sessionId,
 				model: 'test-model',
 				reasoningEffort: 'medium',
+				// Without this, the SDK never requests a streamed response (`stream:
+				// true` never reaches the proxy, so `streamDeltas` above never fires);
+				// the final `assistant.message`/`assistant.reasoning` events still
+				// arrive from the non-streaming JSON fallback, so tests can pass
+				// without ever exercising the SSE path they intend to cover.
+				streaming: true,
 				tools: sessionOptions.tools,
 				availableTools: sessionOptions.availableTools ?? [],
 				provider: {
@@ -263,5 +269,39 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				errors: ['422 The model \'test-model\' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model\'s context window or output token limit. Try again, start a new session, or choose a different model.'],
 			});
 		});
+	});
+
+	test('bundled SDK does not duplicate partial output when the provider fails after streaming', async function () {
+		this.timeout(120_000);
+
+		// A provider failure discovered once visible output already reached the
+		// client closes the stream as a completion of that partial output instead
+		// of an in-stream failure (see byokResponsesTranslation.ts's `fail()`): a
+		// runtime that retried an in-stream failure would resend the already-shown
+		// text alongside the retry's own output, duplicating it.
+		let calls = 0;
+		await withSdkSession('byok-responses-partial-failure', async () => {
+			calls++;
+			return { output: [], error: 'upstream exploded' };
+		}, async session => {
+			const deltas: string[] = [];
+			const errors: string[] = [];
+			session.on('assistant.message_delta', event => deltas.push(event.data.deltaContent));
+			session.on('session.error', event => errors.push(event.data.message));
+			const result = await session.sendAndWait({ prompt: 'Reply with a long answer.' }, 30_000);
+			assert.deepStrictEqual({
+				calls,
+				joined: deltas.join(''),
+				errors,
+				resultType: result?.type,
+				resultContent: result?.type === 'assistant.message' ? result.data.content : undefined,
+			}, {
+				calls: 1,
+				joined: 'Partial answer',
+				errors: [],
+				resultType: 'assistant.message',
+				resultContent: 'Partial answer',
+			});
+		}, {}, () => [{ kind: 'text', delta: 'Partial answer' }]);
 	});
 });

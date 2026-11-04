@@ -484,7 +484,7 @@ function outputText(items: readonly ResponsesOutputItem[]): string {
 		.join('');
 }
 
-function responseEnvelope(responseId: string, model: string, status: 'in_progress' | 'completed' | 'failed', output: readonly ResponsesOutputItem[], usage: unknown) {
+function responseEnvelope(responseId: string, model: string, status: 'in_progress' | 'completed' | 'failed' | 'incomplete', output: readonly ResponsesOutputItem[], usage: unknown) {
 	return {
 		id: responseId,
 		object: 'response',
@@ -704,8 +704,14 @@ export interface IResponsesSseEmitter {
 	 * observe — are emitted here in full.
 	 */
 	complete(result: IByokLmChatResult): string[];
-	/** Frames that fail the response in-stream, for a failure after the first delta was written. */
-	fail(message: string): string[];
+	/**
+	 * Frames that close the response after a failure discovered once the first
+	 * delta was already written. Closes as a normal completion of whatever was
+	 * streamed so far, rather than `response.failed`: a runtime that retries a
+	 * hard failure resends the request from scratch, and the client would see the
+	 * already-shown output duplicated alongside the retry's own output.
+	 */
+	fail(): string[];
 }
 
 export function createResponsesSseEmitter(model: string, responseId: string = nextId('resp')): IResponsesSseEmitter {
@@ -894,11 +900,16 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 			return frames;
 		},
 
-		fail(message: string): string[] {
-			return [frame('response.failed', {
-				type: 'response.failed',
-				response: { ...responseEnvelope(responseId, model, 'failed', [], undefined), error: { code: 'server_error', message } },
-			})];
+		fail(): string[] {
+			// A runtime that sees anything other than `response.completed` retries the
+			// turn from scratch, resending the visible output this stream already
+			// delivered. Closing as a normal completion — with whatever reached the
+			// client as the final content — keeps that output from being duplicated.
+			// The failure itself is logged server-side instead of surfaced in-stream.
+			const frames = closeOpenItem();
+			const items = streamed.map(item => streamedItem(item));
+			frames.push(frame('response.completed', { type: 'response.completed', response: responseEnvelope(responseId, model, 'completed', items, undefined) }));
+			return frames;
 		},
 	};
 }

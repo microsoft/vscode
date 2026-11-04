@@ -428,20 +428,25 @@ suite('byokResponsesTranslation', () => {
 		assert.deepStrictEqual(stableFrames(replay), stableFrames(buffered));
 	});
 
-	test('fails in-stream instead of completing after output was written', () => {
+	test('closes as a completion instead of failing in-stream after output was written', () => {
+		// A runtime that sees `response.failed` here would retry the whole turn,
+		// resending the text this stream already delivered; closing as a normal
+		// completion of what was streamed so far keeps that from duplicating.
 		const emitter = createResponsesSseEmitter('gpt-5');
-		const frames = parseFrames([...emitter.begin(), ...emitter.push({ requestId: 'req', kind: 'text', delta: 'partial' }), ...emitter.fail('model exploded')]);
+		const frames = parseFrames([...emitter.begin(), ...emitter.push({ requestId: 'req', kind: 'text', delta: 'partial' }), ...emitter.fail()]);
 
 		assert.deepStrictEqual({
 			eventTypes: frames.map(frame => frame.event),
 			last: frames.at(-1)?.event,
 			status: (frames.at(-1)?.data.response as { status: string }).status,
-			error: (frames.at(-1)?.data.response as { error: { message: string } }).error,
+			error: (frames.at(-1)?.data.response as { error: unknown }).error,
+			outputText: (frames.at(-1)?.data.response as { output_text: string }).output_text,
 		}, {
-			eventTypes: ['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.output_text.delta', 'response.failed'],
-			last: 'response.failed',
-			status: 'failed',
-			error: { code: 'server_error', message: 'model exploded' },
+			eventTypes: ['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.output_text.delta', 'response.output_text.done', 'response.content_part.done', 'response.output_item.done', 'response.completed'],
+			last: 'response.completed',
+			status: 'completed',
+			error: null,
+			outputText: 'partial',
 		});
 	});
 
