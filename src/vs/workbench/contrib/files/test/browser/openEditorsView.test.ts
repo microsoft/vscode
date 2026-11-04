@@ -4,13 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { List } from '../../../../../base/browser/ui/list/listWidget.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { OpenEditor } from '../../common/files.js';
-import { findFirstDirtyEditor } from '../../browser/views/openEditorsView.js';
-import { TestEditorGroupView, TestEditorInput } from '../../../../test/browser/workbenchTestServices.js';
+import { findFirstDirtyEditor, OpenEditorsView } from '../../browser/views/openEditorsView.js';
+import { GroupModelChangeKind } from '../../../../common/editor.js';
+import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
+import { IViewContainerModel, IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
+import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { CloseEditorAction, UnpinEditorAction } from '../../../../browser/parts/editor/editorActions.js';
+import { TestEditorGroupsService, TestEditorGroupView, TestEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Files - OpenEditorsView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,6 +64,72 @@ suite('Files - OpenEditorsView', () => {
 			}
 		}));
 	}
+
+	test('released terminal editor rows do not recreate decorations after queued notifications', async () => {
+		const configurationService = new TestConfigurationService({
+			files: {},
+			explorer: { decorations: { colors: true, badges: true }, openEditors: { sortOrder: 'editorOrder' } }
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, store);
+		instantiationService.stubInstance(CloseEditorAction, store.add(instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL)));
+		instantiationService.stubInstance(UnpinEditorAction, store.add(instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL)));
+		const modelChanged = store.add(new Emitter<IGroupModelChangeEvent>());
+		const group = new class extends TestEditorGroupView {
+			override readonly onDidModelChange = modelChanged.event;
+		}(1);
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([group]));
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			getViewLocationById: () => ViewContainerLocation.Sidebar,
+			getViewDescriptorById: () => null,
+			getViewContainerByViewId: () => null,
+			getViewContainerModel: () => new class extends mock<IViewContainerModel>() {
+				override readonly visibleViewDescriptors = [];
+				override readonly onDidChangeAllViewDescriptors = Event.None;
+			}
+		});
+		const decorations = store.add(instantiationService.createInstance(DecorationsService));
+		instantiationService.stub(IDecorationsService, decorations);
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const file = store.add(new TestEditorInput(URI.file('/surviving.txt'), 'testEditor'));
+		group.editors = [file];
+		group.activeEditor = file;
+		const clock = sinon.useFakeTimers();
+		try {
+			const view = store.add(instantiationService.createInstance(class extends OpenEditorsView {
+				public override renderBody(container: HTMLElement): void {
+					super.renderBody(container);
+				}
+			}, { id: OpenEditorsView.ID, title: 'Open Editors' }));
+			view.renderBody(container);
+			view.setVisible(true);
+			const list = Reflect.get(view, 'list') as WorkbenchList<OpenEditor | IEditorGroup>;
+			list.layout(200, 400);
+			await clock.runAllAsync();
+			const cache = Reflect.get(decorations, '_data') as { get(resource: URI): object | undefined };
+			const closedResources: URI[] = [];
+			for (let i = 0; i < 3; i++) {
+				const terminal = store.add(new TestEditorInput(URI.parse(`vscode-terminal:/test/${i}`), 'testEditor'));
+				group.editors = [terminal, file];
+				modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor: terminal });
+				await clock.runAllAsync();
+				assert.ok(cache.get(terminal.resource));
+				decorations.clearCachedDecorations(terminal.resource);
+				group.editors = [file];
+				modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_CLOSE, editor: terminal });
+				await clock.runAllAsync();
+				closedResources.push(terminal.resource);
+				assert.deepStrictEqual(closedResources.map(resource => cache.get(resource)), closedResources.map(() => undefined));
+			}
+			// Reused rows must still render decorations for resources that remain open.
+			decorations.clearCachedDecorations(file.resource);
+			await clock.runAllAsync();
+			assert.ok(cache.get(file.resource));
+		} finally {
+			clock.restore();
+		}
+	});
 
 	test('preserves multi-selection when an editor is refreshed', () => {
 		const group = new TestEditorGroupView(1);

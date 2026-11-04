@@ -781,6 +781,11 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		}
 	}
 
+	disposeElement(_element: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
+		templateData.root.clear();
+		templateData.actionRunner.editor = undefined;
+	}
+
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {
 		templateData.actionBar.dispose();
 		templateData.root.dispose();

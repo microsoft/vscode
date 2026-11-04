@@ -8,8 +8,8 @@ import sinon from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -18,12 +18,16 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { ITerminalEditingService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { IDecorationsService, IResourceDecorationChangeEvent } from '../../../../services/decorations/common/decorations.js';
 import { IResourceLabel } from '../../../../browser/labels.js';
 import { TerminalService } from '../../browser/terminalService.js';
 import { TerminalTabList } from '../../browser/terminalTabsList.js';
-import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
+import { TerminalEditorInput } from '../../browser/terminalEditorInput.js';
+import { TerminalEditorService } from '../../browser/terminalEditorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ITerminalProfileService, TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -37,7 +41,42 @@ suite('Workbench - TerminalService', () => {
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let groupDisposed: Emitter<ITerminalInstance>;
 	let editorDisposed: Emitter<ITerminalInstance>;
+	let instanceCreated: Emitter<ITerminalInstance>;
 	let clearedResources: URI[];
+
+	function createInstance(instanceId: number) {
+		const disposed = store.add(new Emitter<ITerminalInstance>());
+		const instance = new class extends mock<ITerminalInstance>() {
+			override readonly instanceId = instanceId;
+			override readonly resource = URI.parse(`vscode-terminal:/test/${instanceId}`);
+			override readonly store = store.add(new DisposableStore());
+			override readonly capabilities = store.add(new TerminalCapabilityStore());
+			override readonly statusList = new class extends mock<ITerminalInstance['statusList']>() {
+				override readonly onDidChangePrimaryStatus = Event.None;
+			};
+			override readonly onDisposed = disposed.event;
+			override readonly onDimensionsChanged = Event.None;
+			override readonly onDidFocus = Event.None;
+			override readonly onDidBlur = Event.None;
+			override readonly onRequestAddInstanceToGroup = Event.None;
+			override readonly onDidChangeShellType = Event.None;
+			override readonly onExit = Event.None;
+			override readonly onTitleChanged = Event.None;
+			override readonly onIconChanged = Event.None;
+			override isDisposed = false;
+			override async focusWhenReady(): Promise<void> { }
+			override detachFromElement(): void { }
+			override setParentContextKeyService(): void { }
+			override dispose(): void {
+				if (!this.isDisposed) {
+					this.isDisposed = true;
+					disposed.fire(this);
+				}
+			}
+		};
+		store.add(toDisposable(() => instance.dispose()));
+		return { instance, disposed };
+	}
 
 	setup(async () => {
 		dialogService = new TestDialogService();
@@ -60,9 +99,12 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(IRemoteAgentService, 'getConnection', null);
 		groupDisposed = store.add(new Emitter<ITerminalInstance>());
 		editorDisposed = store.add(new Emitter<ITerminalInstance>());
+		instanceCreated = store.add(new Emitter<ITerminalInstance>());
 		clearedResources = [];
 		instantiationService.stub(ITerminalGroupService, 'onDidDisposeInstance', groupDisposed.event);
 		instantiationService.stub(ITerminalEditorService, 'onDidDisposeInstance', editorDisposed.event);
+		instantiationService.stub(ITerminalInstanceService, 'onDidCreateInstance', instanceCreated.event);
+		instantiationService.stub(ITerminalProfileService, 'refreshAvailableProfiles', () => { });
 		instantiationService.stub(IDecorationsService, 'clearCachedDecorations', (resource: URI) => clearedResources.push(resource));
 
 		const clock = sinon.useFakeTimers();
@@ -77,15 +119,52 @@ suite('Workbench - TerminalService', () => {
 	});
 
 	test('clears decoration caches when panel and editor terminals are disposed', () => {
-		const panel = new class extends mock<ITerminalInstance>() {
-			override readonly resource = URI.parse('vscode-terminal:/test/1');
-		};
-		const editor = new class extends mock<ITerminalInstance>() {
-			override readonly resource = URI.parse('vscode-terminal:/test/2');
-		};
-		groupDisposed.fire(panel);
-		editorDisposed.fire(editor);
-		deepStrictEqual(clearedResources, [panel.resource, editor.resource]);
+		const panel = createInstance(1);
+		const editor = createInstance(2);
+		const forwarded: ITerminalInstance[] = [];
+		store.add(terminalService.onDidDisposeInstance(instance => forwarded.push(instance)));
+		instanceCreated.fire(panel.instance);
+		instanceCreated.fire(editor.instance);
+		panel.instance.dispose();
+		groupDisposed.fire(panel.instance);
+		editor.instance.dispose();
+		editorDisposed.fire(editor.instance);
+		deepStrictEqual({ clearedResources, forwarded, listeners: [panel.disposed.hasListeners(), editor.disposed.hasListeners()] }, {
+			clearedResources: [panel.instance.resource, editor.instance.resource], forwarded: [panel.instance, editor.instance], listeners: [false, false]
+		});
+	});
+
+	test('clears decorations for editor copies discovered without host disposal forwarding', () => {
+		const visibleChanged = store.add(new Emitter<void>());
+		instantiationService.stub(IEditorService, 'onDidVisibleEditorsChange', visibleChanged.event);
+		const editorHost = store.add(instantiationService.createInstance(TerminalEditorService));
+		const { instance, disposed } = createInstance(1);
+		instantiationService.stub(ITerminalInstanceService, 'createInstance', () => {
+			instanceCreated.fire(instance);
+			return instance;
+		});
+		const original = store.add(instantiationService.createInstance(TerminalEditorInput, URI.parse('vscode-terminal:/test/original'), undefined));
+		const copy = store.add(original.copy());
+		sinon.stub(instantiationService.get(IEditorService), 'visibleEditors').value([copy]);
+		visibleChanged.fire();
+		strictEqual(editorHost.instances.includes(instance), true);
+		let hostDisposals = 0;
+		store.add(editorHost.onDidDisposeInstance(() => hostDisposals++));
+		copy.dispose();
+		deepStrictEqual({ clearedResources, hostDisposals, listeners: disposed.hasListeners() }, {
+			clearedResources: [instance.resource], hostDisposals: 0, listeners: false
+		});
+	});
+
+	test('clears decorations after an editor host detaches before instance disposal', () => {
+		const editorHost = store.add(instantiationService.createInstance(TerminalEditorService));
+		const { instance, disposed } = createInstance(1);
+		instanceCreated.fire(instance);
+		editorHost.resolveResource(instance);
+		editorHost.detachInstance(instance);
+		deepStrictEqual({ clearedResources, disposed: instance.isDisposed }, { clearedResources: [], disposed: false });
+		instance.dispose();
+		deepStrictEqual({ clearedResources, listeners: disposed.hasListeners() }, { clearedResources: [instance.resource], listeners: false });
 	});
 
 	test('pooled terminal tab labels ignore later decoration changes', () => {
@@ -109,27 +188,25 @@ suite('Workbench - TerminalService', () => {
 		});
 		const before = queries.callCount;
 		strictEqual(before > 0, true);
-		groupDisposed.fire(instance);
 		renderer.disposeElement!(instance, 0, template);
 		changed.fire({ affectsResource: () => true });
-		deepStrictEqual({ cleared: clearedResources, queries: queries.callCount }, { cleared: [instance.resource], queries: before });
+		strictEqual(queries.callCount, before);
 	});
 
 	suite('background terminals', () => {
 		test('should remove disposed hidden terminals and their listeners', async () => {
-			const disposalEmitters = Array.from({ length: 3 }, () => store.add(new Emitter<ITerminalInstance>()));
-			const instances = disposalEmitters.map((emitter, index) => ({
-				instanceId: index + 1,
-				resource: URI.parse(`vscode-terminal:/test/${index + 1}`),
-				onDisposed: emitter.event,
-			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance));
+			const terminals = [createInstance(1), createInstance(2), createInstance(3)];
 			let instanceIndex = 0;
 			instantiationService.stub(ITerminalInstanceService, 'convertProfileToShellLaunchConfig', () => ({ hideFromUser: true }));
-			instantiationService.stub(ITerminalInstanceService, 'createInstance', () => instances[instanceIndex++]);
+			instantiationService.stub(ITerminalInstanceService, 'createInstance', () => {
+				const { instance } = terminals[instanceIndex++];
+				instanceCreated.fire(instance);
+				return instance;
+			});
 			terminalService.registerProcessSupport(true);
 
 			const backgroundedTerminalDisposables = Reflect.get(terminalService, '_backgroundedTerminalDisposables') as { size: number };
-			for (let i = 0; i < instances.length; i++) {
+			for (const { disposed } of terminals) {
 				const instance = await terminalService.createTerminal({
 					config: { hideFromUser: true },
 					skipContributedProfileCheck: true,
@@ -137,13 +214,13 @@ suite('Workbench - TerminalService', () => {
 
 				strictEqual(terminalService.instances.includes(instance), true);
 				strictEqual(backgroundedTerminalDisposables.size, 1);
-				strictEqual(disposalEmitters[i].hasListeners(), true);
+				strictEqual(disposed.hasListeners(), true);
 
-				disposalEmitters[i].fire(instance);
+				instance.dispose();
 
 				strictEqual(terminalService.instances.includes(instance), false);
 				strictEqual(backgroundedTerminalDisposables.size, 0);
-				strictEqual(disposalEmitters[i].hasListeners(), false);
+				strictEqual(disposed.hasListeners(), false);
 				strictEqual(clearedResources.at(-1), instance.resource);
 			}
 		});

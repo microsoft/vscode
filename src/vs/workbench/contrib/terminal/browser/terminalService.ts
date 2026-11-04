@@ -348,7 +348,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		this._register(host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances));
-		this._register(host.onDidDisposeInstance(instance => this._onInstanceDisposed(instance)));
+		this._register(host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
 		this._register(host.onDidChangeActiveInstance(instance => this._evaluateActiveInstance(host, instance)));
 		this._register(host.onDidFocusInstance(instance => {
 			this._onDidFocusInstance.fire(instance);
@@ -875,6 +875,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const disposeListener = this._register(instance.onDisposed(() => {
 			instanceDisposables.dispose();
 			this._store.delete(disposeListener);
+			this._decorationsService.clearCachedDecorations(instance.resource);
 		}));
 	}
 
@@ -1328,12 +1329,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			this._backgroundedTerminalInstances.splice(index, 1);
 		}
 		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
-		this._onInstanceDisposed(instance);
-	}
-
-	private _onInstanceDisposed(instance: ITerminalInstance): void {
 		this._onDidDisposeInstance.fire(instance);
-		this._decorationsService.clearCachedDecorations(instance.resource);
 	}
 
 	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {
