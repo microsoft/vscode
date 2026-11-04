@@ -74,6 +74,7 @@ const AGENT_HOST_SESSIONS: readonly SessionConfig[] = [
 	{ name: 'Agent Host Copilot', command: 'smoketest.openAgentHostChat', kind: 'editor', agentHost: true, scenarioId: 'smoke-chat-sessions-agent-host', reply: 'MOCKED_CHAT_SESSIONS_AGENT_HOST_RESPONSE', scenarioId2: 'smoke-chat-sessions-agent-host-2', reply2: 'MOCKED_CHAT_SESSIONS_AGENT_HOST_RESPONSE_2' },
 ];
 
+const AGENT_HOST_COPILOT_SCHEME = 'agent-host-copilotcli';
 const AGENT_HOST_TOKEN = 'smoketest-fake-agent-host-token';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-chat-sessions-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_CHAT_SESSIONS_AGENT_HOST_WARMUP_RESPONSE';
@@ -169,6 +170,10 @@ async function warmUpAgentHost(app: Application, logger: Logger): Promise<void> 
 		// The command retries until the Agent Host has registered its Copilot agent (up to 5 minutes).
 		await app.workbench.quickaccess.runCommand('smoketest.openAgentHostChat');
 		await app.workbench.chat.waitForChatEditor(5 * 60 * 10);
+		const sessionResource = await app.workbench.chat.waitForChatEditorSessionResource();
+		if (!sessionResource.startsWith(`${AGENT_HOST_COPILOT_SCHEME}:`)) {
+			throw new Error(`The Agent Host Copilot warm-up editor is bound to ${sessionResource} instead of an ${AGENT_HOST_COPILOT_SCHEME} session (likely the local fallback)`);
+		}
 		await app.workbench.chat.sendEditorMessage(`hello world [scenario:${AGENT_HOST_WARMUP_SCENARIO_ID}]`);
 		// Wait until the turn has finished, with the reply or an error, so it cannot overlap the first test.
 		await app.workbench.chat.waitForEditorResponse(2 * 60 * 10);
@@ -304,6 +309,16 @@ function setupChatSessionsSuite(logger: Logger, suite: ChatSessionsSuite) {
 
 				try {
 					await openSession(app, session);
+					if (session.agentHost) {
+						// The editor falls back to a local chat session when the Agent Host
+						// session cannot be created, and this profile points Local chat at
+						// the same mock server, so a reply alone does not prove which one ran.
+						const sessionResource = await app.workbench.chat.waitForChatEditorSessionResource();
+						assert.ok(
+							sessionResource.startsWith(`${AGENT_HOST_COPILOT_SCHEME}:`),
+							`Expected the ${session.name} editor to be bound to an ${AGENT_HOST_COPILOT_SCHEME} session, but it is bound to ${sessionResource} (likely the local fallback)`
+						);
+					}
 
 					// First message + first scenario reply.
 					logger.log(`[Chat Sessions/${session.name}] running command and waiting for chat editor`);
