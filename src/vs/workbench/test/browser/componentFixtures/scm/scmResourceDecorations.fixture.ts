@@ -80,7 +80,7 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Six Source Control resource rows show modified, untracked, deleted, renamed, read-only, and contains-changes states. The M, U, D, and R text decorations use the same text size and their right edges form one vertical column. The deleted filename is struck through and each decoration retains its Git theme color. The read-only lock and bubbled-child glyph retain their existing icon size and weight instead of using the text-badge typography.',
+			'Six Source Control resource rows show modified, untracked, deleted, renamed, read-only, and contains-changes states. The M, U, D, and R text decorations use the same text size, each is centered in an equal-width box, and their centers form one vertical column. The deleted filename is struck through and each decoration retains its Git theme color. The read-only lock and bubbled-child glyph retain their existing icon size and weight instead of using the text-badge typography.',
 		],
 		render: context => renderResourceDecorations(context, fixtureResources, 280),
 	}),
@@ -88,14 +88,14 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Five file rows each have an indented structural child. Their M, A, D, and R status letters share one right-aligned column, including the M following the diagnostic count in 5, M. Implementation annotations stay before the M on structural rows, while renames have R without an annotation. Filenames, symbol icons, and theme colors are preserved.',
+			'Five file rows each have an indented structural child. Single M, A, D, and R status letters on file and structural rows use the same text size, each is centered in an equal-width box, and their centers form one vertical column. The wider 5, M diagnostic badge ends at the same right edge and extends to the left, so its M sits slightly right of that column. Implementation annotations stay before the M on structural rows, while renames have R without an annotation. Filenames, symbol icons, and theme colors are preserved.',
 		],
 		render: context => renderResourceDecorations(context, mixedFixtureResources, 360),
 	}),
 	ResourceAndStructuralDecorationsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'A narrow Source Control list shows files and indented structural children. Their M, A, D, and R status letters remain fully visible in one right-aligned column. The 5, M diagnostic badge retains its count without shifting the final M. Long file and symbol names truncate with ellipses before the annotations and badges.',
+			'A narrow Source Control list shows files and indented structural children. Single M, A, D, and R status letters remain fully visible, each centered in an equal-width box, and their centers form one vertical column. The 5, M diagnostic badge retains its count, ends at the same right edge, and extends to the left. Long file and symbol names truncate with ellipses before the annotations and badges.',
 		],
 		render: context => renderResourceDecorations(context, mixedFixtureResources, 220),
 	}),
@@ -158,10 +158,15 @@ function renderResourceDecorations({ container, disposableStore, theme, fileIcon
 	const resourceLabels = disposableStore.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	const structuralRenderer = instantiationService.createInstance(SCMStructuralDiffRenderer);
 	const list = append(container, $('.monaco-list'));
+	// Structural children need tree rows for indentation; plain resource lists keep flat list rows.
+	const treeRows = resources.some(resource => resource.structuralChange);
 	const createRow = (nested: boolean) => {
 		const row = append(list, $('.monaco-list-row'));
 		row.style.position = 'relative';
 		row.style.height = '22px';
+		if (!treeRows) {
+			return row;
+		}
 		const contents = append(row, $('.monaco-tl-contents'));
 		contents.style.paddingLeft = nested ? 'var(--vscode-spacing-size160)' : '';
 		return contents;

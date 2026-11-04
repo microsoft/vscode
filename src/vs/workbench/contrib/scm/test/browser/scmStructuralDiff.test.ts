@@ -526,10 +526,9 @@ suite('SCM structural diff tree', () => {
 	});
 
 	for (const width of [220, 420]) {
-		test(`aligns file and structural status text at ${width}px, including diagnostic counts`, () => {
+		test(`aligns structural status boxes with file badge boxes at ${width}px, including diagnostic counts`, () => {
 			const container = $('.monaco-workbench.scm-view.monaco-list');
 			container.style.width = `${width}px`;
-			container.style.setProperty('--vscode-spacing-size40', '4px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
 			container.style.setProperty('--vscode-fontSize-label2', '11px');
 			container.style.setProperty('--vscode-fontWeight-semiBold', '600');
@@ -564,7 +563,8 @@ suite('SCM structural diff tree', () => {
 				contents.style.paddingLeft = `${indent}px`;
 				return contents;
 			};
-			const expectedRight = container.getBoundingClientRect().right - 16;
+			// The tree contents' 12px right padding plus the badges' 3px right margin.
+			const expectedRight = container.getBoundingClientRect().right - 15;
 			const results = cases.map(({ letter, count, uri }) => {
 				const fileRow = append(createRow(0), $('.resource'));
 				const fileLabel = labels.create(append(fileRow, $('.name')));
@@ -586,14 +586,14 @@ suite('SCM structural diff tree', () => {
 				}, 0, template);
 				const fileStyle = getWindow(container).getComputedStyle(fileLabel.element, '::after');
 				const structuralStyle = getWindow(container).getComputedStyle(template.status);
-				const textRange = mainWindow.document.createRange();
-				textRange.selectNodeContents(template.status);
 				const fileRight = fileLabel.element.getBoundingClientRect().right - parseFloat(fileStyle.marginRight);
+				const structuralRight = template.status.getBoundingClientRect().right;
 				return {
 					fileText: fileStyle.content,
 					structuralText: template.status.textContent,
-					aligned: Math.abs(fileRight - textRange.getBoundingClientRect().right) < 1 && Math.abs(fileRight - expectedRight) < 1,
-					fileTextAlignment: fileStyle.justifyContent,
+					rightEdgesAligned: Math.abs(fileRight - structuralRight) < 1 && Math.abs(fileRight - expectedRight) < 1,
+					justifyContent: [fileStyle.justifyContent, structuralStyle.justifyContent],
+					minWidth: [fileStyle.minWidth, structuralStyle.minWidth],
 					sameTypography: fileStyle.fontSize === structuralStyle.fontSize && fileStyle.fontWeight === structuralStyle.fontWeight,
 					badgeFits: template.status.scrollWidth <= template.status.clientWidth,
 				};
@@ -601,7 +601,7 @@ suite('SCM structural diff tree', () => {
 			assert.deepStrictEqual(results, cases.map(({ letter, count }) => ({
 				fileText: JSON.stringify(count ? `${count}, ${letter}` : letter),
 				structuralText: letter,
-				aligned: true, fileTextAlignment: 'flex-end', sameTypography: true, badgeFits: true,
+				rightEdgesAligned: true, justifyContent: ['center', 'center'], minWidth: ['16px', '16px'], sameTypography: true, badgeFits: true,
 			})));
 		});
 	}

@@ -329,8 +329,14 @@
 	color: var(--vscode-gitDecoration-modifiedResourceForeground);
 }
 
+/*
+ * Structural status letters share the file badge box and right margin, so single letters line up with file badges.
+ * Wider badges, such as a problem count followed by a status letter, extend to the left.
+ * See https://github.com/microsoft/vscode/issues/346073
+ */
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
-.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after {
+.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after,
+.scm-view .scm-structural-change-status {
 	margin-right: 3px;
 }
 
@@ -338,17 +344,14 @@
 .scm-view .scm-structural-change-status {
 	display: inline-flex;
 	align-items: center;
-	justify-content: flex-end;
+	justify-content: center;
 	box-sizing: border-box;
 	flex-shrink: 0;
 	min-width: var(--vscode-spacing-size160);
 	height: var(--vscode-spacing-size160);
 	margin-block: auto;
-	margin-right: var(--vscode-spacing-size40);
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
-	text-align: right;
-	white-space: nowrap;
 }
 
 .scm-view .monaco-list-row .resource > .decoration-icon {
