@@ -1227,6 +1227,25 @@ suite('QuickInput item hover layout', () => {
 		}, { focusedBeforeHoverInPicker: true, hoverFocused: true, hoverShown: false, focusReturned: true });
 	});
 
+	test('returns focus to where it was before opening the picker when dismissed from an item hover link', async () => {
+		const outside = append(fixture, $('input'));
+		outside.focus();
+		const picker = await showPicker(['first']);
+		await settle();
+		controller.toggleHover();
+		const hover = fixture.querySelector<HTMLElement>('.monaco-hover');
+		assert.ok(hover);
+		const link = append(hover, $('a', { href: '#' }, 'link'));
+		link.focus();
+		assert.strictEqual(mainWindow.document.activeElement, link);
+
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		picker.hide();
+		await settle();
+
+		assert.strictEqual(mainWindow.document.activeElement, outside);
+	});
+
 	test('keeps the widget settled when a visible picker is replaced and animates a new show', async () => {
 		await showPicker(['first']);
 		await settle();

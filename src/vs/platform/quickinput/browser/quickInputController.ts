@@ -875,7 +875,11 @@ export class QuickInputController extends Disposable {
 		const container = this.ui?.container;
 		// The active element of the container's own root: not the deep active element,
 		// because focus inside a menu hosted in the container is in a nested shadow root
-		const focusChanged = container && !dom.isAncestor((dom.getShadowRoot(container) ?? container.ownerDocument).activeElement, container);
+		const activeElement = container ? (dom.getShadowRoot(container) ?? container.ownerDocument).activeElement : null;
+		const focusChanged = !!container && !!activeElement
+			&& activeElement !== container.ownerDocument.body
+			&& activeElement !== container.ownerDocument.documentElement
+			&& !dom.isAncestor(activeElement, container);
 		this.controller = null;
 		this.onHideEmitter.fire();
 		if (container) {
