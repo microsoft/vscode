@@ -5807,7 +5807,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const presentation = getElicitationInputRequestPresentation(inputReq, this._config.connectionAuthority);
 
-		const part = new ChatElicitationRequestPart(
+		const part: ChatElicitationRequestPart = new ChatElicitationRequestPart(
 			presentation.title,
 			presentation.message,
 			'',
