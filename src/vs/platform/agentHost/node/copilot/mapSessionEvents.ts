@@ -422,14 +422,15 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 	const mcpToolName = readStringProperty(source, 'mcpToolName');
 	const displayName = getToolDisplayName(toolName, { mcpToolName, toolTitle: toolTitle ?? readStringProperty(source, 'toolTitle') });
+	const intention = getToolIntention(toolName, parameters, intentionSummary);
 	return {
 		toolName,
 		displayName,
-		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName),
+		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, intention),
 		toolInput: getToolInputString(toolName, parameters, toolArgs),
 		toolKind,
 		language: toolKind === 'terminal' ? getShellLanguage(toolName) : undefined,
-		intention: getToolIntention(toolName, parameters, intentionSummary),
+		intention,
 		subagentAgentName: subagentMeta?.agentName,
 		subagentDescription: subagentMeta?.description,
 		parameters,
@@ -1448,7 +1449,7 @@ function makeCompletedToolCallPart(
 		invocationMessage: info.invocationMessage,
 		toolInput: info.toolInput,
 		success: d.success,
-		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration),
+		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration, info.intention),
 		content: content.length > 0 ? content : undefined,
 		structuredContent: d.result?.structuredContent as Record<string, unknown> | undefined,
 		resultMetadata: getSdkMcpResultMeta(d.result),

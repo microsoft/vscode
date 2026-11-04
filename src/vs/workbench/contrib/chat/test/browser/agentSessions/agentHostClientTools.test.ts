@@ -1953,6 +1953,32 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		for (const { name, result } of [
+			{ name: 'text-only result', result: { content: [{ kind: 'text', value: 'first' }, { kind: 'text', value: 'second' }] } },
+			{ name: 'existing result details', result: { content: [{ kind: 'text', value: 'done' }], toolResultDetails: [URI.file('/result.txt')] } },
+			{ name: 'existing tool-specific data', result: { content: [{ kind: 'text', value: 'done' }], toolSpecificData: { kind: 'simpleToolInvocation', input: 'custom input', output: 'custom output' } } },
+			{ name: 'error result', result: { content: [{ kind: 'text', value: 'failed' }], toolResultError: 'Task failed' } },
+			{ name: 'non-text result', result: { content: [{ kind: 'data', value: { mimeType: 'application/octet-stream', data: VSBuffer.fromString('data') } }] } },
+		] satisfies { name: string; result: IToolResult }[]) {
+			test(`preserves generic client-tool disclosure for ${name}`, async () => {
+				const invokeResult = new DeferredPromise<IToolResult>();
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { invokeResult });
+				await provideSessionWithReadyRunTaskTool(handler, connection);
+				invokeResult.complete(result);
+				await connection.whenDispatched(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === 'tool-call-1');
+				const invocation = toolsService.begunToolCalls[0];
+				assert.deepStrictEqual({
+					data: invocation.toolSpecificData,
+					details: IChatToolInvocation.resultDetails(invocation),
+				}, {
+					data: name === 'text-only result'
+						? { kind: 'simpleToolInvocation', input: '{"task":"build"}', output: 'first\nsecond' }
+						: result.toolSpecificData,
+					details: result.toolResultDetails,
+				});
+			});
+		}
+
 		test('waits for tool-search candidates and drops them from completion metadata', async () => {
 			const invokeResult = new DeferredPromise<IToolResult>();
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testToolSearchTool], { invokeResult });

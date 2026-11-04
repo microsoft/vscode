@@ -122,47 +122,51 @@ suite('copilotToolDisplay — friendly tool names', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
 	});
 
-	test('formats tool-search headers without changing rendering kind or input', () => {
-		for (const toolName of ['tool_search_tool', 'tool_search_tool_regex']) {
+	test('uses per-call intention for generic headers without changing rendering kind or input', () => {
+		for (const toolName of ['tool_search_tool', 'tool_search_tool_regex', 'mcp_custom_tool', 'custom_tool']) {
 			const args = { query: 'GitHub\npull requests' };
-			const displayName = getToolDisplayName(toolName);
+			const displayName = getToolDisplayName(toolName, { toolTitle: 'Custom tool' });
+			const intention = '  Find GitHub\npull requests  ';
+			const message = { markdown: `${displayName.replace(/ /g, '&nbsp;')}: \`Find GitHub pull requests\`` };
 			assert.deepStrictEqual({
-				streaming: getStreamingInvocationMessage(toolName, displayName, args),
-				running: getInvocationMessage(toolName, displayName, args),
-				completed: getPastTenseMessage(toolName, displayName, args, true, '["search_issues","get_issue"]'),
-				empty: getPastTenseMessage(toolName, displayName, args, true, '[]'),
-				unknown: getPastTenseMessage(toolName, displayName, args, true, 'Native search output'),
+				streaming: getStreamingInvocationMessage(toolName, displayName, args, undefined, undefined, intention),
+				running: getInvocationMessage(toolName, displayName, args, undefined, undefined, intention),
+				completed: getPastTenseMessage(toolName, displayName, args, true, '["search_issues","get_issue"]', undefined, undefined, undefined, intention),
+				empty: getPastTenseMessage(toolName, displayName, args, true, '[]', undefined, undefined, undefined, intention),
+				unknown: getPastTenseMessage(toolName, displayName, args, true, 'Native search output', undefined, undefined, undefined, intention),
 				failed: getPastTenseMessage(toolName, displayName, args, false, '[]'),
 				kind: getToolKind(toolName),
 				input: getToolInputString(toolName, args, undefined),
 			}, {
-				streaming: { markdown: 'Searching tools for `GitHub pull requests`' },
-				running: { markdown: 'Searching tools for `GitHub pull requests`' },
-				completed: { markdown: 'Found 2 tools for `GitHub pull requests`' },
-				empty: { markdown: 'No matching tools found for `GitHub pull requests`' },
-				unknown: { markdown: 'Searched tools for `GitHub pull requests`' },
-				failed: '"Search Tools" failed',
+				streaming: message,
+				running: message,
+				completed: message,
+				empty: message,
+				unknown: message,
+				failed: `"${displayName}" failed`,
 				kind: undefined,
 				input: JSON.stringify(args, null, 2),
 			});
 		}
 	});
 
-	test('bounds and escapes tool-search header previews', () => {
+	test('bounds and escapes intention headers and omits absent or redundant intention', () => {
 		assert.deepStrictEqual({
-			long: getInvocationMessage('tool_search_tool', 'Search Tools', { query: 'x'.repeat(1000) }),
-			escaped: getInvocationMessage('tool_search_tool_regex', 'Search Tools', { pattern: '`[unsafe](command:run)`' }),
+			long: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, 'x'.repeat(1000)),
+			escaped: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, '`[unsafe](command:run)`'),
+			escapedLabel: getInvocationMessage('custom_tool', '[Lookup](command:run)', undefined, undefined, undefined, 'query'),
 			pending: getStreamingInvocationMessage('tool_search_tool', 'Search Tools', undefined),
-			one: getPastTenseMessage('tool_search_tool', 'Search Tools', undefined, true, '["tool"]'),
-			malformed: getPastTenseMessage('tool_search_tool', 'Search Tools', undefined, true, '["tool",42]'),
-			many: getPastTenseMessage('tool_search_tool', 'Search Tools', undefined, true, JSON.stringify(Array.from({ length: 1000 }, (_, i) => `tool_${i}`))),
+			blank: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, ' \n '),
+			duplicate: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, '  Custom\n tool  '),
+			knownTool: getInvocationMessage('web_search', 'Web Search', { query: 'query' }, undefined, undefined, 'Intention'),
 		}, {
-			long: { markdown: `Searching tools for \`${'x'.repeat(77)}...\`` },
-			escaped: { markdown: 'Searching tools for `` `[unsafe](command:run)` ``' },
-			pending: 'Searching tools',
-			one: 'Found 1 tool',
-			malformed: 'Searched tools',
-			many: 'Found 1000 tools',
+			long: { markdown: `Custom&nbsp;tool: \`${'x'.repeat(77)}...\`` },
+			escaped: { markdown: 'Custom&nbsp;tool: `` `[unsafe](command:run)` ``' },
+			escapedLabel: { markdown: '\\[Lookup\\]\\(command:run\\): `query`' },
+			pending: 'Search Tools',
+			blank: 'Custom tool',
+			duplicate: 'Custom tool',
+			knownTool: { markdown: 'Searching the web for `query`' },
 		});
 	});
 

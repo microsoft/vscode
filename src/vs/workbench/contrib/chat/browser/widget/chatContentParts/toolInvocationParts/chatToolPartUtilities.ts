@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IReader } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatProgressResponseContent } from '../../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
@@ -119,8 +120,9 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 	}
 
 	const lowerToolId = toolId.toLowerCase();
-	if (lowerToolId === 'tool_search_tool' || lowerToolId === 'tool_search_tool_regex' || lowerToolId === 'tool_search'
-		|| lowerToolId === 'toolsearch' || lowerToolId === 'vscode.toolsearch' || lowerToolId === 'copilot_toolsearch') {
+	const clientToolSearchName = CLIENT_TOOL_SEARCH_REFERENCE_NAME.toLowerCase();
+	if (lowerToolId === RUNTIME_TOOL_SEARCH_TOOL_NAME || lowerToolId === 'tool_search_tool_regex' || lowerToolId === 'tool_search'
+		|| lowerToolId === clientToolSearchName || lowerToolId === `vscode.${clientToolSearchName}` || lowerToolId === `copilot_${clientToolSearchName}`) {
 		return Codicon.tools;
 	}
 	if ((lowerToolId === 'problems' || lowerToolId === 'get_errors' || lowerToolId === 'copilot_geterrors')

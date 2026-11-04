@@ -3487,7 +3487,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			result = { content: [], toolResultError: error instanceof Error ? error.message : String(error) };
 		}
 
-		if (isToolSearch && result && !result.toolResultError && result.content.every(part => part.kind === 'text')
+		if (result && !result.toolResultError && result.content.every(part => part.kind === 'text')
 			&& !invocation.toolSpecificData && !IChatToolInvocation.resultDetails(invocation)) {
 			invocation.toolSpecificData = {
 				kind: 'simpleToolInvocation',

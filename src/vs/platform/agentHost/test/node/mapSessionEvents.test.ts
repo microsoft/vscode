@@ -1233,12 +1233,14 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	for (const { withStart, toolTitle, displayName } of [
+	for (const { withStart, toolTitle, displayName, intention } of [
 		{ withStart: true, toolTitle: 'Read issue', displayName: 'Read issue' },
 		{ withStart: false, toolTitle: 'Read issue', displayName: 'Read issue' },
 		{ withStart: true, toolTitle: undefined, displayName: 'issue_read' },
+		{ withStart: true, toolTitle: 'Read issue', displayName: 'Read issue', intention: '  Inspect\nissue 123  ' },
+		{ withStart: false, toolTitle: 'Read issue', displayName: 'Read issue', intention: '  Inspect\nissue 123  ' },
 	]) {
-		test(`restores MCP tool labels with title=${toolTitle} and execution_start=${withStart}`, async () => {
+		test(`restores MCP tool labels with title=${toolTitle}, intention=${intention}, and execution_start=${withStart}`, async () => {
 			const toolName = 'io-github-github-github-mcp-server-issue_read';
 			const events: ISessionEvent[] = [
 				{ type: 'user.message', data: { interactionId: 'm1', content: 'Read the issue' } },
@@ -1251,6 +1253,7 @@ suite('mapSessionEvents — history replay', () => {
 							toolCallId: 'tc-mcp',
 							name: toolName,
 							toolTitle,
+							intentionSummary: intention,
 							mcpServerName: 'GitHub',
 							mcpToolName: 'issue_read',
 							arguments: { issue_number: 123 },
@@ -1284,8 +1287,8 @@ suite('mapSessionEvents — history replay', () => {
 			}, {
 				toolName,
 				displayName,
-				invocationMessage: displayName,
-				pastTenseMessage: displayName,
+				invocationMessage: intention ? { markdown: 'Read&nbsp;issue: `Inspect issue 123`' } : displayName,
+				pastTenseMessage: intention ? { markdown: 'Read&nbsp;issue: `Inspect issue 123`' } : displayName,
 				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
 			});
 		});
