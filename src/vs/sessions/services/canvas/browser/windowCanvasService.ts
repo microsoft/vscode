@@ -392,7 +392,7 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 	}
 
 	openNewSession(): Promise<void> | undefined {
-		const id = this.activeCanvasId.get();
+		const id = this._activeCanvasOpen.get()?.id;
 		return id && this.editorService.activeEditorPane?.isVisible() ? this.entries.get(id)?.presentation?.content.openNewSession?.() : undefined;
 	}
 

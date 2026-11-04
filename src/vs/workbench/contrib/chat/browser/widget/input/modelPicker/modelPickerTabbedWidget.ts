@@ -846,6 +846,9 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
+					? button => comparison.renderToggle!(button)
+					: undefined,
 				run: () => {
 					// Starting or leaving a comparison supersedes a pending selection.
 					this._selectionVersion++;

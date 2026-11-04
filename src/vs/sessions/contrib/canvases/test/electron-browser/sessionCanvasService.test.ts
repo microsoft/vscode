@@ -859,7 +859,7 @@ suite('SessionCanvasService', () => {
 		}, {
 			submenuTitles: ['Canvas'],
 			titles: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			groups: ['2_open', '2_open', '2_open', '2_open', '2_open', '2_open'],
+			groups: ['1_running', '1_running', '1_running', '1_running', '1_running', '1_running'],
 			requiresChat: true,
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,

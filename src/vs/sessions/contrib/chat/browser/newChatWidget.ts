@@ -2405,6 +2405,10 @@ export class NewChatWidget extends Disposable {
 
 	setHostVisible(visible: boolean): void {
 		this._aquariumToggle?.setHostVisible(visible);
+		// Another composer can consume the shared draft while this host is hidden.
+		if (visible && this._preserveCustomView && !this._session.get() && !this._newSessionCreation.value) {
+			this._seedWorkspaceDraft();
+		}
 	}
 
 	sendQuery(text: string): Promise<boolean> {

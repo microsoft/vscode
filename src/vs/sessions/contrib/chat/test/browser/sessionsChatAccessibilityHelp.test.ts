@@ -145,7 +145,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual(help, [
 			null,
-			'To show a chat in a window of its own, choose Open in New Window in the context menu of its session or chat in the sessions list, or in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+			'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
 		]);
 	});
 
@@ -956,7 +956,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('Alt-click')),
-			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork\'s context menu.',
+			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Split View from the Open in submenu of the fork\'s context menu.',
 		);
 	});
 
@@ -1107,8 +1107,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 				'workbench.action.navigateDown',
 			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
 			openInGrid: content.includes('Open in Grid'),
-			openToTheSide: content.includes('choose Open to the Side from the session row\'s context menu'),
-		}, { navigation: [true, true, true, true], openInGrid: false, openToTheSide: true });
+			splitView: content.includes('choose Split View from the Open in submenu of the session row\'s context menu'),
+			editorWindow: content.includes('choose Editor Window from the Open in submenu of its context menu in the Sessions list'),
+		}, { navigation: [true, true, true, true], openInGrid: false, splitView: true, editorWindow: true });
 	});
 
 	test('describes evaluator tools only while both feature gates are enabled', async () => {

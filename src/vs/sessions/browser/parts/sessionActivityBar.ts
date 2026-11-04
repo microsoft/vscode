@@ -82,12 +82,10 @@ export class SessionActivityBar extends Disposable {
 
 		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
 		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
-		// In a window with layout modes, such as a chat window, the entries act on the window the strip is in, which the
-		// window that has focus is not yet as a click activates it. Read as an entry runs: the strip is created before it
-		// is in its window.
-		const actionRunner = this._register(new SessionActivityBarActionRunner(() => LayoutModeContext.getValue(scopedContextKeyService)
-			? { windowId: getWindow(this.element).vscodeWindowId } satisfies IWindowCommandContext
-			: undefined));
+		// The entries act on the window the strip is in, which the window that has focus is not yet as a click activates it:
+		// a chat window, or the main window, such as for an entry that would otherwise act on a chat window that has focus.
+		// Read as an entry runs: the strip is created before it is in its window.
+		const actionRunner = this._register(new SessionActivityBarActionRunner(() => ({ windowId: getWindow(this.element).vscodeWindowId } satisfies IWindowCommandContext)));
 		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
