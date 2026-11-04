@@ -49,17 +49,19 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
-import { ChatSendResult, IChatConfirmation, IChatQuestionAnswerValue, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatConfirmation, IChatPlanReviewResult, IChatQuestionAnswerValue, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ChatCustomConfirmationWidget, SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { buildCustomOptionButtons } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.js';
 import { ChatTerminalToolExplanation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolExplanation.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { ChatPlanReviewPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatPlanReviewPart.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
 import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -84,6 +86,7 @@ import {
 	IInboxNotificationItem,
 	IInboxNotificationConfirmationPart,
 	IInboxNotificationQuestionCarouselPart,
+	IInboxNotificationPlanReviewPart,
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	IInboxSessionRow,
@@ -1515,6 +1518,24 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			return;
 		}
 
+		if (part.kind === 'planReview') {
+			const review = this.getPendingPlanReview(part);
+			if (!review) {
+				container.appendChild($('p.inbox-evidence-note', undefined, localize('inboxNotifications.planReview.unavailable', "This plan review is no longer available. Open the session for the latest state.")));
+				return;
+			}
+			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
+			const widget = store.add(this.instantiationService.createInstance(
+				ChatPlanReviewPart,
+				review,
+				{ element: { sessionResource: part.chatResource, isComplete: false } },
+				{ onSubmit: result => this.submitPlanReviewPart(item, part, review, result) },
+			));
+			host.appendChild(widget.domNode);
+			store.add(widget.onDidChangeHeight(() => this.detailScrollableElement.scanDomNode()));
+			return;
+		}
+
 		if (part.kind === 'toolConfirmation') {
 			const titleText = typeof part.title === 'string' ? part.title : renderAsPlaintext(part.title);
 			const messageText = typeof part.message === 'string' ? part.message : renderAsPlaintext(part.message);
@@ -1620,6 +1641,28 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const widgetContainer = inputPartHost.appendChild($('.chat-question-carousel-widget-container'));
 		widgetContainer.appendChild(carouselWidget.domNode);
 		store.add(carouselWidget.onDidChangeHeight(() => this.scrollableElement.scanDomNode()));
+	}
+
+	private getPendingPlanReview(part: IInboxNotificationPlanReviewPart): ChatPlanReviewData | undefined {
+		const context = this.getNeedsInputRequestContext(part.chatResource, part.requestId);
+		if (!context || context.response.isComplete || context.response.isCanceled || context.request.isHiddenFromTranscript
+			|| (context.request.shouldBeRemovedOnSend && !context.request.shouldBeRemovedOnSend.afterUndoStop)) {
+			return undefined;
+		}
+		const review = context.response.response.value[part.reviewIndex];
+		return review instanceof ChatPlanReviewData && review.resolveId === part.resolveId && !review.isUsed && !review.completion.isSettled
+			? review : undefined;
+	}
+
+	private submitPlanReviewPart(item: IInboxNotificationItem, part: IInboxNotificationPlanReviewPart, review: ChatPlanReviewData, result: IChatPlanReviewResult): void {
+		if (this.getPendingPlanReview(part) !== review) {
+			throw new Error(localize('inboxNotifications.planReview.stale', "This plan review is no longer available. Open the session for the latest state."));
+		}
+		const acknowledgeRead = this.captureReadAcknowledgement(item);
+		review.data = result;
+		review.isUsed = true;
+		void review.completion.complete(result);
+		void this.completeNeedsInputNotification(item, acknowledgeRead).catch(onUnexpectedError);
 	}
 
 	private async submitConfirmationPart(
@@ -2865,7 +2908,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const row = this.getRow(item.id);
 		const part = item.needsInputPart;
 		const partKey = part
-			? `${part.kind}:${part.requestId}:${part.kind === 'questionCarousel' ? part.resolveId ?? '' : part.kind === 'toolConfirmation' ? part.toolCallId : ''}`
+			? `${part.kind}:${part.requestId}:${part.kind === 'questionCarousel' ? part.resolveId ?? '' : part.kind === 'toolConfirmation' ? part.toolCallId : part.kind === 'planReview' ? part.resolveId ?? part.reviewIndex : ''}`
 			: '';
 		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}|${safeStringify([row?.workTitle, row?.sessionTitle, row?.pullRequestStates, row?.notifications])}`;
 	}
@@ -3299,6 +3342,12 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				notification.title !== sessionTitle ? notification.title : '', notification.description,
 				notification.needsInputPart?.kind === 'questionCarousel' ? notification.needsInputPart.questions.map(question => question.title).join('\n') : '',
 				notification.needsInputPart?.kind === 'toolConfirmation' ? [notification.needsInputPart.commandLine, notification.needsInputPart.toolInput].filter(Boolean).join('\n') : '',
+				notification.needsInputPart?.kind === 'planReview' ? [
+					notification.needsInputPart.title,
+					renderAsPlaintext(new MarkdownString(notification.needsInputPart.content)),
+					...notification.needsInputPart.actions.map(action => action.label),
+					localize('inboxNotifications.planReview.reject', "Reject"),
+				].join('\n') : '',
 			].filter(Boolean).join('\n')) : []),
 			...(interpretation ? [
 				localize('inboxNotifications.detail.interpretation', "Agent interpretation"),
