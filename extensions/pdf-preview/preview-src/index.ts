@@ -10,8 +10,8 @@ import './index.css';
 
 type ExtensionMessage =
 	| { readonly type: 'load'; readonly data: Uint8Array }
-	| { readonly type: 'message'; readonly text: string }
-	| { readonly type: 'password'; readonly password: string }
+	| { readonly type: 'message'; readonly text: string; readonly load?: number }
+	| { readonly type: 'password'; readonly password: string; readonly load: number }
 	| { readonly type: 'zoom'; readonly value: number | string }
 	| { readonly type: 'goToPage'; readonly page: string }
 	| { readonly type: 'goToSection'; readonly index: number }
@@ -51,13 +51,17 @@ linkService.setViewer(viewer);
 
 let loadingTask: PDFDocumentLoadingTask | undefined;
 let loads = Promise.resolve();
+let latestLoad = 0;
 let sectionDestinations: Destination[] = [];
 let setPassword: ((password: string) => void) | undefined;
 
-async function load(data: Uint8Array): Promise<void> {
+async function load(data: Uint8Array, id: number): Promise<void> {
 	await workerStarted;
 	// Documents share the worker, which pdf.js only allows once the previous document is destroyed
 	await loadingTask?.destroy();
+	if (id !== latestLoad) {
+		return; // A newer version of the file arrived meanwhile
+	}
 	const task = loadingTask = getDocument({
 		data,
 		cMapUrl: `${assets}cmaps/`,
@@ -68,14 +72,20 @@ async function load(data: Uint8Array): Promise<void> {
 	});
 	task.onPassword = (callback: (password: string) => void, reason: number) => {
 		setPassword = callback;
-		vscode.postMessage({ type: 'password', incorrect: reason === PasswordResponses.INCORRECT_PASSWORD });
+		vscode.postMessage({ type: 'password', incorrect: reason === PasswordResponses.INCORRECT_PASSWORD, load: id });
 	};
 
 	try {
 		const pdfDocument = await task.promise;
 		// Restore the position after a reload or after the editor was hidden
 		const location = vscode.getState()?.location;
-		eventBus.on('pagesinit', () => location ? linkService.setHash(location) : viewer.currentScaleValue = 'auto', { once: true });
+		eventBus.on('pagesinit', () => {
+			viewer.currentScaleValue = 'auto';
+			if (location) {
+				// The new version of the file may have fewer pages
+				linkService.setHash(location.replace(/^page=\d+/, page => `page=${Math.min(Number(page.slice(5)), pdfDocument.numPages)}`));
+			}
+		}, { once: true });
 		viewer.setDocument(pdfDocument);
 		linkService.setDocument(pdfDocument);
 		message.textContent = '';
@@ -124,16 +134,22 @@ for (const event of ['updatefindmatchescount', 'updatefindcontrolstate']) {
 
 window.addEventListener('message', ({ data }: MessageEvent<ExtensionMessage>) => {
 	switch (data.type) {
-		case 'load':
+		case 'load': {
+			const id = ++latestLoad;
 			// A document that waits for its password would hold up the next one
 			void loadingTask?.destroy();
-			loads = loads.then(() => load(data.data));
+			loads = loads.then(() => load(data.data, id)).catch(() => vscode.postMessage({ type: 'error' }));
 			break;
+		}
 		case 'message':
-			message.textContent = data.text;
+			if (data.load === undefined || data.load === latestLoad) {
+				message.textContent = data.text;
+			}
 			break;
 		case 'password':
-			setPassword?.(data.password);
+			if (data.load === latestLoad) {
+				setPassword?.(data.password);
+			}
 			break;
 		case 'zoom':
 			if (typeof data.value === 'number') {

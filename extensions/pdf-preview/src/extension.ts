@@ -16,13 +16,13 @@ type WebviewMessage =
 	| { readonly type: 'loaded'; readonly pageCount: number; readonly pageLabels: readonly string[] | null; readonly outline: readonly PdfSection[] }
 	| { readonly type: 'view'; readonly page: number; readonly scale: number }
 	| { readonly type: 'find'; readonly current: number; readonly total: number }
-	| { readonly type: 'password'; readonly incorrect: boolean }
+	| { readonly type: 'password'; readonly incorrect: boolean; readonly load: number }
 	| { readonly type: 'error' };
 
 type ExtensionMessage =
 	| { readonly type: 'load'; readonly data: Uint8Array }
-	| { readonly type: 'message'; readonly text: string }
-	| { readonly type: 'password'; readonly password: string }
+	| { readonly type: 'message'; readonly text: string; readonly load?: number }
+	| { readonly type: 'password'; readonly password: string; readonly load: number }
 	| { readonly type: 'zoom'; readonly value: number | string }
 	| { readonly type: 'goToPage'; readonly page: string }
 	| { readonly type: 'goToSection'; readonly index: number }
@@ -181,6 +181,7 @@ class PdfPreview {
 
 	private readonly _disposables: vscode.Disposable[] = [];
 	private _reloadTimer: ReturnType<typeof setTimeout> | undefined;
+	private _passwordPrompt: vscode.CancellationTokenSource | undefined;
 	private _loads = 0;
 	private _isDisposed = false;
 
@@ -226,7 +227,10 @@ class PdfPreview {
 	private async _onMessage(message: WebviewMessage): Promise<void> {
 		switch (message.type) {
 			case 'ready':
-				return this._load();
+				// A new webview, e.g. after the editor was hidden, shows no document yet
+				this.pageCount = 0;
+				void this._load();
+				break;
 			case 'loaded':
 				({ pageCount: this.pageCount, pageLabels: this.pageLabels, outline: this.outline } = message);
 				break;
@@ -237,14 +241,20 @@ class PdfPreview {
 				this.findResult = message;
 				break;
 			case 'password': {
+				this._passwordPrompt?.cancel();
+				const prompt = this._passwordPrompt = new vscode.CancellationTokenSource();
 				const password = await vscode.window.showInputBox({
 					password: true,
 					ignoreFocusOut: true,
 					prompt: message.incorrect
 						? vscode.l10n.t("The password is incorrect. Enter the password of {0}.", basename(this._resource))
 						: vscode.l10n.t("Enter the password of {0}.", basename(this._resource)),
-				});
-				return this.post(password === undefined ? { type: 'message', text: vscode.l10n.t("The PDF is protected with a password.") } : { type: 'password', password });
+				}, prompt.token);
+				prompt.dispose();
+				// The load tells the webview whether the answer is for the document it shows
+				return this.post(password === undefined
+					? { type: 'message', text: vscode.l10n.t("The PDF is protected with a password."), load: message.load }
+					: { type: 'password', password, load: message.load });
 			}
 			case 'error':
 				return this.post({ type: 'message', text: invalidMessage() });
@@ -259,8 +269,11 @@ class PdfPreview {
 			return; // A newer read started meanwhile
 		}
 		if (isCompletePdf(data)) {
-			// Node.js buffers would be sent as JSON, so send a plain view of their bytes
-			this.post({ type: 'load', data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) });
+			// A prompt for the password of the previous version is no longer needed
+			this._passwordPrompt?.cancel();
+			// Send a copy: a Node.js buffer would be sent as JSON, and a view would send all of the
+			// buffer it is part of
+			this.post({ type: 'load', data: new Uint8Array(data) });
 		} else if (!this.pageCount) {
 			// Otherwise keep showing the previous document, e.g. while the file is being written
 			this.post({ type: 'message', text: invalidMessage() });
@@ -275,6 +288,7 @@ class PdfPreview {
 	private _dispose(): void {
 		this._isDisposed = true;
 		clearTimeout(this._reloadTimer);
+		this._passwordPrompt?.cancel();
 		vscode.Disposable.from(...this._disposables).dispose();
 		this._onDidChange();
 	}
