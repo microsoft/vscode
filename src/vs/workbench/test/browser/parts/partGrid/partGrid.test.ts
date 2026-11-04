@@ -583,7 +583,10 @@ suite('Part Grid', () => {
 		// A webview draws over the left part from outside the grid
 		const anchor = cellOf('left').querySelector('.part-grid-card')!.appendChild(mainWindow.document.createElement('div'));
 		const overlay = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const leftRect = cellOf('left').getBoundingClientRect();
+		overlay.style.cssText = `position: fixed; left: ${leftRect.left}px; top: ${leftRect.top}px; width: ${leftRect.width}px; height: ${leftRect.height}px; z-index: 1;`;
 		const iframe = overlay.appendChild(mainWindow.document.createElement('iframe'));
+		iframe.style.cssText = 'width: 100%; height: 100%; border: none; display: block;';
 		disposables.add(toDisposable(() => overlay.remove()));
 		disposables.add(registerOverlayAnchor(anchor, { setHidden: () => { }, element: overlay }));
 		const showing = () => ['left', 'right'].filter(id => cellOf(id).querySelector('.part-grid-card')!.classList.contains('part-grid-pointer-over'));
@@ -593,8 +596,12 @@ suite('Part Grid', () => {
 		const overOtherPart = over(cellOf('right').querySelector('.part-grid-card')!);
 		const outsideTheGrid = over(mainWindow.document.body);
 		over(iframe);
-		iframe.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null }));
+		iframe.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: -10, clientY: -10 }));
 		const outOfTheWindow = showing();
+		// Straight from the other part into the webview, whose frame takes the pointer: the window has only the pointerout
+		over(cellOf('right').querySelector('.part-grid-card')!);
+		cellOf('right').querySelector('.part-grid-card')!.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: leftRect.left + leftRect.width / 2, clientY: leftRect.top + leftRect.height / 2 }));
+		const fromOtherPartIntoWebview = showing();
 		// Out of the window from inside the webview's frame, which keeps its pointer events: only the window's mouseleave
 		over(iframe);
 		mainWindow.document.documentElement.dispatchEvent(new MouseEvent('mouseleave'));
@@ -607,11 +614,12 @@ suite('Part Grid', () => {
 		grid.removeCell('left');
 		const partLeft = card.classList.contains('part-grid-pointer-over');
 
-		assert.deepStrictEqual({ overWebview, overOtherPart, outsideTheGrid, outOfTheWindow, outFromTheWebview, windowBlurred, partLeft }, {
+		assert.deepStrictEqual({ overWebview, overOtherPart, outsideTheGrid, outOfTheWindow, fromOtherPartIntoWebview, outFromTheWebview, windowBlurred, partLeft }, {
 			overWebview: ['left'],
 			overOtherPart: ['right'],
 			outsideTheGrid: [],
 			outOfTheWindow: [],
+			fromOtherPartIntoWebview: ['left'],
 			outFromTheWebview: [],
 			windowBlurred: [],
 			partLeft: false

@@ -461,10 +461,11 @@ export class PartGrid extends Disposable {
 		// such as a webview, which the card's own hover does not see
 		const targetWindow = getWindow(container);
 		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => this.setPointerOverCell(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined), true));
+		// Into a webview, the window has a pointerout but no pointerover: what is under the pointer then, such as the frame
+		// of the webview, is where it went; nothing there, it left the window
 		this._register(addDisposableListener(targetWindow.document, 'pointerout', e => {
-			if (!e.relatedTarget) {
-				this.setPointerOverCell(undefined); // out of the window
-			}
+			const next = isHTMLElement(e.relatedTarget) ? e.relatedTarget : targetWindow.document.elementFromPoint(e.clientX, e.clientY);
+			this.setPointerOverCell(isHTMLElement(next) ? this.findCellAt(next) : undefined);
 		}, true));
 		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
 		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, () => this.setPointerOverCell(undefined)));
