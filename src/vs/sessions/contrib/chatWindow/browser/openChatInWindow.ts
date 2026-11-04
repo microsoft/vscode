@@ -13,6 +13,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -158,9 +159,10 @@ registerAction2(class MoveChatToMainWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatWindowService = accessor.get(IChatWindowService);
-		const window = chatWindowService.activeWindow;
+		// The window it is run from, such as by a control of a window that does not have focus yet, else the focused one.
+		const window = resolveChatWindow(accessor, args);
 		if (window) {
 			await chatWindowService.moveToMainWindow(window);
 		}
