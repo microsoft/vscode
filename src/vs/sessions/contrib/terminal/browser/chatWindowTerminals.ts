@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveElement, isAncestor } from '../../../../base/browser/dom.js';
-import { timeout } from '../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -13,7 +13,7 @@ import { TerminalLocation } from '../../../../platform/terminal/common/terminal.
 import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -87,6 +87,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	constructor(
 		private readonly _source: IChatWindowTerminalsSource,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) {
@@ -301,14 +302,42 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				}
 				return;
 			}
-			await this._terminalService.moveToTerminalView(instance);
+			// In no group: through the background, not the panel.
+			this._terminalService.moveToBackground(instance);
+			instance.target = TerminalLocation.Panel;
 		}
 		if (!this._terminalService.foregroundInstances.includes(instance)) {
 			await this._terminalService.showBackgroundTerminal(instance, true);
 		}
+		// Out of the panel of the main window, such as a terminal of the session that showed there: its group there focuses
+		// the terminal that becomes its active one as this one leaves it, which would take the focus to the main window.
+		const panelGroup = this._terminalGroupService.getGroupForInstance(instance);
+		if (panelGroup && panelGroup.activeInstance === instance && panelGroup.terminalInstances.length > 1) {
+			panelGroup.setActiveInstanceByIndex(panelGroup.terminalInstances.findIndex(candidate => candidate !== instance));
+		}
 		this._terminalService.moveToEditor(instance, group.id);
 		if (focus) {
+			// Once it shows in the group: until then it is still where it was, such as in the panel of the main window.
+			await this._whenShownIn(group, instance);
 			await instance.focusWhenReady(true);
+		}
+	}
+
+	/** Resolves once `group` shows `instance`, or after a while if it does not. */
+	private async _whenShownIn(group: IEditorGroup, instance: ITerminalInstance): Promise<void> {
+		const shows = () => group.editors.some(editor => isEqual(editor.resource, instance.resource));
+		if (shows()) {
+			return;
+		}
+		const store = new DisposableStore();
+		try {
+			await raceTimeout(new Promise<void>(resolve => store.add(group.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_OPEN && shows()) {
+					resolve();
+				}
+			}))), 2000);
+		} finally {
+			store.dispose();
 		}
 	}
 

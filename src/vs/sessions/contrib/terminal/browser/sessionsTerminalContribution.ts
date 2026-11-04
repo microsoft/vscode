@@ -18,7 +18,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -987,10 +987,11 @@ registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminal
 class SessionsChatWindowTerminals extends ChatWindowTerminals {
 	constructor(
 		@ITerminalService terminalService: ITerminalService,
+		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IChatWindowService chatWindowService: IChatWindowService,
 	) {
-		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, editorGroupsService, chatWindowService);
+		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, terminalGroupService, editorGroupsService, chatWindowService);
 	}
 }
 

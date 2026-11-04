@@ -19,7 +19,7 @@ import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js'
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ICreateTerminalOptions, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ICreateTerminalOptions, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -88,6 +88,10 @@ suite('Chat window terminals', () => {
 		readonly groupsBefore?: number;
 		/** The terminal of the session, once it is created: the window waits for it. */
 		readonly pendingTerminal?: Promise<ITerminalInstance | undefined>;
+		/** The terminals of a group of the main window's panel, the first of them its active one. */
+		readonly panelGroup?: ITerminalInstance[];
+		/** Whether a terminal moved to an editor opens there later, as the editor service opens it. */
+		readonly opensLater?: boolean;
 	}
 
 	function createEnvironment(options: IEnvironmentOptions = {}) {
@@ -138,7 +142,12 @@ suite('Chat window terminals', () => {
 			override moveToEditor(instance: ITerminalInstance, groupId: number) {
 				instance.target = TerminalLocation.Editor;
 				calls.push(`toEditor:${groupId}`);
-				terminalsGroup.editors.push(editor('workbench.editors.terminal', instance.resource));
+				panelGroup?.instances.splice(panelGroup.instances.indexOf(instance), 1);
+				if (options.opensLater) {
+					setTimeout(() => { calls.push('opened'); terminalsGroup.open(editor('workbench.editors.terminal', instance.resource)); }, 10);
+				} else {
+					terminalsGroup.editors.push(editor('workbench.editors.terminal', instance.resource));
+				}
 			}
 			override async moveToTerminalView() { calls.push('toTerminalView'); }
 			override moveToBackground(instance: ITerminalInstance) {
@@ -149,6 +158,16 @@ suite('Chat window terminals', () => {
 			override async createTerminal(createOptions?: ICreateTerminalOptions) {
 				calls.push(`new:${JSON.stringify(createOptions?.location)}`);
 				return terminal(100);
+			}
+		}());
+		const panelGroup = options.panelGroup && { instances: options.panelGroup, active: 0 };
+		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
+			override getGroupForInstance(instance: ITerminalInstance) {
+				return panelGroup?.instances.includes(instance) ? upcastPartial<ITerminalGroup>({
+					get activeInstance() { return panelGroup.instances[panelGroup.active]; },
+					get terminalInstances() { return panelGroup.instances; },
+					setActiveInstanceByIndex: (index: number) => { calls.push(`panelActive:${panelGroup.instances[index].instanceId}`); panelGroup.active = index; },
+				}) : undefined;
 			}
 		}());
 		const otherGroups = Array.from({ length: options.groupsBefore ?? 0 }, (_, index) => upcastPartial<IEditorGroup>({ id: 100 + index }));
@@ -318,6 +337,18 @@ suite('Chat window terminals', () => {
 			calls: ['toBackground'],
 			movedBack: true,
 		});
+	});
+
+	test('a terminal of the session from the panel of the main window, the active one of its group there, leaves it without that group focusing another terminal there, and takes the focus only once it shows in the window', async () => {
+		const calls: string[] = [];
+		const instance = terminal(9, { calls });
+		const sibling = terminal(10, { calls });
+		const environment = createEnvironment({ terminal: instance, instances: [instance, sibling], foreground: [instance, sibling], panelGroup: [instance, sibling], opensLater: true });
+
+		await environment.terminals.show(environment.window, true);
+		environment.terminals.release(environment.window);
+
+		assert.deepStrictEqual([...environment.calls, ...calls].filter(call => call !== 'toBackground'), ['createPart', 'terminalOf:session-1:{"viewColumn":0}', 'panelActive:10', 'toEditor:7', 'opened', 'focus']);
 	});
 
 	test('a terminal opened in the main part moves to the part that holds the terminals; other editors stay', async () => {
