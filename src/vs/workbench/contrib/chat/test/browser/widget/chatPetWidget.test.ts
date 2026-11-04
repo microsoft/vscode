@@ -2264,7 +2264,7 @@ suite('ChatPetWidget', () => {
 			override readonly isPendingConfirmation = constObservable(undefined);
 			override readonly response = new class extends mock<IResponse>() { override readonly value = parts; }();
 		}();
-		const request = new class extends mock<IChatRequestModel>() { override readonly response = response; }();
+		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
 		const model = new class extends mock<IChatModel>() {
 			override readonly onDidChange = Event.None;
 			override readonly hasActiveRequest = constObservable(true);
@@ -2304,6 +2304,18 @@ suite('ChatPetWidget', () => {
 		first.toolSpecificData = { kind: 'subagent', isActive: false };
 		responseChanged.fire({ reason: 'other' });
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 1);
+		assert.ok(firstMini.classList.contains('chat-pet-subagent-despawning'));
+		assert.strictEqual(overlay.querySelector('.chat-pet-subagent'), minis[1]);
+		const third = createSubagent('third');
+		const thirdMini = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')[1];
+		parts.splice(parts.indexOf(third), 1);
+		const replacement = new ChatToolInvocation(undefined, { id: 'replacement', displayName: 'Replacement', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'replacement', undefined, {});
+		replacement.toolSpecificData = { kind: 'subagent', isActive: true };
+		parts.push(replacement);
+		responseChanged.fire({ reason: 'other' });
+		assert.ok(thirdMini.classList.contains('chat-pet-subagent-despawning'));
+		assert.strictEqual(overlay.querySelector('.chat-pet-subagent'), minis[1]);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
 		assert.ok(overlay.querySelector('.chat-pet-subagent-despawning img')?.getAttribute('src')?.includes('buddy-respawn-'));
 		modelValue.set(undefined, undefined);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 0);
@@ -2321,7 +2333,7 @@ suite('ChatPetWidget', () => {
 			override readonly isPendingConfirmation = constObservable(undefined);
 			override readonly response = new class extends mock<IResponse>() { override readonly value = [tool]; }();
 		}();
-		const request = new class extends mock<IChatRequestModel>() { override readonly response = response; }();
+		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
 		const model = new class extends mock<IChatModel>() {
 			override readonly onDidChange = Event.None;
 			override readonly hasActiveRequest = constObservable(true);

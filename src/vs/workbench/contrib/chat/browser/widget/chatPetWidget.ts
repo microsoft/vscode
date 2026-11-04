@@ -1246,7 +1246,8 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
-	private readonly _subagentPets: { element: HTMLElement; canvas: HTMLCanvasElement; disposables: DisposableStore }[] = [];
+	private readonly _subagentPets = new Map<string, { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; eyes: HTMLElement; disposables: DisposableStore; slot: number; side: 'left' | 'right' }>();
+	private _subagentModel: IChatModel | undefined;
 	private readonly _subagentEffects = this._register(new DisposableStore());
 	private readonly _subagentLayer: HTMLElement;
 	private parent: HTMLElement;
@@ -1482,12 +1483,15 @@ export class ChatPetWidget extends Disposable {
 		}
 		this._register(autorun(reader => {
 			const model = this._host.read(reader).model.read(reader);
+			if (model !== this._subagentModel) {
+				this._updateSubagentPets(new Set());
+				this._subagentModel = model;
+			}
 			if (!model) {
-				this._updateSubagentPets(0);
 				return;
 			}
 			observableSignalFromEvent(this, model.onDidChange).read(reader);
-			let count = 0;
+			const subagents = new Set<string>();
 			for (const request of model.getRequests()) {
 				const response = request.response;
 				if (!response) {
@@ -1502,11 +1506,11 @@ export class ChatPetWidget extends Disposable {
 					part.state.read(reader);
 					const data = part.toolSpecificData;
 					if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
-						count++;
+						subagents.add(JSON.stringify([request.id, part.toolCallId]));
 					}
 				}
 			}
-			this._updateSubagentPets(count);
+			this._updateSubagentPets(subagents);
 		}));
 		this._propellerPoseContainer = dom.append(this._visual, dom.$('.chat-pet-propeller-pose', { 'aria-hidden': 'true' }));
 		this._propellerContainer = dom.append(this._propellerPoseContainer, dom.$('.chat-pet-propeller.hidden'));
@@ -2845,20 +2849,32 @@ export class ChatPetWidget extends Disposable {
 		return this._button.element.offsetLeft;
 	}
 
-	private _updateSubagentPets(count: number): void {
-		while (this._subagentPets.length > count) {
-			this._despawnSubagentPet(this._subagentPets.pop()!);
+	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
+		for (const [id, pet] of this._subagentPets) {
+			if (!subagents.has(id)) {
+				this._subagentPets.delete(id);
+				this._despawnSubagentPet(pet);
+			}
 		}
-		while (this._subagentPets.length < count) {
+		for (const id of subagents) {
+			if (this._subagentPets.has(id)) {
+				continue;
+			}
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
 			const miniScale = 0.5 * (this._scale || 1);
 			const petLeft = this._button.element.offsetLeft;
 			const bounds = this._getHorizontalBounds();
 			const midpoint = bounds ? (bounds.minimumLeft + bounds.maximumLeft) / 2 : (this._overlay.clientWidth - this._getDisplaySize()) / 2;
 			const miniWidth = 48 * miniScale;
-			const left = petLeft < midpoint
-				? petLeft + this._getDisplaySize() + miniWidth * this._subagentPets.length
-				: petLeft - miniWidth * (this._subagentPets.length + 1);
+			const side = petLeft < midpoint ? 'right' : 'left';
+			const occupiedSlots = new Set([...this._subagentPets.values()].filter(pet => pet.side === side).map(pet => pet.slot));
+			let slot = 0;
+			while (occupiedSlots.has(slot)) {
+				slot++;
+			}
+			const left = side === 'right'
+				? petLeft + this._getDisplaySize() + miniWidth * slot
+				: petLeft - miniWidth * (slot + 1);
 			element.style.left = `${left}px`;
 			element.style.top = `${this._button.element.offsetTop + this._getDisplaySize() - 48 * miniScale}px`;
 			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
@@ -2882,16 +2898,16 @@ export class ChatPetWidget extends Disposable {
 			const sprite: ChatPetSpriteElement = { container: element, canvas, image, color: this._color };
 			disposables.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation)));
 			setChatPetImageSource(image, source.url);
-			this._subagentPets.push({ element, canvas, disposables });
+			this._subagentPets.set(id, { element, canvas, image, eyes, disposables, slot, side });
 		}
 	}
 
-	private _despawnSubagentPet(pet: { element: HTMLElement; canvas: HTMLCanvasElement; disposables: DisposableStore }): void {
+	private _despawnSubagentPet(pet: { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; eyes: HTMLElement; disposables: DisposableStore }): void {
 		this._subagentEffects.delete(pet.disposables);
-		pet.element.querySelector('img')?.remove();
+		pet.image.remove();
 		pet.element.classList.remove('chat-pet-subagent', 'arriving');
 		pet.element.classList.add('chat-pet-subagent-despawning');
-		pet.element.querySelector('.chat-pet-eyes')?.remove();
+		pet.eyes.remove();
 		const effects = this._subagentEffects.add(new DisposableStore());
 		const image = dom.append(pet.element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 		image.alt = '';
