@@ -6,9 +6,8 @@
 import assert from 'assert';
 import { $, append, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
@@ -35,6 +34,19 @@ import { ISessionScope } from '../../../../services/sessions/browser/sessionScop
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
+import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
+import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
+import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../browser/media/sessionChangesEditor.css';
 
@@ -294,5 +306,60 @@ suite('SessionChangesEditor changed files list', () => {
 			togglesFromHeader: true,
 			host: true,
 		});
+	});
+});
+
+suite('SessionChangesEditor disposal', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the diffs it shows do not render again as they dispose, such as with the services they render with disposed', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		// The real diffs, as the multi-diff editor's tests create them
+		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
+		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
+		// Instantiation services that dispose as the workbench's do, which those of the test services do not
+		const editorInstantiationService = store.add(new InstantiationService(new ServiceCollection(), false, instantiationService));
+
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const editor = store.add(editorInstantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		editor.layout(new Dimension(800, 400));
+		const widget = (editor as unknown as { widget: MultiDiffEditorWidget }).widget;
+		const documents = [URI.file('/repo/added.png'), URI.file('/repo/other.png')].map(modified => store.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: undefined, modified: new DiffItemSource(modified, undefined) }, { dispose() { } })));
+		const viewModel = store.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documents) }));
+		await waitForState(viewModel.items, items => items.length === documents.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const errors: string[] = [];
+		const handler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(String(error)));
+		try {
+			editor.dispose();
+		} finally {
+			setUnexpectedErrorHandler(handler);
+		}
+
+		assert.deepStrictEqual(errors, []);
 	});
 });

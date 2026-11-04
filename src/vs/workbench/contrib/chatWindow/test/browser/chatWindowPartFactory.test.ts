@@ -18,6 +18,8 @@ import { BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow } from '../../../../
 import { IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { createEditorParts, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatWindowPartFactory } from '../../browser/chatWindowPartFactory.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { IChatWindowLook } from '../../browser/chatWindow.js';
 
 suite('Chat window: part factory', () => {
@@ -60,5 +62,37 @@ suite('Chat window: part factory', () => {
 			closed: 2,
 			registeredAfter: 0
 		});
+	});
+
+	test('a part that closes leaves the services of the window, created from the same services, working', async () => {
+		const disposables = store.add(new DisposableStore());
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		// Instantiation services that dispose as the workbench's do, which those of the test services do not
+		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(), false, testInstantiationService));
+		const parts = await createEditorParts(instantiationService, disposables);
+		testInstantiationService.stub(IEditorGroupsService, parts);
+
+		const windowContainer = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => windowContainer.remove() });
+		const window = new class extends mock<IAuxiliaryWindow>() {
+			override readonly window = mainWindow as IAuxiliaryWindow['window'];
+			override readonly container = windowContainer;
+			override readonly onUnload = disposables.add(new Emitter<void>()).event;
+			override readonly onBeforeUnload = disposables.add(new Emitter<BeforeAuxiliaryWindowUnloadEvent>()).event;
+		}();
+		// The services of the window, which its own and every part of it are created with
+		const services = new ServiceCollection();
+		const windowInstantiationService = disposables.add(instantiationService.createChild(services));
+		const look: IChatWindowLook = { gap: constObservable(0), mainPartOptions: constObservable({ showTabs: 'single' }) };
+		const factory = disposables.add(instantiationService.createInstance(ChatWindowPartFactory, window, services, look));
+
+		const created = factory.createPart();
+		created.part.close();
+
+		// What the window creates next, such as its title bar's actions as its layout changes, gets the window's
+		const injected = windowInstantiationService.invokeFunction(accessor => accessor.get(IInstantiationService));
+
+		assert.strictEqual(injected, windowInstantiationService);
 	});
 });

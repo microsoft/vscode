@@ -8,7 +8,7 @@ import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
@@ -482,7 +482,20 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			}
 		}
 
-		const viewModel = await input.getViewModel();
+		let viewModel: MultiDiffEditorViewModel | undefined;
+		while (!viewModel) {
+			try {
+				viewModel = await input.getViewModel();
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					throw error;
+				}
+				// What the input resolved was let go of meanwhile: resolve it again while it is still to show
+				if (token.isCancellationRequested || this.input !== input || input.isDisposed()) {
+					return;
+				}
+			}
+		}
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
@@ -656,11 +669,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 					retention,
 					dispose: () => {
 						retention.dispose();
-						input.clear();
+						this._clearUnlessShownElsewhere(input);
 					},
 				};
 			} else {
-				input.clear();
+				this._clearUnlessShownElsewhere(input);
 			}
 		}
 		if (!this._outgoingContent.value) {
@@ -672,6 +685,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this._releaseOutgoingContent(true);
 			}
 		});
+	}
+
+	/**
+	 * Lets go of what `input` resolved, unless an editor in another group shows it, such as the one its tab moved to,
+	 * which shows or resolves it.
+	 */
+	private _clearUnlessShownElsewhere(input: SessionChangesEditorInput): void {
+		if (!this.editorGroupService.groups.some(group => group.id !== this.group.id && group.contains(input))) {
+			input.clear();
+		}
 	}
 
 	/** Takes over the outgoing content's view model when the same input is set again (e.g. a forced reload) instead of releasing it. */
