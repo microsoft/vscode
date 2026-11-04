@@ -210,6 +210,8 @@ export class ChatWindowGrid extends Disposable {
 	private _sizes: ChatWindowPartSizes = {};
 	/** The arrangement of the part grid as the window arranged it: sizes are remembered for it only while the grid still shows it. */
 	private _arranged: string | undefined;
+	/** The layout mode the grid was last arranged for. */
+	private _arrangedMode: ChatWindowLayoutMode | undefined;
 	private _createdPartsChanging = false;
 	/** The height the terminals take once the cells of the arrangement they moved in show. */
 	private _pendingTerminalsHeight: number | undefined;
@@ -373,6 +375,15 @@ export class ChatWindowGrid extends Disposable {
 			return;
 		}
 		const mode = this._layoutMode.get();
+		// A layout mode arranges the parts as it does, from its own arrangement: parts the user moved go back to their
+		// places, also when the mode arranges them as the one before it, such as Side by Side and Chat Only, and a part
+		// it hid, such as the main part in Chat Only, shows again at its size rather than where the terminals moved
+		// beside it while hidden.
+		if (mode !== this._arrangedMode && this._arrangedMode !== undefined) {
+			this._topologyKey = undefined;
+			this._baseTopologyKey = undefined;
+		}
+		this._arrangedMode = mode;
 		this._arrange(mode, this._dimension);
 		const grid = this._grid.value!;
 		// The terminals keep the height they have, or move with, as cells show and hide: a hidden cell, such as the title

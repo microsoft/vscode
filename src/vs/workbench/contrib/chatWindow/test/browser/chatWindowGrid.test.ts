@@ -370,6 +370,58 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('a part moved beside the terminals goes back to its place, with its size, once the layout mode changes, also to a mode that arranges the parts as the one before', () => {
+		const { mode, grid, open } = setupWithTerminals();
+		open();
+		const sizeOf = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).height;
+		const before = { shape: grid.partGrid!.describe(), main: sizeOf(ChatWindowGridCell.Main) };
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Terminals, direction: Direction.Up });
+		const moved = grid.partGrid!.describe();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ moved, after: { shape: grid.partGrid!.describe(), main: sizeOf(ChatWindowGridCell.Main) } }, {
+			moved: 'column(titleRow, chat, main, terminals)',
+			after: before
+		});
+	});
+
+	test('each layout mode arranges the parts from its own arrangement: a part moved beside the terminals, adopted as cells showed meanwhile, and the main part hidden in Chat Only come back to their places at their sizes', () => {
+		const roundTrip = (position: ChatWindowTerminalPosition, move: boolean) => {
+			const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+			const titleRowVisible = observableValue('titleRowVisible', true);
+			const terminalsPart = createPartWithEditors('terminals');
+			const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+			const titleRow = { ...createChrome(30), visible: titleRowVisible };
+			const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow, strip: createChrome(34), terminals }, mode, constObservable(0), undefined, constObservable(position), undefined, editorGroupsService));
+			grid.layout(1000, 800);
+			terminals.set(terminalsPart.part, undefined);
+			terminalsPart.setEmpty(false);
+			const state = () => {
+				const { width, height } = grid.partGrid!.getCellSize(ChatWindowGridCell.Main);
+				return { shape: grid.partGrid!.describe(), main: `${width}x${height}` };
+			};
+			const before = state();
+			if (move) {
+				// Dropped on the top edge of the terminals; the title row then shows again, as the chat no longer leads
+				grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Terminals, direction: Direction.Up });
+				titleRowVisible.set(false, undefined);
+				titleRowVisible.set(true, undefined);
+			}
+			mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+			mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+			return { back: JSON.stringify(state()) === JSON.stringify(before) };
+		};
+
+		assert.deepStrictEqual({
+			movedAboveFullWidthTerminals: roundTrip(ChatWindowTerminalPosition.FullWidth, true),
+			terminalsUnderTheEditor: roundTrip(ChatWindowTerminalPosition.UnderEditor, false),
+		}, {
+			movedAboveFullWidthTerminals: { back: true },
+			terminalsUnderTheEditor: { back: true },
+		});
+	});
+
 	test('a part does not merge into the terminals, whose groups stay locked to terminals, as it does not into the chat', () => {
 		const { grid, open } = setupWithTerminals();
 		open();
