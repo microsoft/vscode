@@ -246,6 +246,19 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}
 		}));
 		this._updateRegistration();
+		let previousScope: string | undefined;
+		this._register(autorun(reader => {
+			if (!enabled.read(reader) || this._workspaceRepositoryChoices.read(reader) === undefined) {
+				return;
+			}
+			const repositories = this._workspaceRepositories.read(reader);
+			const scope = JSON.stringify(repositories === undefined ? null : [...repositories].sort());
+			const changed = previousScope !== undefined && previousScope !== scope;
+			previousScope = scope;
+			if (changed) {
+				void this._discoverAndSeed({ trigger: 'configurationChange', retry: true });
+			}
+		}));
 		const widgetListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
 		for (const widget of this._chatWidgetService.getAllWidgets()) {
 			widgetListeners.set(widget, this._watchDraftInput(widget));
@@ -305,6 +318,12 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			this._editorLogService.warn('[CloudSandbox] Failed to resolve workspace repository', root.toString(), error);
 			return undefined;
 		}
+	}
+
+	protected override async _getDiscoveryRepositories(token: CancellationToken): Promise<readonly string[] | undefined> {
+		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
+		const repositories = this._workspaceRepositories.get();
+		return repositories === undefined ? undefined : [...repositories];
 	}
 
 	protected override _updateRegistration(): void {

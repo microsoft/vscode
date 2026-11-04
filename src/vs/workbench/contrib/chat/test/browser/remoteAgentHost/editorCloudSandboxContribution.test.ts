@@ -63,7 +63,7 @@ import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSe
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
-import { CloudSandboxSessionFeed } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
+import { CloudSandboxSessionFeed, CloudSandboxSessionFeedRefresh } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
@@ -136,6 +136,9 @@ class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContri
 	activate(): Promise<boolean> {
 		return this._waitForActivation(sessionType);
 	}
+	refreshFromFeed(refresh: CloudSandboxSessionFeedRefresh): Promise<void> {
+		return this._refreshFromFeed(refresh);
+	}
 	protected override _pollJitter(): number {
 		return 0;
 	}
@@ -193,7 +196,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly remoteAgentHostService?: IRemoteAgentHostService;
-	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
+	readonly listSessions?: (options?: ICloudSandboxDiscoveryOptions) => Promise<ICloudSandboxDiscoveryResult>;
 	readonly storageService?: IStorageService;
 	readonly workspaceFolders?: readonly URI[];
 	readonly repositories?: readonly IGitRepository[];
@@ -260,6 +263,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
 	const discoveryTriggers: ICloudSandboxDiscoveryOptions['trigger'][] = [];
+	const discoveryScopes: (readonly string[] | undefined)[] = [];
 	const errorNotifications: NotificationMessage[] = [];
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
@@ -414,7 +418,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			calls.discovered++;
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			discoveryTriggers.push(discoveryOptions?.trigger);
-			return options?.listSessions ? options.listSessions() : state.result;
+			discoveryScopes.push(discoveryOptions?.repositories);
+			const result = options?.listSessions ? await options.listSessions(discoveryOptions) : state.result;
+			return result.kind === 'complete' && result.repositories === undefined ? { ...result, repositories: discoveryOptions?.repositories } : result;
 		}
 		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
 			calls.created++;
@@ -603,7 +609,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, workspaceTrust, preparation, allocations, reservationRequests,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, discoveryScopes, workspaceTrust, preparation, allocations, reservationRequests,
 		whenAllocationStarted: allocationStarted.p,
 		whenTaskDeleted: taskDeleted.p,
 		get taskDispatches() { return taskDispatches; },
@@ -1719,7 +1725,6 @@ suite('Editor cloud sandbox discovery', () => {
 			openRepository: () => resolving.p,
 		});
 		await h.workspaceTrust.setWorkspaceTrust(true);
-		await h.refresh();
 		h.addDraftWidget().setInput('repository prompt');
 		await timeout(0);
 		const beforeResolution = [...h.reservationRequests];
@@ -1728,6 +1733,7 @@ suite('Editor cloud sandbox discovery', () => {
 			{ name: 'origin', fetchUrl: 'https://github.com/fork/project.git' },
 		]));
 		await h.whenAllocationStarted;
+		await h.refresh();
 
 		assert.deepStrictEqual({ beforeResolution, requests: h.reservationRequests }, {
 			beforeResolution: [],
@@ -2245,7 +2251,8 @@ suite('Editor cloud sandbox discovery', () => {
 			items: h.items().map(item => item.resource.path),
 			created: h.calls.created,
 			connected: h.calls.connected,
-		}, { items: ['/original-session'], created: 0, connected: [] });
+			scopes: h.discoveryScopes,
+		}, { items: ['/original-session'], created: 0, connected: [], scopes: [['example/project']] });
 	});
 
 	test('an empty window lists all projects, including sessions with no repository', async () => {
@@ -2256,7 +2263,9 @@ suite('Editor cloud sandbox discovery', () => {
 			}]
 		};
 		await h.refresh();
-		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session', '/other-session', '/unscoped-session']);
+		assert.deepStrictEqual({ items: h.items().map(item => item.resource.path), scopes: h.discoveryScopes }, {
+			items: ['/original-session', '/other-session', '/unscoped-session'], scopes: [undefined],
+		});
 	});
 
 	for (const remoteUrl of ['https://github.com/Example/Project.git/', 'git@github.com:EXAMPLE/PROJECT.git', 'ssh://git@github.com/example/project.git']) {
@@ -2272,7 +2281,9 @@ suite('Editor cloud sandbox discovery', () => {
 		test(`does not list unrelated sandboxes for workspace remotes ${JSON.stringify(remoteUrls)}`, async () => {
 			const h = createHarness(store, { repositories: [repository(remoteUrls)] });
 			await h.refresh();
-			assert.deepStrictEqual(h.items(), []);
+			assert.deepStrictEqual({ items: h.items(), scopes: h.discoveryScopes }, {
+				items: [], scopes: [remoteUrls.length && remoteUrls[0].includes('github.com') ? ['unrelated/project'] : []],
+			});
 		});
 	}
 
@@ -2287,7 +2298,9 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 		h.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered] };
 		await h.refresh();
-		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session', '/other-session']);
+		assert.deepStrictEqual({ items: h.items().map(item => item.resource.path), scopes: h.discoveryScopes }, {
+			items: ['/original-session', '/other-session'], scopes: [['fork/project', 'example/project', 'other/project']],
+		});
 	});
 
 	test('matches an open subfolder of a repository', async () => {
@@ -2346,8 +2359,9 @@ suite('Editor cloud sandbox discovery', () => {
 		resolved = true;
 		h.addRepository(available);
 		await added;
-		assert.deepStrictEqual({ before, after: h.items().map(item => item.resource.path), lookups, scans: h.calls.discovered }, {
-			before: [], after: ['/original-session'], lookups: 2, scans: 1,
+		await h.refresh('automatic');
+		assert.deepStrictEqual({ before, after: h.items().map(item => item.resource.path), lookups, scopes: h.discoveryScopes }, {
+			before: [], after: ['/original-session'], lookups: 2, scopes: [[], ['example/project']],
 		});
 	});
 
@@ -2357,7 +2371,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(h.items(), []);
 	});
 
-	test('workspace changes remove and restore cached rows without rediscovery or connections', async () => {
+	test('workspace changes update discovery scope while immediately filtering retained cached rows', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		const controller = h.controllers.get(sessionType)!;
@@ -2366,33 +2380,57 @@ suite('Editor cloud sandbox discovery', () => {
 		h.setWorkspaceFolders([URI.file('/local/unrelated')]);
 		const unrelated = h.items().map(item => item.resource.path);
 		h.setWorkspaceFolders([]);
+		const immediateChanges = deltas.map(delta => ({
+			removed: delta.removed?.map(resource => resource.path),
+			added: delta.addedOrUpdated?.map(item => item.resource.path),
+		}));
+		await h.refresh('automatic');
 		assert.deepStrictEqual({
 			unrelated,
 			restored: h.items().map(item => item.resource.path),
-			removed: deltas.flatMap(delta => delta.removed?.map(resource => resource.path) ?? []),
-			added: deltas.flatMap(delta => delta.addedOrUpdated?.map(item => item.resource.path) ?? []),
-			scans: h.calls.discovered,
+			changes: immediateChanges,
+			scopes: h.discoveryScopes,
 			connected: h.calls.connected,
-		}, { unrelated: [], restored: ['/original-session'], removed: ['/original-session'], added: ['/original-session'], scans: 1, connected: [] });
+		}, {
+			unrelated: [], restored: ['/original-session'],
+			changes: [{ removed: ['/original-session'], added: undefined }, { removed: undefined, added: ['/original-session'] }],
+			scopes: [['example/project'], undefined], connected: [],
+		});
 	});
 
 	test('repository discovery, remote changes, and removal update the scoped list', async () => {
-		const h = createHarness(store, { repositories: [] });
+		const removalDiscovered = new DeferredPromise<void>();
+		let removing = false;
+		const h = createHarness(store, {
+			repositories: [],
+			listSessions: async () => {
+				if (removing) {
+					void removalDiscovered.complete();
+				}
+				return { kind: 'complete', sessions: [discovered] };
+			},
+		});
 		await h.refresh();
 		const before = h.items().map(item => item.resource.path);
 		const localRepository = repository(['https://github.com/example/project.git']);
 		const addedEvent = Event.toPromise(Event.filter(h.controllers.get(sessionType)!.onDidChangeChatSessionItems, delta => !!delta.addedOrUpdated?.length));
 		h.addRepository(localRepository);
 		await addedEvent;
+		await h.refresh('automatic');
 		const added = h.items().map(item => item.resource.path);
 		const originalState = localRepository.state.get();
 		localRepository.updateState({ ...originalState, remotes: [{ name: 'origin', fetchUrl: 'https://github.com/other/project.git', isReadOnly: false }] });
 		const changed = h.items().map(item => item.resource.path);
+		await h.refresh('automatic');
 		localRepository.updateState(originalState);
 		const restored = h.items().map(item => item.resource.path);
+		await h.refresh('automatic');
+		removing = true;
 		h.removeRepository(localRepository);
-		assert.deepStrictEqual({ before, added, changed, restored, removed: h.items(), scans: h.calls.discovered, connected: h.calls.connected }, {
-			before: [], added: ['/original-session'], changed: [], restored: ['/original-session'], removed: [], scans: 1, connected: [],
+		await removalDiscovered.p;
+		await h.refresh('automatic');
+		assert.deepStrictEqual({ before, added, changed, restored, removed: h.items(), scopes: h.discoveryScopes, connected: h.calls.connected }, {
+			before: [], added: ['/original-session'], changed: [], restored: ['/original-session'], removed: [], scopes: [[], ['example/project'], ['other/project'], ['example/project'], []], connected: [],
 		});
 	});
 
@@ -2428,12 +2466,154 @@ suite('Editor cloud sandbox discovery', () => {
 
 	test('a repository lookup completing after a workspace change does not restore unrelated rows', async () => {
 		const pending = new DeferredPromise<IGitRepository | undefined>();
-		const h = createHarness(store, { openRepository: () => pending.p });
-		await h.refresh();
+		const started = new DeferredPromise<void>();
+		const h = createHarness(store, { openRepository: () => { void started.complete(); return pending.p; } });
+		await started.p;
 		h.setWorkspaceFolders([URI.file('/local/unrelated')]);
 		await pending.complete(repository(['https://github.com/example/project.git']));
 		await h.refresh();
 		assert.deepStrictEqual(h.items(), []);
+	});
+
+	test('initial discovery waits for repository resolution without issuing an account-wide or empty-scope list', async () => {
+		const pending = new DeferredPromise<IGitRepository | undefined>();
+		const started = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			repositories: [], openRepository: () => { void started.complete(); return pending.p; },
+		});
+		await started.p;
+		const before = [...h.discoveryScopes];
+		await pending.complete(repository(['https://github.com/example/project.git']));
+		await h.refresh();
+		assert.deepStrictEqual({ before, after: h.discoveryScopes }, { before: [], after: [['example/project']] });
+	});
+
+	test('repository changes force discovery even with a connected feed and a fresh account checkpoint', async () => {
+		const refreshed = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async options => {
+				if (options?.repositories?.includes('other/project')) {
+					void refreshed.complete();
+					return { kind: 'complete', sessions: [otherDiscovered] };
+				}
+				return { kind: 'complete', sessions: [discovered] };
+			},
+		});
+		await h.refresh();
+		h.state.repositories[0].updateState({
+			...h.state.repositories[0].state.get(), remotes: [{ name: 'origin', fetchUrl: 'https://github.com/other/project.git', isReadOnly: false }],
+		});
+		await refreshed.p;
+		await h.refresh('automatic');
+		assert.deepStrictEqual({
+			scopes: h.discoveryScopes, modes: h.discoveryModes, items: h.items().map(item => item.resource.path),
+		}, { scopes: [['example/project'], ['other/project']], modes: [false, false], items: ['/other-session'] });
+	});
+
+	test('feed renewals and reconnects refetch the editor scope while task hints remain unscoped', async () => {
+		let socketStarted = false;
+		const h = createHarness(store, {
+			sessionFeed: { connected: true, start: async () => { socketStarted = true; }, dispose: () => { } },
+			listSessions: async options => {
+				assert.ok(socketStarted);
+				return options?.taskIds
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions: [discovered] };
+			},
+		});
+		await h.refresh();
+		await h.contribution.refreshFromFeed({ reason: 'renewal' });
+		await h.contribution.refreshFromFeed({ reason: 'reconnect' });
+		await h.contribution.refreshFromFeed({ reason: 'change', taskIds: ['other-task', 'repo-less-task'] });
+		assert.deepStrictEqual({
+			scopes: h.discoveryScopes, modes: h.discoveryModes, triggers: h.discoveryTriggers,
+		}, {
+			scopes: [['example/project'], ['example/project'], ['example/project'], undefined],
+			modes: [false, true, false, true], triggers: ['startup', 'feedRenewal', 'feedReconnect', 'feedChange'],
+		});
+	});
+
+	test('a scoped full result retains unrelated and repo-less offline history but reconciles absent matching entries', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness(store, { workspaceFolders: [], storageService });
+		const repoLess = { ...discovered, environmentId: 'repo-less-env', sessionId: 'repo-less-session', taskId: 'repo-less-task', repoName: undefined };
+		first.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered, repoLess] };
+		await first.refresh();
+		first.contribution.dispose();
+		const restored = createHarness(store, {
+			storageService, listSessions: async () => ({ kind: 'complete', sessions: [] }),
+		});
+		await restored.refresh();
+		const retained = [...restored.controllers.keys()].filter(type => type !== CLOUD_SANDBOX_SESSION_TYPE);
+		assert.deepStrictEqual({
+			retained: retained.sort(), removed: restored.calls.removed, cleared: restored.calls.clearedHistory.filter(id => id !== undefined),
+		}, {
+			retained: [otherDiscovered.environmentId, repoLess.environmentId].map(id => remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(id)), CLOUD_SANDBOX_AGENT_PROVIDER)).sort(),
+			removed: [address], cleared: [discovered.taskId],
+		});
+	});
+
+	test('a workspace change during an inventory read queues a fresh scoped scan without erasing the previous scope', async () => {
+		const started = new DeferredPromise<void>();
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const h = createHarness(store, {
+			listSessions: async options => {
+				if (options?.repositories?.includes('other/project')) {
+					return { kind: 'complete', sessions: [otherDiscovered] };
+				}
+				void started.complete();
+				return pending.p;
+			},
+		});
+		await started.p;
+		h.state.repositories[0].updateState({
+			...h.state.repositories[0].state.get(), remotes: [{ name: 'origin', fetchUrl: 'https://github.com/other/project.git', isReadOnly: false }],
+		});
+		await pending.complete({ kind: 'complete', sessions: [discovered] });
+		await h.refresh('automatic');
+		assert.deepStrictEqual({
+			scopes: h.discoveryScopes, modes: h.discoveryModes, visible: h.items().map(item => item.resource.path),
+			retained: h.controllers.has(sessionType), removed: h.calls.removed,
+		}, { scopes: [['example/project'], ['other/project']], modes: [false, false], visible: ['/other-session'], retained: true, removed: [] });
+	});
+
+	test('a complete scan of readable workspace remotes retains history belonging to unreadable remotes', async () => {
+		const h = createHarness(store, {
+			repositories: [repository(['https://github.com/example/project.git', 'https://github.com/other/project.git'])],
+		});
+		h.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered] };
+		await h.refresh();
+		h.state.result = { kind: 'complete', sessions: [], repositories: ['example/project'] };
+		await h.refresh();
+		assert.deepStrictEqual({
+			visible: h.items().map(item => item.resource.path), removed: h.calls.removed,
+			cleared: h.calls.clearedHistory.filter(id => id !== undefined),
+		}, { visible: ['/other-session'], removed: [address], cleared: [discovered.taskId] });
+	});
+
+	test('scoped absence retains a repo-less task with a matching live project and its task routing', async () => {
+		const h = createHarness(store, { workspaceFolders: [] });
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, repoName: undefined, hasRepository: false }] };
+		await h.refresh();
+		h.state.hostSessions = [{
+			...h.state.hostSessions[0], project: { uri: URI.parse('https://github.com/example/project'), displayName: 'example/project' },
+		}];
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.whenConnected;
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.setWorkspaceFolders([workspaceFolder]);
+		await h.refresh('automatic');
+		const visible = h.items().map(item => item.resource.path);
+		const controller = h.controllers.get(sessionType)!;
+		const archived = Event.toPromise(Event.filter(controller.onDidChangeChatSessionItems, delta => !!delta.addedOrUpdated?.some(item => item.archived)));
+		controller.setChatSessionItemArchived!(resource, true);
+		await archived;
+		assert.deepStrictEqual({
+			visible, archived: h.calls.archivedTasks, removed: h.calls.removed, disposed: h.calls.disposedSessions,
+		}, { visible: ['/original-session'], archived: [{ taskId: discovered.taskId, archived: true }], removed: [], disposed: [] });
 	});
 
 	test('repository lookup failures are logged and do not expose all projects', async () => {

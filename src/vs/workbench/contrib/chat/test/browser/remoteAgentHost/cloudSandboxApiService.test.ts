@@ -164,6 +164,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			if (override) {
 				return override;
 			}
+			if (new URL(url).pathname.startsWith('/repos/')) {
+				const name = new URL(url).pathname.slice('/repos/'.length).toLowerCase();
+				const entry = [...options.repositories].find(([, repository]) => repository !== 'error' && repository.full_name?.toLowerCase() === name);
+				return entry ? jsonResponse({ id: entry[0], ...entry[1] !== 'error' ? entry[1] : {} }) : jsonResponse({}, 404);
+			}
 			const repoMatch = url.match(/\/repositories\/(\d+)$/);
 			if (repoMatch) {
 				const entry = options.repositories.get(Number(repoMatch[1]));
@@ -200,6 +205,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 					return false;
 				}
 				if (query.has('with_repo') && ((task.repository?.id ?? 0) > 0) !== (query.get('with_repo') === 'true')) {
+					return false;
+				}
+				if (query.has('repository_id') && task.repository?.id !== Number(query.get('repository_id'))) {
 					return false;
 				}
 				if (query.has('include_environment_kinds') && task.current_environment?.kind !== query.get('include_environment_kinds')) {
@@ -1153,6 +1161,265 @@ suite('CloudSandboxApiService session feed', () => {
 			assert.deepStrictEqual(await pending, connection);
 		});
 	}
+});
+
+suite('CloudSandboxApiService repository-scoped discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const repositories = new Map([
+		[42, { full_name: 'owner/repo' }],
+		[43, { full_name: 'other/repo' }],
+		[44, { full_name: 'third/repo' }],
+	]);
+	const tasks = () => [
+		{ ...task('one', 'First', 42, 's1', 'e1'), updated_at: '2026-01-01T00:00:00Z' },
+		{ ...task('two', 'Second', 43, 's2', 'e2'), updated_at: '2026-01-01T00:00:00Z' },
+		{ ...task('none', 'No repository', undefined, 's3', 'e3'), updated_at: '2026-01-01T00:00:00Z' },
+	];
+
+	for (const [label, scope, expected] of [
+		['account-wide', undefined, [[4, 0], [4, 0]]],
+		['single repository', ['owner/repo'], [[2, 1], [2, 0]]],
+		['multiple repositories', ['owner/repo', 'other/repo', 'third/repo'], [[2, 3], [2, 0]]],
+		['no GitHub repositories', [], [[0, 0], [0, 0]]],
+	] as const) {
+		test(`empty inventory request floor for ${label}, including cold and cached repository resolution`, async () => {
+			const h = createService(store, { tasks: [], repositories });
+			const requests = [];
+			for (let pass = 0; pass < 2; pass++) {
+				const start = h.requestedUrls.length;
+				await h.service.listSessions(CancellationToken.None, { repositories: scope });
+				const urls = h.requestedUrls.slice(start).map(url => new URL(url));
+				requests.push([urls.filter(url => url.pathname === '/agents/tasks').length, urls.filter(url => url.pathname.startsWith('/repos/')).length]);
+			}
+			assert.deepStrictEqual(requests, expected);
+		});
+	}
+
+	test('a single repository scans only its active and archived partitions, preserving scope through pagination', async () => {
+		const h = createService(store, {
+			repositories, shortFirstPage: true,
+			tasks: [...tasks(), { ...task('archived', 'Archived', 42, 's4', 'e4'), archived_at: '2026-01-02T00:00:00Z' }],
+		});
+		const result = await h.service.listSessions(CancellationToken.None, { repositories: ['OWNER/REPO', 'owner/repo'] });
+		const urls = h.requestedUrls.map(url => new URL(url));
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => [session.taskId, session.repoName, session.isArchived]),
+			listQueries: urls.filter(url => url.pathname === '/agents/tasks').map(url => ({
+				repository: url.searchParams.get('repository_id'), withRepo: url.searchParams.get('with_repo'),
+				archived: url.searchParams.get('is_archived'), page: url.searchParams.get('page'),
+			})),
+			otherReads: urls.filter(url => url.pathname !== '/agents/tasks').map(url => url.pathname),
+		}, {
+			kind: 'complete',
+			sessions: [['one', 'owner/repo', undefined], ['archived', 'owner/repo', true]],
+			listQueries: [
+				{ repository: '42', withRepo: 'true', archived: 'false', page: '1' },
+				{ repository: '42', withRepo: 'true', archived: 'false', page: '2' },
+				{ repository: '42', withRepo: 'true', archived: 'true', page: '1' },
+				{ repository: '42', withRepo: 'true', archived: 'true', page: '2' },
+			],
+			otherReads: ['/repos/owner/repo', '/agents/tasks/one', '/agents/tasks/archived'],
+		});
+	});
+
+	test('multiple repositories share a broad repo-backed scan but hydrate only matching tasks', async () => {
+		const h = createService(store, {
+			repositories,
+			tasks: [...tasks(), task('unrelated', 'Unrelated', 99, 's4', 'e4')],
+		});
+		const result = await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo', 'other/repo', 'third/repo'] });
+		const urls = h.requestedUrls.map(url => new URL(url));
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			lists: urls.filter(url => url.pathname === '/agents/tasks').map(url => [
+				url.searchParams.get('with_repo'), url.searchParams.get('is_archived'), url.searchParams.get('repository_id'),
+			]),
+			details: urls.filter(url => url.pathname.startsWith('/agents/tasks/')).map(url => url.pathname),
+		}, {
+			sessions: ['one', 'two'], lists: [['true', 'false', null], ['true', 'true', null]],
+			details: ['/agents/tasks/one', '/agents/tasks/two'],
+		});
+	});
+
+	test('a workspace without GitHub repositories performs no inventory requests', async () => {
+		const h = createService(store, { tasks: tasks(), repositories });
+		assert.deepStrictEqual({
+			result: await h.service.listSessions(CancellationToken.None, { repositories: [] }),
+			requests: h.requestedUrls,
+		}, { result: { kind: 'complete', sessions: [], repositories: [] }, requests: [] });
+	});
+
+	test('checkpoints belong to the exact repository scope, not the account or a previous workspace', async () => {
+		const h = createService(store, {
+			tasks: tasks(), repositories, discoveryDate: () => 'Sun, 18 Oct 2026 17:00:00 GMT',
+		});
+		const observations = [];
+		for (const scope of [undefined, ['owner/repo'], ['owner/repo', 'other/repo'], ['other/repo'], ['OTHER/REPO', 'OWNER/REPO'], undefined]) {
+			const start = h.requestedUrls.length;
+			const result = await h.service.listSessions(CancellationToken.None, { incremental: true, repositories: scope });
+			const lists = h.requestedUrls.slice(start).map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks');
+			observations.push({
+				kind: result.kind, tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+				since: [...new Set(lists.map(url => url.searchParams.get('since')))],
+			});
+		}
+		assert.deepStrictEqual(observations, [
+			{ kind: 'complete', tasks: ['one', 'two', 'none'], since: [null] },
+			{ kind: 'complete', tasks: ['one'], since: [null] },
+			{ kind: 'complete', tasks: ['one', 'two'], since: [null] },
+			{ kind: 'complete', tasks: ['two'], since: [null] },
+			{ kind: 'incremental', tasks: [], since: ['2026-10-18T16:59:00.000Z'] },
+			{ kind: 'incremental', tasks: [], since: ['2026-10-18T16:59:00.000Z'] },
+		]);
+	});
+
+	test('scoped absence removes only scoped cached tasks and does not rehydrate unrelated retained tasks', async () => {
+		const values = tasks();
+		const h = createService(store, { tasks: values, repositories });
+		await h.service.listSessions(CancellationToken.None);
+		values.shift();
+		const scoped = await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'] });
+		const start = h.requestedUrls.length;
+		const unscoped = await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			scoped, retained: unscoped.kind === 'failed' ? [] : unscoped.sessions.map(session => session.taskId),
+			details: h.requestedUrls.slice(start).filter(url => new URL(url).pathname.startsWith('/agents/tasks/')),
+		}, { scoped: { kind: 'complete', sessions: [], repositories: ['owner/repo'] }, retained: ['two', 'none'], details: [] });
+	});
+
+	test('failed repository resolution is retried and never falls back to an account-wide scan', async () => {
+		let fail = true;
+		const h = createService(store, {
+			tasks: tasks(), repositories,
+			onRequest: url => fail && url.pathname === '/repos/owner/repo' ? jsonResponse({}, 503) : undefined,
+		});
+		const result = await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'] });
+		const failedRequests = h.requestedUrls.map(url => new URL(url).pathname);
+		fail = false;
+		await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'], incremental: true });
+		await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'], incremental: true });
+		assert.deepStrictEqual({
+			result, failedRequests, lookups: h.requestedUrls.filter(url => new URL(url).pathname === '/repos/owner/repo').length,
+			modes: h.discoveryEvents.map(event => [event.outcome, event.mode]),
+		}, {
+			result: { kind: 'partial', sessions: [], removedTaskIds: [] },
+			failedRequests: ['/repos/owner/repo'], lookups: 2, modes: [['partial', 'full'], ['complete', 'full'], ['incremental', 'incremental']],
+		});
+	});
+
+	for (const status of [403, 404, 503]) {
+		test(`a repository lookup HTTP ${status} does not block readable repositories or suppress newly readable history`, async () => {
+			let fail = true;
+			const h = createService(store, {
+				tasks: tasks(), repositories, discoveryDate: () => 'Sun, 18 Oct 2026 17:00:00 GMT',
+				onRequest: url => fail && url.pathname === '/repos/other/repo' ? jsonResponse({}, status) : undefined,
+			});
+			const scope = ['owner/repo', 'other/repo'];
+			const partial = await h.service.listSessions(CancellationToken.None, { repositories: scope });
+			const firstLists = h.requestedUrls.map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks');
+			fail = false;
+			const start = h.requestedUrls.length;
+			const recovered = await h.service.listSessions(CancellationToken.None, { repositories: scope, incremental: true });
+			const recoveredLists = h.requestedUrls.slice(start).map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks');
+			assert.deepStrictEqual({
+				partial: { kind: partial.kind, tasks: partial.kind === 'failed' ? [] : partial.sessions.map(session => session.taskId) },
+				firstLists: firstLists.map(url => [url.searchParams.get('with_repo'), url.searchParams.get('repository_id')]),
+				recovered: { kind: recovered.kind, tasks: recovered.kind === 'failed' ? [] : recovered.sessions.map(session => session.taskId) },
+				since: recoveredLists.map(url => url.searchParams.get('since')),
+			}, {
+				partial: { kind: status === 503 ? 'partial' : 'complete', tasks: ['one'] }, firstLists: [['true', '42'], ['true', '42']],
+				recovered: { kind: 'complete', tasks: ['one', 'two'] }, since: [null, null],
+			});
+		});
+	}
+
+	for (const status of [403, 404]) {
+		test(`a permanently unreadable HTTP ${status} remote does not prevent progress or reconciliation of readable repositories`, async () => {
+			const values = tasks();
+			const h = createService(store, {
+				tasks: values, repositories, discoveryDate: () => 'Sun, 18 Oct 2026 17:00:00 GMT',
+				onRequest: url => url.pathname === '/repos/other/repo' ? jsonResponse({}, status) : undefined,
+			});
+			await h.service.listSessions(CancellationToken.None);
+			const scope = ['owner/repo', 'other/repo'];
+			const initial = await h.service.listSessions(CancellationToken.None, { repositories: scope });
+			const start = h.requestedUrls.length;
+			const incremental = await h.service.listSessions(CancellationToken.None, { repositories: scope, incremental: true });
+			const since = h.requestedUrls.slice(start).map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks').map(url => url.searchParams.get('since'));
+			values.shift();
+			const reconciled = await h.service.listSessions(CancellationToken.None, { repositories: scope });
+			const retained = await h.service.listSessions(CancellationToken.None);
+			assert.deepStrictEqual({
+				initial: { kind: initial.kind, repositories: initial.kind === 'complete' ? initial.repositories : undefined },
+				incremental: incremental.kind, since, reconciled,
+				retained: retained.kind === 'failed' ? [] : retained.sessions.map(session => session.taskId),
+			}, {
+				initial: { kind: 'complete', repositories: ['owner/repo'] },
+				incremental: 'incremental', since: ['2026-10-18T16:59:00.000Z', '2026-10-18T16:59:00.000Z'],
+				reconciled: { kind: 'complete', sessions: [], repositories: ['owner/repo'] }, retained: ['two', 'none'],
+			});
+		});
+	}
+
+	test('partial scoped scans neither advance progress nor remove unrelated cached tasks', async () => {
+		let fail = true;
+		const h = createService(store, {
+			tasks: tasks(), repositories,
+			onRequest: url => fail && url.pathname === '/agents/tasks/one' ? jsonResponse({}, 503) : undefined,
+		});
+		const first = await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'] });
+		fail = false;
+		const start = h.requestedUrls.length;
+		const retry = await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'], incremental: true });
+		assert.deepStrictEqual({
+			first, retry: retry.kind,
+			since: h.requestedUrls.slice(start).map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks').map(url => url.searchParams.get('since')),
+		}, { first: { kind: 'partial', sessions: [], removedTaskIds: [] }, retry: 'complete', since: [null, null] });
+	});
+
+	test('task hints remain unscoped, including repo-less sessions whose live project can change', async () => {
+		const h = createService(store, { tasks: tasks(), repositories });
+		const result = await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'], taskIds: ['none', 'two'] });
+		assert.deepStrictEqual({
+			kind: result.kind, tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			paths: h.requestedUrls.map(url => new URL(url).pathname),
+		}, { kind: 'incremental', tasks: ['none', 'two'], paths: ['/agents/tasks/none', '/agents/tasks/two', '/repositories/43'] });
+	});
+
+	test('account changes discard repository IDs and scoped checkpoints, including a late ID lookup', async () => {
+		const entered = new DeferredPromise<void>();
+		const pending = new DeferredPromise<IRequestContext>();
+		const h = createService(store, {
+			tasks: tasks(), repositories,
+			onRequest: url => {
+				if (url.pathname === '/repos/owner/repo' && !entered.isSettled) {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		const obsolete = assert.rejects(h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'] }), isCancellationError);
+		await entered.p;
+		const changed = Event.toPromise(h.service.onDidChangeAccount);
+		h.changeAuthentication();
+		await changed;
+		await pending.complete(jsonResponse({ id: 99, full_name: 'owner/repo' }));
+		await obsolete;
+		await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'], incremental: true });
+		const changedAgain = Event.toPromise(h.service.onDidChangeAccount);
+		h.changeAuthentication();
+		await changedAgain;
+		const start = h.requestedUrls.length;
+		await h.service.listSessions(CancellationToken.None, { repositories: ['owner/repo'], incremental: true });
+		assert.deepStrictEqual(h.requestedUrls.slice(start).map(url => {
+			const parsed = new URL(url);
+			return [parsed.pathname, parsed.searchParams.get('repository_id'), parsed.searchParams.get('since')];
+		}), [
+			['/repos/owner/repo', null, null], ['/agents/tasks', '42', null], ['/agents/tasks', '42', null], ['/agents/tasks/one', null, null],
+		]);
+	});
 });
 
 suite('CloudSandboxApiService feed task refresh', () => {

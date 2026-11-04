@@ -426,6 +426,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return this._taskRefreshInFlight;
 	}
 
+	protected async _getDiscoveryRepositories(_token: CancellationToken): Promise<readonly string[] | undefined> {
+		return undefined;
+	}
+
 	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean, trigger: CloudSandboxDiscoveryTrigger, taskIds?: readonly string[]): Promise<void> {
 		let result: ICloudSandboxDiscoveryResult;
 		try {
@@ -458,7 +462,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!this._discoveryPoll.isScheduled()) {
 				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
-			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}) });
+			const repositories = taskIds ? undefined : await this._getDiscoveryRepositories(token);
+			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}), ...(repositories !== undefined ? { repositories } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
 			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
 				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
@@ -509,6 +514,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 
 		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
+		const authoritativeRepositories = result.kind === 'complete' && result.repositories !== undefined ? new Set(result.repositories.map(name => name.toLowerCase())) : undefined;
+		const authoritativeFor = (session: ICloudSandboxSessionEnvironment) => result.kind === 'complete'
+			&& (authoritativeRepositories === undefined || session.repoName !== undefined && authoritativeRepositories.has(session.repoName.toLowerCase()));
 		for (const [address, sessions] of this._sessionEnvironments) {
 			if (this._provisioning.has(address)) {
 				continue;
@@ -517,7 +525,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
 			for (const [rawId, session] of sessions) {
 				if (!presentSessions.has(JSON.stringify([address, rawId]))
-					&& (result.kind === 'complete' || !!session.taskId && (removedTasks.has(session.taskId) || updatedTasks.has(session.taskId)))) {
+					&& (authoritativeFor(session) || !!session.taskId && (removedTasks.has(session.taskId) || updatedTasks.has(session.taskId)))) {
 					sessions.delete(rawId);
 					this._providerInstances.get(address)?.removeTaskOwnership?.(rawId);
 					if (!connected) {
@@ -537,7 +545,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (present.has(address) || this._provisioning.has(address)) {
 				continue;
 			}
-			if (result.kind !== 'complete' && (!environment.taskId || (!removedTasks.has(environment.taskId) && !updatedTasks.has(environment.taskId)))) {
+			if (!authoritativeFor(environment) && (!environment.taskId || (!removedTasks.has(environment.taskId) && !updatedTasks.has(environment.taskId)))) {
 				continue;
 			}
 			const connected = this._remoteAgentHostService.connections.some(

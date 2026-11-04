@@ -228,9 +228,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
 	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
+	private readonly _repositoryIds = new Map<string, Promise<number>>();
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
-	private _discoverySince: string | undefined;
+	private readonly _discoverySince = new Map<string, string>();
 	private _discoveryGeneration = 0;
 	private _accountGeneration = 0;
 	private _historyRequestId = 0;
@@ -482,9 +483,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this.clearSessionHistory();
 		const generation = ++this._accountGeneration;
 		this._discoveryGeneration++;
-		this._discoverySince = undefined;
+		this._discoverySince.clear();
 		this._discoveredTasks.clear();
 		this._repositoryNames.clear();
+		this._repositoryIds.clear();
 		try {
 			const accountKey = await this.getAccountKey();
 			if (generation === this._accountGeneration && !this._store.isDisposed) {
@@ -607,8 +609,36 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private async _listSessions(token: CancellationToken, options: ICloudSandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>, telemetry: ICloudSandboxDiscoveryTelemetryData): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
-		const since = !targeted && options?.incremental ? this._discoverySince : undefined;
+		const requestedRepositories = !targeted && options?.repositories !== undefined ? [...new Set(options.repositories.map(name => name.toLowerCase()))].sort() : undefined;
+		let repositoryResolutionFailed = false;
+		const resolvedRepositories = requestedRepositories === undefined ? undefined : (await Promise.all(requestedRepositories.map(async name => {
+			try {
+				return { name, id: await this._resolveRepositoryId(name, token) };
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (!(error instanceof CloudSandboxRequestError && (error.statusCode === 403 || error.statusCode === 404))) {
+					repositoryResolutionFailed = true;
+				}
+				this._logService.warn(`${LOG_PREFIX} Discovery repository lookup failed: ${toErrorMessage(error)}`);
+				return undefined;
+			}
+		}))).filter(repository => repository !== undefined);
+		const repositories = resolvedRepositories?.map(repository => repository.name);
+		const repositoryIds = resolvedRepositories === undefined ? undefined : new Set(resolvedRepositories.map(repository => repository.id));
+		// A newly readable repository must get its initial contents, not another scope's checkpoint.
+		const scopeKey = JSON.stringify(resolvedRepositories ?? null);
+		const previousSince = this._discoverySince.get(scopeKey);
+		const since = !targeted && options?.incremental ? previousSince : undefined;
 		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (generation !== this._discoveryGeneration) {
+			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while resolving repositories' };
+		}
+		const matchesScope = (task: ITaskSummary, repositoryId = task.repository?.id) => repositoryIds === undefined || repositoryId !== undefined && repositoryIds.has(repositoryId);
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
@@ -666,17 +696,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				limiter.dispose();
 			}
 		}
-		// Separate repository scopes include workspace-less sandboxes as well as repository sessions.
-		for (const { withRepository, archived } of targeted ? [] : [
+		// Multi-repository scopes share a broad repo-backed scan, filtering before hydration.
+		const partitions = [
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
 			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
-		]) {
+		].filter(partition => repositoryIds === undefined || repositoryIds.size > 0 && partition.withRepository);
+		for (const { withRepository, archived } of targeted ? [] : partitions) {
 			const query: Record<string, string> = {
 				per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
 				sort: 'updated_at',
 				direction: 'desc',
 				with_repo: String(withRepository),
 				is_archived: String(archived),
+				...(repositoryIds?.size === 1 ? { repository_id: String(repositoryIds.values().next().value) } : {}),
 				...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
 			};
 			const requestedUrls = new Set<string>();
@@ -702,10 +734,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
 					}
 					for (const task of response.tasks) {
-						recordTask({ ...task, hasRepository: withRepository });
 						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
 						if (!Number.isNaN(updatedAt)) {
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
+						}
+						if (matchesScope(task)) {
+							recordTask({ ...task, hasRepository: withRepository });
 						}
 					}
 					url = nextTaskPageUrl(context.res.headers?.link, url, query);
@@ -726,7 +760,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || cached.emptySessionSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if (matchesScope(cached.summary, cached.repositoryId) && !tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || cached.emptySessionSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
 					tasks.set(id, cached.summary);
 				}
 			}
@@ -873,18 +907,18 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (generation !== this._discoveryGeneration) {
 			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' };
 		}
-		const partial = unresolved > 0 || truncated;
+		const partial = repositoryResolutionFailed || unresolved > 0 || truncated;
 		if (!partial && !targeted) {
 			// Browsers may not expose Date through CORS; task timestamps also use the server's clock.
 			const nextCheckpoint = checkpoint ?? latestUpdate;
 			if (nextCheckpoint !== undefined) {
 				const nextSince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
-				telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
-				this._discoverySince = nextSince;
+				telemetry.checkpointAdvanced = previousSince === undefined || Date.parse(nextSince) > Date.parse(previousSince);
+				this._discoverySince.set(scopeKey, nextSince);
 			}
 			if (!since) {
-				for (const id of cache.keys()) {
-					if (!scannedTaskIds.has(id)) {
+				for (const [id, cached] of cache) {
+					if (matchesScope(cached.summary, cached.repositoryId) && !scannedTaskIds.has(id)) {
 						cache.delete(id);
 					}
 				}
@@ -953,7 +987,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (partial) {
 			return { kind: 'partial', sessions, removedTaskIds: [...removed], ...(targeted ? { failedTaskIds: [...failedTaskIds] } : {}) };
 		}
-		return targeted || since ? { kind: 'incremental', sessions, removedTaskIds: [...removed] } : { kind: 'complete', sessions };
+		return targeted || since ? { kind: 'incremental', sessions, removedTaskIds: [...removed] } : { kind: 'complete', sessions, ...(repositories !== undefined ? { repositories } : {}) };
 	}
 
 	async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession> {
@@ -1296,15 +1330,45 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	/**
-	 * Resolve a numeric repository id to its `owner/name`, memoized for the life of the service.
-	 * A task names its repository nowhere — `repository` carries an id, and the session's
-	 * `event_url` / `base_ref` are empty for tasks created through the tasks API.
-	 *
-	 * The cached promise must never reject: every task in a pass shares it, and a rejection would
-	 * count each one as unresolved (forcing the scan `partial`) and drop those sessions from the
-	 * listing entirely. A miss is evicted so the next pass retries.
-	 */
+	/** Resolve workspace repository IDs once per account, also seeding discovery's name lookups. */
+	private _resolveRepositoryId(name: string, token: CancellationToken): Promise<number> {
+		const cached = this._repositoryIds.get(name);
+		if (cached) {
+			return raceCancellationError(cached, token);
+		}
+		const generation = this._accountGeneration;
+		const pending = (async () => {
+			const repository = parseNwo(name);
+			if (!repository) {
+				throw new Error('Invalid sandbox discovery repository');
+			}
+			const url = `${GITHUB_DOT_COM_API_BASE_URI}/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.name)}`;
+			const context = await this._retryWhileRateLimited('repository get', token, () => this._request(url, 'mc.repositoryClient.get', 'getRepository', {
+				Accept: 'application/vnd.github.v3+json',
+			}, token, DISCOVERY_TIMEOUT_MS));
+			if (!isSuccess(context)) {
+				throw new CloudSandboxRequestError(context.res.statusCode, `Repository lookup failed: HTTP ${context.res.statusCode ?? 'none'}`);
+			}
+			const body = await this._readJson<{ id?: number; full_name?: string }>(context);
+			if (!body?.id || !Number.isSafeInteger(body.id) || body.id <= 0 || !body.full_name) {
+				throw new Error('Repository lookup returned no repository identity');
+			}
+			if (token.isCancellationRequested || generation !== this._accountGeneration) {
+				throw new CancellationError();
+			}
+			this._repositoryNames.set(body.id, Promise.resolve(body.full_name));
+			return body.id;
+		})();
+		this._repositoryIds.set(name, pending);
+		pending.catch(() => {
+			if (this._repositoryIds.get(name) === pending) {
+				this._repositoryIds.delete(name);
+			}
+		});
+		return pending;
+	}
+
+	/** Resolve discovery's numeric repository identity; failed lookups are retried on the next pass. */
 	private _resolveRepositoryName(repositoryId: number, token: CancellationToken): Promise<string | undefined> {
 		const cached = this._repositoryNames.get(repositoryId);
 		if (cached) {

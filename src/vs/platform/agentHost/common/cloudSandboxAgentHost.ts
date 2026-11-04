@@ -472,13 +472,15 @@ export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[
 export interface ICloudSandboxDiscoveryOptions {
 	readonly incremental?: boolean;
 	readonly taskIds?: readonly string[];
+	/** Repository names (`owner/name`) for inventory discovery; omitted for all projects, empty for none. Task hints remain unscoped. */
+	readonly repositories?: readonly string[];
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** Every task in the returned scope was scanned and resolved; only absence within that scope is authoritative. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly repositories?: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
