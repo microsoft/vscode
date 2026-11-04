@@ -751,7 +751,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 		}
 	},
 
-	// Only allow codicons for classes
+	// Only allow codicons for classes, and the class of code block placeholders
 	{
 		attributeName: 'class',
 		shouldKeep: (element, data) => {
@@ -759,6 +759,9 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 				if (data.attrName === 'class') {
 					return /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(data.attrValue);
 				}
+			}
+			if (element.tagName === 'DIV' && element.hasAttribute('data-code')) {
+				return data.attrValue === 'code';
 			}
 			return false;
 		},
