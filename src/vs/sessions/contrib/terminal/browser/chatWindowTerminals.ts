@@ -55,6 +55,11 @@ export interface IChatWindowTerminalsService {
 	 * `session` while that window is the active one, such as one the task was run from; resolves to whether it did.
 	 */
 	showSessionTerminal(session: ISession, instanceId: number, focus: boolean): Promise<boolean>;
+	/**
+	 * Whether the chat window that shows `session` while it is the active one holds the terminal `instanceId`, also while
+	 * its terminals hide, such as a task terminal: {@link showSessionTerminal} shows it there again.
+	 */
+	holdsSessionTerminal(session: ISession, instanceId: number): boolean;
 }
 
 /** Whether `editor` is a terminal. */
@@ -307,10 +312,19 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	}
 
 	async showSessionTerminal(session: ISession, instanceId: number, focus: boolean): Promise<boolean> {
-		// The window it was run from, such as from its Run menu: the active window, while it shows the session
-		const activeWindowId = getActiveWindow().vscodeWindowId;
-		const window = this._chatWindowService.windows.get().find(candidate => candidate.windowId === activeWindowId && this._sessionOf(candidate)?.sessionId === session.sessionId);
+		const window = this._activeWindowShowing(session);
 		return window ? this.showTerminal(window, instanceId, focus) : false;
+	}
+
+	holdsSessionTerminal(session: ISession, instanceId: number): boolean {
+		const window = this._activeWindowShowing(session);
+		return !!window && [...this._terminals.get(window) ?? []].some(instance => instance.instanceId === instanceId && !instance.isDisposed);
+	}
+
+	/** The chat window that shows `session` while it is the active window, such as one a task was run from with its Run menu. */
+	private _activeWindowShowing(session: ISession): IChatWindow | undefined {
+		const activeWindowId = getActiveWindow().vscodeWindowId;
+		return this._chatWindowService.windows.get().find(candidate => candidate.windowId === activeWindowId && this._sessionOf(candidate)?.sessionId === session.sessionId);
 	}
 
 	/** Gives the terminals of `window` back to their session, still running, as it closes. */
