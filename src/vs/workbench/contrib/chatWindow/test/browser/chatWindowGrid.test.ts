@@ -290,7 +290,7 @@ suite('Chat window grid', () => {
 			terminalsPart.setEmpty(false);
 		};
 		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
-		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, height, userResize };
+		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, height, userResize, container };
 	}
 
 	test('the terminals merged into the main part leave the grid, their editors in the main part, and do not come back while the terminals part stays empty', () => {
@@ -419,6 +419,44 @@ suite('Chat window grid', () => {
 		}, {
 			movedAboveFullWidthTerminals: { back: true },
 			terminalsUnderTheEditor: { back: true },
+		});
+	});
+
+	test('between layout modes that arrange the parts alike, with none moved, the parts only show or hide: the grid stays and the chat input keeps the focus', () => {
+		const { mode, grid, container } = setupWithTerminals();
+		const input = container.querySelector('.chat')!.appendChild($('input'));
+		input.focus();
+		const partGrid = grid.partGrid;
+		const states: { mode: ChatWindowLayoutMode; sameGrid: boolean; focused: boolean }[] = [];
+		for (const candidate of [ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly]) {
+			mode.set(candidate, undefined);
+			states.push({ mode: candidate, sameGrid: grid.partGrid === partGrid, focused: mainWindow.document.activeElement === input });
+		}
+
+		assert.deepStrictEqual(states, [
+			{ mode: ChatWindowLayoutMode.ChatOnly, sameGrid: true, focused: true },
+			{ mode: ChatWindowLayoutMode.SideBySide, sameGrid: true, focused: true },
+			{ mode: ChatWindowLayoutMode.ChatOnly, sameGrid: true, focused: true },
+		]);
+	});
+
+	test('a layout mode that arranges the parts again, as a part was moved or its arrangement differs, keeps the focus where it was in them', () => {
+		const { mode, grid, open, container } = setupWithTerminals();
+		open();
+		const input = container.querySelector('.chat')!.appendChild($('input'));
+		const partGrid = grid.partGrid;
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Terminals, direction: Direction.Up });
+		// The user then types in the chat
+		input.focus();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		const afterMove = { rebuilt: grid.partGrid !== partGrid, shape: grid.partGrid!.describe(), focused: mainWindow.document.activeElement === input };
+		const chatOnlyGrid = grid.partGrid;
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const otherArrangement = { rebuilt: grid.partGrid !== chatOnlyGrid, focused: mainWindow.document.activeElement === input };
+
+		assert.deepStrictEqual({ afterMove, otherArrangement }, {
+			afterMove: { rebuilt: true, shape: 'column(titleRow, row(chat, main), terminals)', focused: true },
+			otherArrangement: { rebuilt: true, focused: true },
 		});
 	});
 
