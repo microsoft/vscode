@@ -209,7 +209,7 @@ export class DocumentDiffItemViewModel extends Disposable {
 			};
 		}
 
-		const options = this._instantiationService.createInstance(DiffEditorOptions, updateOptions(this.documentDiffItem.options || {}));
+		const options = this._instantiationService.createInstance(DiffEditorOptions, updateOptions(this.documentDiffItem.options || {}), undefined);
 		if (this.documentDiffItem.onOptionsDidChange) {
 			this._register(this.documentDiffItem.onOptionsDidChange(() => {
 				options.updateOptions(updateOptions(this.documentDiffItem.options || {}));

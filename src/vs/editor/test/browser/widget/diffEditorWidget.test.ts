@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -13,7 +15,7 @@ import { TestAccessibilityService } from '../../../../platform/accessibility/tes
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
-import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
+import { DiffEditorOptions, DiffEditorWidthBasedLayout } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { DiffEditorViewModel, UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
@@ -92,7 +94,7 @@ suite('DiffEditorWidget2', () => {
 				renderSideBySide: true,
 				renderSideBySideInlineBreakpoint: 900,
 				useInlineViewWhenSpaceIsLimited: true,
-			}, new TestAccessibilityService());
+			}, undefined, new TestAccessibilityService());
 
 			options.setWidth(1000);
 			const initiallySideBySide = options.renderSideBySide.get();
@@ -152,7 +154,7 @@ suite('DiffEditorWidget2', () => {
 				renderSideBySide: true,
 				renderSideBySideInlineBreakpoint: 900,
 				useInlineViewWhenSpaceIsLimited: true,
-			}, new TestAccessibilityService());
+			}, undefined, new TestAccessibilityService());
 
 			options.setWidth(800);
 			const narrow = options.renderSideBySide.get();
@@ -166,6 +168,105 @@ suite('DiffEditorWidget2', () => {
 				wideAfterLayoutChange: true,
 			});
 		});
+
+		test('shares the layout between diff editors that get reused for other documents', async () => {
+			const services = new ServiceCollection();
+			services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+			services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+				override show() { return emptyProgressRunner; }
+			}());
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const widthBasedLayout = observableValue<DiffEditorWidthBasedLayout>('widthBasedLayout', 'auto');
+			const createEditor = () => disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, {
+				widthBasedLayout,
+				originalEditor: { contributions: [] },
+				modifiedEditor: { contributions: [] },
+			}));
+			const createModel = (editor: DiffEditorWidget) => disposables.add(RefCounted.create(editor.createViewModel({
+				original: disposables.add(instantiateTextModel(instantiationService, 'original')),
+				modified: disposables.add(instantiateTextModel(instantiationService, 'modified')),
+			})));
+			const withPointerDown = (update: () => void) => {
+				mainWindow.dispatchEvent(new MouseEvent('mousedown'));
+				update();
+				mainWindow.dispatchEvent(new MouseEvent('mouseup'));
+			};
+
+			const first = createEditor();
+			// Last laid out while narrow, then released (like a pooled multi diff editor template).
+			const reused = createEditor();
+			reused.setDiffModel(createModel(reused));
+			reused.layout(new Dimension(800, 100));
+			reused.setDiffModel(null);
+
+			first.setDiffModel(createModel(first));
+			first.layout(new Dimension(800, 100));
+			withPointerDown(() => first.layout(new Dimension(1000, 100)));
+			const created = createEditor();
+			created.setDiffModel(createModel(created));
+			created.layout(new Dimension(1000, 100));
+			const afterEnlarging = { first: first.renderSideBySide, created: created.renderSideBySide };
+			first.setDiffModel(createModel(first));
+			const afterShowingOtherDocuments = first.renderSideBySide;
+
+			first.resetWidthBasedLayout();
+			// E.g. bound while the scrollbar is dragged: laying out other documents is not a resize.
+			withPointerDown(() => {
+				reused.setDiffModel(createModel(reused));
+				reused.layout(new Dimension(1000, 100));
+			});
+			const afterReset = { first: first.renderSideBySide, created: created.renderSideBySide, reused: reused.renderSideBySide };
+
+			const editors = [first, created, reused];
+			await Promise.all(editors.map(editor => editor.waitForDiff()));
+			for (const editor of editors) {
+				editor.setDiffModel(null);
+			}
+
+			assert.deepStrictEqual({ afterEnlarging, afterShowingOtherDocuments, afterReset }, {
+				afterEnlarging: { first: false, created: false },
+				afterShowingOtherDocuments: false,
+				afterReset: { first: true, created: true, reused: true },
+			});
+		});
+
+		for (const sharesWidthBasedLayout of [true, false]) {
+			test(`keeps detecting a resize after showing other documents at the same width (shares width based layout: ${sharesWidthBasedLayout})`, async () => {
+				const services = new ServiceCollection();
+				services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+				services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+					override show() { return emptyProgressRunner; }
+				}());
+				services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+				const instantiationService = createCodeEditorServices(disposables, services);
+				const widthBasedLayout = sharesWidthBasedLayout ? observableValue<DiffEditorWidthBasedLayout>('widthBasedLayout', 'auto') : undefined;
+				const editor = disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, {
+					widthBasedLayout,
+					originalEditor: { contributions: [] },
+					modifiedEditor: { contributions: [] },
+				}));
+				const createModel = () => disposables.add(RefCounted.create(editor.createViewModel({
+					original: disposables.add(instantiateTextModel(instantiationService, 'original')),
+					modified: disposables.add(instantiateTextModel(instantiationService, 'modified')),
+				})));
+
+				editor.setDiffModel(createModel());
+				editor.layout(new Dimension(900, 100));
+				editor.setDiffModel(createModel());
+				editor.layout(new Dimension(900, 100));
+				mainWindow.dispatchEvent(new MouseEvent('mousedown'));
+				editor.layout(new Dimension(901, 100));
+				editor.layout(new Dimension(920, 100));
+				mainWindow.dispatchEvent(new MouseEvent('mouseup'));
+				const renderSideBySideAfterEnlarging = editor.renderSideBySide;
+
+				await editor.waitForDiff();
+				editor.setDiffModel(null);
+
+				assert.deepStrictEqual({ renderSideBySideAfterEnlarging }, { renderSideBySideAfterEnlarging: false });
+			});
+		}
 	});
 
 	suite('UnchangedRegion', () => {

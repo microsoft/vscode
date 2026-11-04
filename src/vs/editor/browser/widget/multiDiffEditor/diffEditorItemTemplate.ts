@@ -7,7 +7,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, globalTransaction, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, globalTransaction, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -20,6 +20,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { observableCodeEditor } from '../../observableCodeEditor.js';
+import { DiffEditorWidthBasedLayout } from '../diffEditor/diffEditorOptions.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
 import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
@@ -72,6 +73,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration,
 		private readonly _optionsOverride: IObservable<IDiffEditorOptions> | undefined,
+		private readonly _widthBasedLayout: ISettableObservable<DiffEditorWidthBasedLayout>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
@@ -138,6 +140,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				() => this._outerEditorHeight + this._getModifiedEditorLineTop(anchorLineNumber),
 				update
 			),
+			widthBasedLayout: this._widthBasedLayout,
 		}));
 		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
 		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
