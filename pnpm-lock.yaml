@@ -18,7 +18,7 @@ overrides:
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
 
-pnpmfileChecksum: sha256-GeFoTTyrJyJ9oqzwsW5IdVv9KwS8EdSyE3+woFzCF6M=
+pnpmfileChecksum: sha256-RvI1MUtrmmQk7tkmroskFwrMO+nsJ522YtxOLkd6hCs=
 
 patchedDependencies:
   foundry-local-sdk: 144dc233226af4a735d3bbf7e0476ef09c2c7336c8f47d488703c483b013745e
