@@ -4,6 +4,9 @@ trigger:
     include:
       - main
       - release/*
+  paths:
+    include:
+      - extensions/copilot
 
 pr: none
 

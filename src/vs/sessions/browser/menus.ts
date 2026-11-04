@@ -31,6 +31,13 @@ export const Menus = {
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
+	/** The Layout menu of a window with layout modes, such as a chat window: how it shows its chat and its editor parts. */
+	WindowLayout: new MenuId('SessionsWindowLayout'),
+	/**
+	 * The layout actions in the title bar of a window with layout modes, such as a chat window: its Layout menu, and a
+	 * button for each of its actions, which the user shows and hides from the context menu of the buttons.
+	 */
+	TitleBarWindowLayout: new MenuId('SessionsTitleBarWindowLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
@@ -129,6 +136,7 @@ export const Menus = {
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
+	ChangesFilesViewAndPosition: new MenuId('SessionsChangesFilesViewAndPosition'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
@@ -151,6 +159,8 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
+	/** The layout actions of a window with layout modes, such as a chat window, at the top of its Session Activity Bar while it shows the layout actions. */
+	WindowLayout: '0_windowLayout',
 	/** The side panel toggle, followed by the entries that open its tabs. */
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */

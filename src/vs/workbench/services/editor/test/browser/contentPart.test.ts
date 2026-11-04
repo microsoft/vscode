@@ -212,6 +212,24 @@ suite('Content Part', () => {
 		}, { closed: true, listedWhenNotified: true, merged: true, listed: false });
 	});
 
+	test('close closes the editors that need no confirming, as closing an editor window does, and merges only the others into the main part, whose own editors stay', async () => {
+		const parts = await createServices();
+		const ownOfMain = createInput('/content/own-of-main.txt');
+		await parts.mainPart.activeGroup.openEditor(ownOfMain, { pinned: true });
+
+		const part = parts.createEditorPart({ container: createContainer() });
+		const clean = createInput('/content/clean.txt');
+		const dirty = createInput('/content/dirty.txt');
+		dirty.setDirty();
+		await part.activeGroup.openEditor(clean, { pinned: true });
+		await part.activeGroup.openEditor(dirty, { pinned: true });
+
+		const closed = part.close();
+		const inMain = (input: TestFileEditorInput) => parts.mainPart.groups.some(group => group.contains(input));
+
+		assert.deepStrictEqual({ closed, clean: inMain(clean), dirty: inMain(dirty), ownOfMain: inMain(ownOfMain) }, { closed: true, clean: false, dirty: true, ownOfMain: true });
+	});
+
 	test('close merges editors that must stay into the main part of its window; the window\'s main part into the main part', async () => {
 		const parts = await createServices();
 		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));

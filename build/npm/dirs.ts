@@ -59,7 +59,6 @@ export const workspaceMembers = [
 	'test/scenario',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
-	'.vscode/extensions/vscode-extras',
 	'.vscode/extensions/vscode-pr-pinger',
 	'src/vs/sessions/test/e2e',
 ];
@@ -67,9 +66,10 @@ export const workspaceMembers = [
 /**
  * Separate pnpm install roots (each with its own `pnpm-workspace.yaml` and `pnpm-lock.yaml`) that
  * the root postinstall installs after the workspace, in this order. `build` and `remote` build
- * native modules for a different runtime than the workspace (see their `.npmrc` and
- * `.pnpmfile.mjs`). `extensions/copilot` keeps its own `node_modules` because its build scripts
- * and runtime code use paths inside it; it builds native modules for Electron like the workspace.
+ * native modules for a different runtime than the workspace (see the `nativeBuild` field of their
+ * `package.json`, and their `.pnpmfile.mjs`). `extensions/copilot` keeps its own `node_modules`
+ * because its build scripts and runtime code use paths inside it; it builds native modules for
+ * Electron like the workspace.
  */
 export const separateRoots = [
 	'build',

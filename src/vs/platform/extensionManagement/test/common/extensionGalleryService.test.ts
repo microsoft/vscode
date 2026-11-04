@@ -31,7 +31,7 @@ import { ExtensionBlockingOrigin, InstallOperation, StatisticType } from '../../
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, sortExtensionVersions } from '../../common/extensionGalleryService.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, getGalleryLinkTemplate, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -925,6 +925,33 @@ suite('Extension Gallery Service', () => {
 
 		test('blocked is matched as a whole token', () => {
 			assert.strictEqual(getBlockingInfo({ flags: 'public, unblocked' }, { flags: 'unblocked' }), undefined);
+		});
+	});
+
+	suite('getGalleryLinkTemplate', () => {
+		const manifest: IExtensionGalleryManifest = {
+			version: '',
+			resources: [
+				{ id: 'https://marketplace/items?itemName={publisher}.{name}', type: `${ExtensionGalleryResourceType.ExtensionDetailsViewUri}/1.0.0-preview` },
+				{ id: 'https://marketplace/public/items?itemName={publisher}.{name}', type: 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview' },
+			],
+			capabilities: { extensionQuery: {} }
+		};
+
+		test('uses the default link type when none is given', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, undefined, ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('uses the given link type when the manifest defines it', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/public/items?itemName={publisher}.{name}');
+		});
+
+		test('falls back to the default link type when the manifest does not define the given one', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('returns undefined when neither link type is defined', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownPublisherViewUriTemplate', ExtensionGalleryResourceType.PublisherViewUri), undefined);
 		});
 	});
 });

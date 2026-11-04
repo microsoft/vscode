@@ -17,7 +17,7 @@ import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../platform/accessibility/common/accessibility.js';
 import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
-import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../common/contextkeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -256,7 +256,8 @@ MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
 			icon: Codicon.pinned,
 		},
 	},
-	when: IsAuxiliaryWindowContext,
+	// Not in windows with layout modes, such as chat windows, whose title bars show their layout actions there.
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()),
 	group: 'navigation',
 	order: 0
 });

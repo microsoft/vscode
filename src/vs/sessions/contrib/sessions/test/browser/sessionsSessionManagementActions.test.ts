@@ -418,7 +418,8 @@ suite('Sessions - Session management actions', () => {
 			},
 		}) : undefined;
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getSessionView(sessionId: string | undefined): SessionView | undefined {
+			override getSessionView(session: string | ISession | undefined): SessionView | undefined {
+				const sessionId = typeof session === 'string' ? session : session?.sessionId;
 				return sessionView?.getSession()?.sessionId === sessionId ? sessionView : undefined;
 			}
 			override getFocusedSessionView(): SessionView | undefined {

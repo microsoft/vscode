@@ -8,7 +8,7 @@ import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { bindContextKey, observableContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -29,7 +30,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
-import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
+import { IEditorOpenContext, IEditorPane } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -45,8 +46,12 @@ import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKin
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../common/changes.js';
-import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar } from './changesView.js';
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
+import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -86,12 +91,13 @@ interface IOutgoingChangesContent extends IDisposable {
 
 /** How long a replaced input's diffs stay on screen while the incoming session's changes load. */
 const INCOMING_CHANGES_LOAD_WAIT_MS = 1000;
-class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
+export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
+		private readonly scope: IChangesSessionScope,
+		private readonly editor: SessionChangesEditor,
 		@ICommandService private readonly commandService: ICommandService,
-		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 	) { }
@@ -103,24 +109,39 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 	}
 
 	handleHeaderMiddleClick(resource: URI): boolean {
-		if (this.changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+		if (this.scope.changes.changesetObs.get()?.capabilities?.review !== true) {
 			return false;
 		}
 
-		// `changesObs` can retain a stale row during a session switch; validate against the active changeset.
-		if (!getChangesEditorFileStats(resource, this.changesViewService.activeSessionChangesObs.get())) {
+		// `changesObs` can retain a stale row during a session switch; validate against the scope's changeset.
+		if (!getChangesEditorFileStats(resource, this.scope.changes.changesObs.get())) {
 			return false;
 		}
 
-		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource);
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get() });
 		return true;
 	}
 
 	createToolbarActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === CHANGESET_REVIEW_ACTION_ID && action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
+		const target = this.getToolbarActionTarget(action);
+		if (target.id === CHANGESET_REVIEW_ACTION_ID && target instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, target, options);
 		}
-		return undefined;
+		return target !== action ? createActionViewItem(this.instantiationService, target, options) : undefined;
+	}
+
+	/**
+	 * The actions of the toolbar of each file run with the file, then the session and editor it shows in,
+	 * `{ session, editor }`, so that they act on the session of this Changes editor, in whichever window it shows.
+	 */
+	private getToolbarActionTarget(action: IAction): IAction {
+		if (!(action instanceof MenuItemAction)) {
+			return action;
+		}
+		const { scope, editor } = this;
+		const target: MenuItemAction = Object.create(action);
+		target.run = (...args: unknown[]) => action.run(...args, { session: scope.session.get(), editor } satisfies IChangesEditorFileActionContext);
+		return target;
 	}
 
 	openDiffEditor(original: URI, modified: URI): void {
@@ -206,20 +227,19 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private _desktop = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
-	/** Session whose changes this editor is currently showing (from its input). */
-	private readonly _inputSessionResource = observableValue<URI | undefined>(this, undefined);
+	/** Session, and chat if it names one, whose changes this editor is currently showing (from its input). */
+	private readonly _inputChangesSource = observableValue<{ readonly session: URI; readonly chat: URI | undefined } | undefined>(this, undefined);
 
 	/**
-	 * Changes for this editor's own session, scoped so a stale row does not pick
-	 * up the counts of a different (globally active) session during a switch.
+	 * Changes for this editor's own session, and chat if it names one, as its multi-diff shows them: so a stale row does
+	 * not pick up the counts of another session or chat, whichever is active or has focus.
 	 */
+	private readonly _inputChangesObs = derived(this, reader => {
+		const input = this._inputChangesSource.read(reader);
+		return input ? getChangesEditorChanges(this, this.changesViewService, this.sessionsService, this.sessionsManagementService, input.session, input.chat) : undefined;
+	});
 	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
-		const editorSession = this._inputSessionResource.read(reader);
-		const activeSession = this.changesViewService.activeSessionResourceObs.read(reader);
-		if (!editorSession || !activeSession || !isEqual(editorSession, activeSession)) {
-			return lastValue ?? [];
-		}
-		return this.changesViewService.activeSessionChangesObs.read(reader);
+		return this._inputChangesObs.read(reader)?.read(reader) ?? lastValue ?? [];
 	});
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
@@ -234,6 +254,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _outgoingContent = this._register(new MutableDisposable<IOutgoingChangesContent>());
 
 	private readonly _logger: MultiDiffEditorLogger;
+	private _scopeInstance: IChangesSessionScope | undefined;
+	private get _scope(): IChangesSessionScope {
+		return this._scopeInstance ??= createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+	}
+
+	/** The session whose changes it shows, and those changes. */
+	get changesScope(): IChangesSessionScope {
+		return this._scope;
+	}
 
 	constructor(
 		group: IEditorGroup,
@@ -252,6 +281,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ILogService logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionScope private readonly sessionScope: ISessionScope,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -274,7 +306,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
+			this._scope.changes.hasGitRepositoryObs.read(reader)));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -302,7 +334,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// The changed files list shows beside the diffs when the host enables it, unless the user hides it with Toggle Files.
 		this.fileListWidget = this._register(this.createFileListWidget(
 			paneInstantiationService,
-			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
+			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope, this),
 			{
 				variant: variant.get(),
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
@@ -400,7 +432,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, right, new Set<string>()));
+		store.add(instantiationService.createInstance(ChangesActionsBar, right, this._scope, new Set<string>()));
 
 		return store;
 	}
@@ -416,9 +448,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
-		this._inputSessionResource.set(sessionResource, undefined);
+		this._inputChangesSource.set(sessionResource ? { session: sessionResource, chat: this.sessionChangesService.getChatResource(input.multiDiffSource) } : undefined, undefined);
 		this._pendingResolve.clear();
-		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		// Only the main editor part hides with the main window's layout; other editor parts, such as of chat windows, show.
+		const inMainEditorPart = this.editorGroupService.getPart(this.group) === this.editorGroupService.mainPart;
+		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
 			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
 			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.
@@ -448,7 +482,20 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			}
 		}
 
-		const viewModel = await input.getViewModel();
+		let viewModel: MultiDiffEditorViewModel | undefined;
+		while (!viewModel) {
+			try {
+				viewModel = await input.getViewModel();
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					throw error;
+				}
+				// What the input resolved was let go of meanwhile: resolve it again while it is still to show
+				if (token.isCancellationRequested || this.input !== input || input.isDisposed()) {
+					return;
+				}
+			}
+		}
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
@@ -622,11 +669,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 					retention,
 					dispose: () => {
 						retention.dispose();
-						input.clear();
+						this._clearUnlessShownElsewhere(input);
 					},
 				};
 			} else {
-				input.clear();
+				this._clearUnlessShownElsewhere(input);
 			}
 		}
 		if (!this._outgoingContent.value) {
@@ -638,6 +685,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this._releaseOutgoingContent(true);
 			}
 		});
+	}
+
+	/**
+	 * Lets go of what `input` resolved, unless an editor in another group shows it, such as the one its tab moved to,
+	 * which shows or resolves it.
+	 */
+	private _clearUnlessShownElsewhere(input: SessionChangesEditorInput): void {
+		if (!this.editorGroupService.groups.some(group => group.id !== this.group.id && group.contains(input, { strictEquals: true }))) {
+			input.clear();
+		}
 	}
 
 	/** Takes over the outgoing content's view model when the same input is set again (e.g. a forced reload) instead of releasing it. */
@@ -693,6 +750,19 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 }
 
 export const CHANGESET_REVIEW_ACTION_ID = 'changeset.review';
+
+/** What the actions of the toolbar of a file of a Changes editor get after the file: the session and editor it shows in. */
+export interface IChangesEditorFileActionContext {
+	readonly session: IActiveSession | undefined;
+	readonly editor: SessionChangesEditor;
+}
+
+/** The editor whose file toolbar an action is invoked from, as {@link IChangesEditorFileActionContext} names it, else the active editor. */
+export function getFileActionEditorPane(editorService: IEditorService, args: readonly unknown[]): IEditorPane | undefined {
+	const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
+	return editor instanceof SessionChangesEditor ? editor : editorService.activeEditorPane;
+}
+
 
 /**
  * Renders the per-file "Mark as Viewed" toggle in the Changes editor file header
