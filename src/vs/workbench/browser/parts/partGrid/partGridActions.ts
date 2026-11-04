@@ -74,7 +74,7 @@ abstract class MoveEditorIntoNewPartAction extends Action2 {
 			id,
 			title,
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ActiveEditorGroupEmptyContext.negate()),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, EditorPartInPartGridContext, ActiveEditorGroupEmptyContext.negate()),
 			f1: true
 		});
 	}
