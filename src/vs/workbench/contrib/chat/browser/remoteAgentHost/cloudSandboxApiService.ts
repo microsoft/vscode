@@ -36,6 +36,7 @@ import {
 	ICloudSandboxReserveSessionRequest,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
+	ICloudSandboxDiscoveryCheckpoint,
 	ICloudSandboxDiscoveryOptions,
 	ICloudSandboxEnvironment,
 	ICloudSandboxAuthenticationTarget,
@@ -127,6 +128,12 @@ interface ICachedSandboxTask {
 	/** An unattributed default-titled task whose recorded conversation may be an abandoned draft. */
 	readonly emptySessionSince?: number;
 	readonly hasEmptyHistory?: boolean;
+}
+
+/** Whether an incremental scan must recheck a known task that it did not return. */
+function needsIncrementalRecheck(cached: ICachedSandboxTask): boolean {
+	return !!cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || cached.emptySessionSince !== undefined
+		|| (cached.repositoryId !== undefined && !cached.session.repoName);
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -607,7 +614,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private async _listSessions(token: CancellationToken, options: ICloudSandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>, telemetry: ICloudSandboxDiscoveryTelemetryData): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
-		const since = !targeted && options?.incremental ? this._discoverySince : undefined;
+		// A persisted checkpoint is only consistent with the caller's restored sessions, never with this service's own cache.
+		const resumed = !targeted && options?.incremental && this._discoverySince === undefined && this._discoveredTasks.size === 0 ? options.resume : undefined;
+		const since = !targeted && options?.incremental ? this._discoverySince ?? resumed?.since : undefined;
+		const detailTaskIds = targeted ? options.taskIds : resumed?.pendingTaskIds ?? [];
 		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
@@ -636,10 +646,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let truncated = false;
 		let checkpoint: number | undefined;
 		let latestUpdate: number | undefined;
-		if (targeted) {
+		if (detailTaskIds.length) {
 			const limiter = new Limiter<void>(DISCOVERY_TASK_FETCH_CONCURRENCY);
 			try {
-				await Promise.all([...new Set(options.taskIds)].map(id => limiter.queue(async () => {
+				await Promise.all([...new Set(detailTaskIds)].map(id => limiter.queue(async () => {
 					try {
 						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(id)}`, 'get', token);
 						const task = await this._readJson<ITaskDetail>(context);
@@ -658,7 +668,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						} else {
 							truncated = true;
 							failedTaskIds.add(id);
-							this._logService.warn(`${LOG_PREFIX} Feed task refresh failed: ${toErrorMessage(error)}`);
+							this._logService.warn(`${LOG_PREFIX} ${targeted ? 'Feed task refresh' : 'Resumed task recheck'} failed: ${toErrorMessage(error)}`);
 						}
 					}
 				})));
@@ -726,7 +736,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || cached.emptySessionSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if (!tasks.has(id) && needsIncrementalRecheck(cached)) {
 					tasks.set(id, cached.summary);
 				}
 			}
@@ -748,7 +758,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				}
 			} else {
 				logExcludedTask(task.id, 'notSandboxCompute');
-				if (cache.has(task.id)) {
+				if (cache.has(task.id) || resumed) {
 					removedTaskIds.push(task.id);
 				}
 				cache.delete(task.id);
@@ -778,7 +788,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							throw new Error('getTask returned no task');
 						}
 						const binding = getTaskEnvironmentBinding(full);
-						if (!binding && cached?.session) {
+						// A resumed scan does not know which restored rows a task owns, so report it as removed.
+						if (!binding && (cached?.session || resumed)) {
 							removedTaskIds.push(task.id);
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
@@ -953,7 +964,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (partial) {
 			return { kind: 'partial', sessions, removedTaskIds: [...removed], ...(targeted ? { failedTaskIds: [...failedTaskIds] } : {}) };
 		}
-		return targeted || since ? { kind: 'incremental', sessions, removedTaskIds: [...removed] } : { kind: 'complete', sessions };
+		const resumeCheckpoint: ICloudSandboxDiscoveryCheckpoint | undefined = this._discoverySince === undefined ? undefined : {
+			since: this._discoverySince,
+			pendingTaskIds: [...this._discoveredTasks].filter(([, cached]) => needsIncrementalRecheck(cached)).map(([id]) => id),
+		};
+		const checkpointResult = resumeCheckpoint ? { checkpoint: resumeCheckpoint } : {};
+		return targeted || since ? { kind: 'incremental', sessions, removedTaskIds: [...removed], ...checkpointResult } : { kind: 'complete', sessions, ...checkpointResult };
 	}
 
 	async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession> {

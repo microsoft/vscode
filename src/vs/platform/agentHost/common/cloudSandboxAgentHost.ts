@@ -469,18 +469,34 @@ export interface ICloudSandboxApiService {
 export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
 export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
 
+/**
+ * Discovery state that, together with the sessions published so far, lets a new service instance
+ * continue incrementally instead of rescanning the account's entire task history.
+ */
+export interface ICloudSandboxDiscoveryCheckpoint {
+	/** Server-clock lower bound for the next incremental scan. */
+	readonly since: string;
+	/** Known tasks that an incremental scan must recheck even when they have not changed. */
+	readonly pendingTaskIds: readonly string[];
+}
+
 export interface ICloudSandboxDiscoveryOptions {
 	readonly incremental?: boolean;
 	readonly taskIds?: readonly string[];
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
+	/**
+	 * A checkpoint persisted with the caller's sessions. Used only by an incremental scan of a
+	 * service that has not discovered anything yet.
+	 */
+	readonly resume?: ICloudSandboxDiscoveryCheckpoint;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
 export type ICloudSandboxDiscoveryResult =
 	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly checkpoint?: ICloudSandboxDiscoveryCheckpoint }
 	/** Changes only; sessions absent from this result must be retained. */
-	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
+	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[]; readonly checkpoint?: ICloudSandboxDiscoveryCheckpoint }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
 	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
