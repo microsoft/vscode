@@ -12,15 +12,18 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { escape } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { extractSelection } from '../../../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
 import { contentRefUrl } from '../../../common/widget/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -31,6 +34,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ISessionSummaryHoverService } from '../../agentSessions/sessionSummaryHoverService.js';
+import { hookUpResourceContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { InlineAnchorWidget, renderFileAnchor } from './chatInlineAnchorWidget.js';
@@ -110,6 +114,7 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
@@ -166,6 +171,14 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 			}
 			const href = a.getAttribute('data-href');
 			if (href) {
+				const { uri } = extractSelection(URI.parse(href));
+				if (this.fileService.hasProvider(uri)) {
+					const params = new URLSearchParams(uri.query);
+					const hasLinkType = params.has('vscodeLinkType');
+					params.delete('vscodeLinkType');
+					const resource = hasLinkType ? uri.with({ query: params.toString() }) : uri;
+					store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, a, resource, MenuId.ChatInlineResourceAnchorContext)));
+				}
 				if (href.startsWith(agentRefUrl)) {
 					let args: IAgentWidgetArgs | undefined;
 					try {
