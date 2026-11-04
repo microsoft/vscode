@@ -56,6 +56,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private _context: IDesktopLayoutContext | undefined;
 	private _existingSession: DesktopExistingSessionStrategy | undefined;
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	private _auxiliaryControllersRegistration: Promise<void> | undefined;
 	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
@@ -111,6 +112,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 			this._context = {
 				get isRestoringSessionLayout() { return that._isRestoringSessionLayout; },
 				withSessionLayoutRestore: work => that._withSessionLayoutRestore(work),
+				trackWork: work => that._trackWork(work),
 				onDidEndSessionLayoutRestore: that.onDidEndSessionLayoutRestore,
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
@@ -145,7 +147,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore, this._sharedChatLayout);
 		this._registerPersistedOwnerKeys(this._compositionStore.ownerKeys);
 		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
-		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
+		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator, this._ctx));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
 		this._register(this._instantiationService.createInstance(DesktopDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));
@@ -154,7 +156,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	// --- Managed tabs + editor-area collapse (deferred to Restored so they reconcile on top of the restored group) ---
 
 	protected override _registerAuxiliaryControllers(): void {
-		this._lifecycleService.when(LifecyclePhase.Restored).then(() => {
+		this._auxiliaryControllersRegistration = this._lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -176,6 +178,17 @@ export class DesktopLayoutController extends BaseLayoutController {
 			this._managedTabs = this._register(this._instantiationService.createInstance(DesktopDockedTabsCoordinator, this._ctx));
 			this._existingSession?.registerManagedTabs(this._managedTabs);
 		});
+	}
+
+	/**
+	 * Once the `Restored` phase is reached, also awaits the deferred managed-tabs
+	 * registration above and the reconciles it queues.
+	 */
+	override async whenIdle(): Promise<void> {
+		if (this._lifecycleService.phase >= LifecyclePhase.Restored) {
+			await this._auxiliaryControllersRegistration;
+		}
+		return super.whenIdle();
 	}
 
 	/** Toggle the detail panel and return whether it is now visible. */
