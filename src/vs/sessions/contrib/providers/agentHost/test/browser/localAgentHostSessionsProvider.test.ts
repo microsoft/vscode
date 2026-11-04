@@ -3490,6 +3490,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
+	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+
+		fireSessionSummaryChanged(agentHost, 'turn-end', { modifiedAt: new Date(5_000).toISOString() });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			updatedAt: session.updatedAt.get().getTime(),
+			lastTurnEnd: session.lastTurnEnd.get()?.getTime(),
+			mainChatUpdatedAt: session.mainChat.get().updatedAt.get()?.getTime(),
+			mainChatLastTurnEnd: session.mainChat.get().lastTurnEnd?.get()?.getTime(),
+			listCalls: agentHost.listSessionsCallCount,
+		}, {
+			updatedAt: 5_000,
+			lastTurnEnd: 5_000,
+			mainChatUpdatedAt: 5_000,
+			mainChatLastTurnEnd: 5_000,
+			listCalls: 1,
+		});
+	}));
+
 	test('a reported zero changes summary is kept instead of being treated as unreported', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A folder session without tracked edits reports an empty Session Changes
 		// summary. Dropping it lets the list fall back to the main chat's default

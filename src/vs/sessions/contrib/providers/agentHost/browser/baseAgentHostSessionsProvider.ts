@@ -2663,6 +2663,29 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
+	 * Apply the host's last-modified time to the session, its last turn end and,
+	 * for a single-chat session, its default chat. Returns `true` iff a
+	 * user-visible field changed.
+	 */
+	setModifiedTime(modifiedTime: number, tx: ITransaction, hasMultipleChats = this._hasMultipleChats.get()): boolean {
+		let didChange = false;
+		if (this.updatedAt.get().getTime() !== modifiedTime) {
+			this.updatedAt.set(new Date(modifiedTime), tx);
+			didChange = true;
+		}
+		if (!hasMultipleChats && this._defaultChatUpdatedAt.get()?.getTime() !== modifiedTime) {
+			this._defaultChatUpdatedAt.set(new Date(modifiedTime), tx);
+		}
+		const currentLastTurnEndTime = this.lastTurnEnd.get()?.getTime();
+		const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
+		if (currentLastTurnEndTime !== nextLastTurnEndTime) {
+			this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, tx);
+			didChange = true;
+		}
+		return didChange;
+	}
+
+	/**
 	 * Update fields from a refreshed metadata snapshot. Returns `true` iff
 	 * any user-visible field changed.
 	 */
@@ -2683,22 +2706,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			}
 
-			const modifiedTime = metadata.modifiedTime;
-			if (this.updatedAt.get().getTime() !== modifiedTime) {
-				this.updatedAt.set(new Date(modifiedTime), tx);
-				didChange = true;
-			}
 			const hasMultipleChats = metadata.chats?.some(chat => chat.kind === 'peer') ?? this._hasMultipleChats.get();
-			if (!hasMultipleChats && this._defaultChatUpdatedAt.get()?.getTime() !== modifiedTime) {
-				this._defaultChatUpdatedAt.set(new Date(modifiedTime), tx);
-			}
-
-			const currentLastTurnEndTime = this.lastTurnEnd.get()?.getTime();
-			const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
-			if (currentLastTurnEndTime !== nextLastTurnEndTime) {
-				this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, tx);
-				didChange = true;
-			}
+			didChange = this.setModifiedTime(metadata.modifiedTime, tx, hasMultipleChats) || didChange;
 
 			this._project = metadata.project;
 			this._workingDirectories = metadata.workingDirectories;
@@ -10497,8 +10506,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			if (changes.modifiedAt !== undefined) {
 				const modifiedTime = Date.parse(changes.modifiedAt);
-				if (Number.isFinite(modifiedTime) && cached.updatedAt.get().getTime() !== modifiedTime) {
-					cached.updatedAt.set(new Date(modifiedTime), tx);
+				if (Number.isFinite(modifiedTime) && cached.setModifiedTime(modifiedTime, tx)) {
 					didChange = true;
 				}
 			}
