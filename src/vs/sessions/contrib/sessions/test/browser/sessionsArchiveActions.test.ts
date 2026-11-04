@@ -69,6 +69,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidArchiveSession = sessionArchived.event;
 			override readonly onDidDeleteSession = Event.None;
+			override readonly onDidDeleteChat = Event.None;
 			override readonly onWillSendRequest = Event.None;
 			override readonly onDidReplaceSession = Event.None;
 			override readonly onDidReplaceNewDraftSession = Event.None;

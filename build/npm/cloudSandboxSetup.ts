@@ -10,8 +10,9 @@ import * as os from 'node:os';
 import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 import { isCloudSandbox, prepareCloudSandbox, prepareCloudSandboxPnpm, raiseCloudSandboxFileLimit } from './cloudSandbox.ts';
-import { root } from './installStateHash.ts';
 import { getPinnedPnpmVersion } from '../lib/pnpm.ts';
+
+const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 
 async function acquireSetupLock(lockFile: string): Promise<() => void> {
 	const deadline = performance.now() + 20 * 60_000;
@@ -67,10 +68,15 @@ function setupFingerprint(nodeVersion: string): string {
 	const hash = createHash('sha256')
 		.update(JSON.stringify([process.env.GITHUB_ENVIRONMENT_ID, nodeVersion, process.arch, getPinnedPnpmVersion(root)]));
 	for (const file of [
-		'.nvmrc', '.npmrc', 'remote/.npmrc', 'build/npm/gyp/package.json', 'build/npm/gyp/pnpm-lock.yaml',
+		'.nvmrc', 'build/npm/gyp/package.json', 'build/npm/gyp/pnpm-lock.yaml',
 		'build/npm/cloudSandbox.ts', 'build/npm/cloudSandboxSetup.ts', 'build/npm/preinstall.ts',
 	]) {
 		hash.update(file).update(fs.readFileSync(path.join(root, file)));
+	}
+	// The runtimes whose headers the preinstall downloads, without the rest of the manifests.
+	for (const file of ['package.json', 'remote/package.json']) {
+		const nativeBuild = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')).nativeBuild;
+		hash.update(file).update(JSON.stringify(nativeBuild ?? null));
 	}
 	const customHeaders = path.join(root, 'build/npm/gyp/custom-headers');
 	if (fs.existsSync(customHeaders)) {
@@ -106,7 +112,7 @@ if (isCloudSandbox()) {
 			execFileSync(node, [path.join(root, 'build/npm/preinstall.ts')], {
 				cwd: root,
 				stdio: 'inherit',
-				env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}`, VSCODE_FORCE_INSTALL: '1' },
+				env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}` },
 			});
 			fs.mkdirSync(path.dirname(stateFile), { recursive: true });
 			fs.writeFileSync(stateFile, fingerprint);

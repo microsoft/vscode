@@ -35,6 +35,19 @@ suite('ChatConfiguration defaults', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const localWorkspace = createWorkspace(URI.file('/workspace'));
 
+	test('Copilot harness defaults on without experiment controls or experimental tags', () => {
+		const setting = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[ChatConfiguration.DefaultToCopilotHarness];
+		assert.deepStrictEqual({
+			default: setting.default,
+			experiment: setting.experiment,
+			tags: setting.tags,
+		}, {
+			default: true,
+			experiment: undefined,
+			tags: undefined,
+		});
+	});
+
 	function createWorkspace(...resources: URI[]): Workspace {
 		return new Workspace(
 			resources.map(resource => resource.toString()).join(','),
@@ -298,7 +311,7 @@ suite('ChatConfiguration defaults', () => {
 			}, {
 				explicit: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'explicitOverride' },
 				others: [SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'remote-agent-host'],
-				virtual: localChatSessionType,
+				virtual: SessionType.AgentHostCopilot,
 			});
 		});
 
@@ -529,7 +542,7 @@ suite('ChatConfiguration defaults', () => {
 
 	test('editor default prefers agent host Copilot when the agent host is enabled', () => {
 		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.DefaultToCopilotHarness]: true,
+			[ChatConfiguration.DefaultToCopilotHarness]: Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[ChatConfiguration.DefaultToCopilotHarness].default,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
@@ -545,13 +558,13 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('editor default stays local when the agent host is enabled but the Copilot default is not opted in', () => {
-		const configurationService = new TestConfigurationService();
+	test('editor default stays local when the Copilot default is explicitly disabled', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
-		// The agent host is enabled but `chat.defaultToCopilotHarness` is off (its
-		// default), so the computed default remains the local harness.
 		assert.deepStrictEqual({
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
 			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
@@ -977,7 +990,7 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('virtual workspace defaults implicit new chats to local', () => {
+	test('virtual workspace follows the Copilot harness default and rejects other local harnesses', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
@@ -1000,17 +1013,19 @@ suite('ChatConfiguration defaults', () => {
 			explicitOverride: resolveSessionType(configurationService, chatSessionsService, currentStorageService, workspace, true, { explicitOverride: SessionType.AgentHostClaude }),
 			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace),
 			localRememberedUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, workspace),
+			claudeUsable: isNewChatSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService, workspace),
 		}, {
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 			remembered: SessionType.AgentHostClaude,
-			rememberedAware: localChatSessionType,
-			currentAware: localChatSessionType,
-			resolvedRemembered: { sessionType: localChatSessionType },
-			resolvedCurrent: { sessionType: localChatSessionType },
-			resolvedPreferMigration: { sessionType: localChatSessionType },
+			rememberedAware: SessionType.AgentHostCopilot,
+			currentAware: SessionType.AgentHostCopilot,
+			resolvedRemembered: { sessionType: SessionType.AgentHostCopilot },
+			resolvedCurrent: { sessionType: SessionType.AgentHostCopilot },
+			resolvedPreferMigration: { sessionType: SessionType.AgentHostCopilot },
 			explicitOverride: { sessionType: SessionType.AgentHostClaude },
 			localVisible: true,
 			localRememberedUsable: true,
+			claudeUsable: false,
 		});
 	});
 
@@ -1178,12 +1193,12 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('managed sandbox floor hides the local harness and defaults to the Copilot SDK', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		// `chat.editor.localAgent.enabled` and `chat.defaultToCopilotHarness` are left at their
-		// defaults: an enterprise-mandated sandbox floor implies both.
 		assert.deepStrictEqual({
 			localEnabled: isEditorLocalAgentEnabled(configurationService, localWorkspace, true),
 			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true),
@@ -1280,7 +1295,7 @@ suite('ChatConfiguration defaults', () => {
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, true, true),
 		}, {
 			localEnabled: true,
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 		});
 	});
 
@@ -1296,14 +1311,12 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.deepStrictEqual({
 			explicit: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: SessionType.AgentHostClaude }),
-			virtual: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode')), true),
 			remembered: resolveSessionTypeWithReason(configurationService, chatSessionsService, rememberedStorageService, localWorkspace, true),
 			current: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostClaude }),
 			copilotPreference: resolveSessionTypeWithReason(preferenceConfigurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 			computed: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true),
 		}, {
 			explicit: { sessionType: SessionType.AgentHostClaude, selectionReason: 'explicitOverride' },
-			virtual: { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' },
 			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
 			current: { sessionType: SessionType.AgentHostClaude, selectionReason: 'currentSession' },
 			copilotPreference: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },

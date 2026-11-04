@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
@@ -25,7 +26,8 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { ThisComputerSection } from './thisComputerSection.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../chat/common/constants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
 
@@ -34,10 +36,13 @@ export class RemotesEditor extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
+	private thisComputerContainer: HTMLElement | undefined;
+	private tableContainer: HTMLElement | undefined;
 	private disabledMessage: HTMLElement | undefined;
 	private scopedContext: IScopedContextKeyService | undefined;
 	private widgetInstantiationService: IInstantiationService | undefined;
 	private readonly widget = this._register(new MutableDisposable<RemotesWidget>());
+	private readonly thisComputer = this._register(new MutableDisposable<ThisComputerSection>());
 
 	constructor(
 		group: IEditorGroup,
@@ -51,7 +56,7 @@ export class RemotesEditor extends EditorPane {
 	) {
 		super(RemotesEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)) {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING) || event.affectsConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING)) {
 				this.updateWidget();
 			}
 		}));
@@ -64,6 +69,8 @@ export class RemotesEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = dom.append(parent, dom.$('.remotes-editor'));
 		this.content = dom.append(this.container, dom.$('.remotes-editor-content'));
+		this.thisComputerContainer = dom.append(this.content, dom.$('.remotes-editor-this-computer'));
+		this.tableContainer = dom.append(this.content, dom.$('.remotes-editor-table'));
 		this.disabledMessage = dom.append(this.container, dom.$('p.remotes-editor-disabled', { role: 'status', tabindex: '0' }));
 		this.disabledMessage.textContent = localize('remotes.editorDisabled', "Remote agent hosts are disabled.");
 		this.disabledMessage.hidden = true;
@@ -85,11 +92,12 @@ export class RemotesEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.widget.clear();
+		this.thisComputer.clear();
 		super.clearInput();
 	}
 
 	private updateWidget(): void {
-		if (!this.content || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
+		if (!this.content || !this.thisComputerContainer || !this.tableContainer || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
 			return;
 		}
 		const managementEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
@@ -104,19 +112,38 @@ export class RemotesEditor extends EditorPane {
 		this.content.hidden = !enabled;
 		if (!enabled) {
 			this.widget.clear();
+			this.thisComputer.clear();
 			return;
 		}
 		if (!this.widget.value) {
 			const channel = this.sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL);
 			const model = this.widgetInstantiationService.createInstance(RemotesModel, token => channel.call<readonly IDiscoveredDevContainer[]>('listDevContainers', undefined, token));
-			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.content, model, OS);
+			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.tableContainer, model, OS);
+		}
+		const showThisComputer = this.isThisComputerEnabled();
+		this.thisComputerContainer.hidden = !showThisComputer;
+		if (!showThisComputer) {
+			this.thisComputer.clear();
+		} else if (!this.thisComputer.value) {
+			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer);
 		}
 		this.widget.value.setVisible(this.isVisible());
 		this.widget.value.layout();
 	}
 
+	/**
+	 * Reads the experiment-controlled This Computer setting. Only called once the editor shows its content,
+	 * so the experiment trigger is logged in every arm whenever the section would be shown.
+	 */
+	private isThisComputerEnabled(): boolean {
+		logSettingExperimentTrigger(this.telemetryService, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		return !!this.configurationService.getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+	}
+
 	getAccessibilityContent(): string {
-		return this.widget.value?.getAccessibilityContent() ?? this.disabledMessage?.textContent ?? '';
+		return this.widget.value
+			? [this.thisComputer.value?.getAccessibilityContent(), this.widget.value.getAccessibilityContent()].filter(Boolean).join('\n\n')
+			: this.disabledMessage?.textContent ?? '';
 	}
 
 	override focus(): void {

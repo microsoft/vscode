@@ -38,7 +38,7 @@ import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProvider
 
 export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 
-type AgentSessionRefreshReason = Exclude<ChatSessionRefreshReason, 'initial'>;
+export type AgentSessionRefreshReason = Exclude<ChatSessionRefreshReason, 'initial'>;
 
 /** Keeps refresh intent and errors in the same batch across the delayer and throttler queues. */
 interface IProviderResolution {
@@ -749,12 +749,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
-		// Providers that register their session items dynamically (notably the
-		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
-		// are neither built-in nor static contributions, so they are preserved
-		// via the live registration signal — otherwise a sibling provider's
-		// partial refresh would drop their rows (sessions vanishing mid-migration).
-		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
 		const sessions = new ResourceMap<IInternalAgentSession>();
@@ -832,10 +826,19 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// Phase 2: Atomically update sessions (sync - reads latest this._sessions
 		// so concurrent updateItems calls for other providers don't lose data)
 
+		// Providers that register their session items dynamically (notably the
+		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
+		// are neither built-in nor static contributions, so they are preserved
+		// via the live registration signal — otherwise a sibling provider's
+		// partial refresh would drop their rows (sessions vanishing mid-migration).
+		// Read registrations and contributions after Phase 1: it can wait for this
+		// provider's extension to activate, while other providers register and add rows.
+		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
+		const contributedProviders = new Set(this.chatSessionsService.getAllChatSessionContributions().map(contribution => contribution.type));
 		let preservedViaRegistration = 0;
 		for (const [, session] of this._sessions) {
 			if (session.providerType !== provider && !sessions.has(session.resource)) {
-				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType);
+				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || contributedProviders.has(session.providerType);
 				if (knownProvider || registeredProviders.has(session.providerType)) {
 					sessions.set(session.resource, session);
 					// Count rows kept only because their provider is live-registered

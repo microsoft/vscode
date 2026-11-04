@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, leftoverDomDetector } from './isolationCheck.js';
+import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, leftoverDomDetector, scrollDetector } from './isolationCheck.js';
 
 suite('Isolation check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +47,32 @@ suite('Isolation check', () => {
 		});
 	});
 
+	test('reports a page the suite scrolled, but not one that was already scrolled', () => {
+		const body = mainWindow.document.body;
+		const filler = mainWindow.document.createElement('div');
+		filler.style.height = '10000px';
+		body.append(filler);
+		const scrollTop = body.scrollTop;
+		const rootScrollTop = mainWindow.document.documentElement.scrollTop;
+		const scroll = (top: number) => {
+			body.scrollTop = top;
+			mainWindow.document.documentElement.scrollTop = top;
+		};
+		try {
+			// Start from the top, whatever an earlier suite left.
+			scroll(0);
+			const before = scrollDetector.snapshot();
+			scroll(120);
+			const scrolled = scrollDetector.check(before).length > 0;
+			const unchanged = scrollDetector.check(scrollDetector.snapshot());
+			scroll(0);
+			assert.deepStrictEqual({ scrolled, unchanged, restored: scrollDetector.check(before) }, { scrolled: true, unchanged: [], restored: [] });
+		} finally {
+			body.scrollTop = scrollTop;
+			mainWindow.document.documentElement.scrollTop = rootScrollTop;
+			filler.remove();
+		}
+	});
 	test('reports fake timers that a suite installed and did not restore', () => {
 		const realSetTimeout = globalThis.setTimeout;
 		const realDate = globalThis.Date;

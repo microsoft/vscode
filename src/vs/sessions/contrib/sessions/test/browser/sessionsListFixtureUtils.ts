@@ -666,6 +666,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
@@ -705,6 +706,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 				override readonly notifications = constObservable([]);
+				override readonly attentionCount = constObservable(0);
 				override readonly isLoading = constObservable(false);
 				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
 				override setSortMode(): void { }
