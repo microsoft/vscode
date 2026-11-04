@@ -92,10 +92,10 @@ export class ManagedHoverWidget implements IDisposable {
 		const oldHoverWidget = this._hoverWidget;
 		const nextFocus = focus ?? this._focus;
 		const effectiveOptions = { ...options, trapFocus: options?.trapFocus ?? nextFocus };
-		// Changed actions, padding or focus still require the existing replacement path.
+		// The delegate must also validate its resolved configuration before updating in place.
 		if (isString(content) && content.length > 0 && oldHoverWidget && !oldHoverWidget.isDisposed &&
 			equals(this._options, effectiveOptions) && this._contentOwnsPadding === contentOwnsPadding &&
-			this._focus === nextFocus && oldHoverWidget.updateContent?.(content)) {
+			this._focus === nextFocus && this.hoverDelegate.updateHover?.(oldHoverWidget, content, nextFocus)) {
 			return;
 		}
 		this._options = deepClone(effectiveOptions);

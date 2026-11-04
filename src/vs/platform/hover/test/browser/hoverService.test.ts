@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { HoverService } from '../../browser/hoverService.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../browser/hover.js';
+import { QuickInputHoverDelegate } from '../../../quickinput/browser/quickInput.js';
 import { HoverWidget } from '../../browser/hoverWidget.js';
 import { IContextMenuService } from '../../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
@@ -507,6 +508,36 @@ suite('HoverService', () => {
 			hover1?.dispose();
 			hover3?.dispose();
 		});
+
+		test('refreshes content-derived identity after plain-text updates', () => {
+			const hover = asHoverWidget(store.add(showHover('Initial')));
+			hover.updateContent('Updated');
+			const duplicate = hoverService.showInstantHover({ content: 'Updated', target: createTarget() });
+			if (duplicate) {
+				store.add(duplicate);
+			}
+			const previousContent = hoverService.showInstantHover({ content: 'Initial', target: createTarget() });
+			if (previousContent) {
+				store.add(previousContent);
+			}
+			assert.deepStrictEqual({
+				duplicateRejected: duplicate === undefined,
+				previousContentShown: previousContent !== undefined && isInDOM(previousContent),
+			}, { duplicateRejected: true, previousContentShown: true });
+		});
+
+		for (const id of ['stable-id', 'Initial']) {
+			test(`preserves explicit identity ${id} after plain-text updates`, () => {
+				const hover = asHoverWidget(store.add(showHover('Initial', undefined, { id })));
+				hover.updateContent('Updated');
+				const duplicate = hoverService.showInstantHover({ content: 'Another text', target: createTarget(), id });
+				if (duplicate) {
+					store.add(duplicate);
+				}
+				assert.deepStrictEqual({ duplicateRejected: duplicate === undefined, originalVisible: isInDOM(hover) },
+					{ duplicateRejected: true, originalVisible: true });
+			});
+		}
 
 		test('should apply additional classes to hover DOM', () => {
 			const hover = showHover('Test', undefined, {
@@ -1092,6 +1123,111 @@ suite('HoverService', () => {
 
 	suite('setupManagedHover', () => {
 
+		test('preserves the status bar hover across repeated updates with functional overrides', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let resolved = 0;
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, (_options, focus) => {
+				resolved++;
+				return { persistence: { hideOnKeyDown: true, sticky: focus }, appearance: { maxHeightRatio: 0.9 } };
+			}));
+			let shown = 0;
+			const options = { onDidShow: () => shown++ };
+			const target = createTarget();
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, 'Initial', options));
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+			const first = fixture.querySelector('.monaco-hover');
+			assert.ok(first);
+			const reused: boolean[] = [];
+			for (let i = 0; i < 24; i++) {
+				await hover.update(`Update ${i}${i % 2 ? '\nExtra line' : ''}`, options);
+				reused.push(fixture.querySelector('.monaco-hover') === first);
+			}
+			assert.deepStrictEqual({ reused, shown, resolved }, { reused: Array(24).fill(true), shown: 1, resolved: 25 });
+		}));
+
+		test('detects mutations of delegate-resolved options reused across updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const overrides = { actions: [{ commandId: 'test.action', label: 'Initial', run: () => { } }] };
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, () => overrides));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			const first = fixture.querySelector('.monaco-hover');
+			overrides.actions[0].label = 'Updated action';
+			await hover.update('Updated');
+			const current = fixture.querySelector('.monaco-hover');
+			assert.deepStrictEqual({ replaced: current !== first, action: current?.querySelector('.action-container')?.textContent },
+				{ replaced: true, action: 'Updated action' });
+		}));
+
+		test('updates text transformed by delegate overrides without replacing the hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, options => ({
+				content: `${options.content} transformed`,
+			})));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			const first = fixture.querySelector('.monaco-hover');
+			assert.ok(first);
+			await hover.update('Updated');
+			const current = fixture.querySelector('.monaco-hover');
+			assert.deepStrictEqual({ reused: current === first, content: current?.querySelector('.hover-contents')?.textContent },
+				{ reused: true, content: 'Updated transformed' });
+		}));
+
+		test('allows the previous content on another target after a managed update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			await hover.update('Updated');
+			const previousContent = hoverService.showInstantHover({ content: 'Initial', target: createTarget() });
+			if (previousContent) {
+				store.add(previousContent);
+			}
+			assert.deepStrictEqual({
+				previousContentShown: previousContent !== undefined && isInDOM(previousContent),
+			}, { previousContentShown: true });
+		}));
+
+		test('refreshes Quick Input hover hints when the text gains or loses newlines', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(QuickInputHoverDelegate));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			const hints: boolean[] = [!!fixture.querySelector('.monaco-hover .status-bar .info')];
+			for (const content of ['First\nSecond', 'Single line']) {
+				await hover.update(content);
+				hints.push(!!fixture.querySelector('.monaco-hover .status-bar .info'));
+			}
+			assert.deepStrictEqual(hints, [false, true, false]);
+		}));
+
+		test('reevaluates content-dependent delegate actions during managed updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, options => ({
+				actions: [{ commandId: 'test.action', label: String(options.content), run: () => { } }],
+			})));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			await hover.update('Updated');
+			assert.strictEqual(fixture.querySelector('.monaco-hover .action-container')?.textContent, 'Updated');
+		}));
+
+		test('recreates managed hovers when the delegate has not opted into content updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const hover = store.add(hoverService.setupManagedHover({
+				delay: 0,
+				showHover: options => hoverService.showInstantHover(options),
+			}, createTarget(), 'Initial'));
+			hover.show();
+			await timeout(0);
+			const first = fixture.querySelector('.monaco-hover');
+			assert.ok(first);
+			await hover.update('Updated');
+			const current = fixture.querySelector('.monaco-hover');
+			assert.deepStrictEqual({ replaced: current !== first, content: current?.querySelector('.hover-contents')?.textContent },
+				{ replaced: true, content: 'Updated' });
+		}));
+
 		test('updates managed plain text without replacing its DOM or repeating onDidShow', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
 			const target = createTarget();
@@ -1411,6 +1547,20 @@ suite('HoverService', () => {
 	});
 
 	suite('showDelayedHover', () => {
+		test('uses the updated content identity when deduplicating delayed hovers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = hoverService.showDelayedHover({ content: 'Initial', target: createTarget() }, {});
+			assert.ok(first);
+			store.add(first);
+			await timeout(0);
+			asHoverWidget(first).updateContent('Updated');
+			const duplicate = hoverService.showDelayedHover({ content: 'Updated', target: createTarget() }, {});
+			if (duplicate) {
+				store.add(duplicate);
+			}
+			assert.deepStrictEqual({ reused: duplicate === first, originalVisible: isInDOM(first) },
+				{ reused: true, originalVisible: true });
+		}));
+
 		test('replaces a shown delayed hover for an unrelated target', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const first = hoverService.showDelayedHover({ content: 'First', target: createTarget() }, {});
 			assert.ok(first);
