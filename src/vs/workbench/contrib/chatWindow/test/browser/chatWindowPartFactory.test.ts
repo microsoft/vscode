@@ -12,6 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { getPartName } from '../../../../browser/parts/editor/editorPartActions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
@@ -23,7 +24,7 @@ suite('Chat window: part factory', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('creates parts like the main part of the window, each with its own id, which close with the window', async () => {
+	test('creates parts like the main part of the window, each with its own id and name, which close with the window', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
@@ -46,7 +47,7 @@ suite('Chat window: part factory', () => {
 		const isRegistered = (part: IEditorPart) => parts.parts.some(candidate => (candidate as IEditorPart) === part) ? 1 : 0;
 		const first = factory.createPart();
 		const second = factory.createPart();
-		const created = { ids: [first.id, second.id], showTabs: first.part.partOptions.showTabs, registered: isRegistered(first.part) + isRegistered(second.part) };
+		const created = { ids: [first.id, second.id], names: [getPartName(first.part), getPartName(second.part)], showTabs: first.part.partOptions.showTabs, registered: isRegistered(first.part) + isRegistered(second.part) };
 
 		let closed = 0;
 		disposables.add(first.part.onWillClose(() => closed++));
@@ -55,7 +56,7 @@ suite('Chat window: part factory', () => {
 		onUnload.fire();
 
 		assert.deepStrictEqual({ created, closed, registeredAfter: isRegistered(first.part) + isRegistered(second.part) }, {
-			created: { ids: ['chatWindow.part.1', 'chatWindow.part.2'], showTabs: 'single', registered: 2 },
+			created: { ids: ['chatWindow.part.1', 'chatWindow.part.2'], names: ['Editor 2', 'Editor 3'], showTabs: 'single', registered: 2 },
 			closed: 2,
 			registeredAfter: 0
 		});

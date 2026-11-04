@@ -35,13 +35,15 @@ export class ChatWindowPartFactory extends Disposable implements IPartGridPartFa
 	}
 
 	createPart(): { readonly id: string; readonly part: IContentPart } {
-		const id = `chatWindow.part.${++this.counter}`;
+		const number = ++this.counter;
+		const id = `chatWindow.part.${number}`;
 
 		// The part belongs to the window its element is in: the grid then takes the element to its cell
 		const container = append(this.window.container, $('.chat-window-part'));
 		const part = this.editorGroupsService.createEditorPart({
 			container,
-			label: localize('chatWindow.part', "Editor"),
+			// Named apart from the window's main part, "Editor", and from each other, such as in announcements and Move Editor to Part
+			label: localize('chatWindow.part', "Editor {0}", number + 1),
 			services: this.services,
 			groupViewOptions: this.look.mainPartGroupViewOptions,
 		});
