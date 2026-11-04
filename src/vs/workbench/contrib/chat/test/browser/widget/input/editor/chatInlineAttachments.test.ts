@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../../../base/browser/ui/aria/aria.js';
 import { timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
@@ -33,6 +34,7 @@ import { HoverService } from '../../../../../../../../platform/hover/browser/hov
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILayoutService } from '../../../../../../../../platform/layout/browser/layoutService.js';
 import { AccessibleViewType } from '../../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
@@ -48,6 +50,7 @@ import { IParsedChatRequest } from '../../../../../common/requestParser/chatPars
 import { workbenchInstantiationService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import { GitHubResourceDetailsResolver } from '../../../../../../github/browser/githubResourceDetails.js';
 import { IWorkbenchGitHubService } from '../../../../../../../services/github/common/githubService.js';
+import { AccessibilityVerbositySettingId } from '../../../../../../accessibility/browser/accessibilityConfiguration.js';
 
 suite('ChatInlineAttachments', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,6 +60,7 @@ suite('ChatInlineAttachments', () => {
 		readonly attachments: ChatAttachmentModel;
 		readonly controller: ChatInlineAttachments;
 		readonly instantiationService: TestInstantiationService;
+		readonly configurationService: TestConfigurationService;
 		/** Adds a reference to the input, as accepting a completion does. */
 		addReference(reference: IDynamicVariable): void;
 		/** Whether the pill right before the cursor is active, which Enter opens. */
@@ -149,6 +153,7 @@ suite('ChatInlineAttachments', () => {
 			attachments,
 			controller,
 			instantiationService,
+			configurationService,
 			attachmentElements,
 			attachmentResolvers,
 			setSessionResource: resource => { sessionResource = resource; },
@@ -163,6 +168,37 @@ suite('ChatInlineAttachments', () => {
 
 	function focusPreview(input: ITestInput): void {
 		input.editor.getContainerDomNode().dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+	}
+
+	for (const { supportsPreview, verbose } of [
+		{ supportsPreview: true, verbose: true },
+		{ supportsPreview: false, verbose: true },
+		{ supportsPreview: true, verbose: false },
+	]) {
+		test(`screen-reader preview guidance follows the active reference (preview=${supportsPreview}, verbosity=${verbose})`, async () => {
+			const sandbox = sinon.createSandbox();
+			store.add(toDisposable(() => sandbox.restore()));
+			const ariaHost = dom.$('div');
+			setARIAContainer(ariaHost);
+			const input = createInput('review ', true, supportsPreview ? dom.$('div') : undefined);
+			sandbox.stub(input.instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(true);
+			await input.configurationService.setUserConfiguration(AccessibilityVerbositySettingId.Chat, verbose);
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext(file('a.ts'));
+			await settle();
+			const announcement = () => [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).join('');
+			input.editor.setPosition(new Position(1, 8), 'keyboard');
+			input.editor.trigger('keyboard', 'cursorRight', {});
+			const selected = announcement();
+			input.editor.trigger('keyboard', 'cursorLeft', {});
+			const crossed = announcement();
+			assert.deepStrictEqual({ selected, crossed }, {
+				selected: !verbose ? 'a.ts, attachment' : supportsPreview
+					? 'a.ts, attachment, press Enter to open. Pause to preview reference details, then press Tab to enter the preview.'
+					: 'a.ts, attachment, press Enter to open',
+				crossed: 'a.ts, attachment',
+			});
+		});
 	}
 
 	test('the input owns one GitHub resolver across pill rerenders and warms new arrivals through shared retention', async () => {

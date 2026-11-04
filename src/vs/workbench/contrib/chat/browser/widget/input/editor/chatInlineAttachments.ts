@@ -1541,17 +1541,11 @@ export class ChatInlineAttachments extends Disposable {
 		if (!selection.isEmpty()) {
 			status(localize('chat.inlineAttachment.selected', "{0}, attachment, selected", label));
 		} else if (pill === active) {
-			status(localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", label));
+			this._announceActivePill(pill);
 		} else if (pill.isUnavailable) {
 			status(localize('chat.inlineAttachment.unavailable', "{0}, attachment, unavailable", label));
 		} else {
-			const hint = pill.supportsPreview
-				&& this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat)
-				? localize('chat.inlineAttachment.previewHint', "Pause to preview reference details, then press Tab to enter the preview.")
-				: undefined;
-			status(hint
-				? localize('chat.inlineAttachment.cursorWithPreview', "{0}, attachment. {1}", label, hint)
-				: localize('chat.inlineAttachment.cursor', "{0}, attachment", label));
+			status(localize('chat.inlineAttachment.cursor', "{0}, attachment", label));
 		}
 	}
 
@@ -1560,11 +1554,18 @@ export class ChatInlineAttachments extends Disposable {
 		return !!this._activePill?.canOpen && this._accessibilityService.isScreenReaderOptimized() && !!this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 	}
 
+	private _announceActivePill(pill: InlineAttachmentPill): void {
+		const label = getAttachmentLabel(this._resolveEntry(pill.data));
+		status(pill.supportsPreview
+			? localize('chat.inlineAttachment.openWithPreview', "{0}, attachment, press Enter to open. Pause to preview reference details, then press Tab to enter the preview.", label)
+			: localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", label));
+	}
+
 	/** Announces the pill that became active without the cursor moving, as when a completion became a pill. */
 	private _announceActivatedPill(previousActive: InlineAttachmentPill | undefined): void {
 		const pill = this._activePill;
 		if (pill && pill !== previousActive && this._shouldAnnounceActivePill()) {
-			status(localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", getAttachmentLabel(this._resolveEntry(pill.data))));
+			this._announceActivePill(pill);
 		}
 	}
 
