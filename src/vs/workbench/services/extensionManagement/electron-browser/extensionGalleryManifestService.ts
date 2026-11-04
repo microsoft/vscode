@@ -413,9 +413,9 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				callSite: 'extensionGalleryManifestService.fetchManifest'
 			}, token);
 
-			// The expected first exchange with a gated marketplace, not a failure.
+			// A 401 requests authentication; a 403 denies access even if a bearer was sent.
 			const statusCode = context.res.statusCode;
-			if (statusCode === 401 || statusCode === 403) {
+			if (statusCode === 401) {
 				const authenticated = !!accessToken && context.requestHasAuthorization === true && !!context.url && new URL(context.url).origin === new URL(url).origin;
 				throw new MarketplaceAuthRequiredError(statusCode, authenticated);
 			}

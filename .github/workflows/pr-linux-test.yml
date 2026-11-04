@@ -305,6 +305,13 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
+      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        if: ${{ env.BROWSER_TESTS == 'true' }}
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: --only-shell chromium
+
       - name: Install Playwright Chromium
         if: ${{ env.BROWSER_TESTS == 'true' }}
         run: |
@@ -403,6 +410,8 @@ jobs:
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+          # Runs the suites, which mostly start VS Code, in parallel (see scripts/integration-test-suites.sh).
+          INTEGRATION_TEST_PARALLEL: '2'
 
       # The web and remote tests start the server out of sources, which downloads its Node.js from nodejs.org unless
       # the runner already has that version.
@@ -422,6 +431,8 @@ jobs:
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+          # Runs the suites, which mostly start VS Code, in parallel (see scripts/integration-test-suites.sh).
+          INTEGRATION_TEST_PARALLEL: '2'
 
       - name: Compile smoke tests
         if: ${{ env.SMOKE_TESTS == 'true' }}
@@ -445,9 +456,13 @@ jobs:
       # session smoke tests to time out. See
       # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
       # resolution order.
+      # The platform packages are next to the real folder of the SDK, which is the root
+      # node_modules/@anthropic-ai with a flat node_modules.
       - name: Remove musl Claude binary on glibc Linux
         if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
-        run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
+        run: |
+          sdk_scope="$(dirname "$(realpath node_modules/@anthropic-ai/claude-agent-sdk)")"
+          rm -rf "$sdk_scope/claude-agent-sdk-linux-x64-musl" "$sdk_scope/claude-agent-sdk-linux-arm64-musl"
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
         run: |

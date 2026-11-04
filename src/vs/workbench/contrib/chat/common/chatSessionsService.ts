@@ -366,6 +366,8 @@ export type IChatSessionHistoryItem = {
 	details?: string;
 	elapsedMs?: number;
 	completedAt?: number;
+	/** Whether the response was cancelled rather than completed. */
+	isCanceled?: boolean;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -633,6 +635,13 @@ export interface IChatSession extends IDisposable {
 	transferredState?: {
 		readonly editingSession: IChatEditingSession | undefined;
 		readonly inputState: ISerializableChatModelInputState | undefined;
+		/**
+		 * The language model the transferred draft selects. Set even when
+		 * {@link inputState} has no `selectedModel` because the model's metadata
+		 * is not available yet (cold restore), so the restore can wait for that
+		 * model instead of falling back to the request history's.
+		 */
+		readonly selectedModelId?: string;
 	};
 
 	requestHandler?: (
@@ -863,13 +872,16 @@ export interface IChatSessionItemsDelta {
 	readonly removed?: readonly URI[];
 }
 
+/** Automatic refreshes may reuse fresh data instead of starting another fetch. */
+export type ChatSessionRefreshReason = 'initial' | 'automatic' | 'manual';
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
 
 	get items(): readonly IChatSessionItem[];
 
-	refresh(token: CancellationToken): Promise<void>;
+	refresh(token: CancellationToken, reason?: ChatSessionRefreshReason): Promise<void>;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
@@ -1035,10 +1047,10 @@ export interface IChatSessionsService {
 	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
 
 	/**
-	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
+	 * Refreshes the controllers' session items, optionally filtered by provider type; automatic refreshes may reuse fresh data.
 	 * The optional callback observes provider errors without changing failure isolation.
 	 */
-	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void>;
+	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void, reason?: ChatSessionRefreshReason): Promise<void>;
 
 	/** @deprecated Use `getChatSessionItems` */
 	getInProgress(): { chatSessionType: string; count: number }[];

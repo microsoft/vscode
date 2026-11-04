@@ -25,21 +25,32 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
+		return this._computeDiff(originalLines, modifiedLines, options);
+	}
+
+	/** Also returns unweighted character changes, reusing the character diff for large slices. */
+	computeDiffWithRawChanges(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): { diff: LinesDiff; rawChanges: readonly RangeMapping[] } {
+		const rawChanges: RangeMapping[] = [];
+		const diff = this._computeDiff(originalLines, modifiedLines, options, rawChanges);
+		return { diff, rawChanges };
+	}
+
+	private _computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions, rawChanges?: RangeMapping[]): LinesDiff {
 		if (originalLines.length <= 1 && equals(originalLines, modifiedLines, (a, b) => a === b)) {
 			return new LinesDiff([], [], false);
 		}
 
 		if (originalLines.length === 1 && originalLines[0].length === 0 || modifiedLines.length === 1 && modifiedLines[0].length === 0) {
+			const rangeMapping = new RangeMapping(
+				new Range(1, 1, originalLines.length, originalLines[originalLines.length - 1].length + 1),
+				new Range(1, 1, modifiedLines.length, modifiedLines[modifiedLines.length - 1].length + 1),
+			);
+			rawChanges?.push(rangeMapping);
 			return new LinesDiff([
 				new DetailedLineRangeMapping(
 					new LineRange(1, originalLines.length + 1),
 					new LineRange(1, modifiedLines.length + 1),
-					[
-						new RangeMapping(
-							new Range(1, 1, originalLines.length, originalLines[originalLines.length - 1].length + 1),
-							new Range(1, 1, modifiedLines.length, modifiedLines[modifiedLines.length - 1].length + 1),
-						)
-					]
+					[rangeMapping]
 				)
 			], [], false);
 		}
@@ -106,7 +117,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 					const characterDiffs = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
 						new OffsetRange(seq1Offset, seq1Offset + 1),
 						new OffsetRange(seq2Offset, seq2Offset + 1),
-					), timeout, considerWhitespaceChanges, options);
+					), timeout, considerWhitespaceChanges, options, rawChanges);
 					for (const a of characterDiffs.mappings) {
 						alignments.push(a);
 					}
@@ -130,7 +141,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			seq1LastStart = diff.seq1Range.endExclusive;
 			seq2LastStart = diff.seq2Range.endExclusive;
 
-			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout, considerWhitespaceChanges, options);
+			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout, considerWhitespaceChanges, options, rawChanges);
 			if (characterDiffs.hitTimeout) {
 				hitTimeout = true;
 			}
@@ -214,16 +225,27 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 		return movesWithDiffs;
 	}
 
-	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean, options: ILinesDiffComputerOptions): { mappings: RangeMapping[]; hitTimeout: boolean } {
+	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean, options: ILinesDiffComputerOptions, rawChanges?: RangeMapping[]): { mappings: RangeMapping[]; hitTimeout: boolean } {
 		const lineRangeMapping = toLineRangeMapping(diff);
 		const rangeMapping = lineRangeMapping.toRangeMapping2(originalLines, modifiedLines);
 
 		const slice1 = new LinesSliceCharSequence(originalLines, rangeMapping.originalRange, considerWhitespaceChanges);
 		const slice2 = new LinesSliceCharSequence(modifiedLines, rangeMapping.modifiedRange, considerWhitespaceChanges);
 
-		const diffResult = slice1.length + slice2.length < 500
+		const useDynamicProgramming = slice1.length + slice2.length < 500;
+		const diffResult = useDynamicProgramming
 			? this.dynamicProgrammingDiffing.compute(slice1, slice2, timeout)
 			: this.myersDiffingAlgorithm.compute(slice1, slice2, timeout);
+
+		let hitTimeout = diffResult.hitTimeout;
+		if (rawChanges) {
+			// The small-slice display algorithm favors consecutive matches over the longest common subsequence.
+			const rawResult = useDynamicProgramming && !hitTimeout ? this.myersDiffingAlgorithm.compute(slice1, slice2, timeout) : diffResult;
+			hitTimeout ||= rawResult.hitTimeout;
+			for (const change of rawResult.diffs) {
+				rawChanges.push(new RangeMapping(slice1.translateRange(change.seq1Range), slice2.translateRange(change.seq2Range)));
+			}
+		}
 
 		const check = false;
 
@@ -258,7 +280,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 
 		return {
 			mappings: result,
-			hitTimeout: diffResult.hitTimeout,
+			hitTimeout,
 		};
 	}
 }

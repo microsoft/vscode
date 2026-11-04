@@ -37,6 +37,7 @@ import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { ChatModel } from '../../common/model/chatModel.js';
@@ -44,7 +45,7 @@ import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
@@ -57,7 +58,7 @@ import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../chatSessions/chatSessions.contribution.js';
-import { importedTurnsFromChatModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { importedTurnsFromChatModel, resolveImportedCopilotModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
 import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -227,20 +228,30 @@ export class ContinueChatInCopilotAction extends Action2 {
 		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
 		const folders = accessor.get(IAgentHostNewSessionFolderService);
 		const agentHostService = accessor.get(IAgentHostService);
+		const languageModelsService = accessor.get(ILanguageModelsService);
 		const sourceModel = widget.viewModel.model;
 		const ensureSourceVisible = () => {
 			if (!widget.visible || widget.viewModel?.model !== sourceModel) {
 				throw new CancellationError();
 			}
 		};
-		const sourceTurns = importedTurnsFromChatModel(sourceModel);
+		const resolveModel = (identifier: string) => resolveImportedCopilotModel(languageModelsService, identifier);
+		const sourceTurns = importedTurnsFromChatModel(sourceModel, { resourceUris: agentHostService.resourceUris, resolveModel });
 		// A host that cannot import history gets the conversation as an attached
 		// transcript instead. That is not a move, so the source is not archived.
 		const transcriptOnly = sourceTurns.length > 0 && !agentHostService.supportsConversationImport;
 		const turns = transcriptOnly ? [] : sourceTurns;
 		const transcript = transcriptOnly ? createDelegationTranscriptAttachment(buildDelegationTranscript(sourceModel.getRequests()), getAgentSessionProviderName(AgentSessionProviders.Local)) : undefined;
 		const input = widget.getInputState();
-		const draft = { inputText: widget.getInput(), attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])], selections: input?.selections ?? [] };
+		// Continue on the source's custom agent, which Agent Host identifies by the URI of its agent file.
+		const sourceMode = widget.input.currentModeInfo;
+		const agentUri = sourceMode && !sourceMode.isBuiltin ? sourceMode.modeInstructions?.uri : undefined;
+		const draft = {
+			inputText: widget.getInput(),
+			attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])],
+			selections: input?.selections ?? [],
+			...(agentUri ? { mode: { id: agentUri.toString(), kind: sourceMode?.kind ?? ChatModeKind.Agent } } : {}),
+		};
 		const sidebar = isIChatViewViewContext(widget.viewContext);
 		const openOptions = {
 			type: SessionType.AgentHostCopilot,
@@ -279,7 +290,9 @@ export class ContinueChatInCopilotAction extends Action2 {
 			}
 			ensureSourceVisible();
 			if (turns.length) {
-				imports.set(untitledResource, { turns, title: sourceModel.title });
+				const selectedModel = widget.input.selectedLanguageModel.get()?.identifier;
+				const model = (selectedModel ? resolveModel(selectedModel) : undefined) ?? turns.at(-1)?.message.model;
+				imports.set(untitledResource, { turns, title: sourceModel.title, ...(model ? { model } : {}) });
 				try {
 					if (!await provisional.getOrCreate(untitledResource, COPILOT_CLI_AGENT_PROVIDER_ID, folders.resolveNewSessionPrimary(untitledResource))) {
 						throw new Error(continueInCopilotFailedMessage());
@@ -641,6 +654,7 @@ export class CreateRemoteAgentJobAction {
 		const fileService = accessor.get(IFileService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const agentHostService = accessor.get(IAgentHostService);
+		const languageModelsService = accessor.get(ILanguageModelsService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -731,7 +745,7 @@ export class CreateRemoteAgentJobAction {
 				// config chips, etc.) is unchanged. Hosts that cannot import fall
 				// back to the transcript attachment.
 				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow && agentHostService.supportsConversationImport)
-					? importedTurnsFromChatModel(chatModel)
+					? importedTurnsFromChatModel(chatModel, { resourceUris: agentHostService.resourceUris, resolveModel: identifier => resolveImportedCopilotModel(languageModelsService, identifier) })
 					: undefined;
 				// Carry the source session's selected model so the imported session
 				// resumes on the same model rather than the host default. The raw

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getWindow, registerWindow } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow, registerWindow, trackAttributes } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { SashGrippersController } from '../../browser/sash.js';
+import { SASH_GRIPPERS_HIDDEN_ATTRIBUTE, SashGrippersController } from '../../browser/sash.js';
 import { webviewMouseActivityEvent } from '../../../webview/common/webview.js';
 import '../../browser/sash.contribution.js';
 import '../../../../browser/media/style.css';
@@ -64,7 +64,7 @@ suite('Sash grippers', () => {
 	}
 
 	function isHidden(container: HTMLElement): boolean {
-		return container.classList.contains('sash-grippers-hidden');
+		return container.hasAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE);
 	}
 
 	test('auto-hide is enabled by default with a two-second delay', () => {
@@ -228,13 +228,36 @@ suite('Sash grippers', () => {
 		auxiliaryWindow.dispatchEvent(new auxiliaryWindow.CustomEvent(webviewMouseActivityEvent, { detail: { screenX: 1, screenY: 2 } }));
 		const auxiliaryMoving = [isHidden(container), isHidden(auxiliaryContainer)];
 		auxiliaryDisposables.dispose();
-		auxiliaryContainer.classList.add('sash-grippers-hidden');
+		auxiliaryContainer.setAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, '');
 		moveMouse(auxiliaryContainer, 2);
 		assert.deepStrictEqual({ idle, mainMoving, auxiliaryMoving, closedListenerRemoved: isHidden(auxiliaryContainer) }, {
 			idle: [true, true],
 			mainMoving: [false, true],
 			auxiliaryMoving: [false, false],
 			closedListenerRemoved: true
+		});
+	}).timeout(10000);
+
+	test('an auxiliary window keeps its own idle state while it mirrors the class of the main window\'s container', async () => {
+		const { container, addedContainer } = createController();
+		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
+		store.add(toDisposable(() => frame.remove()));
+		assert.ok(frame.contentDocument);
+		const auxiliaryContainer = $('.monaco-workbench.modern-ui');
+		frame.contentDocument.body.appendChild(auxiliaryContainer);
+		// As the auxiliary window service does for every auxiliary window.
+		store.add(trackAttributes(container, auxiliaryContainer, ['class']));
+		addedContainer.fire({ container: auxiliaryContainer, disposables: store.add(new DisposableStore()) });
+		await timeout(2050);
+		const auxiliaryWindow = getWindow(auxiliaryContainer);
+		// The mouse moves only in the auxiliary window while the main window stays idle, and the main window's classes change.
+		auxiliaryWindow.dispatchEvent(new auxiliaryWindow.MouseEvent('mousemove', { screenX: 5 }));
+		container.classList.add('some-main-window-state');
+		await timeout(0);
+		assert.deepStrictEqual({ main: isHidden(container), auxiliary: isHidden(auxiliaryContainer), mirrored: auxiliaryContainer.classList.contains('some-main-window-state') }, {
+			main: true,
+			auxiliary: false,
+			mirrored: true,
 		});
 	}).timeout(10000);
 
@@ -249,7 +272,7 @@ suite('Sash grippers', () => {
 		const registration = store.add(registerWindow(targetWindow));
 		const { configurationService } = createController(true, [container]);
 		registration.dispose();
-		container.classList.add('sash-grippers-hidden');
+		container.setAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, '');
 		moveMouse(container);
 		await setConfiguration(configurationService, setting, true);
 		assert.strictEqual(isHidden(container), true);
@@ -266,12 +289,12 @@ suite('Sash grippers', () => {
 			highlight: targetWindow.getComputedStyle(sash, '::before').backgroundColor
 		}));
 		const visible = snapshot();
-		container.classList.add('sash-grippers-hidden');
+		container.setAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, '');
 		const hidden = snapshot();
 		sashes[0].classList.add('hover');
 		sashes[1].classList.add('active');
 		const interacting = snapshot();
-		container.classList.remove('sash-grippers-hidden');
+		container.removeAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE);
 		const interactingWhileVisible = snapshot();
 		const resting = { opacity: '1', pointerEvents: 'auto', highlight: 'rgba(0, 0, 0, 0)' };
 		const idle = { ...resting, opacity: '0' };
@@ -295,7 +318,7 @@ suite('Sash grippers', () => {
 			sash: targetWindow.getComputedStyle(sash).getPropertyValue('--sash-grip-opacity'),
 		});
 		const visible = snapshot();
-		container.classList.add('sash-grippers-hidden');
+		container.setAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, '');
 		assert.deepStrictEqual({ visible, hidden: snapshot() }, {
 			visible: { content: '', sash: '' },
 			hidden: { content: '', sash: '0' },
@@ -311,7 +334,7 @@ suite('Sash grippers', () => {
 		assert.strictEqual(opacity(), 1);
 
 		const fade = (hidden: boolean) => {
-			container.classList.toggle('sash-grippers-hidden', hidden);
+			container.toggleAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, hidden);
 			const animations = sash.getAnimations({ subtree: true });
 			assert.strictEqual(animations.length, 1);
 			const animation = animations[0];
@@ -325,9 +348,9 @@ suite('Sash grippers', () => {
 		const fadeOut = fade(true);
 		const fadeIn = fade(false);
 		container.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
-		container.classList.add('sash-grippers-hidden');
+		container.setAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, '');
 		const reducedMotionOut = opacity();
-		container.classList.remove('sash-grippers-hidden');
+		container.removeAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE);
 		assert.deepStrictEqual({ fadeOut, fadeIn, reducedMotionOut, reducedMotionIn: opacity() }, {
 			fadeOut: { duration: '0.3s', intermediate: true, final: 0 },
 			fadeIn: { duration: '0.15s', intermediate: true, final: 1 },

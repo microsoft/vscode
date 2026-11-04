@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { workspaceMembers, separateRoots, standaloneRoots, npmFolders } from '../dirs.ts';
+import { workspaceMembers, separateRoots, separateRootMembers, standaloneRoots, npmFolders } from '../dirs.ts';
 import { parseNpmLockfile } from './npmLockfile.ts';
 import type { NpmSource } from './npmSource.ts';
 import { computeWorkspaceSettings, dependencyPatches, pnpmfileName, pnpmVersion, renderWorkspaceYaml, type ConfigNote, type NpmFolder, type PackageJson, type WorkspaceSettings } from './workspaceConfig.ts';
@@ -33,13 +33,13 @@ export interface InstallRoot {
 
 /**
  * Returns the folders of each install root of the repository, in a fixed order: the main
- * workspace (root project first, then its members in `dirs.ts` order), then the separate roots,
- * then the standalone roots.
+ * workspace (root project first, then its members in `dirs.ts` order), then the separate roots
+ * (each with its members), then the standalone roots.
  */
 export function getInstallRootFolders(): string[][] {
 	return [
 		workspaceMembers,
-		...separateRoots.map(folder => [folder]),
+		...separateRoots.map(folder => [folder, ...separateRootMembers[folder] ?? []]),
 		...standaloneRoots.map(folder => [folder]),
 	];
 }
@@ -55,7 +55,7 @@ export function getDistroRootFolders(): string[][] {
  * Every folder with an npm lockfile that counts for the universe check, relative to the repository.
  */
 export function getAllNpmLockfileFolders(): string[] {
-	return [...workspaceMembers, ...separateRoots, ...standaloneRoots, ...npmFolders];
+	return [...workspaceMembers, ...separateRoots.flatMap(folder => [folder, ...separateRootMembers[folder] ?? []]), ...standaloneRoots, ...npmFolders];
 }
 
 function readRequired(source: NpmSource, relativePath: string): string {

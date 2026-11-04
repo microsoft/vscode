@@ -66,9 +66,9 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
 
 /**
- * The Auto tiers one model catalog accepts. `tiers` is `undefined` without provider metadata: the runtime, which reads
- * Auto's tiers from the service, then rejects any tier, so none is accepted. `fusion` records whether the provider's
- * tiers present Auto as Fusion.
+ * The Auto tiers one model catalog accepts. `tiers` is `undefined` while the catalog's provider metadata is unknown, for
+ * example before its first discovery completes: any tier is then left to the runtime, which validates it against its own
+ * catalog. `fusion` records whether the provider's tiers present Auto as Fusion.
  */
 export interface IAutoModeTierSupport {
 	readonly tiers: ReadonlySet<string> | undefined;
@@ -97,9 +97,9 @@ export function isAutoAdvertisedAsFusion(support = advertisedAutoModeTierSupport
 	return support.fusion;
 }
 
-/** Whether the catalog's provider tiers include the tier; without provider tiers, none is. */
+/** Whether the catalog's provider tiers include the tier. Until they are known, any tier is left to the runtime to validate. */
 export function isSupportedAutoModeTier(value: unknown, support = advertisedAutoModeTierSupport): value is string {
-	return typeof value === 'string' && !!support.tiers?.has(value);
+	return typeof value === 'string' && (!support.tiers || support.tiers.has(value));
 }
 
 export function getSupportedAutoModeTiers(support = advertisedAutoModeTierSupport): readonly string[] {

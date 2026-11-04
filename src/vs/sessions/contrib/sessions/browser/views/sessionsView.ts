@@ -56,6 +56,7 @@ import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../..
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 import { IPinnedCanvasService } from '../../../canvases/browser/pinnedCanvases.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
@@ -199,6 +200,7 @@ export class SessionsView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -292,13 +294,20 @@ export class SessionsView extends ViewPane {
 
 		// Reserve DOM slot for mobile filter chips (phone layout only).
 		// The actual widget is created after sessionsControl is available.
+		this._register(this.presentation.renderHeader(sessionsContent));
 		const filterChipsContainer = isPhoneLayout(this.layoutService)
 			? DOM.append(sessionsContent, $('.mobile-session-filter-chips-slot'))
 			: undefined;
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		this._register(this.presentation.decorateList(
+			this.sessionsControlContainer,
+			() => this.sessionsControl?.refresh(),
+			() => !this.sessionsControl || this.sessionsControl.scrollTop === 0,
+		));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
+			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
@@ -415,9 +424,10 @@ export class SessionsView extends ViewPane {
 			}));
 		}
 
-		// When the active session changes, reveal it in the sessions list.
+		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
+		// windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();

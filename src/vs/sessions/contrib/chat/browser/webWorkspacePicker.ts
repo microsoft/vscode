@@ -147,6 +147,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const items = this._buildItems();
 		const resources = new DisposableStore();
 		this._mobilePicker.value = resources;
+		void this._removeMissingLocalWorkspaces().catch(onUnexpectedError);
 		const cancellation = new CancellationTokenSource();
 		resources.add(toDisposable(() => cancellation.dispose(true)));
 		void showMobileWorkspacePickerSheet(

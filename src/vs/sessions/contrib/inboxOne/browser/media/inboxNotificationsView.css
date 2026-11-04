@@ -36,7 +36,7 @@
 	width: auto;
 }
 
-.inbox-notifications-view .inbox-notifications-toolbar .inbox-notifications-tabs .monaco-button.active {
+.inbox-notifications-view .inbox-notifications-tabs .monaco-button.active {
 	background: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-foreground);
 	border-color: var(--vscode-contrastActiveBorder, transparent);
@@ -44,8 +44,7 @@
 }
 
 .inbox-notifications-search {
-	margin-inline-start: auto;
-	width: 160px;
+	flex: 1;
 	min-width: 80px;
 }
 
@@ -71,6 +70,11 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	padding-inline: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-composer.replying {
+	align-self: flex-end;
+	max-width: none;
 }
 
 .inbox-notifications-content {
@@ -206,23 +210,27 @@
 	display: none;
 }
 
-.inbox-notifications-latest-exchange > summary {
+.inbox-notifications-latest-exchange > summary,
+.inbox-notifications-interpretation-content .inbox-evidence-disclosure > summary {
 	cursor: pointer;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	margin-inline: calc(-1 * var(--vscode-spacing-size80));
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.inbox-notifications-latest-exchange > summary:is(:hover, .hovered) {
+.inbox-notifications-latest-exchange > summary:is(:hover, .hovered),
+.inbox-notifications-interpretation-content .inbox-evidence-disclosure > summary:is(:hover, .hovered) {
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.inbox-notifications-latest-exchange > summary:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+.inbox-notifications-latest-exchange > summary:focus-visible,
+.inbox-notifications-interpretation-content .inbox-evidence-disclosure > summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .inbox-notifications-latest-exchange-content {
@@ -356,6 +364,7 @@
 }
 
 .inbox-notifications-interpretation-content,
+.inbox-notifications-interpretation-content > div,
 .inbox-evidence,
 .inbox-evidence-section {
 	display: flex;
@@ -365,6 +374,7 @@
 }
 
 .inbox-evidence:empty,
+.inbox-notifications-notification[hidden],
 .inbox-notifications-detail-evidence[hidden],
 .inbox-evidence-canvases[hidden] {
 	display: none;
@@ -516,6 +526,7 @@
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	gap: var(--vscode-spacing-size100);
+	margin-top: var(--vscode-spacing-size120);
 }
 
 .inbox-notifications-sort-buttons {
@@ -756,23 +767,35 @@
 
 .inbox-notifications-evidence-header {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
 }
 
 .inbox-notifications-evidence-header h3 {
-	flex: 1;
 	min-width: 0;
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading3);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
 }
 
-.inbox-notifications-evidence-header .monaco-button {
+.inbox-notifications-evidence-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-evidence-actions .monaco-button {
 	width: auto;
 	flex: none;
+	max-width: 100%;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.inbox-notifications-evidence-actions .inbox-notifications-close-evidence {
+	margin-inline-start: auto;
 }
 
 .inbox-notifications-item:is(:hover, .hovered):not(.selected) {

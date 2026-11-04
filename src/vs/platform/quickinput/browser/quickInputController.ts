@@ -12,7 +12,7 @@ import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js
 import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
@@ -166,6 +166,7 @@ export class QuickInputController extends Disposable {
 		}
 
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
+		this._register(toDisposable(() => container.remove()));
 		container.tabIndex = -1;
 		container.style.display = 'none';
 		this._register(dom.addDisposableListener(container, 'animationend', (e: AnimationEvent) => {

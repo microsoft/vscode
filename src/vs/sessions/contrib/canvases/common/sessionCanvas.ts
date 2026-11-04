@@ -5,11 +5,18 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, type ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { CanvasInput, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, type ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { ActiveSessionCanvasReferenceContext, SessionActiveChatCanvasReferenceKeysContext } from '../../../common/contextkeys.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 
 export const WindowCanvasesAvailableContext = new RawContextKey<boolean>('windowCanvasesAvailable', false);
+export const SessionCanvasActivityBarToggledContext = ContextKeyExpr.and(
+	MainEditorAreaVisibleContext,
+	ActiveEditorContext.isEqualTo(CanvasInput.EDITOR_ID),
+	ContextKeyExpr.in(ActiveSessionCanvasReferenceContext.key, SessionActiveChatCanvasReferenceKeysContext.key),
+)!;
 
 export function createSessionCanvasReference(session: ISession, chat: IChat, canvas: ISessionCanvas): ICanvasReference {
 	return {

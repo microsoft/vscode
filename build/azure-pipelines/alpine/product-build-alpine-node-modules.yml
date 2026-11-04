@@ -96,8 +96,8 @@ jobs:
       - script: |
           set -e
           mkdir -p .build/nodejs-musl
-          NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
-          BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
+          NODE_VERSION=$(node -p "require('./remote/package.json').nativeBuild.target")
+          BUILD_ID=$(node -p "require('./remote/package.json').nativeBuild.msBuildId")
           az artifacts universal download \
             --organization "https://dev.azure.com/monacotools" \
             --project "Monaco" \

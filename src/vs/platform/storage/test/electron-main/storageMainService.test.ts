@@ -380,5 +380,17 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseApplicationSharedStorage, true);
 	});
 
+	test('disposing the service before warm-up completes does not leak', async function () {
+		const storageMainService = createStorageService();
+
+		const applicationStorage = storageMainService.applicationStorage;
+		const applicationSharedStorage = storageMainService.applicationSharedStorage;
+
+		storageMainService.dispose();
+
+		await Promise.all([applicationStorage.init(), applicationSharedStorage.init()]);
+		await Promise.all([applicationStorage.whenInit, applicationSharedStorage.whenInit]);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
