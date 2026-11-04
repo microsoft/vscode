@@ -170,7 +170,7 @@ suite('SessionCanvasService', () => {
 		});
 		const pinnedCanvases = createPinnedCanvases();
 		const contextService = store.add(new SessionCanvasContextService(
-			sessionHostServiceOf({ mainWindowActiveSession: activeSession, visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
+			sessionHostServiceOf(store, { mainWindowActiveSession: activeSession, visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(activeSession),
 			sessionsManagementService,
 			editorGroupsService,
@@ -1278,7 +1278,7 @@ suite('SessionCanvasService', () => {
 		const canvasGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 1, contains: candidate => candidate === input });
 		let activeWindowId = 1;
 		const contextService = store.add(new SessionCanvasContextService(
-			sessionHostServiceOf({ mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
+			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
 			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
 			upcastPartial<IEditorGroupsService>({
@@ -1350,7 +1350,7 @@ suite('SessionCanvasService', () => {
 			[2, upcastPartial<IChatWindow>({ chat: constObservable(chatWindowChat) })],
 		]);
 		const contextService = store.add(new SessionCanvasContextService(
-			sessionHostServiceOf({ mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
+			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
 			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
 			upcastPartial<IEditorGroupsService>({}),
@@ -1391,7 +1391,7 @@ suite('SessionCanvasService', () => {
 		// The session of the window with focus: the chat window's, then another window's.
 		const focusedSession = observableValue<IActiveSession | undefined>('activeSession', chatWindowSession);
 		const contextService = store.add(new SessionCanvasContextService(
-			sessionHostServiceOf({ mainWindowActiveSession: constObservable<IActiveSession | undefined>(mainWindowSession), visibleSessions: constObservable([]), windowSessions: constObservable([chatWindowSession]) }),
+			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable<IActiveSession | undefined>(mainWindowSession), visibleSessions: constObservable([]), windowSessions: constObservable([chatWindowSession]) }),
 			focusedSessionHostServiceOf(focusedSession),
 			upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,

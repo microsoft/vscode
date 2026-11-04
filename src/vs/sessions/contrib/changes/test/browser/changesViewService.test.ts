@@ -148,7 +148,7 @@ suite('ChangesViewService', () => {
 			agentFeedbackService,
 			codeReviewService,
 			contextKeyService,
-			sessionHostServiceOf({ mainWindowActiveSession: activeSession, visibleSessions: constObservable([]), windowSessions: constObservable(windowSessions) }),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: activeSession, visibleSessions: constObservable([]), windowSessions: constObservable(windowSessions) }),
 			storageService,
 			sessionsManagementService,
 		));

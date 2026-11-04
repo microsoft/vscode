@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -35,41 +34,51 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 }
 
 /**
- * Host lookups over the state `ISessionsService` has: the main window shows `mainWindowActiveSession`, a pane of the main
- * window each of `visibleSessions`, and a chat window each of `windowSessions`.
+ * A real {@link SessionHostService} with hosts for the state `ISessionsService` has: the main window shows
+ * `mainWindowActiveSession`, a pane of the main window each of `visibleSessions`, and a chat window each of
+ * `windowSessions`. Each host shows the active chat of its session.
  */
-export function sessionHostServiceOf(state: { readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>; readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; readonly windowSessions: IObservable<readonly IActiveSession[]> }): ISessionHostService {
-	const hostOf = (kind: SessionHostKind, parent: ISessionHost | undefined, session: IObservable<IActiveSession | undefined>) => upcastPartial<ISessionHost>({
-		kind,
-		parent,
-		session,
-		chat: derived(reader => session.read(reader)?.activeChat?.read(reader)),
-	});
-	const mainHost = hostOf(SessionHostKind.MainWindow, undefined, state.mainWindowActiveSession);
-	const hosts = new Map<IActiveSession, ISessionHost>();
-	const hostOfSession = (session: IActiveSession, kind: SessionHostKind, parent: ISessionHost | undefined) => {
-		let host = hosts.get(session);
-		if (!host) {
-			host = hostOf(kind, parent, constObservable(session));
-			hosts.set(session, host);
-		}
-		return host;
+export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, state: { readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>; readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; readonly windowSessions: IObservable<readonly IActiveSession[]> }): SessionHostService {
+	let nextChatWindowId = 1000;
+	const hostOf = (kind: SessionHostKind, parent: ISessionHost | undefined, session: IObservable<IActiveSession | undefined>, windowId: number | undefined): ISessionHost => {
+		const chat = derived(reader => session.read(reader)?.activeChat?.read(reader));
+		return upcastPartial<ISessionHost>({
+			id: `${kind}:${windowId ?? 'pane'}`,
+			kind,
+			parent,
+			session,
+			chat,
+			chatResource: derived(reader => chat.read(reader)?.resource),
+			windowId: constObservable(windowId),
+		});
 	};
-	const readHosts = (reader: IReader | undefined) => [
-		...state.windowSessions.read(reader).map(session => hostOfSession(session, SessionHostKind.ChatWindow, undefined)),
-		...state.visibleSessions.read(reader).filter(session => !!session).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),
-		mainHost,
-	];
-	return upcastPartial<ISessionHostService>({
-		hosts: derived(reader => readHosts(reader)),
-		getHostOfWindow: windowId => windowId === mainWindow.vscodeWindowId ? mainHost : undefined,
-		getHostOfChat: (chatResource, reader) => readHosts(reader).find(host => isEqual(host.chat.read(reader)?.resource, chatResource)),
-		getHostsOfSession: (resource, reader) => [
-			...(isEqual(state.mainWindowActiveSession.read(reader)?.resource, resource) ? [mainHost] : []),
-			...state.visibleSessions.read(reader).filter(session => !!session && isEqual(session.resource, resource)).map(session => hostOfSession(session!, SessionHostKind.Pane, mainHost)),
-			...state.windowSessions.read(reader).filter(session => isEqual(session.resource, resource)).map(session => hostOfSession(session, SessionHostKind.ChatWindow, undefined)),
-		],
-	});
+	const mainHost = hostOf(SessionHostKind.MainWindow, undefined, state.mainWindowActiveSession, mainWindow.vscodeWindowId);
+	const service = store.add(new SessionHostService(mainHost, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+	const registered = store.add(new DisposableMap<IActiveSession>());
+	store.add(autorun(reader => {
+		const shown = new Map<IActiveSession, SessionHostKind>();
+		for (const session of state.visibleSessions.read(reader)) {
+			if (session) {
+				shown.set(session, SessionHostKind.Pane);
+			}
+		}
+		for (const session of state.windowSessions.read(reader)) {
+			shown.set(session, SessionHostKind.ChatWindow);
+		}
+		for (const session of [...registered.keys()]) {
+			if (!shown.has(session)) {
+				registered.deleteAndDispose(session);
+			}
+		}
+		for (const [session, kind] of shown) {
+			if (!registered.has(session)) {
+				registered.set(session, service.registerHost(kind === SessionHostKind.Pane
+					? hostOf(kind, mainHost, constObservable(session), undefined)
+					: hostOf(kind, undefined, constObservable(session), nextChatWindowId++)));
+			}
+		}
+	}));
+	return service;
 }
 
 /** A focused host that shows `session`, for tests modelled on the active session of `ISessionsService`. */

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -67,7 +67,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(noSessions()), noManagement()));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(disposables, noSessions()), noManagement()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observedChanges: string[][] = [];
 		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -112,13 +112,15 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			override getChatResource(): URI | undefined { return undefined; }
 			override getSessionResource(): URI { return sessionResource; }
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(sessionsService), noManagement()));
+		// The resolver and its listeners go before the hosts they observe.
+		const resolverStore = disposables.add(new DisposableStore());
+		resolverStore.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(disposables, sessionsService), noManagement()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observed: string[][] = [];
 		const record = () => observed.push(source.resources.value.map(item => item.modifiedUri!.path));
 
 		record();
-		disposables.add(source.resources.onDidChange(record));
+		resolverStore.add(source.resources.onDidChange(record));
 		sessionChanges.set([createChange('/workspace/updated.ts')], undefined);
 		sessionChanges.set([createChange('/workspace/again.ts')], undefined);
 
@@ -153,7 +155,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(noSessions()), noManagement()));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionHostServiceOf(disposables, noSessions()), noManagement()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observedChanges: string[][] = [];
 		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -221,7 +223,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		}();
 		const resolver = disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver() { return Disposable.None; }
-		}(), sessionChangesService, sessionHostServiceOf(sessionsService), management));
+		}(), sessionChangesService, sessionHostServiceOf(disposables, sessionsService), management));
 		return { resolver, sources, chatX, chatY, changesOf, wrapper, mainWindowActiveSession, activeSession, windowSessions, visibleSessions };
 	}
 
@@ -300,7 +302,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				override getChatResource(): URI | undefined { return undefined; }
 				override getSessionResource() { return sessionResource; }
 			}(),
-			sessionHostServiceOf(noSessions()),
+			sessionHostServiceOf(disposables, noSessions()),
 			noManagement(),
 		));
 		const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
@@ -355,7 +357,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 					override getChatResource(): URI | undefined { return undefined; }
 					override getSessionResource() { return sessionResource; }
 				}(),
-				sessionHostServiceOf(noSessions()),
+				sessionHostServiceOf(disposables, noSessions()),
 				noManagement(),
 			));
 			const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));

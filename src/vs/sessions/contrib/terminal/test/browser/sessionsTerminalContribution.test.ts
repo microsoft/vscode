@@ -352,7 +352,7 @@ suite('SessionsTerminalContribution', () => {
 			override readonly activeSession = activeSessionObs;
 			override readonly mainWindowActiveSession = this.activeSession;
 		});
-		instantiationService.stub(ISessionHostService, sessionHostServiceOf({ mainWindowActiveSession: activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
+		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override onDidCreateInstance = onDidCreateInstance.event;
