@@ -1452,6 +1452,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	async queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
+		await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		if (!this.galleryService.isEnabled()) {
 			return singlePagePager([]);
 		}
@@ -1479,6 +1480,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	async getExtensions(extensionInfos: IExtensionInfo[], arg1: any, arg2?: any): Promise<IExtension[]> {
+		await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		if (!this.galleryService.isEnabled()) {
 			return [];
 		}
@@ -1486,7 +1488,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
-		this.syncInstalledExtensionsWithGallery(galleryExtensions);
+		await this.syncInstalledExtensionsWithGallery(galleryExtensions);
 		return galleryExtensions.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 	}
 
@@ -1667,6 +1669,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension) {
 			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
+		} else if (!extension.gallery) {
+			extension.gallery = gallery;
+			this.onDidChangeExtensions(extension);
 		}
 		return extension;
 	}
@@ -2033,6 +2038,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		} else {
 			this.logService.trace(`[Extensions]: Checking for updates`);
 		}
+		await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
