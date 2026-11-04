@@ -52,6 +52,7 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -171,6 +172,7 @@ export class ChatCompositeBar extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -555,7 +557,11 @@ export class ChatCompositeBar extends Disposable {
 			}
 
 			EventHelper.stop(e, true);
-			if (isMainChat || !session) {
+			if (!session) {
+				return;
+			}
+			if (isMainChat) {
+				this._sessionsService.closeSession(session);
 				return;
 			}
 
