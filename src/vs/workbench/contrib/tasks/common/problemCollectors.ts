@@ -348,7 +348,22 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		this.deliveredMarkers.clear();
 	}
 
-	public done(): void {
+	/**
+	 * Reports the markers and cleans up the markers of the previous run.
+	 * Lines are processed asynchronously, so some may still be pending when the
+	 * task ends. The returned promise resolves once all of them have been
+	 * handled and the markers have been reported.
+	 */
+	public done(): Promise<void> {
+		if (this.tail) {
+			const finish = () => this.finish();
+			return this.tail.then(finish, finish);
+		}
+		this.finish();
+		return Promise.resolve();
+	}
+
+	private finish(): void {
 		this.reportMarkers();
 		this.cleanAllMarkers();
 	}
@@ -596,11 +611,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	public override done(): void {
+	public override done(): Promise<void> {
 		[...this.applyToByOwner.keys()].forEach(owner => {
 			this.recordResourcesToClean(owner);
 		});
-		super.done();
+		return super.done();
 	}
 
 	public isWatching(): boolean {
