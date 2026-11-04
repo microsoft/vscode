@@ -89,7 +89,8 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 			return false;
 		}
 
-		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		const enabled = this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		return typeof enabled === 'boolean' ? enabled : true;
 	}
 }
 

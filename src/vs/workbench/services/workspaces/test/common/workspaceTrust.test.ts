@@ -92,6 +92,24 @@ suite('Workspace Trust', () => {
 			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
 		});
 
+		test('workspace trust stays enabled when the setting value is missing or not a boolean', async () => {
+			const settings = [
+				{ workspace: { trust: undefined } },
+				{ workspace: { trust: 'x' } },
+				{ workspace: 'x' },
+				{ workspace: { trust: { enabled: 'x' } } },
+				{ workspace: { trust: { enabled: 0 } } },
+				{ workspace: { trust: { enabled: null } } },
+				{ workspace: { trust: { enabled: { x: 1 } } } }
+			];
+			for (const value of settings) {
+				await configurationService.setUserConfiguration('security', value);
+				const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
+
+				assert.strictEqual(testObject.isWorkspaceTrustEnabled(), true, JSON.stringify(value));
+			}
+		});
+
 		test('workspace trust disabled (--disable-workspace-trust)', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, disableWorkspaceTrust: true });
 			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
