@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ExtensionsListView } from '../../browser/extensionsViews.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IExtensionsWorkbenchService } from '../../common/extensions.js';
-import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
+import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	getTargetPlatform, SortBy
+	getTargetPlatform, SortBy, MarketplaceDeprecationConfigKey
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -27,7 +29,7 @@ import { IExtensionService, toExtensionDescription } from '../../../../services/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestSharedProcessService } from '../../../../test/electron-browser/workbenchTestServices.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -359,6 +361,51 @@ suite('ExtensionsViews Tests', () => {
 			assert.strictEqual(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
 	});
+
+	test('deprecated query filters effective API and fallback metadata with text and sort', async () => {
+		const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		await workbenchService.queryLocal();
+		const first = workbenchService.local.find(e => e.name === localEnabledTheme.manifest.name) as Extension;
+		const second = workbenchService.local.find(e => e.name === localDisabledTheme.manifest.name) as Extension;
+		first.setMarketplaceDeprecationInfo({ source: 'marketplace' });
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', { malicious: [], search: [], deprecated: { [second.identifier.id.toLowerCase()]: {} } });
+
+		const model = await testableView.show('@deprecated first @sort:name');
+		assert.deepStrictEqual(Array.from({ length: model.length }, (_, i) => model.get(i).name), [second.name, first.name]);
+	});
+
+	test('deprecated query refreshes an empty result, switch changes, and API removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		await testableView.show('@deprecated');
+		const counts = [testableView.count()];
+
+		queryPage = aPage([aGalleryExtension(localEnabledTheme.manifest.name, { deprecationInfo: { source: 'marketplace' } })]);
+		await workbenchService.queryGallery(CancellationToken.None);
+		await timeout(200);
+		counts.push(testableView.count());
+
+		for (const enabled of [false, true]) {
+			await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([MarketplaceDeprecationConfigKey]),
+				change: { keys: [MarketplaceDeprecationConfigKey], overrides: [] },
+				affectsConfiguration: key => key === MarketplaceDeprecationConfigKey
+			});
+			await timeout(200);
+			counts.push(testableView.count());
+		}
+
+		queryPage = aPage([aGalleryExtension(localEnabledTheme.manifest.name)]);
+		await workbenchService.queryGallery(CancellationToken.None);
+		await timeout(200);
+		counts.push(testableView.count());
+		assert.deepStrictEqual(counts, [0, 1, 0, 1, 0]);
+	}));
 
 	test('Test installed query with category', async () => {
 		await testableView.show('@installed category:themes').then(result => {
