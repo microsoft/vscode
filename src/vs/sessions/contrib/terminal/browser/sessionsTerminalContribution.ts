@@ -800,13 +800,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * Never disposes the terminal the user is currently working in. Removal also
 	 * covers session *graduation* (untitled → committed via `onDidReplaceSession`,
 	 * which surfaces the skeleton in `removed`): the focused (active) instance is
-	 * therefore always protected.
+	 * therefore protected while it shows in the main window. One a chat window of
+	 * the removed session shows, which closes with the session, or one hidden in
+	 * the background, such as by that window, is not protected: nothing would
+	 * show it again.
 	 *
 	 * {@link reason} is logged for each killed terminal so unexpected disposals in
 	 * the agents window can be diagnosed from the logs. See #313510, #318645.
 	 */
 	private async _closeTerminalsForSession(sessionId: string, reason: string): Promise<void> {
-		const protectedInstanceId = this._terminalService.activeInstance?.instanceId;
+		const activeInstance = this._terminalService.activeInstance;
+		const protectedInstanceId = activeInstance && !this._chatWindowTerminalIds.has(activeInstance.instanceId) && this._terminalService.foregroundInstances.includes(activeInstance) ? activeInstance.instanceId : undefined;
 		for (const instance of this._getTrackedTerminalsForSession(sessionId)) {
 			if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
 				this._logService.info(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for session ${sessionId} (user is working in it)`);

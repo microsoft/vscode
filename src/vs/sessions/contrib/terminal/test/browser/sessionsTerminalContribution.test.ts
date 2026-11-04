@@ -1841,6 +1841,19 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(disposedInstances.length, 0, 'the focused terminal must not be disposed on graduation');
 	});
 
+	test('disposes the focused terminal of a removed session that a chat window shows, or that went to the background as that window closed: it does not show in the main window, nothing would show it again', async () => {
+		const shownInChatWindow = await contribution.ensureTerminal(URI.file('/shown'), false, makeAgentSession({ sessionId: 'test:shown', worktree: URI.file('/shown'), providerType: AgentSessionProviders.Background }));
+		contribution.setShownInChatWindow(shownInChatWindow[0], true);
+		onDidChangeSessions.fire({ added: [], removed: [makeAgentSession({ sessionId: 'test:shown', worktree: URI.file('/shown'), providerType: AgentSessionProviders.Background })], changed: [] });
+		await tick();
+		const released = await contribution.ensureTerminal(URI.file('/released'), false, makeAgentSession({ sessionId: 'test:released', worktree: URI.file('/released'), providerType: AgentSessionProviders.Background }));
+		backgroundedInstances.add(released[0].instanceId);
+		onDidChangeSessions.fire({ added: [], removed: [makeAgentSession({ sessionId: 'test:released', worktree: URI.file('/released'), providerType: AgentSessionProviders.Background })], changed: [] });
+		await tick();
+
+		assert.deepStrictEqual(disposedInstances.map(instance => instance.instanceId), [shownInChatWindow[0].instanceId, released[0].instanceId]);
+	});
+
 	test('closes only the removed session terminal when sessions share a cwd', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:untitled', worktree: worktreeUri, providerType: AgentSessionProviders.Background }));
