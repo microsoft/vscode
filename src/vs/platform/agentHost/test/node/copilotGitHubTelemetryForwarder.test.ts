@@ -6,36 +6,22 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { CopilotGitHubTelemetryForwarder } from '../../node/copilot/copilotGitHubTelemetryForwarder.js';
 
-interface CapturedEvent {
-	eventName: string;
-	data: ITelemetryData | undefined;
-}
-
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sendErrorTelemetry = true;
-	readonly sessionId = 'sessionId';
-	readonly machineId = 'machineId';
-	readonly sqmId = 'sqmId';
-	readonly devDeviceId = 'devDeviceId';
-	readonly firstSessionDate = 'firstSessionDate';
-	readonly events: CapturedEvent[] = [];
-
-	publicLog(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
+class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | undefined> {
+	constructor() {
+		super({
+			captureLegacyEvents: true,
+			sendErrorTelemetry: true,
+			sessionId: 'sessionId',
+			machineId: 'machineId',
+			sqmId: 'sqmId',
+			devDeviceId: 'devDeviceId',
+			firstSessionDate: 'firstSessionDate',
+		});
 	}
-	publicLogError(): void { }
-	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.publicLog(eventName, data);
-	}
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite('CopilotGitHubTelemetryForwarder', () => {

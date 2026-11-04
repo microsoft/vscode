@@ -1105,10 +1105,10 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			choices: [
 				{ label: 'Manual permissions', badge: undefined },
-				{ label: 'Assisted permissions, New', badge: 'New' },
+				{ label: 'Assisted permissions, Recommended', badge: 'Recommended' },
 				{ label: 'Custom permissions', badge: undefined },
 			],
-			withDescription: 'Assisted permissions, New, Evaluates risk before running tools',
+			withDescription: 'Assisted permissions, Recommended, Evaluates risk before running tools',
 			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});

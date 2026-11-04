@@ -22,6 +22,7 @@ import { IAccessibilitySignalService } from '../../../../../../../platform/acces
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -41,6 +42,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ChatMode } from '../../../../common/chatModes.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -372,6 +374,7 @@ suite('ChatInputPart', () => {
 			_inputModelSessionResource: sessionResource,
 			_widget: { viewModel: { model: { sessionResource } } },
 			_currentSessionTypeObservable: observableValue<string | undefined>('currentSessionType', 'agent-host-copilotcli'),
+			_currentModeObservable: observableValue('currentMode', ChatMode.Agent),
 			_modelSessionTypeOverride: observableValue<{ readonly resource: URI; readonly sessionType: string } | undefined>('override', undefined),
 			_modelSelectionController: { revalidateForSessionType: () => revalidations.push(inputPart.modelTargetSessionType) },
 			getAllMergedModels: () => [...models],
@@ -384,6 +387,75 @@ suite('ChatInputPart', () => {
 	function targetedModel(sessionType: string, id: string): ILanguageModelChatMetadataAndIdentifier {
 		return { identifier: `${sessionType}:${id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id, name: id, targetChatSessionType: sessionType, isUserSelectable: true }) };
 	}
+
+	test('required agents filter the model pool and reject stale manual choices before persisting them', () => {
+		const required = targetedModel('agent-host-copilotcli', 'sonnet');
+		const other = targetedModel('agent-host-copilotcli', 'other');
+		const { inputPart } = createModelPoolInput([required, other]);
+		Object.assign(inputPart, {
+			_currentModeObservable: constObservable({
+				...ChatMode.Agent, model: constObservable(['sonnet']), modelPolicy: constObservable('required'),
+			}),
+			logService: new NullLogService(),
+		});
+		assert.throws(() => inputPart.setCurrentLanguageModel(other, true), /Select one of the models required/);
+		assert.strictEqual(inputPart.switchModelByIdentifier(other.identifier), false);
+	});
+
+	test('agent preferences resolve IDs and ordered aliases and apply effort only to this input', () => {
+		const base = targetedModel('agent-host-copilotcli', 'sonnet');
+		const model: ILanguageModelChatMetadataAndIdentifier = {
+			...base, metadata: { ...base.metadata, name: 'Sonnet', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium'] } } } },
+		};
+		const { inputPart } = createModelPoolInput([model]);
+		const applied: string[] = [];
+		const configurations: object[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (selected: ILanguageModelChatMetadataAndIdentifier) => applied.push(selected.identifier) },
+			_modelConfigStore: {
+				getModelConfiguration: () => ({ contextSize: 200000 }),
+				restoreModelConfiguration: (id: string, configuration: object, persist: boolean) => configurations.push({ id, configuration, persist }),
+			},
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['missing', 'Sonnet (copilot)'], 'low'),
+			inputPart.switchModelByQualifiedName(['sonnet'], 'unsupported'),
+			inputPart.switchModelByQualifiedName(['missing']),
+		];
+		assert.deepStrictEqual({ selected, applied, configurations, warningCount: warnings.length }, {
+			selected: [true, true, false],
+			applied: [model.identifier, model.identifier],
+			configurations: [{ id: model.identifier, configuration: { reasoningEffort: 'low' }, persist: false }],
+			warningCount: 1,
+		});
+	});
+
+	test('agent aliases do not select BYOK models, but explicit IDs and vendor-qualified names do', () => {
+		const base = targetedModel('agent-host-copilotcli', 'byok');
+		const byok = { ...base, metadata: { ...base.metadata, name: 'Sonnet', vendor: 'copilot', isBYOK: true } };
+		const custom = { ...base, identifier: 'custom:model', metadata: { ...base.metadata, id: 'custom-model', name: 'Custom Model', vendor: 'custom', isBYOK: true } };
+		const { inputPart } = createModelPoolInput([byok, custom]);
+		const applied: string[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => applied.push(model.identifier) },
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['Sonnet (copilot)']),
+			inputPart.switchModelByQualifiedName(['byok']),
+			inputPart.switchModelByQualifiedName(['Custom Model (custom)']),
+		];
+		assert.deepStrictEqual({ selected, applied, warningCount: warnings.length }, {
+			selected: [false, true, true],
+			applied: [byok.identifier, custom.identifier],
+			warningCount: 1,
+		});
+	});
 
 	test('selects a chat\'s models from the session type it is answered by, never another one\'s', () => {
 		const copilot = targetedModel('agent-host-copilotcli', 'gpt');

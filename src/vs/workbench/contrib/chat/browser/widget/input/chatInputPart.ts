@@ -192,6 +192,7 @@ import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js'
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { getAgentModelPolicyError, IAgentModelPreferences, resolveAgentModelPreference, resolveAgentModelPreferences, resolveAgentReasoningEffort } from '../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { matchesSessionType } from '../../../common/promptSyntax/service/promptsService.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -1099,6 +1100,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return {
 			currentModel: models.find(model => model.identifier === currentModel?.identifier),
 			models,
+			agentModelPolicyError: getAgentModelPolicyError(this.getAgentModelPreferences(reader), currentModel?.identifier, models),
 		};
 	});
 	private _isFirstWorkbenchSession: boolean | undefined;
@@ -1211,7 +1213,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			subscribeToModelChanges: listener => this.languageModelsService.onDidChangeLanguageModels(listener),
 			getBoundConversationKey: () => this._inputModelSessionResource?.toString(),
 			getIntentHolder: () => this._intentHolder,
-			restoreModelConfiguration: (modelId, configuration) => this.restoreModelConfiguration(modelId, configuration),
+			restoreModelConfiguration: (modelId, configuration, persist) => this.restoreModelConfiguration(modelId, configuration, persist),
 			applyModel: () => {
 				if (this.cachedWidth) {
 					this.layout(this.cachedWidth);
@@ -1263,6 +1265,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			languageModelListChanged.read(reader);
 			const sessionType = this._notificationModelTargetChatSessionType.read(reader);
 			this._currentModeObservable.read(reader);
+			this.getAgentModelPreferences(reader);
 			this._notificationAvailableLanguageModels.set(this.getModelsForSessionType(sessionType), undefined);
 		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -1473,9 +1476,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 			const models = mode.model?.read(r);
-			if (models) {
-				this.switchModelByQualifiedName(models);
+			const effort = mode.reasoningEffort?.read(r);
+			this.applyModeModelPreference(models, effort);
+		}));
+		this._register(autorun(reader => {
+			languageModelListChanged.read(reader);
+			const preferences = this.getAgentModelPreferences(reader);
+			const currentModel = this._currentLanguageModel.read(reader);
+			if (preferences?.required && !this.options.hostModelSelection) {
+				const models = this.getModels();
+				if (!models.some(model => model.identifier === currentModel?.identifier)) {
+					const preferred = resolveAgentModelPreference(preferences.models, models);
+					if (preferred) {
+						this.setCurrentLanguageModel(preferred, true, false);
+						this.applyAgentReasoningEffort(preferred, this._currentModeObservable.read(reader).reasoningEffort?.read(reader));
+					}
+				}
 			}
+			this._updateInputContentContextKeys();
 		}));
 
 		this.registerChatModeValidation();
@@ -1555,17 +1573,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
-		const models = this.getModels();
-		for (const qualifiedModelName of qualifiedModelNames) {
-			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+	public switchModelByQualifiedName(qualifiedModelNames: readonly string[], reasoningEffort?: string): boolean {
+		const model = resolveAgentModelPreference(qualifiedModelNames, this.getModels());
+		if (model) {
+			this.applyAgentReasoningEffort(model, reasoningEffort);
+			this._applyProgrammaticLanguageModel(model);
+			return true;
+		}
+		this.logService.warn(`[chat] None of the models "${qualifiedModelNames.join(', ')}" found. Use a model ID or "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
+		return false;
+	}
+
+	private applyModeModelPreference(models: readonly string[] | undefined, effort: string | undefined): void {
+		if (models) {
+			this.switchModelByQualifiedName(models, effort);
+		} else if (effort) {
+			const model = this._currentLanguageModel.read(undefined);
 			if (model) {
-				this._applyProgrammaticLanguageModel(model);
-				return true;
+				this.applyAgentReasoningEffort(model, effort);
 			}
 		}
-		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
-		return false;
+	}
+
+	private applyAgentReasoningEffort(model: ILanguageModelChatMetadataAndIdentifier, effort: string | undefined): void {
+		const configuration = resolveAgentReasoningEffort(effort, model.metadata);
+		if (configuration) {
+			this.restoreModelConfiguration(model.identifier, configuration, false);
+		}
 	}
 
 	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
@@ -1574,10 +1608,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {
-		return this._requestProgrammaticLanguageModel(() => {
-			const models = this.getModels();
-			return qualifiedModelNames.map(name => models.find(model => ILanguageModelChatMetadata.matchesQualifiedName(name, model.metadata))).find(isDefined);
-		});
+		return this._requestProgrammaticLanguageModel(() => resolveAgentModelPreference(qualifiedModelNames, this.getModels()));
 	}
 
 	get hasPendingProgrammaticModelSelection(): boolean {
@@ -1701,6 +1732,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
+			getAgentModelPreferences: () => this.getAgentModelPreferences(),
 			getChatSessionId: () => {
 				const resource = this._widget?.viewModel?.sessionResource;
 				return resource ? getChatSessionTelemetryContext(resource).chatSessionId : undefined;
@@ -1725,7 +1757,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const useRichPicker = !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 		return {
 			showManageModelsAction: useRichPicker,
-			showUnavailableFeatured: useRichPicker,
+			showUnavailableFeatured: useRichPicker && !this.getAgentModelPreferences()?.required,
 			showAutoModel: this._showAutoModel(),
 			showModelIcon: this.options.isSessionsWindow || !this._usesHarnessProviderIcon(),
 		};
@@ -2089,7 +2121,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const sessionType = getChatSessionType(forSessionResource);
-				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel));
+				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel), state.modelConfigurationIsTransient);
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,
 				// but record it so we can see when a session's persisted state lost its model.
@@ -2172,6 +2204,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {
+		const policyError = getAgentModelPolicyError(this.getAgentModelPreferences(), model.identifier, this.getModels());
+		if (isUserAction && policyError) {
+			this.logService.warn('[ChatInputPart] Rejected model selection outside the selected agent model list');
+			throw new Error(policyError);
+		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
 			model: model.identifier,
@@ -2288,6 +2325,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.getModelsForSessionType(this.getCurrentSessionType());
 	}
 
+	private getAgentModelPreferences(reader?: IReader): IAgentModelPreferences | undefined {
+		const mode = reader ? this._currentModeObservable.read(reader) : this._currentModeObservable.get();
+		const models = reader ? mode.model?.read(reader) : mode.model?.get();
+		const policy = reader ? mode.modelPolicy?.read(reader) : mode.modelPolicy?.get();
+		const uri = reader ? mode.uri?.read(reader) : mode.uri?.get();
+		const name = reader ? mode.name.read(reader) : mode.name.get();
+		return models?.length ? { models, required: policy === 'required', source: uri ? { name, uri } : undefined } : undefined;
+	}
+
 	/**
 	 * True when the current session type can fall back to the synthetic "Auto"
 	 * model. Defaults to `true` when no session type is set. See
@@ -2295,6 +2341,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * additionally requires an empty model list.
 	 */
 	private _showAutoModel(): boolean {
+		if (this.getAgentModelPreferences()?.required) {
+			return false;
+		}
 		if (this._readBoundModelPoolOverride() && this._readModelSessionTypeOverride() === undefined) {
 			return false;
 		}
@@ -2332,7 +2381,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		allModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
 		const sessionFiltered = filterModelsForSession(allModels, sessionType, this.currentModeKind, this.location);
-		return sessionFiltered.filter(m => !isModelHiddenInPicker(m, id => this.languageModelsService.isModelHidden(id)));
+		const visible = sessionFiltered.filter(m => !isModelHiddenInPicker(m, id => this.languageModelsService.isModelHidden(id)));
+		const preferences = this.getAgentModelPreferences();
+		return preferences?.required ? resolveAgentModelPreferences(preferences.models, visible) : visible;
 	}
 
 	/**
@@ -2507,6 +2558,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			selectedModel,
 			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfiguration(selectedModel.identifier) : undefined,
+			modelConfigurationIsTransient: selectedModel ? this._modelConfigStore.isModelConfigurationTransient(selectedModel.identifier) : undefined,
 			selectedModelReason: selectedModel ? this._modelSelectionController.selectionReason : undefined,
 			selections: this._inputEditor?.getSelections() || [],
 			permissionLevel: this._currentPermissionLevel.get(),
@@ -2915,7 +2967,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Block sending when the session type has no usable model (and can't
 		// fall back to Auto): there is nothing to send the request with. A host
 		// that owns model selection reports that through `canSubmit` instead.
-		const hasUsableModel = !!this.options.hostModelSelection || (!this.hasNoAvailableModel() && !this.hasPendingProgrammaticModelSelection);
+		const hasUsableModel = !!this.options.hostModelSelection || (!this.hasNoAvailableModel() && !this.hasPendingProgrammaticModelSelection
+			&& !getAgentModelPolicyError(this.getAgentModelPreferences(), this._currentLanguageModel.get()?.identifier, this.getModels()));
 		this.inputEditorHasSendableContent.set(hasSendableContent && hasUsableModel && (hostSubmit?.canSubmit.get() ?? true));
 	}
 

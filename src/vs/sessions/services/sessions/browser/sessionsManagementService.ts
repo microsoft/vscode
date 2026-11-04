@@ -1225,9 +1225,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		// Sending into an existing session abandons any in-progress new session,
-		// so dispose it to release its eager backend session.
-		this.discardNewSession();
+		if (!options.background) {
+			this.discardNewSession();
+		}
 
 		const provider = this._getProvider(session);
 		if (!provider) {
@@ -1264,6 +1264,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
+	}
+
+	async sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
 	}
 
 	/**

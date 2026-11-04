@@ -52,10 +52,6 @@ jobs:
       - name: Transpile sources
         run: pnpm run transpile-client
 
-      - name: Install E2E test dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: src/vs/sessions/test/e2e
-
       - name: Install Playwright browsers
         run: pnpm exec playwright install chromium
 

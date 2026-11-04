@@ -352,6 +352,46 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
 	});
 
+	test('[B6] carries a draft\'s remembered panel view when replaced by another draft', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const draft1 = makeSession(URI.parse('session:draft1'), { status: SessionStatus.Untitled, isCreated: false });
+		const draft2 = makeSession(URI.parse('session:draft2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(draft1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.activeSessionObs.set(draft2, undefined);
+		harness.openPaneCompositeCalls = [];
+		harness.onDidReplaceNewDraftSession.fire({ from: draft1, to: draft2 });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B2] replaces an active new draft session without wiping working set or open editors', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const draft1 = makeSession(URI.parse('session:draft1'), { status: SessionStatus.Untitled, isCreated: false });
+		const draft2 = makeSession(URI.parse('session:draft2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(draft1, undefined);
+		await timeout(0);
+
+		harness.applyWorkingSetCalls = [];
+		harness.onDidReplaceNewDraftSession.fire({ from: draft1, to: draft2 });
+		harness.activeSessionObs.set(draft2, undefined);
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.applyWorkingSetCalls.filter(call => call === 'empty').length,
+			0,
+			'replacing an active draft with a new draft must not apply an empty working set'
+		);
+	});
+
 	test('[B2] switching away discards an empty untitled editor bound to a file path instead of saving it into the working set', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });

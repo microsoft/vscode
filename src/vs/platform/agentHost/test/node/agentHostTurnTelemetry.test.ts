@@ -18,7 +18,8 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -116,27 +117,10 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChatChangesSummary(): void { }
 }
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<ITelemetryData | undefined> {
+	constructor() {
+		super({ captureErrors: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 /**
@@ -1226,13 +1210,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				}
 			});
 			telemetry.publicLog2 = (eventName, data) => {
+				if (!eventName) {
+					return;
+				}
 				if (eventName === 'agentHost.requestTokenUsage') {
 					elapsed += 4000;
 				}
 				if (eventName === 'agentHost.turnCompleted' || eventName === 'agentHost.requestTokenUsage') {
 					order.push(eventName);
 				}
-				telemetry.events.push({ eventName, data });
+				telemetry.events.push({ eventName, data: data as ITelemetryData | undefined });
 			};
 			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'slow-summary', undefined, undefined, 'default', undefined, undefined);
 			const completed = turnTracker.turnCompleted(defaultChatUri, 'slow-summary', result);
@@ -1263,7 +1250,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				if (eventName === 'agentHost.requestTokenUsage') {
 					throw new Error('summary reporting failed');
 				}
-				telemetry.events.push({ eventName, data });
+				if (eventName) {
+					telemetry.events.push({ eventName, data: data as ITelemetryData | undefined });
+				}
 			};
 			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'failed-summary', undefined, undefined, 'default', undefined, undefined);
 			const completed = turnTracker.turnCompleted(defaultChatUri, 'failed-summary', result);

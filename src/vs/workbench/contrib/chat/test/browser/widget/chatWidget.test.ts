@@ -43,7 +43,7 @@ import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitReq
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, IChatWidgetRequestAcceptedEvent, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
@@ -59,11 +59,13 @@ import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatReque
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
-import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
@@ -2369,9 +2371,9 @@ suite('ChatWidget - acceptInput submission', () => {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
-		const onDidAcceptRequest = store.add(new Emitter<URI>());
+		const onDidAcceptRequest = store.add(new Emitter<IChatWidgetRequestAcceptedEvent>());
 		const acceptedRequests: URI[] = [];
-		store.add(onDidAcceptRequest.event(resource => acceptedRequests.push(resource)));
+		store.add(onDidAcceptRequest.event(({ sessionResource }) => acceptedRequests.push(sessionResource)));
 		const attachments = new ChatRequestVariableSet();
 		const contribs: IChatWidget['contribs'][number][] = [];
 		const parts: IParsedChatRequest['parts'][number][] = [];
@@ -2418,6 +2420,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		};
 		chatService.sendRequest.resolves(sent);
 		const chatSubmitRequestHandlerService = mockObject<IChatSubmitRequestHandlerService>()();
+		const customizationHarnessService = mockObject<ICustomizationHarnessService>()();
 		chatSubmitRequestHandlerService.tryHandle.resolves(false);
 		const chatAttachmentResolveService = mockObject<IChatAttachmentResolveService>()();
 		chatAttachmentResolveService.resolveDirectoryImages.resolves([]);
@@ -2460,7 +2463,8 @@ suite('ChatWidget - acceptInput submission', () => {
 			viewContext: { value: { viewId: 'workbench.panel.chat.view.copilot' }, configurable: true },
 			chatSubmitRequestHandlerService: { value: chatSubmitRequestHandlerService },
 			chatAttachmentResolveService: { value: chatAttachmentResolveService },
-			customizationHarnessService: { value: mockObject<ICustomizationHarnessService>()() },
+			customizationHarnessService: { value: customizationHarnessService },
+			toolsService: { value: { toToolReferences: () => [] } },
 			dialogService: { value: mockObject<IDialogService>()() },
 			instantiationService: { value: instantiationService },
 			chatTipService: { value: mockObject<IChatTipService>()() },
@@ -2473,8 +2477,39 @@ suite('ChatWidget - acceptInput submission', () => {
 			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, customizationHarnessService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
 	}
+
+	test('invoking a Unicode prompt attaches its original file URI', async () => {
+		// allow-any-unicode-next-line
+		const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+		const input = `/${name}`;
+		const uri = URI.file(`/workspace/.github/prompts/${name}.prompt.md`);
+		const fixture = createSubmissionWidget(undefined, input);
+		fixture.parts.push(new ChatRequestSlashPromptPart(new OffsetRange(0, input.length), new Range(1, 1, 1, input.length + 1), name));
+		fixture.customizationHarnessService.resolvePromptSlashCommand.resolves({
+			name,
+			uri,
+			type: PromptsType.prompt,
+			storage: PromptsStorage.local,
+			userInvocable: true,
+			parsedPromptFile: new PromptFileParser().parse(uri, 'Unicode prompt content'),
+		});
+
+		await fixture.widget.acceptInput();
+
+		const requestOptions: IChatSendRequestOptions | undefined = fixture.chatService.sendRequest.firstCall.args[2];
+		assert.deepStrictEqual({
+			resolvedName: fixture.customizationHarnessService.resolvePromptSlashCommand.firstCall.args[0],
+			attachments: requestOptions?.attachedContext?.map(attachment => ({
+				kind: attachment.kind,
+				uri: URI.isUri(attachment.value) ? attachment.value.toString() : undefined,
+			})),
+		}, {
+			resolvedName: name,
+			attachments: [{ kind: 'promptFile', uri: uri.toString() }],
+		});
+	});
 
 	for (const kind of ['sent', 'queued', 'rejected'] as const) {
 		test(`reports ${kind} acceptance from the originating widget chat even if its model changes`, async () => {

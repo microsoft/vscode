@@ -33,7 +33,7 @@ import { ComponentFixtureContext, createEditorServices, registerWorkbenchService
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
 import { Menus } from '../../../../browser/menus.js';
-import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -192,7 +192,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 		override readonly extUri = extUri;
 	}());
-	const host = $(`.part.sessionspart.basepanel.right.${AGENTS_PART_CARD_CLASS}`);
+	const host = $(`.part.sessionspart.basepanel.right.${AGENTS_PART_CARD_CLASS}.${AGENTS_CARD_SURFACE_CLASS}`);
 	const feedback = disposableStore.add(new SessionActionFeedback());
 	const blockedIndicator = new class extends mock<BlockedSessionsIndicatorModel>() {
 		override readonly onDidRequestBlink = Event.None;
