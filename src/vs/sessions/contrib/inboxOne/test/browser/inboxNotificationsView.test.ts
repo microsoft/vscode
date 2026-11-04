@@ -1261,7 +1261,7 @@ suite('InboxNotificationsView', () => {
 		assert.strictEqual(container.querySelectorAll('.inbox-notifications-item').length, 0);
 	});
 
-	test('preserves reading order and selection through passive workflow changes until updates are requested', () => {
+	test('closes selected evidence immediately when its row moves to another workflow tab', () => {
 		const item: IInboxNotificationItem = {
 			id: 'first', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
 			title: 'Review changes', description: 'Completed', timestamp: 1, actions: [],
@@ -1277,17 +1277,104 @@ suite('InboxNotificationsView', () => {
 			order: [...container.querySelectorAll<HTMLElement>('.inbox-notifications-item')].map(card => card.dataset.notificationId),
 			evidence: container.querySelector('.inbox-notifications-evidence-header h3')?.textContent,
 		});
-		rows.set([row('new'), row('second'), row('first', InboxTab.Done)], undefined);
-		const reading = snapshot();
+		rows.set([row('pending'), row('first'), row('second')], undefined);
 		const banner = container.querySelector<HTMLElement>('.inbox-notifications-deferred-updates')!;
 		const offeredUpdates = !banner.classList.contains('hidden');
-		banner.querySelector<HTMLElement>('.monaco-button')!.click();
+		rows.set([row('new'), row('second'), row('first', InboxTab.Done)], undefined);
 		const refreshed = snapshot();
+		const bannerHidden = banner.classList.contains('hidden');
 		rows.set([row('new'), row('second')], undefined);
-		assert.deepStrictEqual({ reading, offeredUpdates, refreshed, deleted: snapshot() }, {
-			reading: { order: ['first', 'second'], evidence: 'first' }, offeredUpdates: true,
-			refreshed: { order: ['new', 'second'], evidence: 'first' },
+		assert.deepStrictEqual({ offeredUpdates, refreshed, bannerHidden, deleted: snapshot() }, {
+			offeredUpdates: true, bannerHidden: true,
+			refreshed: { order: ['new', 'second'], evidence: undefined },
 			deleted: { order: ['new', 'second'], evidence: undefined },
+		});
+	});
+
+	for (const inlineInput of [false, true]) {
+		test(`removes another row that starts working while preserving reading order and drafts: inline input ${inlineInput}`, () => {
+			const item: IInboxNotificationItem = {
+				id: 'selected', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+				title: 'Question', description: 'Answer', timestamp: 1, actions: [],
+				needsInputPart: inlineInput ? {
+					kind: 'questionCarousel', chatResource: URI.parse('test:///chat'), requestId: 'request',
+					resolveId: 'question', allowSkip: true, questions: [],
+				} : undefined,
+			};
+			const row = (id: string, tab = InboxTab.ReadyForYou): IInboxSessionRow => ({
+				...item, id, tab, sessionTitle: id, occurrence: id, notifications: [item], hasImages: false,
+			});
+			const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row('selected'), row('moving'), row('stable')]);
+			const { view, container, instantiationService } = createView(constObservable([item]), { rows });
+			const input = document.createElement('textarea');
+			instantiationService.stubInstance(ChatQuestionCarouselPart, {
+				domNode: input, onDidChangeHeight: Event.None, dispose: () => { },
+			});
+			view.render(container);
+			container.querySelector<HTMLElement>('[data-notification-id="selected"]')!.click();
+			if (inlineInput) {
+				input.value = 'Keep this answer';
+				input.focus();
+			}
+			rows.set([row('new'), row('stable'), row('moving', InboxTab.Working), row('selected')], undefined);
+			const snapshot = () => ({
+				order: [...container.querySelectorAll<HTMLElement>('.inbox-notifications-item')].map(card => card.dataset.notificationId),
+				selected: container.querySelector<HTMLElement>('.inbox-notifications-item.selected')?.dataset.notificationId,
+			});
+			const reading = snapshot();
+			const tabs = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
+			const beforeRefresh = {
+				activeTab: tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true'),
+				counts: tabs.slice(0, 2).map(tab => tab.textContent),
+				draft: input.value, focused: document.activeElement === input,
+			};
+			const banner = container.querySelector<HTMLElement>('.inbox-notifications-deferred-updates')!;
+			const offeredUpdates = !banner.classList.contains('hidden');
+			banner.querySelector<HTMLElement>('.monaco-button')!.click();
+			const refreshed = snapshot();
+			tabs[1].click();
+			assert.deepStrictEqual({ reading, beforeRefresh, offeredUpdates, refreshed, working: snapshot() }, {
+				reading: { order: ['selected', 'stable'], selected: 'selected' },
+				beforeRefresh: {
+					activeTab: 0, counts: ['Ready for you 3', 'Working 1'],
+					draft: inlineInput ? 'Keep this answer' : '', focused: inlineInput,
+				},
+				offeredUpdates: true,
+				refreshed: { order: ['new', 'stable', 'selected'], selected: 'selected' },
+				working: { order: ['moving'], selected: undefined },
+			});
+		});
+	}
+
+	test('closes a resumed session detail pane and preserves its reply draft', () => {
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const row: IInboxSessionRow = {
+			id: 'session', tab: InboxTab.ReadyForYou, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review changes', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+			sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
+		};
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+		const { view, container, instantiationService, chatViews, newChatViews } = createView(constObservable([]), { rows });
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		chatViews[0].input.value = 'Follow-up draft';
+		chatViews[0].input.focus();
+		rows.set([{ ...row, tab: InboxTab.Working, occurrence: 'working' }], undefined);
+		const tabs = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
+		const resumed = {
+			cards: container.querySelectorAll('.inbox-notifications-item').length,
+			details: !!container.querySelector('.inbox-notifications-detail-evidence'),
+			activeTab: tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true'),
+			counts: tabs.slice(0, 2).map(tab => tab.textContent),
+			focused: document.activeElement === newChatViews[0].input,
+		};
+		tabs[1].click();
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		assert.deepStrictEqual({ resumed, draft: chatViews[0].input.value, views: chatViews.length }, {
+			resumed: { cards: 0, details: false, activeTab: 0, counts: ['Ready for you 0', 'Working 1'], focused: true },
+			draft: 'Follow-up draft', views: 1,
 		});
 	});
 

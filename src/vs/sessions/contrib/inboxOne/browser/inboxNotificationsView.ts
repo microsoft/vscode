@@ -908,8 +908,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const rows = this.inboxNotificationsService.sessionRows.read(reader);
 			const selectedId = this.selectedItemId.read(reader);
 			const selected = rows.find(row => row.id === selectedId);
-			if (selectedId && !selected) {
-				this.clearSelectedItem('itemRemoved');
+			if (selectedId && (!selected || selected.tab !== tab)) {
+				// Selection cleanup must not apply a deferred snapshot from before the tab change.
+				this.deferredItems = undefined;
+				this.clearSelectedItem(selected ? 'tabChanged' : 'itemRemoved');
 			}
 			const previews = this.inboxNotificationsService.previews.read(reader);
 			const items = rows.filter(row => row.tab === tab && (!query || [
@@ -950,12 +952,14 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.deferredItems = items;
 			this.deferredNewNotificationsCount = newNotificationCount;
 			this.updateDeferredUpdatesBanner();
-			if (!this.isInlineInputFocused()) {
-				const currentItems = new Map(items.map(item => [item.id, item]));
-				this.renderedItems = this.renderedItems.flatMap(item => {
-					const current = currentItems.get(item.id) ?? this.getRow(item.id);
-					return current ? [current] : [];
-				});
+			const inlineInputFocused = this.isInlineInputFocused();
+			const currentItems = new Map(items.map(item => [item.id, item]));
+			const retainedItems = this.renderedItems.flatMap(item => {
+				const current = currentItems.get(item.id);
+				return current ? [inlineInputFocused ? item : current] : [];
+			});
+			if (!inlineInputFocused || retainedItems.length !== this.renderedItems.length) {
+				this.renderedItems = retainedItems;
 				this.renderList(this.renderedItems);
 			}
 			return;
