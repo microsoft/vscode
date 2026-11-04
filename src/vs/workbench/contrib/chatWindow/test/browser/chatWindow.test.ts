@@ -94,6 +94,7 @@ suite('Chat window', () => {
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
 			override getGroups() { return this.groups; }
+			override createState() { return { groups: this.groups.map(candidate => (candidate as TestGroup).testEditors.length) }; }
 			override close() {
 				events.push(`close ${name}`);
 				if (options?.veto) {
@@ -370,6 +371,28 @@ suite('Chat window', () => {
 			main: [true, true],
 			chat: [true, true],
 		});
+	});
+
+	test('the chat moving out of the window, such as into an editor window, leaves its group, with the tabs beside it, to open it with again: the chat goes back into that group', () => {
+		const { window, chat, chatInput, events } = createWindow();
+		chat.group.open(editor());
+		// Into a group of another window
+		const elsewhere = createPart([], 'elsewhere');
+		chat.group.moveEditor(chatInput, elsewhere.group);
+
+		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['move to elsewhere', 'moved out'], captured: { state: { groups: [1] }, chatGroup: 0 } });
+	});
+
+	test('while an editor of a part the window created, such as for an editor dropped on its edge, cannot move to the main window, closing it does nothing at all', () => {
+		const { window, main, other, events, closingStates } = createWindow({ otherPart: true });
+		const clean = editor();
+		const immovable = disposables.add(new ImmovableInput());
+		main.group.open(clean);
+		other.group.open(immovable);
+
+		const closed = window.close();
+
+		assert.deepStrictEqual({ closed, events, closingStates, main: main.group.contains(clean), other: other.group.contains(immovable) }, { closed: false, events: [], closingStates: [], main: true, other: true });
 	});
 
 	test('closing a window that shows only its chat, with an editor beside the chat, changes neither its mode, nor what is remembered for it, nor the default of new windows', () => {

@@ -31,7 +31,7 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
-import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
+import { captureChatPart, captureChatPartWithoutChat, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindChatWindowPartsVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid, TERMINAL_EDITOR_TYPE_ID } from './chatWindowGrid.js';
@@ -142,8 +142,13 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 	/** The groups of its chat part besides the chat's own, such as an editor split beside the chat, to show them again. */
 	captureChatPart(): IChatWindowChatPart | undefined {
-		return captureChatPart(this.chatPart, this.content.input);
+		const captured = captureChatPart(this.chatPart, this.content.input);
+		// The chat moved out of the window: its group, with the tabs that were beside it, takes it back
+		return captured ?? (this._chatGroupMovedOutOf ? captureChatPartWithoutChat(this.chatPart, this._chatGroupMovedOutOf) : undefined);
 	}
+
+	/** The group of the chat part the chat moved out of the window from, if it did. */
+	private _chatGroupMovedOutOf: IEditorGroup | undefined;
 
 	private _willClose = false;
 
@@ -208,6 +213,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 				// Once the editor closed: closing the window closes the part whose group still closes the editor.
 				disposableTimeout(() => this.close(), 0, this._store);
 			} else if (!this._findChatGroup()) {
+				this._chatGroupMovedOutOf = group;
 				this._host.didMoveChatOut();
 			}
 		})));
@@ -372,13 +378,16 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		return true;
 	}
 
-	/** Whether every editor of the main part and the chat part, but the chat, can move to the main window; shows the first that cannot. */
+	/** Whether every editor of the window, but the chat and its terminals, can move to the main window; shows the first that cannot. */
 	private _canEditorsLeave(): boolean {
 		const target = this._host.mainWindowGroup?.();
 		if (target === undefined) {
 			return true;
 		}
-		for (const group of [...this.mainPart.groups, ...this.chatPart.groups]) {
+		// All groups of the window, such as of parts it created for dropped editors, but those of its terminals, which go to
+		// the panel as it closes
+		const terminalsGroups = this._terminalsPart.get()?.groups ?? [];
+		for (const group of this._windowGroups.groups.filter(candidate => !terminalsGroups.includes(candidate))) {
 			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
 				if (editor !== this.content.input && typeof editor.canMove(group.id, target) === 'string') {
 					void group.openEditor(editor);

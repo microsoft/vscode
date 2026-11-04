@@ -19,13 +19,28 @@ export interface ISerializedChatWindowEditor {
 }
 
 /** Serializes the editors of `group` that can be, in their order, marking the active one. */
-export function serializeChatWindowEditors(group: IEditorGroup): ISerializedChatWindowEditor[] {
+export function serializeChatWindowEditors(group: IEditorGroup, options?: { readonly onlyThoseThatClose?: boolean }): ISerializedChatWindowEditor[] {
 	const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-	return group.getEditors(EditorsOrder.SEQUENTIAL).flatMap(editor => {
+	return group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => !options?.onlyThoseThatClose || !confirmsClose(editor)).flatMap(editor => {
 		const serializer = registry.getEditorSerializer(editor);
 		const value = serializer?.canSerialize(editor) ? serializer.serialize(editor) : undefined;
 		return value === undefined ? [] : [{ typeId: editor.typeId, value, active: editor === group.activeEditor }];
 	});
+}
+
+/**
+ * Whether `editor` asks before it closes, such as one that is dirty, as a group decides as its part closes: such an editor
+ * does not close with the part, but moves to the main window with what the part merges into it.
+ */
+function confirmsClose(editor: EditorInput): boolean {
+	if (editor.closeHandler) {
+		try {
+			return editor.closeHandler.showConfirm();
+		} catch {
+			// As the group does: then as any editor
+		}
+	}
+	return editor.isDirty() && !editor.isSaving();
 }
 
 /**
@@ -34,7 +49,8 @@ export function serializeChatWindowEditors(group: IEditorGroup): ISerializedChat
  * for editors dropped on its edges. The chat itself has no serializer and stays out.
  */
 export function serializeChatWindowEditorsBesideChat(window: IChatWindow, createdParts: readonly IContentPart[]): ISerializedChatWindowEditor[] {
-	return [...window.mainPart.groups, ...window.chatPart.groups, ...createdParts.flatMap(part => part.groups)].flatMap(group => serializeChatWindowEditors(group));
+	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself
+	return [...window.mainPart.groups, ...window.chatPart.groups, ...createdParts.flatMap(part => part.groups)].flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }));
 }
 
 /** Deserializes what {@link serializeChatWindowEditors} serialized, skipping editors whose type is no longer available or that fail to deserialize. */
@@ -67,8 +83,9 @@ export function deserializeChatWindowEditors(instantiationService: IInstantiatio
 export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>, parts: { readonly chatPart: IChatWindowChatPart | undefined; readonly createdParts: readonly IContentPart[] }): Promise<void> {
 	const chat = window.chat.get();
 	// Serialized, as closing the window disposes them, and opened again in the new window.
-	const editors = window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group));
-	const createdParts = parts.createdParts.map(part => part.groups.flatMap(group => serializeChatWindowEditors(group))).filter(created => created.length > 0);
+	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself
+	const editors = window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }));
+	const createdParts = parts.createdParts.map(part => part.groups.flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }))).filter(created => created.length > 0);
 	const showTerminals = window.terminalsVisible.get();
 	if (window.close()) {
 		await open(chat, {
@@ -93,6 +110,16 @@ export function captureChatPart(chatPart: IContentPart, chatInput: EditorInput):
 	// Its groups, or the editors beside the chat in its group, as tabs
 	const hasMore = groups.length > 1 || (chatGroup !== -1 && groups[chatGroup].count > 1);
 	return hasMore && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
+}
+
+/**
+ * The groups of a chat window's chat part to open it with again, as {@link captureChatPart} captures them, once the chat
+ * left `chatGroup`, such as for another window: the chat goes back there. Nothing while that group is gone.
+ */
+export function captureChatPartWithoutChat(chatPart: IContentPart, chatGroup: IEditorGroup): IChatWindowChatPart | undefined {
+	const groups = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
+	const index = groups.indexOf(chatGroup);
+	return index !== -1 && (groups.length > 1 || chatGroup.count > 0) ? { state: chatPart.createState(), chatGroup: index } : undefined;
 }
 
 /** The group of a chat part, restored from what {@link captureChatPart} captured, to open the chat in: its own group, else the active one. */
