@@ -830,6 +830,7 @@ class MockCopilotSession {
 			},
 			apps: {
 				listTools: async (_params: { serverName: string; originServerName: string }) => this.mcpListToolsResult,
+				callTool: async (_params: Parameters<CopilotSession['rpc']['mcp']['apps']['callTool']>[0]): ReturnType<CopilotSession['rpc']['mcp']['apps']['callTool']> => ({ content: [] }),
 				readResource: async (_params: Parameters<CopilotSession['rpc']['mcp']['apps']['readResource']>[0]): ReturnType<CopilotSession['rpc']['mcp']['apps']['readResource']> => ({ contents: [] }),
 			},
 			list: async () => {
@@ -18754,6 +18755,22 @@ Use the attached image as context.
 			assert.deepStrictEqual(calls, [
 				{ proxy: 'apps', serverName: 'everything', uri: 'demo://resource/1' },
 				{ proxy: 'apps', serverName: 'app', uri: 'ui://example/app' },
+			]);
+		});
+
+		test('MCP Apps tool calls preserve request metadata separately from arguments', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const calls: Parameters<typeof mockSession.rpc.mcp.apps.callTool>[0][] = [];
+			mockSession.rpc.mcp.apps.callTool = async params => {
+				calls.push(params);
+				return { content: [] };
+			};
+			const meta = { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } };
+			await session.handleMcpRequest('app', 'tools/call', { name: 'correlation_probe', arguments: { value: 42 }, _meta: meta });
+			await session.handleMcpRequest('app', 'tools/call', { name: 'correlation_probe' });
+			assert.deepStrictEqual(calls, [
+				{ serverName: 'app', toolName: 'correlation_probe', originServerName: 'app', arguments: { value: 42 }, _meta: meta },
+				{ serverName: 'app', toolName: 'correlation_probe', originServerName: 'app', arguments: undefined, _meta: undefined },
 			]);
 		});
 

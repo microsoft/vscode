@@ -7314,7 +7314,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const rawArgs = params ? params['arguments'] : undefined;
 				const args = isObject(rawArgs) ? rawArgs as Record<string, JsonValue> : undefined;
-				return apps.callTool({ serverName, toolName: name, arguments: args, originServerName: serverName });
+				const callParams = { serverName, toolName: name, arguments: args, originServerName: serverName, _meta: params?.['_meta'] };
+				// TODO: Remove the cast once the SDK exposes request metadata.
+				return apps.callTool(callParams as Parameters<typeof apps.callTool>[0]);
 			}
 			case 'resources/read': {
 				const uri = params && typeof params['uri'] === 'string' ? params['uri'] : undefined;
