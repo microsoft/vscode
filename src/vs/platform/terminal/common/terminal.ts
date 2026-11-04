@@ -98,6 +98,7 @@ export const enum TerminalSettingId {
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
+	SplitOrientation = 'terminal.integrated.splitOrientation',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WindowsReparentConsoleWindow = 'terminal.integrated.windowsReparentConsoleWindow',
 	WordSeparators = 'terminal.integrated.wordSeparators',

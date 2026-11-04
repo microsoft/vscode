@@ -38,6 +38,7 @@ export const enum TerminalContextKeyStrings {
 	TabsSingularSelection = 'terminalTabsSingularSelection',
 	SplitTerminal = 'terminalSplitTerminal',
 	SplitPaneActive = 'terminalSplitPaneActive',
+	SplitOrientation = 'terminalSplitOrientation',
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
 	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
@@ -134,6 +135,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether the active terminal is a split pane */
 	export const splitTerminalActive = new RawContextKey<boolean>(TerminalContextKeyStrings.SplitPaneActive, false, localize('splitPaneActive', "Whether the active terminal is a split pane."));
+
+	/** The split orientation of the active terminal group. */
+	export const splitOrientation = new RawContextKey<'horizontal' | 'vertical'>(TerminalContextKeyStrings.SplitOrientation, 'horizontal', localize('terminalSplitOrientationContextKey', "The split orientation of the active terminal group, either 'horizontal' or 'vertical'."));
 
 	/** Whether the terminal run command picker is currently open. */
 	export const inTerminalRunCommandPicker = new RawContextKey<boolean>(TerminalContextKeyStrings.InTerminalRunCommandPicker, false, localize('inTerminalRunCommandPickerContextKey', "Whether the terminal run command picker is currently open."));

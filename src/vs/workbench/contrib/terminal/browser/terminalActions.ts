@@ -1126,6 +1126,13 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.ToggleSplitOrientation,
+		title: localize2('workbench.action.terminal.toggleSplitOrientation', 'Toggle Split Orientation'),
+		precondition: sharedWhenClause.terminalAvailable,
+		run: c => c.groupService.activeGroup?.toggleSplitOrientation()
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.JoinActiveTab,
 		title: localize2('workbench.action.terminal.joinInstance', 'Join Terminals'),
 		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.tabsSingularSelection.toNegated()),

@@ -5,6 +5,7 @@
 
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -124,6 +125,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
+			this._terminalGroupService.onDidChangeSplitOrientation(() => this.refresh()),
 			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
 			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
 			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
@@ -457,8 +459,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
+		const splitIcon = this._terminalGroupService.getGroupForInstance(instance)?.splitOrientation === Orientation.VERTICAL ? Codicon.splitVertical : Codicon.splitHorizontal;
 		const actions = [
-			template.elementDisposables.add(new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			template.elementDisposables.add(new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(splitIcon), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});

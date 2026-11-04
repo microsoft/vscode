@@ -60,6 +60,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	private readonly _onDidChangePanelOrientation = this._register(new Emitter<Orientation>());
 	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
+	private readonly _onDidChangeSplitOrientation = this._register(new Emitter<Orientation>());
+	readonly onDidChangeSplitOrientation = this._onDidChangeSplitOrientation.event;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -77,6 +79,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._register(Event.runAndSubscribe(this.onDidFocusInstance, () => {
 			const activeInstance = this.activeInstance;
 			splitTerminalActiveContextKey.set(activeInstance ? this.instanceIsSplit(activeInstance) : false);
+		}));
+
+		const splitOrientationContextKey = TerminalContextKeys.splitOrientation.bindTo(this._contextKeyService);
+		this._register(Event.runAndSubscribe(Event.any(this.onDidChangeActiveGroup, this.onDidChangeSplitOrientation), () => {
+			splitOrientationContextKey.set(this.activeGroup?.splitOrientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
 		}));
 
 		this._register(this.onDidDisposeGroup(group => this._removeGroup(group)));
@@ -163,6 +170,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
 		this.groups.push(group);
 		group.addDisposable(Event.forward(group.onPanelOrientationChanged, this._onDidChangePanelOrientation));
+		group.addDisposable(Event.forward(group.onDidChangeSplitOrientation, this._onDidChangeSplitOrientation));
 		group.addDisposable(Event.forward(group.onDidDisposeInstance, this._onDidDisposeInstance));
 		group.addDisposable(Event.forward(group.onDidFocusInstance, this._onDidFocusInstance));
 		group.addDisposable(Event.forward(group.onDidChangeInstanceCapability, this._onDidChangeInstanceCapability));

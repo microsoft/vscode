@@ -50,6 +50,14 @@ const TerminalDictationAvailable = ContextKeyExpr.or(
 	ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.speechToTextConfigured)
 );
 
+/**
+ * The split icon to show for each split orientation of the active terminal group.
+ */
+const splitIconVariants = [
+	{ icon: Codicon.splitHorizontal, when: TerminalContextKeys.splitOrientation.notEqualsTo('vertical') },
+	{ icon: Codicon.splitVertical, when: TerminalContextKeys.splitOrientation.isEqualTo('vertical') },
+];
+
 export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
@@ -431,7 +439,7 @@ export function setupTerminalMenus(): void {
 					),
 				}
 			},
-			{
+			...splitIconVariants.map(({ icon, when }) => ({
 				// This is used to show instead of tabs when there is only a single terminal
 				id: MenuId.ViewTitle,
 				item: {
@@ -442,11 +450,12 @@ export function setupTerminalMenus(): void {
 					alt: {
 						id: TerminalCommandId.Split,
 						title: terminalStrings.split.value,
-						icon: Codicon.splitHorizontal
+						icon
 					},
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
+						when,
 						ContextKeyExpr.not(TerminalContribContextKeyStrings.ChatHasHiddenTerminals),
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
@@ -470,20 +479,20 @@ export function setupTerminalMenus(): void {
 						)
 					),
 				}
-			},
-			{
+			})),
+			...splitIconVariants.map(({ icon, when }) => ({
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
 						id: TerminalCommandId.Split,
 						title: terminalStrings.split,
-						icon: Codicon.splitHorizontal
+						icon
 					},
 					group: 'navigation',
 					order: 2,
-					when: TerminalContextKeys.shouldShowViewInlineActions
+					when: ContextKeyExpr.and(TerminalContextKeys.shouldShowViewInlineActions, when)
 				}
-			},
+			})),
 			{
 				id: MenuId.ViewTitle,
 				item: {
@@ -497,7 +506,7 @@ export function setupTerminalMenus(): void {
 					when: TerminalContextKeys.shouldShowViewInlineActions
 				}
 			},
-			{
+			...splitIconVariants.map(({ icon, when }) => ({
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
@@ -508,16 +517,17 @@ export function setupTerminalMenus(): void {
 					alt: {
 						id: TerminalCommandId.Split,
 						title: terminalStrings.split.value,
-						icon: Codicon.splitHorizontal
+						icon
 					},
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
+						when,
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.or(TerminalContextKeys.webExtensionContributedProfile, TerminalContextKeys.processSupported)
 					)
 				}
-			},
+			})),
 			{
 				id: MenuId.ViewTitle,
 				item: {
