@@ -11,8 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
+import { withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import type { SessionEvent } from '@github/copilot-sdk';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -130,9 +131,11 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
 			'assistant.message',
 			'assistant.message',
+			'assistant.turn_end',
 		]);
 
 		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
@@ -200,10 +203,11 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
 
-		// The abort trails the already-flushed assistant content.
+		// The abort trails the already-flushed assistant content and ends the turn without a `turn_end`.
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
 			'abort',
 		]);
@@ -234,10 +238,12 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
 			'tool.execution_start',
 			'tool.execution_complete',
 			'assistant.message',
+			'assistant.turn_end',
 		]);
 
 		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
@@ -307,13 +313,17 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
 
 		// `subagent.started` precedes the tool execution pair so a resume applies
-		// the sub-agent identity to the parent tool call.
+		// the sub-agent identity to the parent tool call. The turn ends on the
+		// tool call, so an empty assistant message completes it before `turn_end`.
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'subagent.started',
 			'tool.execution_start',
 			'tool.execution_complete',
+			'assistant.message',
+			'assistant.turn_end',
 		]);
 		const started = events.find(e => e.type === 'subagent.started');
 		assert.ok(started && started.type === 'subagent.started');
@@ -342,13 +352,17 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId, model: 'gpt-5' });
 
-		// Shape: session.start, (user.message, assistant.message) x2.
+		// Shape: session.start, (user.message, turn_start, assistant.message, turn_end) x2.
 		assert.deepStrictEqual(events.map(e => e.type), [
 			'session.start',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
+			'assistant.turn_end',
 			'user.message',
+			'assistant.turn_start',
 			'assistant.message',
+			'assistant.turn_end',
 		]);
 
 		// First event roots the chain; every subsequent event links to its predecessor.
@@ -369,12 +383,14 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.strictEqual(start.type === 'session.start' && start.data.selectedModel, 'gpt-5');
 	});
 
-	test('omits the assistant.message for a turn with no response content', async () => {
+	test('completes a turn with no response content with an empty assistant message', async () => {
 		const turns: Turn[] = [userTurn('turn-empty', 'just a note', [])];
 
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
 
-		assert.deepStrictEqual(events.map(e => e.type), ['session.start', 'user.message']);
+		assert.deepStrictEqual(events.map(e => e.type === 'assistant.message' ? { type: e.type, content: e.data.content } : e.type), [
+			'session.start', 'user.message', 'assistant.turn_start', { type: 'assistant.message', content: '' }, 'assistant.turn_end',
+		]);
 	});
 
 	test('serializes to newline-terminated JSONL whose lines parse back to the same events', () => {
@@ -409,5 +425,113 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		const { turns: reconstructed } = await mapSessionEvents(session, undefined, parsed);
 
 		assert.deepStrictEqual(project(reconstructed), project(turns));
+	});
+
+	test('a cold restore keeps every finished imported turn complete', async () => {
+		const turns: Turn[] = [
+			userTurn(generateUuid(), 'text', [markdown('Answer')]),
+			userTurn(generateUuid(), 'ends on a tool call', [markdown('Looking'), toolCallPart('call-1', 'read', '{}', 'contents')]),
+			userTurn(generateUuid(), 'no response', []),
+			{ ...userTurn(generateUuid(), 'cancelled', [markdown('Partial')]), state: TurnState.Cancelled },
+			userTurn(generateUuid(), 'last', [markdown('Done')]),
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: restored } = await mapSessionEventsWithRouting(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual(restored.map(turn => ({ text: turn.message.text, state: turn.state, parts: turn.responseParts.map(part => part.kind) })), [
+			{ text: 'text', state: TurnState.Complete, parts: [ResponsePartKind.Markdown] },
+			{ text: 'ends on a tool call', state: TurnState.Complete, parts: [ResponsePartKind.Markdown, ResponsePartKind.ToolCall] },
+			{ text: 'no response', state: TurnState.Complete, parts: [] },
+			{ text: 'cancelled', state: TurnState.Cancelled, parts: [ResponsePartKind.Markdown] },
+			{ text: 'last', state: TurnState.Complete, parts: [ResponsePartKind.Markdown] },
+		]);
+	});
+
+	test('round-trips message attachments and the model each turn used', async () => {
+		const selection = { start: { line: 1, character: 2 }, end: { line: 1, character: 6 } };
+		const attachments: MessageAttachment[] = [
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/repo/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/repo/src').toString(), label: 'src', displayKind: 'directory' },
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/repo/b.ts').toString(), label: 'b.ts:2', displayKind: 'selection', selection: { range: selection } },
+			{ type: MessageAttachmentKind.Simple, label: 'Pasted', modelRepresentation: 'pasted text' },
+			{ type: MessageAttachmentKind.Simple, label: 'Workspace', modelRepresentation: 'repo info', displayKind: 'workspace' },
+			{ type: MessageAttachmentKind.EmbeddedResource, label: 'shot.png', data: 'AAEC', contentType: 'image/png', displayKind: 'image' },
+			{ type: MessageAttachmentKind.Resource, uri: 'untitled:Untitled-1', label: 'Untitled-1', displayKind: 'document' },
+		];
+		const turns: Turn[] = [
+			{ ...userTurn(generateUuid(), 'first', [markdown('A')]), message: { text: 'first', origin: { kind: MessageKind.User }, attachments, model: { id: 'gpt-5' } } },
+			userTurn(generateUuid(), 'unresolved model', [markdown('B')]),
+			{ ...userTurn(generateUuid(), 'third', [markdown('C')]), message: { text: 'third', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-5' } } },
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId, model: 'auto' });
+		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
+
+		assert.deepStrictEqual({
+			eventTypes: events.map(e => e.type),
+			messages: reconstructed.map(turn => ({ model: turn.message.model?.id, attachments: turn.message.attachments })),
+		}, {
+			eventTypes: [
+				'session.start', 'session.model_change', 'user.message', 'assistant.turn_start', 'assistant.message', 'assistant.turn_end',
+				'session.model_change', 'user.message', 'assistant.turn_start', 'assistant.message', 'assistant.turn_end',
+				'session.model_change', 'user.message', 'assistant.turn_start', 'assistant.message', 'assistant.turn_end',
+				'session.model_change',
+			],
+			messages: [
+				{
+					model: 'gpt-5',
+					attachments: [
+						{ type: MessageAttachmentKind.Resource, uri: URI.file('/repo/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
+						{ type: MessageAttachmentKind.Resource, uri: URI.file('/repo/src').toString(), label: 'src', displayKind: 'directory' },
+						// No saved selection text: replayed as the selected whole lines of the file, never as invented text.
+						{ type: MessageAttachmentKind.Resource, uri: URI.file('/repo/b.ts').toString(), label: 'b.ts:2', displayKind: 'selection', selection: { range: { start: { line: 1, character: 0 }, end: { line: 2, character: 0 } } } },
+						{ type: MessageAttachmentKind.Simple, label: 'Pasted', modelRepresentation: 'pasted text' },
+						{ type: MessageAttachmentKind.Simple, label: 'Workspace', modelRepresentation: 'repo info', displayKind: 'workspace' },
+						{ type: MessageAttachmentKind.EmbeddedResource, label: 'shot.png', data: 'AAEC', contentType: 'image/png', displayKind: 'image' },
+						{ type: MessageAttachmentKind.Simple, label: 'Untitled-1', modelRepresentation: 'untitled:Untitled-1' },
+					],
+				},
+				{ model: 'auto', attachments: undefined },
+				{ model: 'claude-sonnet-5', attachments: undefined },
+			],
+		});
+	});
+
+	test('records no per-turn models when the session has no model', async () => {
+		const turns: Turn[] = [
+			{ ...userTurn(generateUuid(), 'first', [markdown('A')]), message: { text: 'first', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } } },
+			userTurn(generateUuid(), 'unresolved model', [markdown('B')]),
+		];
+
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
+
+		assert.deepStrictEqual({
+			modelEvents: events.filter(e => e.type === 'session.model_change' || (e.type === 'assistant.message' && e.data.model)).length,
+			models: reconstructed.map(turn => turn.message.model),
+		}, { modelEvents: 0, models: [undefined, undefined] });
+	});
+
+	test('records saved selection text, and only the selected lines when no text was saved', () => {
+		const file = URI.file('/repo/b.ts');
+		const range = (startLine: number, startCharacter: number, endLine: number, endCharacter: number) => ({ start: { line: startLine, character: startCharacter }, end: { line: endLine, character: endCharacter } });
+		const selection = (label: string, selected: ReturnType<typeof range>): MessageAttachment => ({ type: MessageAttachmentKind.Resource, uri: file.toString(), label, displayKind: 'selection', selection: { range: selected } });
+		const attachments = [
+			withAttachmentDetail(selection('saved', range(1, 2, 2, 3)), { type: 'selection', text: 'saved text' }),
+			selection('unsaved', range(1, 2, 2, 3)),
+			selection('ends at line start', range(1, 0, 3, 0)),
+		];
+		const turns: Turn[] = [{ ...userTurn(generateUuid(), 'q', []), message: { text: 'q', origin: { kind: MessageKind.User }, attachments } }];
+
+		const userMessage = buildSessionEventsFromTurns(turns, { sessionId }).find(e => e.type === 'user.message');
+
+		assert.deepStrictEqual(userMessage?.type === 'user.message' ? userMessage.data.attachments : undefined, [
+			{ type: 'selection', filePath: file.fsPath, displayName: 'saved', text: 'saved text', selection: range(1, 2, 2, 3) },
+			{ type: 'file', path: file.fsPath, displayName: 'unsaved', lineRange: { start: 2, end: 3 } },
+			{ type: 'file', path: file.fsPath, displayName: 'ends at line start', lineRange: { start: 2, end: 3 } },
+		]);
 	});
 });

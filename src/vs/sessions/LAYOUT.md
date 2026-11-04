@@ -150,6 +150,12 @@ Custom views may handle an unparameterized New Session action through their desc
 
 Content-sized composer hosts measure and observe `AbstractChatView.inputContentElement` rather than querying the hosted widget's DOM structure. The element remains owned by the view and must not be reparented. Input-only chat views retain the editor's intrinsic height limit instead of deriving it from the host's previous content height; full conversation and standalone New Session layouts are unchanged.
 
+Back and Forward history records each opening of a custom view. A view that shows one of several items, such as the pinned canvas page, names the item as the opening's `state`; history reopens the view with that state. Through `acceptsState`, the view declines states it can no longer show, which history then skips.
+
+## Session-scoped actions
+
+`ISessionScope` names the session the UI of a host acts on. It defaults to the active session. A host that shows another session, such as a window or Changes view of its own, overrides it through a child instantiation service. The Changes view and the title bar session actions read their session from the scope instead of the active session. When the scope is not the active session, the title bar actions evaluate the session action context keys on their own scoped context key service (`bindSessionActionContextKeys`). Session action commands take an optional session argument and fall back to the active session for keybindings and the command palette.
+
 ## Part lifecycle
 
 The workbench:

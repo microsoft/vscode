@@ -7,16 +7,17 @@ import '../../../workbench/browser/parts/titlebar/media/titlebarpart.css';
 import './media/titlebarpart.css';
 import { MultiWindowParts, Part } from '../../../workbench/browser/part.js';
 import { ITitleService } from '../../../workbench/services/title/browser/titleService.js';
-import { getZoomFactor, isWCOEnabled, getWCOTitlebarAreaRect, isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
+import { getZoomFactor, isWCOEnabled, getWCOTitlebarAreaRect, isFullscreen, onDidChangeFullscreen, setFullscreen } from '../../../base/browser/browser.js';
 import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, getTitleBarStyle, getWindowControlsStyle, WindowControlsStyle } from '../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler, isHTMLElement } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -38,22 +39,28 @@ import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hover
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
+/** The width reserved for the macOS traffic lights while they show. */
+const TRAFFIC_LIGHTS_WIDTH = 70;
+
+/** How long a window is still after resizing, such as into or out of full screen, before its host is asked whether it is in full screen. */
+const FULLSCREEN_RECHECK_DELAY = 300;
+
+const SHOWS_NO_ACTIONS_CLASS = 'shows-no-actions';
+
 /**
- * Whether the window hosting the title bar is in full screen, where the
- * traffic lights are hidden. The full-screen state of an auxiliary window is
- * only trusted when the window also covers its whole screen, so that a wrong
- * state never removes the space reserved for visible traffic lights.
+ * Marks each of `containers` that shows no actions, such as one whose actions all hide themselves, as the Create Pull
+ * Request bar without changes does, with `shows-no-actions`: as its actions show and hide.
  */
-function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
-	if (!isFullscreen(targetWindow)) {
-		return false;
-	}
-
-	if (targetWindow === mainWindow) {
-		return true;
-	}
-
-	return targetWindow.outerWidth >= targetWindow.screen.width && targetWindow.outerHeight >= targetWindow.screen.height;
+function trackActionsContainersShowingNoActions(containers: readonly HTMLElement[]): IDisposable {
+	const showsActions = (element: Element): boolean => [...element.children].some(child => child.classList.contains('action-item') ? isHTMLElement(child) && child.style.display !== 'none' : showsActions(child));
+	const update = (container: HTMLElement) => container.classList.toggle(SHOWS_NO_ACTIONS_CLASS, !showsActions(container));
+	const observers = containers.map(container => {
+		update(container);
+		const observer = new (getWindow(container).MutationObserver)(() => update(container));
+		observer.observe(container, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+		return observer;
+	});
+	return toDisposable(() => observers.forEach(observer => observer.disconnect()));
 }
 
 /**
@@ -74,6 +81,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
 	get minimumHeight(): number {
+		if (this.fixedHeight !== undefined) {
+			return this.fixedHeight;
+		}
 		const wcoEnabled = isWeb && isWCOEnabled();
 		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
 			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
@@ -105,6 +115,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
+	private windowTitleLabel: HTMLElement | undefined;
+	private fixedTitle: string | undefined;
+	private sessionHeaderHost: HTMLElement | undefined;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
@@ -113,7 +126,21 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
-	private leftSpacerWidth: number = 0;
+	/** Follows the fullscreen state of the window the title bar is in now. */
+	private trackFullscreenOfWindow: () => void = () => { };
+
+	/**
+	 * The full-screen state of `targetWindow` as its host knows it, if it can tell, to correct the state the window was
+	 * told of. Its size cannot tell: a window in full screen may not cover its screen, such as below the camera notch of a
+	 * display or on an external display.
+	 */
+	protected async queryWindowFullscreen(_targetWindow: CodeWindow): Promise<boolean | undefined> {
+		return undefined;
+	}
+
+	private centerActionsContainer!: HTMLElement;
+	private sessionActionsContainer!: HTMLElement;
+	private sessionHeaderActionsHost: HTMLElement | undefined;
 
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
@@ -134,12 +161,14 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
-		this.registerListeners(getWindowId(targetWindow));
+		this.registerListeners(targetWindow);
 	}
 
-	private registerListeners(targetWindowId: number): void {
+	private registerListeners(targetWindow: CodeWindow): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
+		// The window it is in as the active window changes: a title bar may be created before it is in its window, such as
+		// one created into an editor before it shows in an auxiliary window.
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === getWindowId(this.element ? getWindow(this.element) : targetWindow) ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
 				this._onDidChange.fire(undefined);
@@ -161,6 +190,82 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// No window title to update in simplified titlebar
 	}
 
+	/**
+	 * Shows a fixed title in the center of the title bar, in place of the command center. Meant for auxiliary windows that
+	 * show one thing, such as a chat; `undefined` removes it. The title of the window is its owner's: a title bar may not be
+	 * in its window yet, such as one created into an editor before it shows, and would set the main window's title.
+	 */
+	setTitle(title: string | undefined): void {
+		this.fixedTitle = title;
+		this.renderFixedTitle();
+	}
+
+	/**
+	 * The element that shows a session header in place of the title, after the window controls; see
+	 * {@link setHostsSessionHeader}. Created when first asked for, so a title bar that never hosts one is as it was.
+	 */
+	getSessionHeaderHost(): HTMLElement {
+		if (!this.sessionHeaderHost) {
+			this.sessionHeaderHost = append(this.leftContent, $('.session-header-host'));
+		}
+		return this.sessionHeaderHost;
+	}
+
+	/**
+	 * The element that shows the actions of a hosted session header, such as its More Actions, last of the actions of the
+	 * title bar. Asking for it makes the actions one group at the right of the title bar, as a window of its own for a
+	 * session, such as a chat window, shows them: the actions that otherwise show beside the title, such as Run and Open in
+	 * VS Code, then show before those at the right, such as Create Pull Request and the layout actions, and the header's
+	 * after all of them, before only the window controls.
+	 */
+	getSessionHeaderActionsHost(): HTMLElement {
+		if (!this.sessionHeaderActionsHost) {
+			this.sessionHeaderActionsHost = $('.session-header-actions-host');
+			this.sessionActionsContainer.before(this.centerActionsContainer);
+			const windowControls = [...this.rightContent.children].find(child => child.classList.contains('window-controls-container'));
+			this.rightContent.insertBefore(this.sessionHeaderActionsHost, windowControls ?? null);
+			const actionsContainers = [...this.rightContent.children].filter((child): child is HTMLElement => child.classList.contains('titlebar-actions-container'));
+			this._register(trackActionsContainersShowingNoActions(actionsContainers));
+			this.titleBarToolBarOverflowScheduler.schedule();
+		}
+		return this.sessionHeaderActionsHost;
+	}
+
+	private fixedHeight: number | undefined;
+
+	/**
+	 * Whether the title bar shows the layout actions of its window ({@link Menus.TitleBarWindowLayout}), which apply to
+	 * windows with layout modes, such as chat windows: the title bars of other windows than the main window.
+	 */
+	protected get showsWindowLayoutActions(): boolean {
+		return false;
+	}
+
+	/**
+	 * Makes the title bar `height` tall, in place of the height of the density, such as to line up with the row of tabs
+	 * beside it in a chat window; its drag region and window controls follow. `undefined` brings back the density's.
+	 */
+	setHeight(height: number | undefined): void {
+		if (this.fixedHeight === height) {
+			return;
+		}
+		this.fixedHeight = height;
+		this._onDidChange.fire(undefined);
+	}
+
+	/** Shows the {@link getSessionHeaderHost} in place of the title. The window title stays. */
+	setHostsSessionHeader(hosts: boolean): void {
+		this.element.classList.toggle('hosts-session-header', hosts);
+	}
+
+	private renderFixedTitle(): void {
+		if (!this.windowTitleLabel) {
+			return;
+		}
+		this.windowTitleLabel.textContent = this.fixedTitle ?? '';
+		this.windowTitleLabel.parentElement?.classList.toggle('has-fixed-title', !!this.fixedTitle);
+	}
+
 	registerVariables(_variables: ITitleVariable[]): void {
 		// No window title variables in simplified titlebar
 	}
@@ -173,27 +278,65 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
 
-		// Track fullscreen of the window hosting this part (main or auxiliary)
-		const targetWindow = getWindow(parent);
-		const targetWindowId = getWindowId(targetWindow);
+		// Track fullscreen of the window hosting this part (main or auxiliary): the window it is in, which may change from
+		// the one it was created in, such as for a title bar created before it is in its window, as the title row of a
+		// chat view is.
 		let trafficLightSpacer: HTMLElement | undefined;
 		const updateFullscreen = () => {
-			const fullscreen = isTitlebarWindowFullscreen(targetWindow);
+			const fullscreen = isFullscreen(getWindow(parent));
 			parent.classList.toggle('titlebar-fullscreen', fullscreen);
 			if (trafficLightSpacer) {
 				trafficLightSpacer.style.display = fullscreen ? 'none' : '';
-				this.leftSpacerWidth = fullscreen ? 0 : 70;
 			}
 		};
-		updateFullscreen();
+		// The full-screen state of an auxiliary window comes from the events of its host, which the host is asked again once
+		// the window is done resizing or the title bar moves to it, in case the state it was told of is stale.
+		let querying = false;
+		let queryAgain = false;
+		const correctFullscreen = async () => {
+			if (querying) {
+				queryAgain = true;
+				return;
+			}
+			querying = true;
+			try {
+				do {
+					queryAgain = false;
+					const targetWindow = trackedWindow;
+					if (!targetWindow || targetWindow === mainWindow) {
+						return;
+					}
+					const fullscreen = await this.queryWindowFullscreen(targetWindow);
+					if (this._store.isDisposed) {
+						return;
+					}
+					if (fullscreen !== undefined && targetWindow === trackedWindow && fullscreen !== isFullscreen(targetWindow)) {
+						setFullscreen(fullscreen, targetWindow);
+					}
+				} while (queryAgain);
+			} finally {
+				querying = false;
+			}
+		};
+		const correctFullscreenScheduler = this._register(new RunOnceScheduler(() => void correctFullscreen(), FULLSCREEN_RECHECK_DELAY));
+		const windowResize = this._register(new MutableDisposable());
+		let trackedWindow: CodeWindow | undefined;
+		this.trackFullscreenOfWindow = () => {
+			const targetWindow = getWindow(parent);
+			if (targetWindow !== trackedWindow) {
+				trackedWindow = targetWindow;
+				correctFullscreenScheduler.cancel();
+				windowResize.value = targetWindow !== mainWindow ? addDisposableListener(targetWindow, EventType.RESIZE, () => correctFullscreenScheduler.schedule()) : undefined;
+				void correctFullscreen();
+			}
+			updateFullscreen();
+		};
+		this.trackFullscreenOfWindow();
 		this._register(onDidChangeFullscreen(windowId => {
-			if (windowId === targetWindowId) {
+			if (windowId === getWindowId(getWindow(parent))) {
 				updateFullscreen();
 			}
 		}));
-		if (targetWindow !== mainWindow) {
-			this._register(addDisposableListener(targetWindow, EventType.RESIZE, () => updateFullscreen()));
-		}
 		// Measure in the render phase so DOM reads do not force layout during startup.
 		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
@@ -221,7 +364,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				// The spacer is hidden in fullscreen, where traffic lights are not shown.
 				const spacer = trafficLightSpacer = append(this.leftContent, $('div.window-controls-container'));
 				updateFullscreen();
-				spacer.style.width = `${this.leftSpacerWidth}px`;
+				spacer.style.width = `${TRAFFIC_LIGHTS_WIDTH}px`;
 				spacer.style.flexShrink = '0';
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// controls explicitly disabled
@@ -265,6 +408,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
+		this.windowTitleLabel = append(windowTitle, $('span.window-title-text'));
+		this.renderFixedTitle();
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
 		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			hoverDelegate,
@@ -280,7 +425,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		// Actions toolbar (Open in VS Code), rendered right of the command center.
-		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		const centerActionsContainer = this.centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			hoverDelegate,
 			contextMenu: Menus.TitleBarContext,
@@ -299,8 +444,19 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// The layout actions of a window with layout modes (before right toolbar), such as a chat window: its Layout menu and
+		// the buttons of its actions, which the user shows and hides from the context menu of the toolbar.
+		const windowLayoutContainer = this.showsWindowLayoutActions ? prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-window-layout-container')) : undefined;
+		const windowLayoutToolBar = windowLayoutContainer && this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, windowLayoutContainer, Menus.TitleBarWindowLayout, {
+			hoverDelegate,
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			telemetrySource: 'titlePart.windowLayout',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// Session title actions toolbar (before right toolbar)
-		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
+		const sessionActionsContainer = this.sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
 		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
 			hoverDelegate,
 			contextMenu: Menus.TitleBarContext,
@@ -327,6 +483,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
+		if (windowLayoutContainer && windowLayoutToolBar) {
+			this.registerOverflowManagedToolBar(windowLayoutContainer, windowLayoutToolBar);
+		}
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
@@ -375,6 +534,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	override layout(width: number, height: number): void {
+		// Laid out in the window it is in, which it may have been moved to since it was created.
+		this.trackFullscreenOfWindow();
 		this.updateLayout();
 		super.layoutContents(width, height);
 		this.titleBarToolBarOverflowScheduler.schedule();
@@ -478,6 +639,10 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 	) {
 		const id = AuxiliaryTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
+	}
+
+	protected override get showsWindowLayoutActions(): boolean {
+		return true;
 	}
 
 	override get preventZoom(): boolean {

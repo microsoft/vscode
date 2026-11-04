@@ -10,7 +10,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -33,7 +33,6 @@ const desktopCodeReviewWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
 	desktopDetailPanel,
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
 	SessionIsCreatedContext,
@@ -53,7 +52,8 @@ class RunSessionCodeReviewAction extends Action2 {
 			icon: Codicon.codeReview,
 			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
 			menu: {
-				id: Menus.SessionsEditorTitle,
+				// First in the header row of the Changes editor, before the More Actions menu of its diff actions.
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'navigation',
 				order: 10,
 				when: desktopCodeReviewWhen,

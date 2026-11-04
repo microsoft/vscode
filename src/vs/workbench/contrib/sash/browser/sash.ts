@@ -57,6 +57,12 @@ export class SashSettingsController extends Disposable implements IWorkbenchCont
 	}
 }
 
+/**
+ * Marks the container of a window whose sash grippers have receded while idle. An attribute rather than a class, because
+ * auxiliary windows mirror the class of the main window's container, while each window is idle on its own.
+ */
+export const SASH_GRIPPERS_HIDDEN_ATTRIBUTE = 'data-sash-grippers-hidden';
+
 export class SashGrippersController extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sashGrippers';
@@ -102,16 +108,16 @@ export class SashGrippersController extends Disposable implements IWorkbenchCont
 			let lastMousePosition: { x: number; y: number } | undefined;
 			const showGrippers = () => {
 				targetWindow.clearTimeout(idleTimeout);
-				container.classList.remove('sash-grippers-hidden');
+				container.removeAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE);
 				idleTimeout = targetWindow.setTimeout(() => {
 					idleTimeout = undefined;
-					container.classList.add('sash-grippers-hidden');
+					container.setAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE, '');
 				}, autoHideDelay);
 			};
 
 			activityListeners.add(toDisposable(() => {
 				targetWindow.clearTimeout(idleTimeout);
-				container.classList.remove('sash-grippers-hidden');
+				container.removeAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE);
 			}));
 			const onMouseActivity = ({ screenX, screenY }: WebviewMouseActivity) => {
 				if (lastMousePosition?.x === screenX && lastMousePosition.y === screenY) {

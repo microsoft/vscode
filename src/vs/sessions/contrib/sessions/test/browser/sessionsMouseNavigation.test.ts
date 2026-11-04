@@ -7,6 +7,7 @@ import assert from 'assert';
 import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -14,6 +15,7 @@ import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../../workbench/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { SessionsMouseNavigationContribution } from '../../browser/sessionsMouseNavigation.js';
 
 class TestSessionsLayoutService extends TestLayoutService {
@@ -39,6 +41,7 @@ suite('SessionsMouseNavigationContribution', () => {
 		readonly configurationService: TestConfigurationService;
 		readonly navigation: string[];
 		readonly target: HTMLElement;
+		readonly setCanvasActive: () => void;
 	} {
 		const store = disposables.add(new DisposableStore());
 		const layoutService = new TestSessionsLayoutService();
@@ -46,6 +49,7 @@ suite('SessionsMouseNavigationContribution', () => {
 			[MOUSE_BACK_FORWARD_NAVIGATION_SETTING]: enabled,
 		});
 		const navigation: string[] = [];
+		const activeCanvasId = observableValue<string | undefined>('canvas', undefined);
 		const sessionsService = upcastPartial<ISessionsService>({
 			openPreviousSession: async () => {
 				navigation.push('back');
@@ -58,9 +62,9 @@ suite('SessionsMouseNavigationContribution', () => {
 		const target = mainWindow.document.createElement('div');
 		layoutService.mainContainer.appendChild(target);
 		store.add(toDisposable(() => layoutService.mainContainer.remove()));
-		store.add(new SessionsMouseNavigationContribution(configurationService, layoutService, sessionsService));
+		store.add(new SessionsMouseNavigationContribution(configurationService, layoutService, sessionsService, upcastPartial<IWindowCanvasService>({ activeCanvasId })));
 
-		return { store, layoutService, configurationService, navigation, target };
+		return { store, layoutService, configurationService, navigation, target, setCanvasActive: () => activeCanvasId.set('test.canvas', undefined) };
 	}
 
 	test('routes mouse back and forward to session history and suppresses browser history', () => {
@@ -124,6 +128,20 @@ suite('SessionsMouseNavigationContribution', () => {
 		}, {
 			navigation: ['forward'],
 			defaultPrevented: [false, true],
+		});
+	});
+
+	test('routes mouse back and forward through sessions history inside a native canvas editor', () => {
+		const { layoutService, navigation, target, setCanvasActive } = createContribution();
+		layoutService.setEditorFocused(true);
+		setCanvasActive();
+		const events = [3, 4].flatMap(button => [EventType.MOUSE_DOWN, EventType.MOUSE_UP].map(type =>
+			new MouseEvent(type, { bubbles: true, cancelable: true, button })));
+		for (const event of events) {
+			target.dispatchEvent(event);
+		}
+		assert.deepStrictEqual({ navigation, prevented: events.map(event => event.defaultPrevented) }, {
+			navigation: ['back', 'forward'], prevented: [true, true, true, true],
 		});
 	});
 });

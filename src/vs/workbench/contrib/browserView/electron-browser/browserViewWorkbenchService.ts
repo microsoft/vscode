@@ -15,11 +15,13 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
-import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { getWindowMainPart, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -30,7 +32,7 @@ import { contrastBorder, descriptionForeground, focusBorder } from '../../../../
 import { buttonForeground, buttonBackground, inputPlaceholderForeground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, toolbarHoverBackground, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
-import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
+import { findGroup, handOffFromSelfTitledEditor } from '../../../services/editor/common/editorGroupFinder.js';
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -161,11 +163,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
+
+		// A restart reloads every live page, which loses its state (e.g. form input or an ephemeral login)
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this._remoteEvents.size > 0 ? 'browser.livePage' : undefined
+		}));
 
 		// Send the full per-window configuration as a single unit, and resend it
 		// whenever any of its inputs change.
@@ -347,7 +355,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
-	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
+	async getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined> {
 		// "Open to side" requests are routed into the dedicated side group.
 		if (preferredGroup === SIDE_GROUP) {
 			return this._getOrCreateDedicatedGroup('sideGroup');
@@ -371,7 +379,37 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return this.editorGroupsService.mainPart.activeGroup;
 		}
 
-		return preferredGroup;
+		// The active group of the window the open was requested from, rather than of the window that appears to have focus.
+		return this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
+	}
+
+	/**
+	 * The active group of the window `windowId`, among the editor parts of that window. As for the active group when the
+	 * editor group finder chooses it: not one that shows only a view with its own title, such as a chat, whose window's
+	 * main part takes the editor instead, nor a locked one.
+	 */
+	private _getActiveGroupOfWindow(windowId: number | undefined): IEditorGroup | undefined {
+		const window = windowId === undefined ? undefined : getWindowById(windowId)?.window;
+		return window ? this._avoidLockedGroup(handOffFromSelfTitledEditor(this.editorGroupsService.getPart(window.document.body).activeGroup, this.editorGroupsService)) : undefined;
+	}
+
+	/**
+	 * An explicit group is not checked for locks when editors open in it, so a locked group is replaced the way the
+	 * editor group finder does for the active group: by an unlocked group of its part, or else a new group beside it.
+	 */
+	private _avoidLockedGroup(group: IEditorGroup): IEditorGroup {
+		if (!group.isLocked) {
+			return group;
+		}
+		const part = this.editorGroupsService.getPart(group);
+		const unlocked = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !candidate.isLocked);
+		if (unlocked) {
+			return unlocked;
+		}
+		// A part of locked groups other than the main part of its window, such as one that holds terminals, is not split
+		// for it: the main part of the window takes it.
+		const windowMainPart = getWindowMainPart(this.editorGroupsService, group.windowId);
+		return windowMainPart !== part ? this._avoidLockedGroup(windowMainPart.activeGroup) : part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
 	}
 
 	/**
