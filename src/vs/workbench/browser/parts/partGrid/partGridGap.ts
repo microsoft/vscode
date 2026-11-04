@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isHTMLElement } from '../../../base/browser/dom.js';
-import { Direction, Grid, GridNode, IView, isGridBranchNode } from '../../../base/browser/ui/grid/grid.js';
-import { Orientation } from '../../../base/browser/ui/sash/sash.js';
+import './media/partGrid.css';
+import { isHTMLElement } from '../../../../base/browser/dom.js';
+import { Direction, Grid, GridNode, IView, isGridBranchNode } from '../../../../base/browser/ui/grid/grid.js';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 
-export const GRID_GAP_SASH_CLASS = 'agents-grid-gap-sash';
+/**
+ * Marks a sash in the gap between two cells of a grid: it shows the
+ * three-dot gripper of the workbench (see `media/partGrid.css`).
+ */
+export const GRID_GAP_SASH_CLASS = 'part-grid-gap-sash';
 
 /** Insets that expose a shared visual gap along the interior edges of a grid view. */
 export interface IGridEdgeInsets {
@@ -35,18 +40,22 @@ export function getGridBottomCornerViews<T extends IView>(grid: Grid<T>): { read
 	};
 }
 
-/** Splits a shared gap between each view and its adjacent grid neighbors. */
-export function getGridEdgeInsets<T extends IView>(grid: Grid<T>, view: T, gap: number): IGridEdgeInsets {
+/**
+ * Splits a shared gap between each view and its adjacent grid neighbors,
+ * counting only the neighbors `isNeighbor` accepts (by default, all).
+ */
+export function getGridEdgeInsets<T extends IView>(grid: Grid<T>, view: T, gap: number, isNeighbor: (view: T) => boolean = () => true): IGridEdgeInsets {
 	if (gap <= 0) {
 		return NO_GRID_EDGE_INSETS;
 	}
 	const before = Math.floor(gap / 2);
 	const after = gap - before;
+	const hasNeighbor = (direction: Direction) => grid.getNeighborViews(view, direction, false).some(isNeighbor);
 	return {
-		top: grid.getNeighborViews(view, Direction.Up, false).length > 0 ? before : 0,
-		right: grid.getNeighborViews(view, Direction.Right, false).length > 0 ? after : 0,
-		bottom: grid.getNeighborViews(view, Direction.Down, false).length > 0 ? after : 0,
-		left: grid.getNeighborViews(view, Direction.Left, false).length > 0 ? before : 0,
+		top: hasNeighbor(Direction.Up) ? before : 0,
+		right: hasNeighbor(Direction.Right) ? after : 0,
+		bottom: hasNeighbor(Direction.Down) ? after : 0,
+		left: hasNeighbor(Direction.Left) ? before : 0,
 	};
 }
 

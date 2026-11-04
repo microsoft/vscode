@@ -1,0 +1,366 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IPartGridView, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
+import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IContentPart, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
+
+suite('Part Grid', () => {
+
+	const TEST_EDITOR_ID = 'MyFileEditorForPartGrid';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForPartGrid';
+
+	const disposables = new DisposableStore();
+
+	setup(() => {
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createParts(): Promise<TestEditorParts> {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		instantiationService.stub(IWorkbenchLayoutService, 'getMaximumEditorDimensions', () => ({ width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY }));
+		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		return parts;
+	}
+
+	function createContainer(): HTMLElement {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => container.remove() });
+
+		return container;
+	}
+
+	function createPart(parts: TestEditorParts, state?: unknown): IContentPart {
+		const part = parts.createEditorPart({ container: mainWindow.document.createElement('div'), state });
+		disposables.add({ dispose: () => part.close() });
+
+		return part;
+	}
+
+	function createGrid(): PartGrid {
+		const grid = disposables.add(new PartGrid(createContainer()));
+		grid.layout(1000, 800);
+
+		return grid;
+	}
+
+	function createView(): IPartGridView {
+		return { element: mainWindow.document.createElement('div'), minimumWidth: 0, maximumWidth: Number.POSITIVE_INFINITY, minimumHeight: 30, maximumHeight: 30, onDidChange: Event.None, layout: () => { } };
+	}
+
+	async function openEditor(part: IContentPart, path: string): Promise<TestFileEditorInput> {
+		const input = disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(input, { pinned: true });
+
+		return input;
+	}
+
+	test('parts go beside other parts or at an edge of the window, and move there', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		const bottom = createPart(parts);
+		await Promise.all([openEditor(side, '/side.txt'), openEditor(chat, '/chat.txt'), openEditor(bottom, '/bottom.txt')]);
+
+		const shapes: string[] = [];
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Down });
+		shapes.push(grid.describe());
+		grid.addPart('bottom', bottom, { edge: Direction.Right });
+		shapes.push(grid.describe());
+		grid.moveCell('bottom', { edge: Direction.Down });
+		shapes.push(grid.describe());
+		grid.moveCell('bottom', { reference: 'chat', direction: Direction.Right });
+		shapes.push(grid.describe());
+		grid.addView('title', createView(), { edge: Direction.Up });
+		shapes.push(grid.describe());
+		grid.swapCells('side', 'chat');
+		shapes.push(grid.describe());
+
+		assert.deepStrictEqual(shapes, [
+			'column(side, chat)',
+			'row(column(side, chat), bottom)',
+			'column(side, chat, bottom)',
+			'column(side, row(chat, bottom))',
+			'column(title, side, row(chat, bottom))',
+			'column(title, chat, row(side, bottom))'
+		]);
+	});
+
+	test('a part shows while it has editors; once no part has editors, the grid says so', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		grid.addView('title', createView(), { edge: Direction.Up });
+		grid.addPart('side', side, { edge: Direction.Down });
+		grid.addPart('chat', chat, { edge: Direction.Right });
+
+		let empties = 0;
+		disposables.add(grid.onDidBecomeEmpty(() => empties++));
+		const visible = () => ({ title: grid.isCellVisible('title'), side: grid.isCellVisible('side'), chat: grid.isCellVisible('chat'), empty: grid.isEmpty, empties });
+
+		const initially = visible();
+		const sideFile = await openEditor(side, '/side.txt');
+		const chatFile = await openEditor(chat, '/chat.txt');
+		const withEditors = visible();
+		await side.activeGroup.closeEditor(sideFile);
+		const sideClosed = visible();
+		await chat.activeGroup.closeEditor(chatFile);
+		const allClosed = visible();
+
+		assert.deepStrictEqual({ initially, withEditors, sideClosed, allClosed }, {
+			initially: { title: true, side: false, chat: false, empty: true, empties: 0 },
+			withEditors: { title: true, side: true, chat: true, empty: false, empties: 0 },
+			sideClosed: { title: true, side: false, chat: true, empty: false, empties: 0 },
+			allClosed: { title: true, side: false, chat: false, empty: true, empties: 1 }
+		});
+	});
+
+	test('a cell hidden on purpose stays hidden with editors; a closed part leaves the grid', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		await openEditor(side, '/side.txt');
+		await openEditor(chat, '/chat.txt');
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+
+		grid.setCellVisible('side', false);
+		const hidden = { side: grid.isCellVisible('side'), size: grid.getCellSize('chat').width };
+		grid.setCellVisible('side', true);
+		const shown = grid.isCellVisible('side');
+		chat.close();
+
+		assert.deepStrictEqual({ hidden, shown, shape: grid.describe() }, { hidden: { side: false, size: 1000 }, shown: true, shape: 'side' });
+	});
+
+	test('the grid restores its topology, sizes, hidden cells and the editors of its parts', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		const bottom = createPart(parts);
+		await openEditor(side, '/side.txt');
+		await openEditor(chat, '/chat.txt');
+		await openEditor(bottom, '/bottom.txt');
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.resizeCell('side', { width: 300, height: grid.getCellSize('side').height });
+		grid.setCellVisible('bottom', false);
+
+		const state = grid.createState();
+		const restored = disposables.add(PartGrid.restore(createContainer(), state, (id, partState) => ({ part: createPart(parts, partState) })));
+		restored.layout(1000, 800);
+
+		assert.deepStrictEqual({
+			shape: restored.describe(),
+			sideWidth: restored.getCellSize('side').width,
+			bottomVisible: restored.isCellVisible('bottom'),
+			sideEmpty: restored.isPartEmpty('side'),
+		}, { shape: 'column(row(side, chat), bottom)', sideWidth: 300, bottomVisible: false, sideEmpty: false });
+	});
+
+	test('cards keep their share of the gap to visible cells beside them, none to the window edges, inside the outer insets', async () => {
+		const parts = await createParts();
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		const bottom = createPart(parts);
+		await Promise.all([openEditor(side, '/side.txt'), openEditor(chat, '/chat.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.setGap(8);
+		grid.setOuterInsets({ top: 0, right: 8, bottom: 8, left: 8 });
+		grid.layout(1000, 800);
+
+		const insetOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.style.inset;
+		const withAll = { side: insetOf('side'), chat: insetOf('chat'), bottom: insetOf('bottom') };
+		grid.setCellVisible('bottom', false);
+		const withoutBottom = { side: insetOf('side'), chat: insetOf('chat') };
+		const gridElement = container.querySelector<HTMLElement>('.part-grid')!;
+
+		assert.deepStrictEqual({
+			withAll,
+			withoutBottom,
+			margin: gridElement.style.margin,
+			gapSashes: container.querySelectorAll(`.monaco-sash.${GRID_GAP_SASH_CLASS}`).length > 0
+		}, {
+			withAll: { side: '0px 4px 4px 0px', chat: '0px 0px 4px 4px', bottom: '4px 0px 0px' },
+			withoutBottom: { side: '0px 4px 0px 0px', chat: '0px 0px 0px 4px' },
+			margin: '0px 8px 8px',
+			gapSashes: true
+		});
+	});
+
+	test('a part that shows while empty shows without editors; other parts hide then', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		grid.addPart('main', createPart(parts), undefined, undefined, { showWhileEmpty: true });
+		grid.addPart('terminals', createPart(parts), { edge: Direction.Down });
+
+		assert.deepStrictEqual({ main: grid.isCellVisible('main'), mainEmpty: grid.isPartEmpty('main'), terminals: grid.isCellVisible('terminals') }, { main: true, mainEmpty: true, terminals: false });
+	});
+
+	test('a card whose content draws its own frame takes the room of that frame from the gap beside it, and tells its content its insets', async () => {
+		const parts = await createParts();
+		const container = createContainer();
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		const grid = disposables.add(new PartGrid(container));
+		const chat = createPart(parts);
+		const main = createPart(parts);
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		container.querySelector<HTMLElement>('[data-part-grid-cell="main"] > .part-grid-card')!.style.setProperty('--part-grid-card-frame-owner', 'content');
+		grid.setGap(4);
+		grid.layout(1000, 800);
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		const read = (id: string) => ({ inset: cardOf(id).style.inset, right: cardOf(id).style.getPropertyValue('--part-grid-card-inset-right'), left: cardOf(id).style.getPropertyValue('--part-grid-card-inset-left') });
+
+		assert.deepStrictEqual({ chat: read('chat'), main: read('main') }, {
+			chat: { inset: '0px 2px 0px 0px', right: '2px', left: '0px' },
+			main: { inset: '0px 0px 0px 1px', right: '0px', left: '1px' },
+		});
+	});
+
+	test('a cell that keeps no gap has no inset, and the cells beside it none towards it', () => {
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		grid.addView('title', createView(), undefined, undefined, { keepsNoGap: true });
+		grid.addView('side', createView(), { edge: Direction.Down });
+		grid.addView('chat', createView(), { reference: 'side', direction: Direction.Right });
+		grid.setGap(4);
+		grid.layout(1000, 800);
+
+		const card = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.style;
+		const vertical = (id: string) => `${card(id).top} ${card(id).bottom}`;
+		assert.deepStrictEqual({ title: vertical('title'), side: vertical('side'), chat: vertical('chat'), between: `${card('side').right} ${card('chat').left}` }, { title: '0px 0px', side: '0px 0px', chat: '0px 0px', between: '2px 2px' });
+	});
+
+	test('a cell across the grid stays inside the outer insets', () => {
+		const container = createContainer();
+		container.style.width = '1000px';
+		container.style.height = '800px';
+		const grid = disposables.add(new PartGrid(container));
+		grid.addView('title', createView());
+		grid.addView('bottom', { ...createView(), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY }, { edge: Direction.Down });
+		grid.setOuterInsets({ top: 0, right: 4, bottom: 4, left: 4 });
+		grid.layout(1000, 800);
+
+		const rect = (id: string) => { const r = container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!.getBoundingClientRect(); const c = container.getBoundingClientRect(); return { left: r.left - c.left, right: c.right - r.right }; };
+		assert.deepStrictEqual({ title: rect('title'), bottom: rect('bottom') }, { title: { left: 4, right: 4 }, bottom: { left: 4, right: 4 } });
+	});
+
+	test('the gripper on a gap sash draws its outer dots the grid gap apart', () => {
+		const container = createContainer();
+		container.style.setProperty('--part-grid-gap', '6px');
+		const sash = container.appendChild(mainWindow.document.createElement('div'));
+		sash.classList.add('monaco-sash', 'vertical', GRID_GAP_SASH_CLASS);
+
+		const style = mainWindow.getComputedStyle(sash, '::after');
+
+		assert.deepStrictEqual({ content: style.content, shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim() }, { content: '""', shadow: '0px -6px 0px 0px, 0px 6px 0px 0px' });
+	});
+
+	test('a cell keeps its hidden state when it swaps places, and its part is told when it hides or shows', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		await openEditor(side, '/side.txt');
+		await openEditor(chat, '/chat.txt');
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+		const visibility: boolean[] = [];
+		disposables.add((side as ContentPart).onDidVisibilityChange(visible => visibility.push(visible)));
+
+		grid.setCellVisible('side', false);
+		grid.swapCells('side', 'chat');
+
+		assert.deepStrictEqual({ shape: grid.describe(), sideVisible: grid.isCellVisible('side'), sideWidth: grid.getCellSize('side').width, chatWidth: grid.getCellSize('chat').width, visibility: visibility.includes(false) }, {
+			shape: 'row(chat, side)', sideVisible: false, sideWidth: 0, chatWidth: 1000, visibility: true
+		});
+	});
+
+	test('the border of a card counts in the size constraints of its cell', () => {
+		const container = createContainer();
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		const grid = disposables.add(new PartGrid(container));
+		const heights: number[] = [];
+		const fixed: IPartGridView = { ...createView(), layout: (width, height) => heights.push(height) };
+		grid.addView('title', fixed);
+		grid.addView('other', createView(), { edge: Direction.Down });
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] }, { cellHeight: 32, contentHeight: 30 });
+	});
+
+	test('a card whose frame is drawn only after it was laid out, as styles load later in an auxiliary window, keeps its content inside the frame', () => {
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		const heights: number[] = [];
+		grid.addView('title', { ...createView(), layout: (width, height) => heights.push(height) });
+		grid.addView('other', createView(), { edge: Direction.Down });
+		grid.layout(1000, 800);
+		const before = { cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] };
+
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ before, after: { cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] } }, {
+			before: { cellHeight: 30, contentHeight: 30 },
+			after: { cellHeight: 32, contentHeight: 30 }
+		});
+	});
+
+	test('laying cells out, such as dragging a sash, does not read the frames of the cards again; updating the look does', () => {
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		grid.addView('title', createView());
+		grid.addView('other', { ...createView(), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY }, { edge: Direction.Down });
+		grid.layout(1000, 800);
+
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		grid.resizeCell('other', { width: 1000, height: 700 });
+		const afterCellLayout = grid.getCellSize('title').height;
+		grid.updateLook();
+
+		assert.deepStrictEqual({ afterCellLayout, afterUpdateLook: grid.getCellSize('title').height }, { afterCellLayout: 30, afterUpdateLook: 32 });
+	});
+});

@@ -46,7 +46,13 @@ export function registerInputDropTarget(element: HTMLElement): IDisposable {
 	return toDisposable(() => inputDropTargets.delete(element));
 }
 
-export function isInputDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }): boolean {
+/**
+ * Whether `element` is (in) a registered input drop target, or `point` is over
+ * one, such as while an overlay covers it. With a `scope`, only inputs inside
+ * it count for `point`: an input that something else covers, such as a modal
+ * over the main editor area, does not.
+ */
+export function isInputDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
 	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
 		if (inputDropTargets.has(target)) {
 			return true;
@@ -54,6 +60,9 @@ export function isInputDropTarget(element: HTMLElement, point?: { readonly clien
 	}
 	if (point) {
 		return [...inputDropTargets].some(target => {
+			if (scope && !scope.contains(target)) {
+				return false;
+			}
 			const bounds = target.getBoundingClientRect();
 			return target.ownerDocument === element.ownerDocument && bounds.width > 0 && bounds.height > 0
 				&& point.clientX >= bounds.left && point.clientX <= bounds.right && point.clientY >= bounds.top && point.clientY <= bounds.bottom;
