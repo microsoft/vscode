@@ -57,7 +57,7 @@ suite('Chat window contribution', () => {
 
 	test('the setting is off by default, and opening a chat in a window is offered only with it on and AI features enabled', () => {
 		const setting = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_WINDOWS_ENABLED_SETTING];
-		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === OPEN_CHAT_IN_WINDOW_COMMAND_ID);
+		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemOpenIn).filter(isIMenuItem).find(candidate => candidate.command.id === OPEN_CHAT_IN_WINDOW_COMMAND_ID);
 		const offered = (values: Record<string, ContextKeyValue>) => evaluate(item?.when, { [IsSessionsWindowContext.key]: true, ...values });
 		assert.deepStrictEqual({
 			default: setting?.default,
