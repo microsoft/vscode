@@ -10504,13 +10504,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (changes.title !== undefined && cached.setTitleFromHost(changes.title, tx)) {
 				didChange = true;
 			}
-			if (changes.modifiedAt !== undefined) {
-				const modifiedTime = Date.parse(changes.modifiedAt);
-				if (Number.isFinite(modifiedTime) && cached.setModifiedTime(modifiedTime, tx)) {
-					didChange = true;
-				}
-			}
-
 			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
@@ -10523,6 +10516,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// Omitted summary fields retain their cached values, including opaque default chat URIs.
 				const defaultChat = changes.defaultChat ?? cached.getBackendChatResource(cached.resource)?.toString();
 				if (cached.applyChatMetadata(chatMetadataFromSummary(changes, defaultChat), tx)) {
+					didChange = true;
+				}
+			}
+
+			// After the chats, so a summary that adds or removes the only peer chat decides by the new chat list.
+			if (changes.modifiedAt !== undefined) {
+				const modifiedTime = Date.parse(changes.modifiedAt);
+				if (Number.isFinite(modifiedTime) && cached.setModifiedTime(modifiedTime, tx)) {
 					didChange = true;
 				}
 			}

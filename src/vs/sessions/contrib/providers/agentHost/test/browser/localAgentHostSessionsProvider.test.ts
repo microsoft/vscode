@@ -3514,6 +3514,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('a summaryChanged that adds the first peer chat keeps the default chat time out of the session modifiedAt', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('first-peer', { summary: 'First Peer', modifiedTime: 1_000 }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const sessionUri = AgentSession.uri('copilotcli', 'first-peer').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+
+		fireSessionSummaryChanged(agentHost, 'first-peer', {
+			modifiedAt: new Date(5_000).toISOString(),
+			chats: [
+				{ resource: defaultChat, title: '' },
+				{ resource: buildChatUri(sessionUri, 'peer-1'), title: 'Peer' },
+			],
+			defaultChat,
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			chats: session.chats.get().length,
+			sessionUpdatedAt: session.updatedAt.get().getTime(),
+			mainChatUpdatedAt: session.mainChat.get().updatedAt.get()?.getTime(),
+		}, {
+			chats: 2,
+			sessionUpdatedAt: 5_000,
+			mainChatUpdatedAt: 1_000,
+		});
+	}));
+
 	test('a reported zero changes summary is kept instead of being treated as unreported', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A folder session without tracked edits reports an empty Session Changes
 		// summary. Dropping it lets the list fall back to the main chat's default
