@@ -9,6 +9,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
@@ -17,15 +19,16 @@ import { MockScopableContextKeyService } from '../../../../../platform/keybindin
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
+import { EditorGroupLockActionsHiddenContext } from '../../../../common/contextkeys.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { createEditorParts, TestEditorParts, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../layout/browser/layoutService.js';
-import { GroupsOrder, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
 
 /**
  * An editor part that is created by someone else than the editor parts
@@ -140,6 +143,22 @@ suite('Editor Parts', () => {
 		listener.dispose();
 
 		assert.deepStrictEqual(used, ['part', 'workbench']);
+	});
+
+	test('a part whose groups hide their lock actions binds that in the context of each of its groups, also of groups added later', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: () => disposables.add(new ContextKeyService(new TestConfigurationService())) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const part = parts.createEditorPart({ container, groupViewOptions: { hideLockActions: true } satisfies IEditorGroupViewOptions });
+		disposables.add({ dispose: () => part.close() });
+		part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		const hidden = (group: IEditorGroup) => (group as IEditorGroupView).scopedContextKeyService.getContextKeyValue(EditorGroupLockActionsHiddenContext.key) ?? false;
+		assert.deepStrictEqual({ part: part.groups.map(hidden), mainPart: parts.mainPart.groups.map(hidden) }, { part: [true, true], mainPart: [false] });
 	});
 
 	test('several parts in one window: an element resolves to the closest part containing it', async () => {

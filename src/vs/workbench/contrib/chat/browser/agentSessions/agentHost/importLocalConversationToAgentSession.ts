@@ -14,7 +14,7 @@ import { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ErrorInfo, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, readUsageInfoMeta, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentSelection, type ErrorInfo, type ITurnTokenTotal, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, type IChatContentInlineReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
@@ -440,23 +440,142 @@ function attachmentsFromRequest(request: IChatRequestModel, resourceUris: IAgent
 	return attachments.length ? attachments : undefined;
 }
 
+/** When a request was sent and, when known, how long its response spent generating. */
+function timingFromRequest(request: IChatRequestModel): { startedAt?: string; duration?: number } {
+	if (!Number.isFinite(request.timestamp) || request.timestamp <= 0) {
+		return {};
+	}
+	const startedAt = new Date(request.timestamp).toISOString();
+	const duration = generationDuration(request);
+	return duration !== undefined ? { startedAt, duration } : { startedAt };
+}
+
+/**
+ * How long a request's response spent generating, excluding time spent waiting
+ * for confirmations. Only known for a response with a recorded completion:
+ * legacy responses get a completion time synthesized on restore, which would
+ * yield a bogus duration.
+ */
+function generationDuration(request: IChatRequestModel): number | undefined {
+	const response = request.response;
+	if (response?.completionTimestamp === undefined) {
+		return undefined;
+	}
+	const duration = response.elapsedMs ?? response.completionTimestamp - request.timestamp;
+	return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
+}
+
+/**
+ * The custom agent a request was sent with, by the URI of its agent file. Built-in
+ * modes (Agent, Ask, Edit, Plan) have no agent file; the target's own default applies.
+ */
+function agentFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper): AgentSelection | undefined {
+	const uri = request.modeInfo && !request.modeInfo.isBuiltin ? request.modeInfo.modeInstructions?.uri : undefined;
+	if (!uri) {
+		return undefined;
+	}
+	try {
+		return { uri: resourceUris.toAgentHost(uri).toString() };
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * The tokens and Copilot credits a response consumed, in the shape a natively
+ * reported agent-host turn carries: the input/output counters describe the
+ * latest model call (the context the response ended on), while the credits and
+ * per-model token totals describe the whole response. Session-wide totals are
+ * left out: they describe the source session, not this turn. A response
+ * without per-model totals (most Local responses) only records its whole
+ * output total (`completionTokenCount`); an agent-host turn has no field for
+ * an output total without the matching input totals, so it is not carried
+ * rather than presented with invented input figures. A response restored from
+ * an older save kept only that total, so its latest call's output is omitted.
+ */
+function usageFromRequest(request: IChatRequestModel): UsageInfo | undefined {
+	const usage = request.response?.usage;
+	if (!usage) {
+		return undefined;
+	}
+	const credits = usage.copilotCredits;
+	const nanoAiu = credits !== undefined && Number.isFinite(credits) && credits >= 0 ? Math.round(credits * 1_000_000_000) : undefined;
+	const turnTokenTotals = usage.modelTotals?.length ? usage.modelTotals.map(({ model, inputTokens, cachedTokens, outputTokens }) => ({ model, inputTokens, cachedTokens, outputTokens })) : undefined;
+	// A response restored from an older save only kept the whole-response output total, so its latest call's output is unknown.
+	const counters: UsageInfo = request.response.lastCallCompletionTokensKnown
+		? { inputTokens: usage.promptTokens, outputTokens: usage.completionTokens }
+		: { inputTokens: usage.promptTokens };
+	return withWholeTurnUsage(counters, nanoAiu, turnTokenTotals);
+}
+
+function withWholeTurnUsage(usage: UsageInfo, nanoAiu: number | undefined, turnTokenTotals: readonly ITurnTokenTotal[] | undefined): UsageInfo {
+	const meta = {
+		...(nanoAiu !== undefined ? { copilotUsage: { totalNanoAiu: nanoAiu } } : {}),
+		...(turnTokenTotals?.length ? { turnTokenTotals } : {}),
+	};
+	return Object.keys(meta).length ? { ...usage, _meta: meta } : usage;
+}
+
+/**
+ * Combines the usage of a turn's responses (its own, then any continuations
+ * folded into it, in order). The last response ran last, so its latest-call
+ * counters describe the context the turn ended on; when it reported none,
+ * that context is unknown. Credits and per-model totals are whole-turn
+ * consumption: they are summed only when every response reported them, since
+ * a sum missing any response would understate the turn.
+ */
+function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo | undefined {
+	const last = usages.at(-1);
+	const metas = usages.map(usage => usage && readUsageInfoMeta(usage));
+	let nanoAiu: number | undefined = 0;
+	let turnTokenTotals: Map<string, ITurnTokenTotal> | undefined = new Map();
+	for (const meta of metas) {
+		const responseNanoAiu = meta?.copilotUsage?.totalNanoAiu;
+		nanoAiu = nanoAiu !== undefined && responseNanoAiu !== undefined ? nanoAiu + responseNanoAiu : undefined;
+		if (!turnTokenTotals || !meta?.turnTokenTotals) {
+			turnTokenTotals = undefined;
+			continue;
+		}
+		for (const total of meta.turnTokenTotals) {
+			const current = turnTokenTotals.get(total.model);
+			turnTokenTotals.set(total.model, current ? {
+				model: total.model,
+				inputTokens: current.inputTokens + total.inputTokens,
+				cachedTokens: current.cachedTokens + total.cachedTokens,
+				outputTokens: current.outputTokens + total.outputTokens,
+			} : total);
+		}
+	}
+	const counters: UsageInfo = {
+		...(last?.inputTokens !== undefined ? { inputTokens: last.inputTokens } : {}),
+		...(last?.outputTokens !== undefined ? { outputTokens: last.outputTokens } : {}),
+	};
+	const usage = withWholeTurnUsage(counters, usages.length ? nanoAiu : undefined, turnTokenTotals?.size ? [...turnTokenTotals.values()] : undefined);
+	return Object.keys(usage).length ? usage : undefined;
+}
+
 /**
  * Translates a local {@link IChatModel} into agent-host {@link Turn}s suitable
  * for {@link IAgentHostService.createSession}'s `importConversation` option.
  *
- * Each user request becomes a user turn carrying its attachments and the model
- * it was sent with; its response stream is mapped by
+ * Each user request becomes a user turn carrying its attachments, the model
+ * and custom agent it was sent with, when it was sent, how long it took and
+ * what it consumed; its response stream is mapped by
  * {@link responsePartsFromRequest} and its end state by
  * {@link turnOutcomeFromRequest}. System-initiated requests (e.g. background
  * terminal-completion notifications that were auto-sent back to the agent) are
  * not real user turns, so their synthetic message is dropped and their response
- * (and end state) is folded into the preceding turn as a continuation.
+ * (and end state) is folded into the preceding turn as a continuation, adding
+ * its generation time and whole-turn consumption (see
+ * {@link combineTurnUsage}).
  */
 export function importedTurnsFromChatModel(model: IChatModel, options?: IImportedTurnsOptions): Turn[] {
 	const resourceUris = options?.resourceUris ?? identityAgentHostResourceUriMapper;
 	const stats = options?.stats;
 	const turns: Turn[] = [];
 	let turnEditedFiles = new ResourceSet();
+	// Every response's usage per turn, its own first, combined once the turn is complete.
+	const turnUsages = new Map<Turn, (UsageInfo | undefined)[]>();
 	for (const request of model.getRequests()) {
 		if (!request.isSystemInitiated) {
 			turnEditedFiles = new ResourceSet();
@@ -476,6 +595,12 @@ export function importedTurnsFromChatModel(model: IChatModel, options?: IImporte
 			if (previous) {
 				previous.responseParts.push(...responseParts);
 				previous.state = outcome.state;
+				// Generation time: idle and confirmation waits between the two are not part of it.
+				const continuationDuration = generationDuration(request);
+				previous.duration = previous.duration !== undefined && continuationDuration !== undefined
+					? previous.duration + continuationDuration
+					: undefined;
+				turnUsages.get(previous)?.push(usageFromRequest(request));
 			}
 			continue;
 		}
@@ -484,18 +609,26 @@ export function importedTurnsFromChatModel(model: IChatModel, options?: IImporte
 		if (stats) {
 			stats.turns++;
 		}
-		turns.push({
+		const agent = agentFromRequest(request, resourceUris);
+		const turn: Turn = {
 			id: generateUuid(),
+			...timingFromRequest(request),
 			message: {
 				text: request.message.text,
 				origin: { kind: MessageKind.User },
 				...(attachments ? { attachments } : {}),
 				...(messageModel ? { model: messageModel } : {}),
+				...(agent ? { agent } : {}),
 			},
 			responseParts,
 			usage: undefined,
 			state: outcome.state,
-		} satisfies Turn);
+		};
+		turns.push(turn);
+		turnUsages.set(turn, [usageFromRequest(request)]);
+	}
+	for (const [turn, usages] of turnUsages) {
+		turn.usage = combineTurnUsage(usages);
 	}
 	return turns;
 }

@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, LayoutModeContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -56,7 +56,8 @@ export class NewChatInSessionsWindowAction extends Action2 {
 					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
+					// In place of the sessions list of the main window while it is hidden; a window with layout modes, such as a chat window, has none.
+					when: ContextKeyExpr.and(LayoutModeContext.toNegated(), SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
 				}
 			]
 		});

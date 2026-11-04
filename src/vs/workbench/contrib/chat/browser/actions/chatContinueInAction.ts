@@ -45,7 +45,7 @@ import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
@@ -292,7 +292,15 @@ export class ContinueChatInCopilotAction extends Action2 {
 		const turns = transcriptOnly ? [] : sourceTurns;
 		const transcript = transcriptOnly ? createDelegationTranscriptAttachment(buildDelegationTranscript(sourceModel.getRequests()), getAgentSessionProviderName(AgentSessionProviders.Local)) : undefined;
 		const input = widget.getInputState();
-		const draft = { inputText: widget.getInput(), attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])], selections: input?.selections ?? [] };
+		// Continue on the source's custom agent, which Agent Host identifies by the URI of its agent file.
+		const sourceMode = widget.input.currentModeInfo;
+		const agentUri = sourceMode && !sourceMode.isBuiltin ? sourceMode.modeInstructions?.uri : undefined;
+		const draft = {
+			inputText: widget.getInput(),
+			attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])],
+			selections: input?.selections ?? [],
+			...(agentUri ? { mode: { id: agentUri.toString(), kind: sourceMode?.kind ?? ChatModeKind.Agent } } : {}),
+		};
 		const sidebar = isIChatViewViewContext(widget.viewContext);
 		const openOptions = {
 			type: SessionType.AgentHostCopilot,

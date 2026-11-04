@@ -47,7 +47,7 @@ suite('Agent Host PR test selection', () => {
 			'README.md',
 			'build/azure-pipelines/product-build.yml',
 			'.vscode/settings.json',
-			'.vscode/extensions/vscode-extras/package.json',
+			'.vscode/extensions/vscode-pr-pinger/package.json',
 			'.vscode/extensions/vscode-selfhost-test-provider/package-lock.json',
 			'test/sanity/package.json',
 			'.eslint-plugin-local/package.json',
@@ -102,7 +102,6 @@ suite('Agent Host PR test selection', () => {
 			'remote/.pnpmfile.mjs',
 			'extensions/copilot/package.json',
 			'extensions/copilot/pnpm-lock.yaml',
-			'.npmrc',
 			'.nvmrc',
 			'product.json',
 		];

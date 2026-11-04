@@ -24,7 +24,7 @@ import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatI
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../services/sessions/common/session.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
@@ -81,7 +81,9 @@ function feedbackForPullRequest(feedback: IAgentFeedback, pullRequest: IGitHubPu
 }
 
 /**
- * Hosts one actionable banner directly above the active session's chat input.
+ * Hosts one actionable banner directly above the chat input of the session of its window
+ * ({@link ISessionScope}): a chat window shows its own session's banners, not those of the
+ * globally active session, and the main window keeps its session's while a chat window has focus.
  * Multiple pull requests and agent-review comments are presented as carousel
  * items within that single banner.
  */
@@ -102,7 +104,7 @@ export class SessionInputBanners extends Disposable {
 		if (!this._active.read(reader)) {
 			return undefined;
 		}
-		const session = this.sessionsService.activeSession.read(reader);
+		const session = this.sessionScope.session.read(reader);
 		if (!session || session.status.read(reader) !== SessionStatus.Completed) {
 			return undefined;
 		}
@@ -206,7 +208,7 @@ export class SessionInputBanners extends Disposable {
 	});
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionScope private readonly sessionScope: ISessionScope,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IGitHubService private readonly gitHubService: IGitHubService,

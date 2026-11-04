@@ -71,6 +71,7 @@ class TestChatView extends AbstractChatView {
 	split = false;
 	active = true;
 	onInput: (() => void) | undefined;
+	onLayout: (() => void) | undefined;
 	readonly boundChats: { readonly chat: string; readonly sessionId: string | undefined }[] = [];
 	readonly connectedOnBind: boolean[] = [];
 	isDisposed = false;
@@ -93,6 +94,7 @@ class TestChatView extends AbstractChatView {
 	protected doLayout(width: number, height: number): void {
 		this.layoutCount++;
 		this.layouts.push({ width, height });
+		this.onLayout?.();
 	}
 
 	focus(): void {
@@ -207,6 +209,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 class TestSessionsService extends mock<ISessionsService>() {
 	override attachChat(): void { }
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+	override readonly mainWindowActiveSession = this.activeSession;
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
 	readonly closedSessions: string[] = [];
@@ -338,7 +341,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
-	const view = store.add(instantiationService.createInstance(ChatGroupsView));
+	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
@@ -399,6 +402,32 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual(states, [[true], [false, true], [false, false], [false, false], [true, false], [false, true]]);
 	});
 
+	test('a replaced session of a chat window keeps the groups it shows, with their active chats and the active group', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource, ChatOriginKind.Tool);
+		const windowSession = (active: IChat) => {
+			const session = Object.assign(new TestActiveSession([main, subagent]), { scopedChatResource: main.resource });
+			session.activeChat.set(active, undefined);
+			return session;
+		};
+		view.setSession(windowSession(main), options);
+		view.layout(800, 600, 0, 0);
+		await view.openChatInNewGroup(subagent.resource, main.resource);
+		const read = () => ({
+			groups: view['_groups'].map(group => ({ chats: group.resourceIds.get().map(id => URI.parse(id).authority), active: URI.parse(group.activeResourceId.get()).authority })),
+			activeGroup: view['_groups'].indexOf(view['_activeGroup']!),
+			groupCount: view.groupCount.get(),
+		});
+		const before = read();
+
+		view.setSession(windowSession(subagent), options);
+		view.layout(800, 600, 0, 0);
+
+		const split = { groups: [{ chats: ['main'], active: 'main' }, { chats: ['subagent'], active: 'subagent' }], activeGroup: 1, groupCount: 2 };
+		assert.deepStrictEqual({ before, after: read() }, { before: split, after: split });
+	});
+
 	test('releases the main chat resource observable when clearing the session', () => {
 		const { view } = createHarness(disposables);
 		view.setSession(new TestActiveSession([createChat('main')]), options);
@@ -410,14 +439,14 @@ suite('Sessions - ChatGroupsView', () => {
 	test('clearing a chat group releases its activity action observation', async () => {
 		const { instantiationService, configurationService } = createHarness(disposables, true, true);
 		await configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
-		const group = disposables.add(instantiationService.createInstance(ChatGroupView));
+		const group = disposables.add(instantiationService.createInstance(ChatGroupView, undefined));
 		let observations = 0;
 		const actions = derived<readonly IAction[]>(reader => {
 			observations++;
 			reader.store.add(toDisposable(() => observations--));
 			return [toAction({ id: 'test.chatAction', label: 'Chat Action', run: () => { } })];
 		});
-		group['_sessionActivityBar'].setChatActions(actions);
+		group['_sessionActivityBar']!.setChatActions(actions);
 		const before = observations;
 		group.setContext(undefined);
 		assert.deepStrictEqual({ before, after: observations }, { before: 1, after: 0 });
@@ -463,7 +492,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const { view } = createHarness(disposables);
 		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
 		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233; --vscode-inactiveSessionView-background: #112233;';
-		const card = $('.part.sessionspart.agents-part-card.agents-card-surface');
+		const card = $('.part.sessionspart.sessions-chat-surface.agents-part-card.agents-card-surface');
 		const sessionView = $('.session-view.independent-chat-groups');
 		sessionView.appendChild(view.element);
 		card.appendChild(sessionView);
@@ -605,6 +634,58 @@ suite('Sessions - ChatGroupsView', () => {
 			gapSashes: 3,
 			boundaryOverlays: 0,
 			sashes: 3,
+		});
+	});
+
+	test('a layout while a group is added or removed waits for the grid and lays out once', async () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const right = createChat('right', SessionStatus.Completed, main.resource);
+		const below = createChat('below', SessionStatus.Completed, main.resource);
+		view.setSession(new TestActiveSession([main, right, below]), options);
+		view.layout(1200, 600, 0, 0, 4);
+		await view.openChatInNewGroup(right.resource, main.resource);
+
+		// What lays out the window as a chat lays out, such as a terminal that opens as the grid changes
+		const errors: string[] = [];
+		let relayouts = 0;
+		let relayingOut = false;
+		const relayoutAsChatsLayOut = (on: boolean) => {
+			for (const chat of chatViewFactory.views) {
+				chat.onLayout = on ? () => {
+					if (relayingOut) {
+						return;
+					}
+					relayingOut = true;
+					relayouts++;
+					try {
+						view.layout(1200, 600, 0, 0, 4);
+					} catch (error) {
+						errors.push(String(error));
+					} finally {
+						relayingOut = false;
+					}
+				} : undefined;
+			}
+		};
+		const corners = () => ({
+			bottomLeft: view.element.querySelectorAll('.chat-grid-bottom-left').length,
+			bottomRight: view.element.querySelectorAll('.chat-grid-bottom-right').length,
+		});
+
+		relayoutAsChatsLayOut(true);
+		// Below a chat beside another: the grid nests the two in a branch of their own
+		await view['_openChatInNewGroup'](below.resource, right.resource, 'bottom');
+		relayoutAsChatsLayOut(true); // also as the new chat lays out
+		const added = { groups: view.groupCount.get(), corners: corners() };
+		view['_removeGroups'](group => group.resourceIds.get().includes(below.resource.toString()));
+		relayoutAsChatsLayOut(false);
+
+		assert.deepStrictEqual({ errors, relayedOut: relayouts > 0, added, removed: { groups: view.groupCount.get(), corners: corners() } }, {
+			errors: [],
+			relayedOut: true,
+			added: { groups: 3, corners: { bottomLeft: 1, bottomRight: 1 } },
+			removed: { groups: 2, corners: { bottomLeft: 1, bottomRight: 1 } },
 		});
 	});
 

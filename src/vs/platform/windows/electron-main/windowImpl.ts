@@ -581,6 +581,29 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		this.setFullScreen(!this.isFullScreen, false);
 	}
 
+	handleTitleDoubleClick(): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// On macOS as the system settings say: zoom, minimize or nothing
+		const action = isMacintosh ? electron.systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string') : undefined;
+		switch (action) {
+			case 'Minimize':
+				win.minimize();
+				break;
+			case 'None':
+				break;
+			default:
+				if (win.isMaximized()) {
+					win.unmaximize();
+				} else {
+					win.maximize();
+				}
+		}
+	}
+
 	protected setFullScreen(fullscreen: boolean, fromRestore: boolean): void {
 
 		// Set fullscreen state

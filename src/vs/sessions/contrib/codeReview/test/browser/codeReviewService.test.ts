@@ -722,7 +722,8 @@ suite('Code Review Contributions', () => {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasDesktopLayoutGate: true,
-			hasAuxiliaryWindowGate: true,
+			// It shows in the editor area of a chat window too; the Agents window's editor windows do not show the menu.
+			hasAuxiliaryWindowGate: false,
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,

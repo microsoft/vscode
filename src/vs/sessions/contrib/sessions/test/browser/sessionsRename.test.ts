@@ -777,6 +777,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsManagementService, managementService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}());
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getFocusedSessionView(): SessionView {
@@ -920,6 +921,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ICommandService, commandService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				override readonly mainWindowActiveSession = this.activeSession;
 			});
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView() {
@@ -987,6 +989,7 @@ suite('Sessions rename', () => {
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
 			});
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			const configurationService = new TestConfigurationService();
