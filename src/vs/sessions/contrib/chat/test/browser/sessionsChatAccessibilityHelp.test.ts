@@ -28,8 +28,9 @@ import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../serv
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
@@ -42,6 +43,7 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -123,6 +125,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 			});
 		}
 	}
+
+	test('documents chat windows only when enabled', () => {
+		const help = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			const container = mainWindow.document.createElement('div');
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
+			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return content.split('\n').find(line => line.startsWith('To show a chat in a window of its own')) ?? null;
+		});
+
+		assert.deepStrictEqual(help, [
+			null,
+			'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+		]);
+	});
 
 	for (const enabled of [true, false]) {
 		test(`documents chat-scoped activity bar selection only when enabled: ${enabled}`, () => {
@@ -931,7 +956,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('Alt-click')),
-			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork\'s context menu.',
+			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Split View from the Open in submenu of the fork\'s context menu.',
 		);
 	});
 
@@ -1082,8 +1107,31 @@ suite('SessionsChatAccessibilityHelp', () => {
 				'workbench.action.navigateDown',
 			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
 			openInGrid: content.includes('Open in Grid'),
-			openToTheSide: content.includes('choose Open to the Side from the session row\'s context menu'),
-		}, { navigation: [true, true, true, true], openInGrid: false, openToTheSide: true });
+			splitView: content.includes('choose Split View from the Open in submenu of the session row\'s context menu'),
+			editorWindow: content.includes('choose Editor Window from the Open in submenu of its context menu in the Sessions list'),
+		}, { navigation: [true, true, true, true], openInGrid: false, splitView: true, editorWindow: true });
+	});
+
+	test('describes evaluator tools only while both feature gates are enabled', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [COMPARE_AGENTS_ENABLED_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const getHelp = () => store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+		const defaultHelp = getHelp();
+		await configuration.setUserConfiguration(COMPARE_AGENTS_TOOLS_ENABLED_SETTING, true);
+		const enabledHelp = getHelp();
+		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, false);
+		const disabledHelp = getHelp();
+		assert.deepStrictEqual({
+			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
+			manualComparison: defaultHelp.includes('activate Compare Models'),
+		}, { tools: [false, true, false], manualComparison: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {
@@ -1121,12 +1169,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
 			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
 			stopOnlyWhileRunning: enabledProvider.provideContent().includes('Stop and Stop All are available only while their comparison sessions are running'),
-			archiveComparison: enabledProvider.provideContent().includes('comparison header\'s Mark All as Done action'),
-			undoComparison: enabledProvider.provideContent().includes('Undo restores the group and its sessions.'),
+			archiveComparison: enabledProvider.provideContent().includes('normal session Mark as Done and Undo actions'),
+			nestedParticipants: enabledProvider.provideContent().includes('other attempts, Judge, and synthesis are nested sessions'),
+			legacyGroups: enabledProvider.provideContent().includes('providers without nesting support use a comparison group'),
 			tokenWarning: enabledProvider.provideContent().includes('Running a comparison uses tokens for each session.'),
 			instructions: enabledProvider.provideContent().includes('press Enter or Space to expand or collapse the full instructions'),
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
-			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
 			rationaleOrder: enabledProvider.provideContent().includes('Solution, Comparison, Validation, Code quality'),
 			attemptRows: enabledProvider.provideContent().includes('Up Arrow or Down Arrow to move between them, then press Enter or Space to expand a row'),
@@ -1152,11 +1200,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopAll: false,
 			stopOnlyWhileRunning: false,
 			archiveComparison: true,
-			undoComparison: true,
+			nestedParticipants: true,
+			legacyGroups: true,
 			tokenWarning: true,
 			instructions: true,
 			gridOptOut: true,
-			deleteGroup: true,
 			inactivePaneNotification: true,
 			rationaleOrder: true,
 			attemptRows: true,
@@ -1203,7 +1251,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
 				sessionId: 'judge',
 				resource: judgeResource,
+				activeChat: constObservable(upcastPartial<IChat>({ resource: judgeResource })),
 			}));
+			override readonly mainWindowActiveSession = this.activeSession;
 		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override readonly comparisons = constObservable([comparison]);

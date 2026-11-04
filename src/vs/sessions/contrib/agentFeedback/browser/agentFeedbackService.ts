@@ -34,6 +34,7 @@ import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentF
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -117,9 +118,11 @@ export interface ISubmitFeedbackOptions {
 	/**
 	 * The chat to send the request to, when it differs from the feedback's
 	 * session resource: feedback is read and marked under the session, and the
-	 * request goes to this chat's widget.
+	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
+	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
+	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
 	readonly onRequestAccepted?: () => void;
 }
 
@@ -230,19 +233,23 @@ export interface IAgentFeedbackService {
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
+	 * A window that shows one session other than the main window's, such as a
+	 * chat window, passes it as `hostSession`: the file belongs to it there,
+	 * whichever session is active.
 	 * Returns `undefined` when the file is not eligible for feedback (an
 	 * output-channel resource) or when there is no created session to scope to.
 	 */
-	getSessionForFile(resourceUri: URI): ISession | undefined;
+	getSessionForFile(resourceUri: URI, hostSession?: ISession): ISession | undefined;
 
 	/** File changes for the focused chat in the given session. */
 	getChatChanges(sessionResource: URI): readonly ISessionFileChange[];
 
 	/**
 	 * Resolve the feedback scope shown for a file in the current session view, or
+	 * in the window of `hostSession` (see {@link getSessionForFile}), or
 	 * `undefined` when the file is out of scope.
 	 */
-	getFeedbackSessionResource(resourceUri: URI): URI | undefined;
+	getFeedbackSessionResource(resourceUri: URI, hostSession?: ISession): URI | undefined;
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable;
 
 	/**
@@ -561,15 +568,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
-	getSessionForFile(resourceUri: URI): ISession | undefined {
+	getSessionForFile(resourceUri: URI, hostSession?: ISession): ISession | undefined {
 		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
-		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
+		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
-		const session = this._resolveSession(sessionResource);
+		const session = hostSession ?? this._resolveSession(sessionResource);
 		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
@@ -584,7 +591,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
 	}
 
-	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+	getFeedbackSessionResource(resourceUri: URI, hostSession?: ISession): URI | undefined {
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
 			return explicitScope;
@@ -593,12 +600,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return undefined;
 		}
 
-		const activeSession = this._sessionsService.activeSession.get();
-		if (!activeSession || !activeSession.isCreated.get()) {
-			return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
+		if (!hostSession) {
+			const activeSession = this._sessionsService.activeSession.get();
+			if (!activeSession || !activeSession.isCreated.get()) {
+				return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
+			}
 		}
 
-		return this.getSessionForFile(resourceUri)?.resource;
+		return this.getSessionForFile(resourceUri, hostSession)?.resource;
 	}
 
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable {
@@ -1002,6 +1011,28 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				return false;
 			}
 			return this._sessionsService.submitNewSessionInput();
+		}
+
+		if (options?.backgroundSubmit) {
+			if (!this.isAgentHostSession(sessionResource)) {
+				this._logService.error('[AgentFeedback] Background submission requires an Agent Host session');
+				return false;
+			}
+			const feedbackIds = options.feedbackIds ? new Set(options.feedbackIds) : undefined;
+			const acceptedItems = this.getFeedback(sessionResource).filter(item =>
+				item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
+			if (!acceptedItems.length) {
+				this._logService.error('[AgentFeedback] No accepted feedback for background submission');
+				return false;
+			}
+			const annotationsResource = this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource);
+			const submitted = await options.backgroundSubmit(options.query ?? '/act-on-feedback',
+				createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
+			if (submitted) {
+				this.markFeedbackSubmitted(sessionResource, options.feedbackIds);
+				options.onRequestAccepted?.();
+			}
+			return submitted;
 		}
 
 		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);

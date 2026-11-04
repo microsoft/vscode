@@ -63,6 +63,7 @@ import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSe
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import { CloudSandboxSessionFeed } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
@@ -189,6 +190,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly earlyPreparation?: boolean;
 	readonly reserveSession?: (request: ICloudSandboxReserveSessionRequest) => Promise<ICloudSandboxReservedSession>;
 	readonly sessionFeedEnabled?: boolean;
+	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly remoteAgentHostService?: IRemoteAgentHostService;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
@@ -206,6 +208,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly pickRepository?: () => Promise<string | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
+	if (options?.sessionFeed) {
+		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
+	}
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[CloudSandboxSessionFeedEnabledSettingId]: options?.sessionFeedEnabled ?? true,
@@ -779,24 +784,55 @@ suite('Editor cloud sandbox discovery', () => {
 		}));
 	}
 
-	test('automatic refresh waits for initial discovery instead of starting another scan', async () => {
-		const started = new DeferredPromise<void>();
-		const initial = new DeferredPromise<ICloudSandboxDiscoveryResult>();
-		const h = createHarness(store, {
-			listSessions: () => {
-				void started.complete();
-				return initial.p;
-			},
-		});
-		await started.p;
-		const refreshes = Promise.all([h.refresh('automatic'), h.refresh('automatic')]);
-		await initial.complete({ kind: 'complete', sessions: [discovered] });
-		await refreshes;
+	for (const connected of [false, true]) {
+		test(`automatic refresh waits for initial discovery with the feed connected=${connected}`, async () => {
+			const started = new DeferredPromise<void>();
+			const initial = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+			const h = createHarness(store, {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+				listSessions: () => {
+					void started.complete();
+					return initial.p;
+				},
+			});
+			await started.p;
+			const refreshes = Promise.all([h.refresh('automatic'), h.refresh('automatic')]);
+			await initial.complete({ kind: 'complete', sessions: [discovered] });
+			await refreshes;
 
-		assert.deepStrictEqual({
-			scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label),
-		}, { scans: 1, triggers: ['startup'], items: [discovered.name] });
-	});
+			assert.deepStrictEqual({
+				scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label),
+			}, { scans: 1, triggers: ['startup'], items: [discovered.name] });
+		});
+
+		test(`stale focus and automatic refresh defer to a connected feed without blocking manual refresh (connected=${connected})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createHarness(store, {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+			});
+			await Promise.all(h.initialRefreshes);
+			h.state.hasFocus = false;
+			await timeout(5 * 60_000 + 1);
+			h.state.hasFocus = true;
+			h.focusChanged.fire(true);
+			await h.refresh('automatic');
+			const afterAutomatic = { scans: h.calls.discovered, triggers: [...h.discoveryTriggers] };
+
+			h.state.result = { kind: 'complete', sessions: [{ ...discovered, name: 'Updated session' }] };
+			await h.refresh();
+
+			assert.deepStrictEqual({
+				afterAutomatic,
+				afterManual: { scans: h.calls.discovered, triggers: h.discoveryTriggers, items: h.items().map(item => item.label) },
+			}, {
+				afterAutomatic: { scans: connected ? 1 : 2, triggers: connected ? ['startup'] : ['startup', 'focus'] },
+				afterManual: {
+					scans: connected ? 2 : 3,
+					triggers: connected ? ['startup', 'manual'] : ['startup', 'focus', 'manual'],
+					items: ['Updated session'],
+				},
+			});
+		}));
+	}
 
 	for (const hasSessions of [false, true]) {
 		test(`automatic discovery respects the ${hasSessions ? 'five-minute' : 'empty-inventory fifteen-minute'} interval`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -2524,7 +2560,7 @@ suite('Editor cloud sandbox discovery', () => {
 		}, { items: [[resource.toString(), 'Live title']], removed: ['/additional-session'], retainedInPartialList: true });
 	});
 
-	test('seeds newly discovered cloud history while already connected', async () => {
+	test('seeds new cloud history without dropping a connected task outside the discovery window', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -2534,7 +2570,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [{ ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
 		await h.refresh();
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
-		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path).sort(), ['/later-session', '/original-session']);
 	});
 
 	test('retains every discovered task sharing a connected environment when the host omits them', async () => {
@@ -2788,7 +2824,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const other = { ...discovered, environmentId: 'other-environment', sessionId: 'other-session', taskId: 'other-task' };
 		const removed = assert.rejects(h.contribution.connect(discovered), isCancellationError);
 		const retained = h.contribution.connect(other);
-		h.state.result = { kind: 'complete', sessions: [other] };
+		h.state.result = { kind: 'complete', sessions: [other], removedTaskIds: [discovered.taskId] };
 		await h.refresh();
 		await removed;
 		const cancelled = h.calls.connectTokens.map(token => token.isCancellationRequested);

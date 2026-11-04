@@ -39,7 +39,6 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { RootStateSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -416,6 +415,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+		override readonly mainWindowActiveSession = this.activeSession;
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
@@ -3981,9 +3982,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 			}(),
 		}) as RefreshableRemoteAgentHostSessionsProvider;
-		await provider.refresh();
+		const refreshed = provider.refresh();
 		await pending.complete([]);
-		await timeout(0);
+		await refreshed;
 
 		assert.deepStrictEqual({ lists, reconciliations, sessions: provider.getSessions().length }, {
 			lists: 2, reconciliations: [[handle]], sessions: 1,
@@ -4142,8 +4143,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('renamed title survives session refresh from listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Simulate server persisting the renamed title: after rename, listSessions
 		// returns the updated summary
+		class RefreshableRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			refresh(): Promise<void> { return this._refreshSessions(); }
+		}
 		connection.addSession(createSession('persist-sess', { summary: 'Original Title' }));
-		const provider = createProvider(disposables, connection);
+		const provider = createProvider(disposables, connection, { ctor: RefreshableRemoteAgentHostSessionsProvider }) as RefreshableRemoteAgentHostSessionsProvider;
 		provider.getSessions();
 		await timeout(0);
 
@@ -4155,15 +4159,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Simulate server updating the summary (as would happen after persist + reload)
 		connection.addSession(createSession('persist-sess', { summary: 'Renamed Title', modifiedTime: 5000 }));
 
-		// Trigger refresh via turnComplete action (simulates what happens on reload)
-		connection.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
-			action: chatTurnComplete('turn-1', 1000),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-
-		await timeout(0);
+		await provider.refresh();
 
 		sessions = provider.getSessions();
 		target = sessions.find((s) => s.title.get() === 'Renamed Title');
@@ -4626,35 +4622,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = sessions[0];
 		assert.ok(session);
 		assert.strictEqual(session.title.get(), 'Session abcdef12');
-	}));
-
-	// ---- Refresh on turnComplete -------
-
-	test('turnComplete action triggers session refresh for matching provider', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		connection.addSession(createSession('turn-sess', { summary: 'Before', modifiedTime: 1000 }));
-
-		const provider = createProvider(disposables, connection);
-		provider.getSessions();
-		await timeout(0);
-
-		// Update on connection side
-		connection.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
-
-		const changes: ISessionChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
-
-		connection.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
-			action: chatTurnComplete('turn-1', 1000),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-
-		await timeout(0);
-
-		assert.ok(changes.length > 0);
-		const updatedSession = provider.getSessions().find((s) => s.title.get() === 'After');
-		assert.ok(updatedSession, 'Session should have updated title');
 	}));
 
 	// ---- Running session config seeding (from SessionState.config) -------
@@ -7246,8 +7213,12 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The sandbox provider, built on the same mocks as the remote provider it extends. */
-	function createSandboxProvider(store: DisposableStore, conn: MockAgentConnection, overrides?: { noConnection?: boolean; isWebPlatform?: boolean; omitHostFromWorkspaceLabel?: boolean }): CloudSandboxSessionsProvider {
-		return createProvider(store, conn, { ...overrides, ctor: CloudSandboxSessionsProvider }) as CloudSandboxSessionsProvider;
+	class RefreshableSandboxProvider extends CloudSandboxSessionsProvider {
+		refresh(): Promise<void> { return this._refreshSessions(); }
+	}
+
+	function createSandboxProvider(store: DisposableStore, conn: MockAgentConnection, overrides?: { noConnection?: boolean; isWebPlatform?: boolean; omitHostFromWorkspaceLabel?: boolean }): RefreshableSandboxProvider {
+		return createProvider(store, conn, { ...overrides, ctor: RefreshableSandboxProvider }) as RefreshableSandboxProvider;
 	}
 
 	test('a repo-less provisional session stays a quick chat through host hydration, rediscovery and cache restoration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -7471,17 +7442,6 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		});
 	}));
 
-	/** Force a session refresh the way the host does: a turn-complete action on a known session. */
-	async function refreshViaTurnComplete(connection: MockAgentConnection, rawId: string): Promise<void> {
-		connection.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString()),
-			action: chatTurnComplete('turn-refresh', 1),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-		await timeout(0);
-	}
-
 	for (const source of ['session-added notification', 'host listing'] as const) {
 		test(`a provisional rename reaches the host after delayed creation via ${source}`, async () => {
 			const rawId = 'delayed-title';
@@ -7501,10 +7461,10 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 				}
 			}();
 			const provider = createProvider(disposables, connection, {
-				ctor: CloudSandboxSessionsProvider,
+				ctor: RefreshableSandboxProvider,
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				noConnection: true,
-			}) as CloudSandboxSessionsProvider;
+			}) as RefreshableSandboxProvider;
 			const metadata = createSession(rawId, { provider: 'copilot', summary: 'owner/repository' });
 			provider.seedProvisionalSession(metadata);
 			const taskRenames: string[] = [];
@@ -7526,9 +7486,9 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 			if (source === 'session-added notification') {
 				fireSessionAdded(connection, rawId, { provider: 'ahp-session', title: hostTitle });
 			} else {
-				await refreshViaTurnComplete(connection, rawId);
+				await provider.refresh();
 			}
-			await refreshViaTurnComplete(connection, rawId);
+			await provider.refresh();
 
 			assert.deepStrictEqual({
 				beforeHostCreation,
@@ -7614,7 +7574,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 
 		// Once the host knows it, it reconciles like any other session.
 		connection.addSession({ ...createSession('provisional-1', { summary: 'Just provisioned' }), session: AgentSession.uri('ahp-session', 'provisional-1'), provider: 'copilotcli' });
-		await refreshViaTurnComplete(connection, 'other-1');
+		await provider.refresh();
 		const afterHostKnows = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		assert.deepStrictEqual({ survivedUnknown, afterHostKnows }, {
@@ -7637,13 +7597,13 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		await timeout(0);
 
 		// The first listing that omits it starts the clock; it is still protected here.
-		await refreshViaTurnComplete(connection, 'other-1');
+		await provider.refresh();
 		const afterFirstOmission = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		// The protection is bounded so a session the host will never list cannot become a
-		// permanent row that only a reload clears.
+		// permanent row that only a reload clears, even when nothing else lists the host.
 		await timeout(CloudSandboxSessionsProvider.PROVISIONAL_GRACE_MS + 1);
-		await refreshViaTurnComplete(connection, 'other-1');
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			afterFirstOmission,

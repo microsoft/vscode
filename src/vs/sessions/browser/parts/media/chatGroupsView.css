@@ -46,14 +46,14 @@
 /* When the session shows a grid of chats (more than one group), each chat fills
  * its full leaf width instead of being capped to the centered band, so the grid
  * spans the entire session view. A lone group keeps the centered cap. */
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .interactive-item-container,
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .chat-suggest-next-widget,
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .interactive-input-part,
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .chat-view > .monaco-progress-container {
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-groups-view:not(.single-group) .interactive-session .interactive-item-container,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-groups-view:not(.single-group) .interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-groups-view:not(.single-group) .interactive-session .interactive-input-part,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-groups-view:not(.single-group) .chat-view > .monaco-progress-container {
 	max-width: none;
 }
 
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {
 	max-width: none;
 }
 

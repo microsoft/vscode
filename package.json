@@ -2,7 +2,14 @@
   "name": "code-oss-dev",
   "version": "1.146.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "c2fad9c2b70fca9d4ba5d689052bcf069661e333",
+  "distro": "db5ed1b9eedd37f415858594f54bfd0859e60a6b",
+  "nativeBuild": {
+    "runtime": "electron",
+    "target": "43.8.6",
+    "disturl": "https://electronjs.org/headers",
+    "msBuildId": "15893748",
+    "buildFromSource": true
+  },
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -23,7 +30,6 @@
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
     "postinstall": "node build/npm/postinstall.ts",
-    "install-fast": "node build/npm/fast-install.ts",
     "compile": "npm-run-all2 -lp compile-client compile-copilot",
     "compile-client": "pnpm run gulp compile",
     "compile-copilot": "pnpm -C extensions/copilot run compile",
@@ -104,7 +110,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.29-preview.5",
+    "@github/copilot-sdk": "1.0.29-preview.6",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -118,7 +124,7 @@
     "@vscode/codicons": "^0.0.46-49",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
-    "@vscode/diff": "0.0.2-7",
+    "@vscode/diff": "0.0.2-122",
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -291,5 +297,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.106-6"
+  "copilotRuntimeVersion": "1.0.106-7"
 }

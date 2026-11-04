@@ -1,0 +1,184 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IsSessionsWindowContext, LayoutModeContext } from '../../../../common/contextkeys.js';
+import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IChatWindow, IChatWindowService } from '../../browser/chatWindow.js';
+import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID, toggleChatWindowEditorAsSidePanel } from '../../browser/chatWindowLayoutActions.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../../common/chatWindowLayout.js';
+import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
+
+suite('Chat window layout actions', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createWindow(windowId: number): { window: IChatWindow; state: ChatWindowState } {
+		const state = new ChatWindowState(new ChatWindowDefaults(disposables.add(new InMemoryStorageService())));
+		const window = new class extends mock<IChatWindow>() {
+			override readonly windowId = windowId;
+			override readonly layoutMode = state.layoutMode;
+			override readonly splitLayout = state.splitLayout;
+			override readonly inputOnly = state.inputOnly;
+			override setLayoutMode(mode: ChatWindowLayoutMode) { state.setLayoutMode(mode); }
+			override setSplitLayout(splitLayout: ChatWindowSplitLayout) { state.setSplitLayout(splitLayout); }
+			override showEditor() {
+				if (state.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
+					state.showBoth();
+				}
+			}
+			override resetLayout() { state.reset(); }
+			override toggleConversation() {
+				if (state.layoutMode.get() === ChatWindowLayoutMode.Stacked) {
+					state.setInputOnly(!state.inputOnly.get());
+				}
+			}
+		}();
+		return { window, state };
+	}
+
+	function createEnvironment() {
+		const a = createWindow(1);
+		const b = createWindow(2);
+		const active: { window: IChatWindow | undefined } = { window: a.window };
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+			override get activeWindow() { return active.window; }
+			override readonly windows = constObservable([a.window, b.window]);
+			override getWindow(windowId: number) { return [a.window, b.window].find(window => window.windowId === windowId); }
+		}());
+		const run = (id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args));
+		return { a, b, active, run };
+	}
+
+	test('a command acts on the chat window that has focus, and on none while another window has focus', () => {
+		const { a, b, active, run } = createEnvironment();
+		const stacked = chatWindowLayoutModeChoices.find(choice => choice.mode === ChatWindowLayoutMode.Stacked)!.id;
+		const editorOnly = chatWindowLayoutModeChoices.find(choice => choice.mode === ChatWindowLayoutMode.EditorOnly)!.id;
+
+		active.window = b.window;
+		run(stacked);
+		run(TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID);
+		active.window = a.window;
+		run(editorOnly);
+		active.window = undefined;
+		run(TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID);
+
+		assert.deepStrictEqual({ a: [a.state.layoutMode.get(), a.state.inputOnly.get()], b: [b.state.layoutMode.get(), b.state.inputOnly.get()] }, {
+			a: [ChatWindowLayoutMode.EditorOnly, true],
+			b: [ChatWindowLayoutMode.Stacked, false],
+		});
+	});
+
+	test('a command run from a control of a chat window acts on that window, not on the window that has focus', () => {
+		const { a, b, active, run } = createEnvironment();
+		const sideBySide = chatWindowLayoutModeChoices.find(choice => choice.mode === ChatWindowLayoutMode.SideBySide)!.id;
+		const context: IWindowCommandContext = { windowId: b.window.windowId };
+
+		// As the first click in a window that does not have focus yet: the focused window is another one, or none.
+		active.window = a.window;
+		run(sideBySide, context);
+		run(TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, context);
+		active.window = undefined;
+		run(TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID, context);
+
+		assert.deepStrictEqual({ a: [a.state.layoutMode.get(), a.state.splitLayout.get()], b: [b.state.layoutMode.get(), b.state.splitLayout.get()] }, {
+			a: [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.SideBySide],
+			b: [ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked],
+		});
+	});
+
+	test('Show Chat and Show Editor hide one of the two, never the last one shown, and showing the other returns to how both last showed', () => {
+		const { a, run } = createEnvironment();
+		const steps: ChatWindowLayoutMode[] = [];
+		const step = (id: string) => {
+			run(id);
+			steps.push(a.state.layoutMode.get());
+		};
+		step(TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID);
+		step(TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID);
+		step(TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID);
+		step(TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID);
+		step(TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID);
+		step(TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID);
+		assert.deepStrictEqual(steps, [
+			ChatWindowLayoutMode.ChatOnly,
+			ChatWindowLayoutMode.ChatOnly,
+			ChatWindowLayoutMode.SideBySide,
+			ChatWindowLayoutMode.EditorOnly,
+			ChatWindowLayoutMode.EditorOnly,
+			ChatWindowLayoutMode.SideBySide,
+		]);
+	});
+
+	test('Stacked changes the arrangement while both show, and only how both show next while one shows', () => {
+		const { a, run } = createEnvironment();
+		run(TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID);
+		const whileBoth = a.state.layoutMode.get();
+		a.state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+		run(TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID);
+		const whileChatOnly = [a.state.layoutMode.get(), a.state.splitLayout.get()];
+		run(TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID);
+		assert.deepStrictEqual({ whileBoth, whileChatOnly, shownAgain: a.state.layoutMode.get() }, {
+			whileBoth: ChatWindowLayoutMode.Stacked,
+			whileChatOnly: [ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide],
+			shownAgain: ChatWindowLayoutMode.SideBySide,
+		});
+	});
+
+	test('the side panel\'s command hides the main part, leaving the chat, and shows it again as it showed with the chat, from any layout', () => {
+		const { a } = createEnvironment();
+		const steps: ChatWindowLayoutMode[] = [];
+		for (const mode of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
+			a.state.setLayoutMode(mode);
+			toggleChatWindowEditorAsSidePanel(a.window);
+			steps.push(a.state.layoutMode.get());
+			toggleChatWindowEditorAsSidePanel(a.window);
+			steps.push(a.state.layoutMode.get());
+		}
+		assert.deepStrictEqual(steps, [
+			ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide,
+			ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked,
+			ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked,
+		]);
+	});
+
+	test('the layout commands apply only in a window with layout modes of the Agents window, while AI features are enabled', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const matches = (sessionsWindow: boolean, aiEnabled: boolean, layoutMode: string | undefined) => {
+			const scoped = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+			IsSessionsWindowContext.bindTo(scoped).set(sessionsWindow);
+			ChatContextKeys.enabled.bindTo(scoped).set(aiEnabled);
+			LayoutModeContext.bindTo(scoped).set(layoutMode);
+			return scoped.contextMatchesRules(ChatWindowLayoutCommandsContext);
+		};
+		assert.deepStrictEqual([
+			matches(true, true, ChatWindowLayoutMode.Stacked),
+			matches(true, true, undefined),
+			matches(true, false, ChatWindowLayoutMode.Stacked),
+			matches(false, true, ChatWindowLayoutMode.Stacked),
+		], [true, false, false, false]);
+	});
+
+	test('Reset Chat Window Layout lays out the chat window it runs in as it first opens, and no other', () => {
+		const { a, b, active, run } = createEnvironment();
+		a.state.setLayoutMode(ChatWindowLayoutMode.Stacked);
+		b.state.setLayoutMode(ChatWindowLayoutMode.EditorOnly);
+
+		active.window = b.window;
+		run(RESET_CHAT_WINDOW_LAYOUT_COMMAND_ID);
+
+		assert.deepStrictEqual({ a: a.state.layoutMode.get(), b: b.state.layoutMode.get() }, { a: ChatWindowLayoutMode.Stacked, b: ChatWindowLayoutMode.SideBySide });
+	});
+});

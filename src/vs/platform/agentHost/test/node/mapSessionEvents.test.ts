@@ -11,8 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
-import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getErrorResponsePart, getTurnError, FileEditKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionMainPassTestData as mainPass, fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -25,7 +26,7 @@ import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 
 function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
-	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(options?.workingDirectory ?? URI.file(process.cwd()))), options);
 }
 
 suite('mapSessionEvents — history replay', () => {
@@ -33,6 +34,29 @@ suite('mapSessionEvents — history replay', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = AgentSession.uri('copilot', 'test-session');
+
+	test('restores virtual workspace edit and attachment URIs while retaining host-local file URIs', async () => {
+		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
+		const pathMapper = createCopilotSdkPathMapper(toCopilotWorkspace(workingDirectory));
+		const filePath = `${pathMapper.rootSdkPath}/src/a.ts`;
+		const database = new TestSessionDatabase();
+		await database.storeFileEdit({ turnId: 'turn', toolCallId: 'edit', filePath, kind: FileEditKind.Edit, beforeContent: new Uint8Array(), afterContent: new Uint8Array(), addedLines: 0, removedLines: 0 });
+		const { turns } = await mapSessionEventsWithRouting(session, database, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Edit file', attachments: [{ type: 'file', path: filePath }, { type: 'file', path: '/host/attachment.txt' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'edit', toolName: 'edit', arguments: { path: filePath } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'edit', success: true } },
+		]), URI.parse(buildChatUri(session, 'default')), session, pathMapper, { workingDirectory });
+		const edits = turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+			? part.toolCall.content?.flatMap(content => content.type === ToolResultContentType.FileEdit ? [{ before: content.before?.uri, after: content.after?.uri }] : []) ?? [] : []);
+		assert.deepStrictEqual({
+			attachments: turns[0].message.attachments?.map(attachment => attachment.type === MessageAttachmentKind.Resource ? attachment.uri : undefined),
+			edits,
+		}, {
+			attachments: ['vscode-vfs://github/microsoft/vscode/src/a.ts', URI.file('/host/attachment.txt').toString()],
+			edits: [{ before: 'vscode-vfs://github/microsoft/vscode/src/a.ts', after: 'vscode-vfs://github/microsoft/vscode/src/a.ts' }],
+		});
+	});
+
 
 	test('declares native input contracts only when replay knows the client tool set', async () => {
 		const events: ISessionEvent[] = [
@@ -1455,7 +1479,7 @@ suite('mapSessionEvents — history replay', () => {
 			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
 			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
 			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner);
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 
 			const part = turns[0].responseParts[0] as ToolCallResponsePart;
 			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -2302,6 +2326,35 @@ suite('mapSessionEvents — history replay', () => {
 			parts: [{ kind: ResponsePartKind.Markdown, content: 'No new instructions.' }],
 		}]);
 	});
+
+	for (const hasChannel of [false, true]) {
+		test(`restores MCP skill reads ${hasChannel ? 'with a resource link' : 'without a link when no channel is available'} and preserves local skill links`, async () => {
+			const qualifiedName = 'mcp1:6673:0123456789abcdef';
+			const origin = { serverName: 'fs', uri: 'skill://review/SKILL.md' };
+			const channel = buildMcpChannel(URI.parse(buildChatUri(session, 'default')), 'fs', 'copilot');
+			const uri = hasChannel ? buildMcpResourceUri(channel, origin.uri, 'Review') : undefined;
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Review the changes' } },
+				{ type: 'skill.invoked', id: 'mcp-skill', data: { name: qualifiedName, path: '', content: '', source: 'mcp', mcpOrigin: origin } },
+				{ type: 'skill.invoked', id: 'local-skill', data: { name: 'plan', path: '/skills/plan/SKILL.md', content: '', source: 'plugin' } },
+			]), {
+				resolveSkill: (name, mcpOrigin) => name === qualifiedName && mcpOrigin?.serverName === origin.serverName && mcpOrigin.uri === origin.uri
+					? { name: 'fs:Review', uri } : undefined
+			});
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+					? [{ invocationMessage: part.toolCall.invocationMessage, pastTenseMessage: part.toolCall.pastTenseMessage }] : [])), [
+				{
+					invocationMessage: { markdown: hasChannel ? `Read skill [fs:Review](${uri})` : 'Read skill fs:Review' },
+					pastTenseMessage: { markdown: hasChannel ? `Read skill [fs:Review](${uri})` : 'Read skill fs:Review' },
+				},
+				{
+					invocationMessage: { markdown: 'Read skill [plan](file:///skills/plan/SKILL.md)' },
+					pastTenseMessage: { markdown: 'Read skill [plan](file:///skills/plan/SKILL.md)' },
+				},
+			]);
+		});
+	}
 
 	for (const hasPreviousTurn of [false, true]) {
 		test(`restores user-invoked skills in the following request (${hasPreviousTurn ? 'follow-up' : 'first'} turn)`, async () => {

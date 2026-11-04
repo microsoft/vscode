@@ -9,10 +9,10 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import minimist from 'minimist';
-import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { downloadStableCode } from './stableCodeDownload';
 import { parseShard, selectShardSuites, Shard } from './shard';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -340,27 +340,24 @@ async function ensureStableCode(): Promise<void> {
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
 		const stableCodeDestination = path.join(testDataPath, 's');
-		const stableCodeExecutable = await retry(() => measureAndLog(() => vscodetest.download({
+		const stableCodeExecutable = await retry(() => measureAndLog(() => downloadStableCode({
 			cachePath: stableCodeDestination,
 			version: stableVersion,
-			extractSync: true,
-			reporter: {
-				report: report => {
-					let progressMessage = `download stable code progress: ${report.stage}`;
-					const now = Date.now();
-					if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
-						lastProgressMessage = progressMessage;
-						lastProgressReportedAt = now;
+			onProgress: report => {
+				let progressMessage = `download stable code progress: ${report.stage}`;
+				const now = Date.now();
+				if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
+					lastProgressMessage = progressMessage;
+					lastProgressReportedAt = now;
 
-						if (report.stage === 'downloading') {
-							progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
-						}
-
-						logger.log(progressMessage);
+					if (report.stage === 'downloading') {
+						progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
 					}
-				},
-				error: error => logger.log(`download stable code error: ${error}`)
-			}
+
+					logger.log(progressMessage);
+				}
+			},
+			onStall: message => logger.log(`download stable code ${message}`),
 		}), 'download stable code', logger), 1000, 3, async () => {
 			fs.rmSync(stableCodeDestination, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 		});

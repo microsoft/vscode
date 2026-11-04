@@ -12,6 +12,8 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { pasteWidgetVisibleCtx } from '../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { dropWidgetVisibleCtx } from '../../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -481,6 +483,8 @@ export class OpenModePickerAction extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					pasteWidgetVisibleCtx.negate(),
+					dropWidgetVisibleCtx.negate(),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
