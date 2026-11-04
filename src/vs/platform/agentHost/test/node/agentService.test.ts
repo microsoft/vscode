@@ -3189,10 +3189,17 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('an older build\'s archive and delete of peers imported while their session is loaded reach live state and its subscribers', async () => {
 			class ChatAgent extends MockAgent {
+				readonly cleared: { session: string; chat?: string }[] = [];
+
 				override async createChat(): Promise<IAgentCreateChatResult> { return { providerData: 'peer-backing' }; }
+
+				clearCanvasContinuity(session: URI, chat?: URI): void {
+					this.cleared.push({ session: session.toString(), ...(chat ? { chat: chat.toString() } : {}) });
+				}
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			registerTestAgentProvider(svc, disposables.add(new ChatAgent('copilot')));
+			const agent = disposables.add(new ChatAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const archived = URI.parse(buildChatUri(session, 'archived-by-old-build'));
 			const deleted = URI.parse(buildChatUri(session, 'deleted-by-old-build'));
@@ -3223,7 +3230,13 @@ suite('AgentService (node dispatcher)', () => {
 				archived: isSessionStatusArchived(chats.find(chat => chat.resource === archived.toString())?.status),
 				deletedListed: chats.some(chat => chat.resource === deleted.toString()),
 				emitted: emitted.sort(),
-			}, { archived: true, deletedListed: false, emitted: [ActionType.ChatIsArchivedChanged, ActionType.SessionChatRemoved] });
+				cleared: agent.cleared,
+			}, {
+				archived: true,
+				deletedListed: false,
+				emitted: [ActionType.ChatIsArchivedChanged, ActionType.SessionChatRemoved],
+				cleared: [{ session: session.toString(), chat: archived.toString() }],
+			});
 		});
 
 		test('a chat catalog migration that ends without converting is logged at warn once per reason; a wait for re-projection only after repeated attempts, never for a provisional session', () => {
@@ -5999,9 +6012,13 @@ suite('AgentService (node dispatcher)', () => {
 			historyHits = 0;
 			serverToolHost: IAgentServerToolHost | undefined;
 			readonly historyReached = new DeferredPromise<void>();
+			readonly clearedCanvasContinuities: { session: string; chat?: string }[] = [];
 			override async createChat(): Promise<void> { }
 			setServerToolHost(host: IAgentServerToolHost): void {
 				this.serverToolHost = host;
+			}
+			clearCanvasContinuity(session: URI, chat?: URI): void {
+				this.clearedCanvasContinuities.push({ session: session.toString(), ...(chat ? { chat: chat.toString() } : {}) });
 			}
 			override async getSessionMessages(session: URI) {
 				if (this.historyGate) {
@@ -6790,7 +6807,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a chat archive toggle on an unloaded session applies without restoring it or holding later actions', async () => {
-			const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+			const { svc, agent, db, session, peer } = await createSessionWithReadPeer('normalized');
 			getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
 			await svc.whenCatalogReconciliationIdle();
 			const warm = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
@@ -6828,6 +6845,7 @@ suite('AgentService (node dispatcher)', () => {
 				resident: !!getStateManager(svc).getSessionState(session.toString()),
 				surfaced: surfacedChatFlags(svc, session, peer),
 				persisted: { archived: await readPersistedPeerArchived(svc, db, session, peer), read: await readPersistedPeerRead(svc, db, session, peer) },
+				cleared: agent.clearedCanvasContinuities,
 			}, {
 				order: [1, 2],
 				restoreCalls: [],
@@ -6836,6 +6854,7 @@ suite('AgentService (node dispatcher)', () => {
 				resident: false,
 				surfaced: { archived: true, legacyArchived: true, read: true },
 				persisted: { archived: true, read: true },
+				cleared: [{ session: session.toString(), chat: peer }],
 			});
 		});
 
@@ -27031,7 +27050,15 @@ suite('AgentService (node dispatcher)', () => {
 			// can archive it; "evicted" must behave like any other un-loaded session.
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
+			class ContinuityTrackingAgent extends MockAgent {
+				readonly cleared: { session: string; chat?: string }[] = [];
+
+				clearCanvasContinuity(session: URI, chat?: URI): void {
+					this.cleared.push({ session: session.toString(), ...(chat ? { chat: chat.toString() } : {}) });
+				}
+			}
+			const agent = disposables.add(new ContinuityTrackingAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
 
 			const created = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const sessionStr = created.toString();
@@ -27057,12 +27084,103 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined,
 				centralArchived: !!((listed?.status ?? 0) & SessionStatus.IsArchived),
 				centralRead: !!((listed?.status ?? 0) & SessionStatus.IsRead),
+				cleared: agent.cleared,
 			}, {
 				persisted: 'true',
 				persistedRead: 'true',
 				publishedArchived: true,
 				centralArchived: true,
 				centralRead: true,
+				cleared: [{ session: sessionStr }],
+			});
+		});
+
+		test('archiving an unloaded saved session clears provider canvas continuity', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			class ContinuityTrackingAgent extends MockAgent {
+				readonly cleared: { session: string; chat?: string }[] = [];
+
+				clearCanvasContinuity(session: URI, chat?: URI): void {
+					this.cleared.push({ session: session.toString(), ...(chat ? { chat: chat.toString() } : {}) });
+				}
+			}
+			const agent = disposables.add(new ContinuityTrackingAgent('copilot'));
+			const peerAgent = disposables.add(new ContinuityTrackingAgent('other'));
+			registerTestAgentProvider(localService, agent);
+			registerTestAgentProvider(localService, peerAgent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'other-provider'));
+			const defaultChat = getStateManager(localService).getDefaultChat(session.toString())!;
+			getStateManager(localService).addChat(session.toString(), peer.toString(), creationTimeChatStorageResource(session.toString(), peer.toString(), defaultChat), { provider: peerAgent.id });
+			(localService as unknown as {
+				_providerService: { associateChat(chat: URI | string, provider: string): void };
+			})._providerService.associateChat(peer, peerAgent.id);
+			const summary = getStateManager(localService).getSessionSummary(session.toString())!;
+			getStateManager(localService).prepareSessionSummariesForListing([summary]);
+			getStateManager(localService).removeSession(session.toString());
+
+			const archived = await (localService as unknown as {
+				_archiveSavedChatContinuation(session: URI, target: { readonly kind: 'session' }, validate: () => Promise<void>, previouslyArchived: boolean): Promise<boolean>;
+			})._archiveSavedChatContinuation(session, { kind: 'session' }, async () => { }, false);
+
+			assert.deepStrictEqual({
+				archived,
+				cleared: agent.cleared,
+				peerCleared: peerAgent.cleared,
+				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				archivedStatus: getStateManager(localService).getSurfacedSessionSummary(session.toString())?.status,
+			}, {
+				archived: true,
+				cleared: [{ session: session.toString() }],
+				peerCleared: [{ session: session.toString(), chat: peer.toString() }],
+				persisted: 'true',
+				archivedStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		});
+
+		test('archiving an unloaded peer chat clears provider canvas continuity', async () => {
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			class ContinuityTrackingAgent extends MockAgent {
+				readonly cleared: { session: string; chat?: string }[] = [];
+
+				clearCanvasContinuity(session: URI, chat?: URI): void {
+					this.cleared.push({ session: session.toString(), ...(chat ? { chat: chat.toString() } : {}) });
+				}
+			}
+			const agent = disposables.add(new ContinuityTrackingAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = AgentSession.uri('copilot', 'unloaded-peer-archive');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const summary = {
+				resource: session.toString(),
+				provider: 'copilot',
+				title: 'Idle',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				chats: [{ resource: chat.toString(), title: 'Peer', status: SessionStatus.Idle }],
+			};
+			getStateManager(localService).announceSurfacedSession(summary);
+			getStateManager(localService).prepareSessionSummariesForListing([summary]);
+			const peerChatStore = (localService as unknown as {
+				_peerChatStore: { archiveSavedChat(session: URI, chat: URI, validate: () => Promise<void>): Promise<void> };
+			})._peerChatStore;
+			const archiveSavedChat = stub(peerChatStore, 'archiveSavedChat').callsFake(async (_session, _chat, validate) => validate());
+			disposables.add(toDisposable(() => archiveSavedChat.restore()));
+
+			const archived = await (localService as unknown as {
+				_archiveSavedChatContinuation(session: URI, target: { readonly kind: 'chat'; readonly chat: URI }, validate: () => Promise<void>, previouslyArchived: boolean): Promise<boolean>;
+			})._archiveSavedChatContinuation(session, { kind: 'chat', chat }, async () => { }, false);
+
+			assert.deepStrictEqual({
+				archived,
+				cleared: agent.cleared,
+				archivedStatus: getStateManager(localService).getSurfacedSessionSummary(session.toString())?.chats?.find(candidate => candidate.resource === chat.toString())?.status,
+			}, {
+				archived: true,
+				cleared: [{ session: session.toString(), chat: chat.toString() }],
+				archivedStatus: SessionStatus.Idle | SessionStatus.IsArchived,
 			});
 		});
 
