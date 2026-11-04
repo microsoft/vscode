@@ -11,6 +11,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import './chatWindowActions.js';
+import './chatWindowDragOut.js';
 import './openChatInWindow.js';
 import './sessionChatViewEditor.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';

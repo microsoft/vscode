@@ -35,6 +35,12 @@ export interface IViewEditorView extends IDisposable {
 	 */
 	readonly providesTitle: boolean;
 
+	/**
+	 * An element of the view, such as its title row, that drags the view's
+	 * editor the way its tab would.
+	 */
+	readonly dragHandle?: HTMLElement;
+
 	layout(width: number, height: number, top: number, left: number): void;
 
 	focus(): void;

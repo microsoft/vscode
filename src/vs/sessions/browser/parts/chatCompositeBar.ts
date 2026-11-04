@@ -33,7 +33,7 @@ import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge } from '../dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -609,9 +609,12 @@ export class ChatCompositeBar extends Disposable {
 			delegate.onTabDragStart?.(chat.resource);
 		}));
 
-		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, () => {
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, (e: DragEvent) => {
 			clearChatReferenceDragData();
 			this._delegate?.onTabDragEnd?.();
+			if (delegate) {
+				onDidEndSessionChatDrag(e, tab, delegate.session, chat.resource, chat.title.get());
+			}
 		}));
 
 		// The main chat's title is the session title, so its tab renames the session (as F2 does).

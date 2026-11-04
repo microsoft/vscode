@@ -23,7 +23,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -121,6 +121,11 @@ export class SessionHeaderBar extends Disposable {
 
 	get element(): HTMLElement {
 		return this._container;
+	}
+
+	/** The title of the session, which can stand for the session's chat, such as to drag it. */
+	get titleElement(): HTMLElement {
+		return this._titleEl;
 	}
 
 	get visible(): boolean {
@@ -289,8 +294,13 @@ export class SessionHeaderBar extends Disposable {
 			e.stopPropagation();
 		}));
 
-		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
+		this._register(addDisposableListener(this._container, EventType.DRAG_END, (e: DragEvent) => {
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+
+			// The header's own drag, of its session or of its chat, can open it in a window of its own
+			if (e.target === this._container && this._session) {
+				onDidEndSessionChatDrag(e, this._container, this._session, this._actionsTargetChat ? this._activeChat?.resource : undefined, this._titlePath);
+			}
 		}));
 	}
 

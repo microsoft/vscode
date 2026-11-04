@@ -31,7 +31,7 @@ import { IEditorGroupsService } from '../../../workbench/services/editor/common/
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
 import { Menus } from '../../browser/menus.js';
-import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
+import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -957,6 +957,26 @@ suite('Sessions - ChatCompositeBar', () => {
 			}
 		}
 		assert.deepStrictEqual(results, expected);
+	});
+
+	test('the end of a chat tab\'s drag goes to the chat drag end handler with its session and chat', async () => {
+		const { tabs, session, chats } = createHarness(disposables);
+		const ended: { session: boolean; chat: string; name: string; offset: boolean }[] = [];
+		const handler = registerSessionChatDragEndHandler(async (e, offsetElement, endedSession, chat, name) => {
+			ended.push({ session: endedSession === session, chat: String(chat), name, offset: offsetElement === tabs[1] });
+			return false;
+		});
+
+		try {
+			const dataTransfer = new DataTransfer();
+			tabs[1].dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			tabs[1].dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		} finally {
+			handler.dispose();
+		}
+
+		const secondary = chats.get()[1];
+		assert.deepStrictEqual(ended, [{ session: true, chat: secondary.resource.toString(), name: secondary.title.get(), offset: true }]);
 	});
 
 	test('creates scoped chat tab presentation elements', () => {

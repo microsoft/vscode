@@ -16,7 +16,7 @@ import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/c
 import { ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -61,7 +61,8 @@ function isTerminalEditor(editor: EditorInput | undefined): boolean {
  * the window closes, its terminals go back to the background of the panel, still running, for their session.
  *
  * - The panel leaves a terminal to the chat window while it shows there.
- * - A terminal opened in the window's main part moves to the part that holds its terminals.
+ * - A new terminal opened in the window's main part moves to the part that holds its terminals; one the user moves
+ *   there, such as by merging the terminals into the main part, stays.
  * - Terminals the window showed as it closed show again as it is restored.
  */
 export class ChatWindowTerminals extends Disposable implements IChatWindowTerminalsService {
@@ -304,11 +305,18 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}));
 	}
 
-	/** Moves a terminal opened in the window's main part, such as by dragging it there, to the part that holds its terminals. */
+	/**
+	 * Moves a new terminal opened in the window's main part to the part that holds its terminals. A terminal the user
+	 * moves into the main part from another group, such as by merging the terminals into it, stays where they put it.
+	 */
 	private _trackMainPart(window: IChatWindow): IDisposable {
 		return this._trackGroups(window.mainPart, group => group.onDidModelChange(e => {
 			const editor = e.editor;
 			if (e.kind !== GroupModelChangeKind.EDITOR_OPEN || !editor || !isTerminalEditor(editor)) {
+				return;
+			}
+			// A move to another group opens the editor there before it closes where it was
+			if (this._editorGroupsService.getGroups(GroupsOrder.CREATION_TIME).some(candidate => candidate !== group && candidate.contains(editor))) {
 				return;
 			}
 			// After the open completes: moving it meanwhile would leave it in no group.

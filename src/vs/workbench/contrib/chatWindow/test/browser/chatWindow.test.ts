@@ -67,6 +67,7 @@ suite('Chat window', () => {
 			override readonly onDidAddGroup = onDidAddGroup.event;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
+			override getGroups() { return this.groups; }
 			override close() {
 				events.push(`close ${name}`);
 				if (options?.veto) {
@@ -79,16 +80,20 @@ suite('Chat window', () => {
 				return true;
 			}
 		}();
-		const addGroup = () => {
+		const addGroup = (options?: { first?: boolean }) => {
 			const added = new TestGroup(events, `${name} 2`);
-			part.groups.push(added);
+			if (options?.first) {
+				part.groups.unshift(added);
+			} else {
+				part.groups.push(added);
+			}
 			onDidAddGroup.fire(added);
 			return added;
 		};
 		return { part, group, addGroup };
 	}
 
-	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean } }) {
+	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean }; otherPart?: boolean }) {
 		const events: string[] = [];
 		const chatInput = disposables.add(new TestInput());
 		const onDidEnd = disposables.add(new Emitter<void>());
@@ -101,6 +106,8 @@ suite('Chat window', () => {
 		const main = createPart(events, 'main', { veto: options?.vetoMain });
 		const chat = createPart(events, 'chat');
 		chat.group.testEditors.push(chatInput);
+		// Another part of the window, such as one created for an editor dropped on its edge
+		const other = createPart(events, 'other');
 		const window = disposables.add(new ChatWindow(1, content, state, main.part, chat.part, {
 			focusWindow: () => events.push('focus window'),
 			closeWindow: () => events.push('close window'),
@@ -110,12 +117,18 @@ suite('Chat window', () => {
 				return createPart(events, 'terminals').part;
 			},
 			terminalsVisible: constObservable(false),
+			chatPartLeads: constObservable(true),
 			didMoveChatOut: () => events.push('moved out'),
 			resetLayout: () => events.push('reset layout'),
+			windowGroups: options?.otherPart ? {
+				get groups() { return [...chat.part.groups, ...main.part.groups, ...other.part.groups]; },
+				onDidAddGroup: Event.None,
+				onDidRemoveGroup: Event.None,
+			} : undefined,
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
-		return { window, state, main, chat, chatInput, onDidEnd, events };
+		return { window, state, main, chat, other, chatInput, onDidEnd, events };
 	}
 
 	const editor = () => disposables.add(new TestInput());
@@ -208,6 +221,19 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ merged, afterChatOnly: { inChat: chat.group.contains(chatInput), inMain: main.group.contains(chatInput), mode: window.layoutMode.get() }, events }, {
 			merged: { inChat: false, inMain: true, mode: ChatWindowLayoutMode.SideBySide },
 			afterChatOnly: { inChat: true, inMain: false, mode: ChatWindowLayoutMode.ChatOnly },
+			events: ['move to chat'],
+		});
+	});
+
+	test('a layout command moves the chat\'s editor back into the chat part from any part of the window, such as one created for an editor dropped on its edge', () => {
+		const { window, chat, other, chatInput, events } = createWindow({ otherPart: true });
+		other.group.open(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+		window.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+
+		assert.deepStrictEqual({ inChat: chat.group.contains(chatInput), inOther: other.group.contains(chatInput), events }, {
+			inChat: true,
+			inOther: false,
 			events: ['move to chat'],
 		});
 	});
@@ -324,11 +350,70 @@ suite('Chat window', () => {
 		});
 	});
 
+	test('the chat\'s editor merged into a part the window created is still the window: closing it there closes the window, and moving it out from there takes the chat out', async () => {
+		const merge = () => {
+			const created = createWindow({ otherPart: true });
+			created.other.group.open(created.chatInput);
+			created.chat.group.fireCloseEditor(created.chatInput, EditorCloseContext.MOVE);
+			return created;
+		};
+		const closed = merge();
+		const afterMerge = [...closed.events];
+		closed.other.group.fireCloseEditor(closed.chatInput);
+		await timeout(0);
+		const movedOut = merge();
+		movedOut.other.group.fireCloseEditor(movedOut.chatInput, EditorCloseContext.MOVE);
+
+		assert.deepStrictEqual({ afterMerge, closed: closed.events, movedOut: movedOut.events }, {
+			afterMerge: [],
+			closed: ['close main', 'close chat', 'will close', 'close window', 'closed'],
+			movedOut: ['moved out'],
+		});
+	});
+
+	test('the chat leads the window from the first group of its part, not after a group split off before it', () => {
+		const { window, chat } = createWindow();
+		const leads = [window.chatLeads.get()];
+		chat.addGroup();
+		leads.push(window.chatLeads.get());
+		chat.addGroup({ first: true });
+		leads.push(window.chatLeads.get());
+
+		assert.deepStrictEqual(leads, [true, true, false]);
+	});
+
 	test('the chat\'s editor moving out of the window, such as into the main window or an editor window, takes the chat out of the window rather than closing it', () => {
 		const { chat, chatInput, events } = createWindow();
 
 		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
 
 		assert.deepStrictEqual(events, ['moved out']);
+	});
+
+	test('the chat\'s editor moved into another part of the window stays in the window, no longer leading it: closing it there closes the window, and the main part closing its last editor keeps the layout', async () => {
+		const { window, state, main, chat, other, chatInput, events } = createWindow({ otherPart: true });
+		state.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+		const leadsBefore = window.chatLeads.get();
+
+		other.group.testEditors.push(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+		const afterMove = [...events];
+		const leadsAfterMove = window.chatLeads.get();
+
+		const file = editor();
+		main.group.open(file);
+		main.group.fireCloseEditor(file);
+		const modeAfterLastMainEditor = window.layoutMode.get();
+
+		other.group.fireCloseEditor(chatInput);
+		await timeout(0);
+
+		assert.deepStrictEqual({ leadsBefore, afterMove, leadsAfterMove, modeAfterLastMainEditor, closed: events.includes('closed') }, {
+			leadsBefore: true,
+			afterMove: [],
+			leadsAfterMove: false,
+			modeAfterLastMainEditor: ChatWindowLayoutMode.SideBySide,
+			closed: true
+		});
 	});
 });

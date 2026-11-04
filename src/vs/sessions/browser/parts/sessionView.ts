@@ -119,6 +119,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	/** Whether the session header shows, wherever it is; see {@link setHeaderHost}. */
 	readonly headerShown: IObservable<boolean>;
 
+	/** The title of the session header, wherever the header shows; see {@link setHeaderHost}. */
+	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
+
 	constructor(
 		private readonly _hostOptions: ISessionViewHostOptions | undefined,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,

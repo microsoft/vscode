@@ -194,13 +194,16 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 	private readonly _view = observableValue<SessionView | undefined>(this, undefined);
 	/**
 	 * Whether the view shows its own title row, at the top of the chat's card: with a single chat, side by side and in chat
-	 * only, as the session view shows its header then. Otherwise, such as with the chats of the session as tabs, which
-	 * replace the header, the title row of the window shows, across the window, as the main window's title bar does.
+	 * only, as the session view shows its header then, while the chat leads the window, at its top left. Otherwise, such as
+	 * with the chats of the session as tabs, which replace the header, or with the chat moved into another part or after
+	 * another part, the title row of the window shows, across the window, as the main window's title bar does.
 	 */
 	readonly showsTitle: IObservable<boolean> = derived(this, reader => {
-		const mode = this.window.read(reader)?.layoutMode.read(reader);
+		const window = this.window.read(reader);
+		const mode = window?.layoutMode.read(reader);
 		return !!this._viewHeader.read(reader)
 			&& (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly)
+			&& !!window?.chatLeads.read(reader)
 			&& (this._view.read(reader)?.headerShown.read(reader) ?? true);
 	});
 	/** The title row the session header shows in: the one that shows. */

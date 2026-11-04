@@ -294,6 +294,23 @@ suite('Chat window terminals', () => {
 		});
 	});
 
+	test('a terminal the user moves into the main part from another group, such as by merging the terminals into the main part, stays there', async () => {
+		const { mainGroup, terminalsGroup, calls } = createEnvironment();
+		const terminalEditor = editor('workbench.editors.terminal');
+		terminalsGroup.editors.push(terminalEditor);
+
+		// A move to another group opens the editor there before it closes where it was
+		mainGroup.open(terminalEditor);
+		terminalsGroup.editors = terminalsGroup.editors.filter(candidate => candidate !== terminalEditor);
+		await timeout(0);
+
+		assert.deepStrictEqual({ inMain: mainGroup.contains(terminalEditor), inTerminals: terminalsGroup.contains(terminalEditor), calls }, {
+			inMain: true,
+			inTerminals: false,
+			calls: [],
+		});
+	});
+
 	test('the Add Tab entry for a terminal adds one to the terminals that show a terminal, else shows them', async () => {
 		const { terminals, window, calls } = createEnvironment({ terminal: terminal(5) });
 

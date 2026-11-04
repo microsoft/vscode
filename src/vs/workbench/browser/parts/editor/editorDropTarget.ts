@@ -19,7 +19,7 @@ import { activeContrastBorder } from '../../../../platform/theme/common/colorReg
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, getInputDropTargetClipPath, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, getInputDropTargetClipPath, isContentDropTarget, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
 import { IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
@@ -27,9 +27,17 @@ import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsS
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { getPartName } from './editorPartActions.js';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
+
+	/**
+	 * Whether the drop splits the group into even halves, as over content
+	 * that handles drops, where the drop shows half of the group.
+	 */
+	splitEvenly?: boolean;
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
@@ -38,6 +46,165 @@ function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationSer
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
 	return e.shiftKey;
+}
+
+/**
+ * Whether a drag, other than of a group, is over a registered input drop target (or an element inside one) inside
+ * `scope`, the group under the drag. Such inputs handle the drop themselves: the editor drop overlay has holes over them.
+ */
+function isInputDropTargetEvent(e: DragEvent, scope: HTMLElement, isDraggingGroup: boolean): boolean {
+	return !isDraggingGroup && isHTMLElement(e.target) && isInputDropTarget(e.target, e, scope);
+}
+
+/**
+ * Whether the drag is over registered content, such as a view shown as an editor, that handles the drops in its center,
+ * inside `scope`, the group under the drag.
+ */
+function isContentDropTargetEvent(e: DragEvent, scope: HTMLElement): boolean {
+	return isHTMLElement(e.target) && isContentDropTarget(e.target, e, scope);
+}
+
+function isToggleSplitOperation(e: DragEvent): boolean {
+	return (e.altKey && !isMacintosh) || (e.shiftKey && isMacintosh);
+}
+
+/**
+ * Whether a drop splits the group by its position, following the setting
+ * and the key modifiers used.
+ */
+function isSplittingEnabled(e: DragEvent, groupView: IEditorGroupView, supportsSplitting: boolean): boolean {
+	let splitOnDragAndDrop = supportsSplitting && !!groupView.groupsView.partOptions.splitOnDragAndDrop;
+	if (supportsSplitting && isToggleSplitOperation(e)) {
+		splitOnDragAndDrop = !splitOnDragAndDrop;
+	}
+
+	return splitOnDragAndDrop;
+}
+
+/**
+ * The part of a group a drop splits in, for a position in the drop area of the
+ * group. A position in the center splits nothing: the drop goes into the group,
+ * unless the group only splits (`splitsOnly`), when it splits on the side of
+ * the center nearest to the position.
+ */
+function getSplitDirection(mousePosX: number, mousePosY: number, width: number, height: number, isDraggingGroup: boolean, preferSplitVertically: boolean, splitsOnly = false): GroupDirection | undefined {
+	let edgeWidthThresholdFactor: number;
+	if (isDraggingGroup) {
+		edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
+	} else {
+		edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+	}
+
+	let edgeHeightThresholdFactor: number;
+	if (isDraggingGroup) {
+		edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
+	} else {
+		edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+	}
+
+	const edgeWidthThreshold = width * edgeWidthThresholdFactor;
+	const edgeHeightThreshold = height * edgeHeightThresholdFactor;
+
+	const splitWidthThreshold = width / 3;		// offer to split left/right at 33%
+	const splitHeightThreshold = height / 3;	// offer to split up/down at 33%
+
+	// No split if mouse is above certain threshold in the center of the view, or,
+	// where the group only splits, a split on the side nearest to the mouse
+	if (
+		mousePosX > edgeWidthThreshold && mousePosX < width - edgeWidthThreshold &&
+		mousePosY > edgeHeightThreshold && mousePosY < height - edgeHeightThreshold
+	) {
+		if (!splitsOnly) {
+			return undefined;
+		}
+
+		const sides: [GroupDirection, number][] = [
+			[GroupDirection.LEFT, mousePosX / width],
+			[GroupDirection.RIGHT, (width - mousePosX) / width],
+			[GroupDirection.UP, mousePosY / height],
+			[GroupDirection.DOWN, (height - mousePosY) / height]
+		];
+		return sides.reduce((nearest, side) => side[1] < nearest[1] ? side : nearest)[0];
+	}
+
+	// User prefers to split vertically: offer a larger hitzone
+	// for this direction like so:
+	// ----------------------------------------------
+	// |		|		SPLIT UP		|			|
+	// | SPLIT 	|-----------------------|	SPLIT	|
+	// |		|		  MERGE			|			|
+	// | LEFT	|-----------------------|	RIGHT	|
+	// |		|		SPLIT DOWN		|			|
+	// ----------------------------------------------
+	if (preferSplitVertically) {
+		if (mousePosX < splitWidthThreshold) {
+			return GroupDirection.LEFT;
+		} else if (mousePosX > splitWidthThreshold * 2) {
+			return GroupDirection.RIGHT;
+		} else if (mousePosY < height / 2) {
+			return GroupDirection.UP;
+		} else {
+			return GroupDirection.DOWN;
+		}
+	}
+
+	// User prefers to split horizontally: offer a larger hitzone
+	// for this direction like so:
+	// ----------------------------------------------
+	// |				SPLIT UP					|
+	// |--------------------------------------------|
+	// |  SPLIT LEFT  |	   MERGE	|  SPLIT RIGHT  |
+	// |--------------------------------------------|
+	// |				SPLIT DOWN					|
+	// ----------------------------------------------
+	if (mousePosY < splitHeightThreshold) {
+		return GroupDirection.UP;
+	} else if (mousePosY > splitHeightThreshold * 2) {
+		return GroupDirection.DOWN;
+	} else if (mousePosX < width / 2) {
+		return GroupDirection.LEFT;
+	} else {
+		return GroupDirection.RIGHT;
+	}
+}
+
+/**
+ * The height at the top of a group that is not part of its drop area: with
+ * tabs and opened editors, the area below the tabs is the drop area.
+ */
+function getDropAreaOffsetHeight(groupView: IEditorGroupView): number {
+	if (!groupView.isEmpty && groupView.groupsView.partOptions.showTabs === 'multiple') {
+		return groupView.titleHeight.offset;
+	}
+
+	return 0;
+}
+
+/**
+ * The position of a drag in the drop area of a group.
+ */
+function getDropAreaPosition(e: DragEvent, groupView: IEditorGroupView): { x: number; y: number } {
+	const bounds = groupView.element.getBoundingClientRect();
+
+	return { x: e.clientX - bounds.left, y: e.clientY - bounds.top - getDropAreaOffsetHeight(groupView) };
+}
+
+/**
+ * The drop overlays that show, so that what takes a drag over them, such as an
+ * edge of the window, can make them go away.
+ */
+const dropOverlays = new Set<DropOverlay>();
+
+/**
+ * Makes the drop overlays that show over the groups inside `container` go away,
+ * such as when what contains them takes the drag.
+ */
+export function disposeEditorDropOverlays(container: HTMLElement): void {
+	for (const overlay of [...dropOverlays]) {
+		if (isAncestor(overlay.groupElement, container)) {
+			overlay.dispose();
+		}
+	}
 }
 
 class DropOverlay extends Themable {
@@ -79,6 +246,8 @@ class DropOverlay extends Themable {
 		this.enableDropIntoEditor = isDropIntoEditorEnabledGlobally(this.configurationService) && this.isDropIntoActiveEditorEnabled();
 
 		this.create();
+
+		dropOverlays.add(this);
 	}
 
 	private create(): void {
@@ -143,72 +312,98 @@ class DropOverlay extends Themable {
 		}
 	}
 
+	/**
+	 * Updates the overlay for a drag over the group, such as the one that
+	 * created it: what a drop there does, or, where the group does not take
+	 * the drop, such as over an input, it goes away.
+	 */
+	update(e: DragEvent): void {
+		const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
+		const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+
+		// Content that handles drops takes the drop, except for editors and
+		// groups, which split the group: they cannot go into it, such as
+		// behind a chat. Inputs take drops through the overlay's holes.
+		const overContent = isContentDropTargetEvent(e, this.groupView.element);
+		if (
+			(this.enableDropIntoEditor && isDragIntoEditorEvent(e)) ||
+			(overContent && (!(isDraggingEditor || isDraggingGroup) || !this.isSplittingEnabled(e)))
+		) {
+			this.dispose();
+			return;
+		}
+
+		// Update the dropEffect to "copy" if there is no local data to be dragged because
+		// in that case we can only copy the data into and not move it from its source
+		if (!isDraggingEditor && !isDraggingGroup && e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'copy';
+		}
+
+		// Find out if operation is valid
+		let isCopy = true;
+		if (isDraggingGroup) {
+			isCopy = this.isCopyOperation(e);
+		} else if (isDraggingEditor) {
+			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+			if (Array.isArray(data) && data.length > 0) {
+				isCopy = this.isCopyOperation(e, data[0].identifier);
+			}
+		}
+
+		if (!isCopy) {
+			const sourceGroupView = this.findSourceGroupView();
+			if (sourceGroupView === this.groupView) {
+				if (isDraggingGroup || (isDraggingEditor && sourceGroupView.count < 2)) {
+					this.hideOverlay();
+					return; // do not allow to drop group/editor on itself if this results in an empty group
+				}
+			}
+		}
+
+		// Position overlay and conditionally enable or disable
+		// editor group splitting support based on setting and
+		// keymodifiers used.
+		const { x, y } = getDropAreaPosition(e, this.groupView);
+		this.positionOverlay(x, y, isDraggingGroup, this.isSplittingEnabled(e), overContent);
+		if (this.container) {
+			this.updateInputClipPath(this.container);
+		}
+
+		// Make sure to stop any running cleanup scheduler to remove the overlay
+		if (this.cleanupOverlayScheduler.isScheduled()) {
+			this.cleanupOverlayScheduler.cancel();
+		}
+	}
+
 	private registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
-			onDragOver: e => {
-				if (this.enableDropIntoEditor && isDragIntoEditorEvent(e)) {
-					this.dispose();
-					return;
-				}
-
-				const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
-				const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
-
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!isDraggingEditor && !isDraggingGroup && e.dataTransfer) {
-					e.dataTransfer.dropEffect = 'copy';
-				}
-
-				// Find out if operation is valid
-				let isCopy = true;
-				if (isDraggingGroup) {
-					isCopy = this.isCopyOperation(e);
-				} else if (isDraggingEditor) {
-					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-					if (Array.isArray(data) && data.length > 0) {
-						isCopy = this.isCopyOperation(e, data[0].identifier);
-					}
-				}
-
-				if (!isCopy) {
-					const sourceGroupView = this.findSourceGroupView();
-					if (sourceGroupView === this.groupView) {
-						if (isDraggingGroup || (isDraggingEditor && sourceGroupView.count < 2)) {
-							this.hideOverlay();
-							return; // do not allow to drop group/editor on itself if this results in an empty group
-						}
-					}
-				}
-
-				// Position overlay and conditionally enable or disable
-				// editor group splitting support based on setting and
-				// keymodifiers used.
-				let splitOnDragAndDrop = this.supportsSplitting && !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
-				if (this.supportsSplitting && this.isToggleSplitOperation(e)) {
-					splitOnDragAndDrop = !splitOnDragAndDrop;
-				}
-				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup, splitOnDragAndDrop);
-				this.updateInputClipPath(container);
-
-				// Make sure to stop any running cleanup scheduler to remove the overlay
-				if (this.cleanupOverlayScheduler.isScheduled()) {
-					this.cleanupOverlayScheduler.cancel();
-				}
-			},
-
+			onDragOver: e => this.update(e),
 			onDragLeave: e => this.dispose(),
 			onDragEnd: e => this.dispose(),
 
 			onDrop: e => {
+				if (isContentDropTargetEvent(e, this.groupView.element) && !(
+					(this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) || this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) &&
+					this.isSplittingEnabled(e)
+				)) {
+					this.dispose();
+					return;
+				}
+
 				EventHelper.stop(e, true);
+
+				// An overlay that shows takes its drop, also when no drag moved
+				// over it yet, such as when it showed for the drag that created it
+				if (!this.currentDropOperation) {
+					this.update(e);
+				}
 
 				// Dispose overlay
 				this.dispose();
 
 				// Handle drop if we have a valid operation
 				if (this.currentDropOperation) {
-					this.handleDrop(e, this.currentDropOperation.splitDirection);
+					this.handleDrop(e, this.currentDropOperation);
 				}
 			}
 		}));
@@ -256,13 +451,29 @@ class DropOverlay extends Themable {
 		return undefined;
 	}
 
-	private async handleDrop(event: DragEvent, splitDirection?: GroupDirection): Promise<void> {
+	private async handleDrop(event: DragEvent, operation: IDropOperation): Promise<void> {
+		const splitDirection = operation.splitDirection;
+
+		// A group that splits evenly gives the new group half of its size, as
+		// the drop shows: the part would otherwise expand the new group, such
+		// as when the group counts as expanded beside one at its minimum size
+		const sizeBeforeSplit = operation.splitEvenly ? this.editorGroupService.getSize(this.groupView) : undefined;
+		const splitEvenly = (targetGroup: IEditorGroup) => {
+			if (!sizeBeforeSplit || typeof splitDirection !== 'number' || targetGroup === this.groupView) {
+				return;
+			}
+
+			const size = this.editorGroupService.getSize(targetGroup);
+			const vertically = splitDirection === GroupDirection.UP || splitDirection === GroupDirection.DOWN;
+			this.editorGroupService.setSize(targetGroup, vertically ? { width: size.width, height: Math.round(sizeBeforeSplit.height / 2) } : { width: Math.round(sizeBeforeSplit.width / 2), height: size.height });
+		};
 
 		// Determine target group
 		const ensureTargetGroup = () => {
 			let targetGroup: IEditorGroup;
 			if (typeof splitDirection === 'number') {
 				targetGroup = this.editorGroupService.addGroup(this.groupView, splitDirection);
+				splitEvenly(targetGroup);
 			} else {
 				targetGroup = this.groupView;
 			}
@@ -288,6 +499,7 @@ class DropOverlay extends Themable {
 						} else {
 							targetGroup = this.editorGroupService.moveGroup(sourceGroup, this.groupView, splitDirection);
 						}
+						splitEvenly(targetGroup);
 					}
 
 					// Merge into existing group
@@ -319,6 +531,7 @@ class DropOverlay extends Themable {
 				const sourceGroup = this.editorGroupService.getGroup(firstDraggedEditor.groupId);
 				if (sourceGroup) {
 					const copyEditor = this.isCopyOperation(event, firstDraggedEditor);
+					const sourcePart = this.editorGroupService.getPart(sourceGroup);
 					let targetGroup: IEditorGroup | undefined = undefined;
 
 					// Optimization: if we move the last editor of an editor group
@@ -326,6 +539,7 @@ class DropOverlay extends Themable {
 					// rather move the entire editor group according to the direction
 					if (this.groupView.groupsView.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
 						targetGroup = this.editorGroupService.moveGroup(sourceGroup, this.groupView, splitDirection);
+						splitEvenly(targetGroup);
 					}
 
 					// In any other case do a normal move/copy operation
@@ -345,6 +559,12 @@ class DropOverlay extends Themable {
 
 					// Ensure target has focus
 					targetGroup.focus();
+
+					// Announce a move into another part of the window
+					const targetPart = this.editorGroupService.getPart(targetGroup);
+					if (!copyEditor && targetPart !== sourcePart && targetPart.windowId === sourcePart.windowId) {
+						status(localize('movedEditorToPart', "Moved {0} to {1}", firstDraggedEditor.editor.getName(), getPartName(targetPart)));
+					}
 				}
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
@@ -386,11 +606,11 @@ class DropOverlay extends Themable {
 		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 	}
 
-	private isToggleSplitOperation(e: DragEvent): boolean {
-		return (e.altKey && !isMacintosh) || (e.shiftKey && isMacintosh);
+	private isSplittingEnabled(e: DragEvent): boolean {
+		return isSplittingEnabled(e, this.groupView, this.supportsSplitting);
 	}
 
-	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean, enableSplitting: boolean): void {
+	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean, enableSplitting: boolean, splitsOnly: boolean): void {
 		const preferSplitVertically = this.groupView.groupsView.partOptions.openSideBySideDirection === 'right';
 
 		const editorControlWidth = this.groupView.element.clientWidth;
@@ -406,85 +626,7 @@ class DropOverlay extends Themable {
 			return;
 		}
 
-		let edgeWidthThresholdFactor: number;
-		let edgeHeightThresholdFactor: number;
-		if (enableSplitting) {
-			if (isDraggingGroup) {
-				edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
-			} else {
-				edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
-			}
-
-			if (isDraggingGroup) {
-				edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
-			} else {
-				edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
-			}
-		} else {
-			edgeWidthThresholdFactor = 0;
-			edgeHeightThresholdFactor = 0;
-		}
-
-		const edgeWidthThreshold = editorControlWidth * edgeWidthThresholdFactor;
-		const edgeHeightThreshold = editorControlHeight * edgeHeightThresholdFactor;
-
-		const splitWidthThreshold = editorControlWidth / 3;		// offer to split left/right at 33%
-		const splitHeightThreshold = editorControlHeight / 3;	// offer to split up/down at 33%
-
-		// No split if mouse is above certain threshold in the center of the view
-		let splitDirection: GroupDirection | undefined;
-		if (
-			mousePosX > edgeWidthThreshold && mousePosX < editorControlWidth - edgeWidthThreshold &&
-			mousePosY > edgeHeightThreshold && mousePosY < editorControlHeight - edgeHeightThreshold
-		) {
-			splitDirection = undefined;
-		}
-
-		// Offer to split otherwise
-		else {
-
-			// User prefers to split vertically: offer a larger hitzone
-			// for this direction like so:
-			// ----------------------------------------------
-			// |		|		SPLIT UP		|			|
-			// | SPLIT 	|-----------------------|	SPLIT	|
-			// |		|		  MERGE			|			|
-			// | LEFT	|-----------------------|	RIGHT	|
-			// |		|		SPLIT DOWN		|			|
-			// ----------------------------------------------
-			if (preferSplitVertically) {
-				if (mousePosX < splitWidthThreshold) {
-					splitDirection = GroupDirection.LEFT;
-				} else if (mousePosX > splitWidthThreshold * 2) {
-					splitDirection = GroupDirection.RIGHT;
-				} else if (mousePosY < editorControlHeight / 2) {
-					splitDirection = GroupDirection.UP;
-				} else {
-					splitDirection = GroupDirection.DOWN;
-				}
-			}
-
-			// User prefers to split horizontally: offer a larger hitzone
-			// for this direction like so:
-			// ----------------------------------------------
-			// |				SPLIT UP					|
-			// |--------------------------------------------|
-			// |  SPLIT LEFT  |	   MERGE	|  SPLIT RIGHT  |
-			// |--------------------------------------------|
-			// |				SPLIT DOWN					|
-			// ----------------------------------------------
-			else {
-				if (mousePosY < splitHeightThreshold) {
-					splitDirection = GroupDirection.UP;
-				} else if (mousePosY > splitHeightThreshold * 2) {
-					splitDirection = GroupDirection.DOWN;
-				} else if (mousePosX < editorControlWidth / 2) {
-					splitDirection = GroupDirection.LEFT;
-				} else {
-					splitDirection = GroupDirection.RIGHT;
-				}
-			}
-		}
+		const splitDirection = getSplitDirection(mousePosX, mousePosY, editorControlWidth, editorControlHeight, isDraggingGroup, preferSplitVertically, splitsOnly);
 
 		// Draw overlay based on split direction
 		switch (splitDirection) {
@@ -517,7 +659,7 @@ class DropOverlay extends Themable {
 		setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
 
 		// Remember as current split direction
-		this.currentDropOperation = { splitDirection };
+		this.currentDropOperation = { splitDirection, splitEvenly: splitsOnly && typeof splitDirection === 'number' };
 	}
 
 	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {
@@ -539,14 +681,7 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
-
-		// With tabs and opened editors: use the area below tabs as drop target
-		if (!this.groupView.isEmpty && this.groupView.groupsView.partOptions.showTabs === 'multiple') {
-			return this.groupView.titleHeight.offset;
-		}
-
-		// Without tabs or empty group: use entire editor area as drop target
-		return 0;
+		return getDropAreaOffsetHeight(this.groupView);
 	}
 
 	private hideOverlay(): void {
@@ -572,7 +707,13 @@ class DropOverlay extends Themable {
 		return element === this.container || element === this.overlay;
 	}
 
+	get groupElement(): HTMLElement {
+		return this.groupView.element;
+	}
+
 	override dispose(): void {
+		dropOverlays.delete(this);
+
 		super.dispose();
 
 		this._disposed = true;
@@ -613,6 +754,7 @@ export class EditorDropTarget extends Themable {
 	private registerListeners(): void {
 		this._register(addDisposableListener(this.container, EventType.DRAG_ENTER, e => this.onDragEnter(e)));
 		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.onDragLeave()));
+		this._register(addDisposableListener(this.container, EventType.DRAG_OVER, e => this.onDragOverContent(e), true /* before the content handles it */));
 		for (const target of [this.container, getWindow(this.container)]) {
 			this._register(addDisposableListener(target, EventType.DRAG_END, () => this.onDragEnd()));
 		}
@@ -625,11 +767,18 @@ export class EditorDropTarget extends Themable {
 
 		this.counter++;
 
+		// Inputs registered as drop targets handle the drop themselves, except
+		// for groups, and so does content that handles drops, except for
+		// editors and groups, which split the group
 		const targetElement = isHTMLElement(event.target) ? event.target : undefined;
-		const targetGroupElement = (targetElement && this.findTargetGroupView(targetElement)?.element) ?? this.container;
-		if (!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) && targetElement && isInputDropTarget(targetElement, event, targetGroupElement)) {
+		const scope = (targetElement && this.findTargetGroupView(targetElement)?.element) ?? this.container;
+		if (isInputDropTargetEvent(event, scope, this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype))) {
 			this.disposeOverlay();
 			this.updateContainer(false);
+			return;
+		}
+		if (isContentDropTargetEvent(event, scope) && !this.splitsOverContent(event)) {
+			this.disposeOverlay();
 			return;
 		}
 
@@ -667,13 +816,68 @@ export class EditorDropTarget extends Themable {
 			}
 
 			// Create overlay over target
-			if (!this.overlay) {
-				const targetGroupView = this.findTargetGroupView(target);
-				if (targetGroupView) {
-					this._overlay = this.instantiationService.createInstance(DropOverlay, targetGroupView, this.delegate.supportsSplitting !== false);
-				}
+			this.createOverlay(target);
+		}
+	}
+
+	private createOverlay(target: HTMLElement): void {
+		if (!this.overlay) {
+			const targetGroupView = this.findTargetGroupView(target);
+			if (targetGroupView) {
+				this._overlay = this.instantiationService.createInstance(DropOverlay, targetGroupView, this.delegate.supportsSplitting !== false);
 			}
 		}
+	}
+
+	/**
+	 * Over content that handles drops, a drag moves without entering new
+	 * elements, so the overlay shows from here for an editor or a group,
+	 * which splits the group.
+	 */
+	private onDragOverContent(event: DragEvent): void {
+		const scope = isHTMLElement(event.target) ? this.findTargetGroupView(event.target)?.element : undefined;
+		if (
+			!this.groupsView.partOptions.allowDropIntoGroup ||
+			!isHTMLElement(event.target) ||
+			!scope ||
+			isInputDropTargetEvent(event, scope, this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) ||
+			!isContentDropTargetEvent(event, scope) ||
+			!this.splitsOverContent(event)
+		) {
+			return;
+		}
+
+		if (!this.overlay) {
+			this.updateContainer(true);
+			this.createOverlay(event.target);
+		}
+
+		// The overlay shows for this drag already, and the content under it
+		// does not show its own drop feedback for it
+		const overlay = this._overlay;
+		if (overlay && !overlay.disposed) {
+			overlay.update(event);
+			EventHelper.stop(event, true);
+		}
+	}
+
+	/**
+	 * Whether a drag over content that handles drops splits the group under it:
+	 * editors and groups do, anywhere, where splitting is enabled.
+	 */
+	private splitsOverContent(event: DragEvent): boolean {
+		const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
+		if (!isDraggingGroup && !this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+			return false;
+		}
+
+		const groupView = isHTMLElement(event.target) ? this.findTargetGroupView(event.target) : undefined;
+		if (!groupView) {
+			return false;
+		}
+
+		// Over content that handles drops, editors and groups split the group anywhere: they cannot go into it
+		return isSplittingEnabled(event, groupView, this.delegate.supportsSplitting !== false);
 	}
 
 	private onDragLeave(): void {

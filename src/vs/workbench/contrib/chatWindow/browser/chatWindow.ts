@@ -8,6 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
 import { IGridEdgeInsets } from '../../../browser/parts/partGrid/partGridGap.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -40,7 +41,28 @@ export interface IChatWindowOpenOptions {
 	 * that shows terminals fills (see {@link IChatWindow.getOrCreateTerminalsPart}). It hides while it has none.
 	 */
 	readonly showTerminals?: boolean;
+	/** Where on the screen a new window opens, such as where a chat was dragged to; a window that shows already stays. */
+	readonly bounds?: Partial<IRectangle>;
+	/** The groups its chat part starts with besides the chat's own, such as editors split beside the chat, as it opens again. */
+	readonly chatPart?: IChatWindowChatPart;
+	/**
+	 * The parts besides its main part it starts with, such as those created for editors dropped on its edges, as it opens
+	 * again: each with its editors, at the edge of the window where such parts go as its parts are arranged.
+	 */
+	readonly createdParts?: readonly IChatWindowEditors[];
 }
+
+/**
+ * The groups of a chat window's chat part besides the chat's own, such as an editor split beside the chat, with their
+ * editors: the state of the part, which leaves out the chat, and where the chat goes in it.
+ */
+export interface IChatWindowChatPart {
+	/** The state of the part, from {@link IContentPart.createState}. */
+	readonly state: unknown;
+	/** The index of the chat's group among the groups of the part, in the order they appear in. */
+	readonly chatGroup: number;
+}
+
 
 /**
  * The content facet: what a chat window shows for a chat, resolved once per window by its provider. Disposed when the
@@ -152,6 +174,11 @@ export interface IChatWindow {
 	readonly mainPart: IContentPart;
 	/** The part that shows the chat. */
 	readonly chatPart: IEditorPart;
+	/**
+	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
+	 * chat can move into another part of the window, and parts can move, such as when dragged.
+	 */
+	readonly chatLeads: IObservable<boolean>;
 	/**
 	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
 	 * a part like the others: what it shows is what the feature that shows terminals opens in it.
