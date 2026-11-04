@@ -620,9 +620,44 @@ export class VisibleSessions extends Disposable {
 	}
 
 	private _updateWindowChats(sessionId: string, transaction?: ITransaction): void {
-		this._wrappers.get(sessionId)?.setWindowChats(new Set(
-			[...this._windowSessionsByChat].filter(([, wrapper]) => wrapper.sessionId === sessionId).map(([key]) => key)
-		), transaction);
+		this._wrappers.get(sessionId)?.setWindowChats(new Set([
+			...[...this._windowSessionsByChat].filter(([, wrapper]) => wrapper.sessionId === sessionId).map(([key]) => key),
+			...[...this._hiddenChats].filter(([, hidden]) => hidden.sessionId === sessionId).map(([key]) => key),
+		]), transaction);
+	}
+
+	/** Chats another host shows, such as a chat window, by chat resource: the grid does not show them. */
+	private readonly _hiddenChats = new Map<string, { readonly sessionId: string; count: number }>();
+
+	/**
+	 * Hides `chat` of the session `sessionId` from the grid while the returned disposable is not disposed, such as while a
+	 * chat window shows it: its tab does not show in the session's slot. Holds may overlap; the chat shows again once all
+	 * are released.
+	 */
+	hideChatFromGrid(sessionId: string, chatResource: URI): IDisposable {
+		const key = chatResource.toString();
+		const hidden = this._hiddenChats.get(key);
+		if (hidden?.sessionId === sessionId) {
+			hidden.count++;
+		} else {
+			this._hiddenChats.set(key, { sessionId, count: 1 });
+		}
+		this._updateWindowChats(sessionId);
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			const current = this._hiddenChats.get(key);
+			if (current?.sessionId !== sessionId) {
+				return;
+			}
+			if (--current.count === 0) {
+				this._hiddenChats.delete(key);
+			}
+			this._updateWindowChats(sessionId);
+		});
 	}
 
 	private _updateDetachedChats(sessionId: string, transaction?: ITransaction): void {

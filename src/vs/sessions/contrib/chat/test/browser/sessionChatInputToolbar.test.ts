@@ -180,7 +180,7 @@ suite('SessionChatInputToolbar', () => {
 				return undefined;
 			},
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, main);
 		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
@@ -199,16 +199,16 @@ suite('SessionChatInputToolbar', () => {
 		};
 	}
 
-	test('a chat shown in a window of its own resolves to the session of that window, though the main window shows another chat of its session', () => {
+	test('a chat resolves to the session of the pane that hosts it, such as a chat editor\'s session scoped to its chat, though the main window shows another chat of its session', () => {
 		const inMainWindow = upcastPartial<IChat>({ resource: URI.parse('chat:main') });
 		const inChatWindow = upcastPartial<IChat>({ resource: URI.parse('chat:window') });
 		const gridSession = upcastPartial<IActiveSession>({ sessionId: 'grid', chats: constObservable([inMainWindow, inChatWindow]) });
-		const windowSession = upcastPartial<IActiveSession>({ sessionId: 'window', scopedChatResource: inChatWindow.resource, chats: constObservable([inMainWindow, inChatWindow]) });
-		const sessionsService = { visibleSessions: constObservable([gridSession]), windowSessions: constObservable([windowSession]), activeSession: constObservable(gridSession) };
+		const editorSession = upcastPartial<IActiveSession>({ sessionId: 'editor', scopedChatResource: inChatWindow.resource, chats: constObservable([inMainWindow, inChatWindow]) });
+		const sessionsService = { visibleSessions: constObservable([gridSession]), activeSession: constObservable(gridSession) };
 		assert.deepStrictEqual({
-			chatWindow: findSessionOfChat(sessionsService, inChatWindow.resource, undefined)?.sessionId,
-			mainWindow: findSessionOfChat(sessionsService, inMainWindow.resource, undefined)?.sessionId,
-		}, { chatWindow: 'window', mainWindow: 'grid' });
+			inPane: findSessionOfChat(editorSession, sessionsService, inChatWindow.resource, undefined)?.sessionId,
+			withoutPane: findSessionOfChat(undefined, sessionsService, inMainWindow.resource, undefined)?.sessionId,
+		}, { inPane: 'editor', withoutPane: 'grid' });
 	});
 
 	test('activity bar retains PR availability without repeating opener checks on metadata refresh', async () => {
@@ -527,7 +527,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('keeps copied feedback stable across section refreshes', async () => {
 		const { instantiationService } = createServices();
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		const cache = Reflect.get(toolbar, '_issueCopyActions') as {
 			get(key: string, label: string, copy: () => Promise<void>): IAction;
 			retain(keys: ReadonlySet<string>): void;
@@ -847,7 +847,7 @@ suite('SessionChatInputToolbar', () => {
 						return undefined;
 					},
 				}));
-				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 				toolbar.setSession(session, chat);
 				for (const currentWorktree of [worktree, !worktree]) {
 					workspace.set(createWorkspace(currentWorktree), undefined);
@@ -941,7 +941,7 @@ suite('SessionChatInputToolbar', () => {
 					return undefined;
 				},
 			}));
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 			toolbar.setSession(session, chat);
 			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
 			assert.ok(pill);
@@ -1024,7 +1024,7 @@ suite('SessionChatInputToolbar', () => {
 			},
 		}));
 		const clickPill = (chat: IChat) => {
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 			toolbar.setSession(session, chat);
 			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
 			assert.ok(pill);
@@ -1738,7 +1738,7 @@ suite('SessionChatInputToolbar', () => {
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 		});
 		visibility.toggle(SessionChatPillKind.Subagents);
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		const read = () => ({
 			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label, .changes-stats-files')).map(label => label.textContent),
 			visible: toolbar.visible,
@@ -1811,7 +1811,7 @@ suite('SessionChatInputToolbar', () => {
 			chats,
 			workspace,
 		});
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		document.body.appendChild(toolbar.element);
 		store.add(toDisposable(() => toolbar.element.remove()));
 		toolbar.setSession(session, chat);
@@ -1874,7 +1874,7 @@ suite('SessionChatInputToolbar', () => {
 			chats: constObservable([chat]),
 			workspace,
 		});
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().map(shell => shell.description);
 		const running = labels();
@@ -1957,7 +1957,7 @@ suite('SessionChatInputToolbar', () => {
 			chats: constObservable([chat]),
 			workspace,
 		});
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		document.body.appendChild(toolbar.element);
 		store.add(toDisposable(() => toolbar.element.remove()));
 		toolbar.setSession(session, chat);
@@ -2065,7 +2065,7 @@ suite('SessionChatInputToolbar', () => {
 					chats: constObservable([chat, ...subagents]),
 					workspace,
 				});
-				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 				document.body.appendChild(toolbar.element);
 				store.add(toDisposable(() => toolbar.element.remove()));
 				toolbar.setSession(session, chat);
@@ -2365,7 +2365,7 @@ suite('SessionChatInputToolbar', () => {
 				refresh: async () => { }, startPolling: () => toDisposable(() => { }),
 			})),
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const presentation = () => {
 			const pill = toolbar.element.querySelector('.chat-dropdown-pill-button');
@@ -2424,7 +2424,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const presentation = () => ({
 			labels: [...toolbar.element.querySelectorAll('.chat-dropdown-pill-button')].map(pill => pill.getAttribute('aria-label')),
@@ -2510,7 +2510,7 @@ suite('SessionChatInputToolbar', () => {
 				}));
 				let menu: readonly IAction[] = [];
 				instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 				toolbar.setSession(session, chat);
 				const initialModelReferenceCalls = modelReferenceCalls;
 				const recordedEntries = artifacts.get();
@@ -2609,7 +2609,7 @@ suite('SessionChatInputToolbar', () => {
 				artifacts.set(artifacts.get().filter(record => record.id !== id), undefined);
 			},
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 		await timeout(0);
 		const initial = {
@@ -2718,7 +2718,7 @@ suite('SessionChatInputToolbar', () => {
 				}),
 			})),
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		host.appendChild(toolbar.element);
 		toolbar.setSession(session, chat);
 		await timeout(0);
@@ -2793,7 +2793,7 @@ suite('SessionChatInputToolbar', () => {
 		let opened = 0;
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => { opened++; return undefined; } }));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
@@ -2881,7 +2881,7 @@ suite('SessionChatInputToolbar', () => {
 		const opened: string[] = [];
 		instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({ open: async resource => { opened.push(resource.toString()); return true; } }));
 		artifacts.set([records[0]], undefined);
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		host.appendChild(toolbar.element);
 		toolbar.setSession(session, chat);
 		await timeout(0);
@@ -2976,7 +2976,7 @@ suite('SessionChatInputToolbar', () => {
 				}]), mainChat: constObservable(main), chats: constObservable([main, peer]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 			const pill = () => toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
 			toolbar.setSession(session, main);
 			const mainPill = pill();
@@ -3034,7 +3034,7 @@ suite('SessionChatInputToolbar', () => {
 				mainChat: constObservable(main), chats: constObservable([main, peer]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 			store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 			const activityBarLabels: (string | null)[] = [];
 			const pill = () => {
@@ -3119,7 +3119,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const removal = () => {
 			const target = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
@@ -3202,7 +3202,7 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 		toolbar.setSession(session, chat);
 
 		const pills = Array.from(toolbar.element.querySelectorAll<HTMLElement>(

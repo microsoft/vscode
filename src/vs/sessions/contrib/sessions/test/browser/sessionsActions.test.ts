@@ -14,7 +14,7 @@ import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
@@ -32,6 +32,7 @@ import { KeybindingResolver, ResultKind } from '../../../../../platform/keybindi
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -61,14 +62,16 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -804,28 +807,28 @@ suite('Sessions - Actions', () => {
 			title: 'Pin',
 			group: 'navigation',
 			order: 10,
-			when: 'sessionIsCreated && sessionIsSticky && !sessionHeaderShowsChat && !sessionIsArchived',
+			when: 'sessionIsCreated && sessionIsSticky && !sessionHeaderShowsChat && !sessionInChatEditor && !sessionIsArchived',
 			toggled: 'sessionIsSticky',
 		}, {
 			id: TOGGLE_PIN_SESSION_COMMAND_ID,
 			title: 'Pin',
 			group: 'secondary/2_organize',
 			order: 10,
-			when: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived',
+			when: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionInChatEditor && !sessionIsArchived',
 			toggled: 'sessionIsSticky',
 		}, {
 			id: TOGGLE_PIN_CHAT_COMMAND_ID,
 			title: 'Pin',
 			group: 'navigation',
 			order: 10,
-			when: 'sessionHeaderActiveChatIsPinned && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+			when: 'sessionHeaderActiveChatIsPinned && sessionHeaderShowsChat && sessionIsCreated && !sessionInChatEditor && !sessionIsArchived',
 			toggled: 'sessionHeaderActiveChatIsPinned',
 		}, {
 			id: TOGGLE_PIN_CHAT_COMMAND_ID,
 			title: 'Pin',
 			group: 'secondary/2_organize',
 			order: 10,
-			when: 'sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+			when: 'sessionHeaderShowsChat && sessionIsCreated && !sessionInChatEditor && !sessionIsArchived',
 			toggled: 'sessionHeaderActiveChatIsPinned',
 		}]);
 	});
@@ -1022,11 +1025,93 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	test('the commands of the main window\'s grid are not enabled in a chat window, and do nothing while a chat window is the focused host, rather than act on the main window\'s grid', async () => {
+		const active = createTestActiveSession('main');
+		const calls: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(active);
+			override readonly mainWindowActiveSession = this.activeSession;
+			override setActive() { calls.push('setActive'); }
+			override arrangeSessions() { calls.push('arrange'); }
+			override focusSessionInDirection() { calls.push('focus'); }
+			override moveSessionInDirection() { calls.push('move'); }
+			override resizeSession() { calls.push('resize'); }
+			override async detachChat() { calls.push('detach'); }
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView() { calls.push('view'); return undefined; }
+			override getSessionAtPosition() { calls.push('position'); return undefined; }
+			override focusSession() { calls.push('focusSession'); }
+			override toggleMaximizeSession() { calls.push('maximize'); }
+		});
+		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow }) }));
+		const ids = [
+			FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID,
+			MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, DETACH_CHAT_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID,
+			SESSION_GRID_FOCUS_COMMANDS.left, 'sessions.moveSessionLeft', 'sessions.narrowSession', 'sessions.chatCompositeBar.toggleMaximize', 'sessions.focusSessionInGrid1',
+		];
+		for (const id of ids) {
+			await CommandsRegistry.getCommand(id)!.handler(instantiationService);
+		}
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		ChatContextKeys.enabled.bindTo(context).set(true);
+		SessionIsCreatedContext.bindTo(context).set(true);
+		SessionActiveChatIsClosableContext.bindTo(context).set(true);
+		MultipleSessionsVisibleContext.bindTo(context).set(true);
+		IsAuxiliaryWindowContext.bindTo(context).set(true);
+		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem);
+		const enabledInChatWindow = ids.filter(id => context.contextMatchesRules(palette.find(item => item.command.id === id)?.command.precondition));
+
+		assert.deepStrictEqual({ calls, enabledInChatWindow }, { calls: [], enabledInChatWindow: [] });
+	});
+
+	test('the header of a chat editor closes the chat\'s editor, and leaves the main window\'s grid alone, which shows the same session: Close and Close Session close the editor; Pin, which pins in the grid, does not show and does nothing', async () => {
+		const { session } = createTestSession('editor');
+		const chat: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/in-editor') };
+		const editorSession = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(chat), scopedChatResource: chat.resource });
+		const calls: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(createTestActiveSession('grid'));
+			override async closeChat() { calls.push('grid closeChat'); }
+			override closeSession() { calls.push('grid closeSession'); }
+			override toggleSessionStickiness() { calls.push('grid pin'); }
+		});
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView() { return undefined; }
+			override focusSession() { calls.push('grid focus'); }
+		});
+		const opener = new ChatHostOpenerService();
+		disposables.add(opener.register({
+			showsChat: shown => isEqual(shown, chat.resource),
+			reveal: async () => { },
+			openBeside: async () => { },
+			close: async closed => { calls.push(`editor close ${closed.path}`); },
+		}));
+		instantiationService.stub(IChatHostOpenerService, opener);
+
+		for (const id of [CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID]) {
+			await CommandsRegistry.getCommand(id)!.handler(instantiationService, editorSession);
+		}
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		SessionIsCreatedContext.bindTo(context).set(true);
+		SessionInChatEditorContext.bindTo(context).set(true);
+		const shownPins = SessionHeaderMenus.flatMap(menu => MenuRegistry.getMenuItems(menu).filter(isIMenuItem))
+			.filter(item => (item.command.id === TOGGLE_PIN_SESSION_COMMAND_ID || item.command.id === TOGGLE_PIN_CHAT_COMMAND_ID) && context.contextMatchesRules(item.when));
+
+		assert.deepStrictEqual({ calls, shownPins: shownPins.length }, { calls: ['editor close /in-editor', 'editor close /in-editor'], shownPins: 0 });
+	});
+
 	test('the Detach Chat command is keyboard-discoverable and detaches the active child', async () => {
 		const { session } = createTestSession('detach-child');
 		const child: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/child') };
 		const active = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(child) });
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow }) }));
 		const calls: { session: IActiveSession; resource: string }[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(active);
@@ -1071,6 +1156,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'parent' }, { id: 'other' }, { id: 'child', placement: { reference: 'other', direction: Direction.Left } },
 		]);
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow }) }));
 		const selected: (string | undefined)[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override setActive(session: IActiveSession | undefined): void {
@@ -1375,6 +1461,7 @@ suite('Sessions - Actions', () => {
 
 	test('closes the chat supplied by a tab or represented by a chat group header', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 		const { session } = createTestSession('close-header-chat');
 		const mainChat = session.mainChat.get();
 		const headerChat: IChat = {
@@ -1438,6 +1525,7 @@ suite('Sessions - Actions', () => {
 	] as const) {
 		test(`removes an untitled chat group only when deletion ${scenario.name}`, async () => {
 			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 			const { session } = createTestSession(`close-untitled-${scenario.name}`);
 			const untitledChat: IChat = {
 				...session.mainChat.get(),

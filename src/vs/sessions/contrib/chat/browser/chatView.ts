@@ -685,7 +685,7 @@ export class ChatView extends AbstractChatView {
 		}));
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {

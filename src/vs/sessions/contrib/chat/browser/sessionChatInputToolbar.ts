@@ -441,7 +441,7 @@ export class SessionChatInputToolbar extends Disposable {
 		if (!chat) {
 			return undefined;
 		}
-		return findSessionOfChat(this._sessionsService, chat.resource, reader);
+		return findSessionOfChat(this._paneSession?.read(reader), this._sessionsService, chat.resource, reader);
 	});
 
 	/**
@@ -463,6 +463,8 @@ export class SessionChatInputToolbar extends Disposable {
 	constructor(
 		compact: ChatPillsCompactMode,
 		focusFallback: (() => void) | undefined,
+		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
+		private readonly _paneSession: IObservable<IActiveSession | undefined> | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -852,10 +854,9 @@ export class SessionChatInputToolbar extends Disposable {
  * sessions the main window shows list all chats of their session, including those shown in other windows; then the
  * sessions the main window shows, then the active session.
  */
-export function findSessionOfChat(sessionsService: Pick<ISessionsService, 'visibleSessions' | 'windowSessions' | 'activeSession'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
-	const windowSession = sessionsService.windowSessions.read(reader).find(session => isEqual(session.scopedChatResource, chatResource));
-	if (windowSession) {
-		return windowSession;
+export function findSessionOfChat(paneSession: IActiveSession | undefined, sessionsService: Pick<ISessionsService, 'visibleSessions' | 'activeSession'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
+	if (paneSession?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
+		return paneSession;
 	}
 	for (const session of sessionsService.visibleSessions.read(reader)) {
 		if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {

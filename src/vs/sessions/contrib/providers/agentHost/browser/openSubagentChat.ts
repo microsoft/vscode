@@ -19,7 +19,8 @@ import { fillSessionChatDragData } from '../../../../browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
@@ -36,10 +37,10 @@ function chatIdFromResource(resource: string): string | undefined {
 type SubagentChatTarget = Pick<IOpenSubagentChatContext, 'chatResource' | 'parentSessionResource'>;
 
 /** Maps a session's chat to the backend chat the host recorded for it. */
-type BackendChatResolver = (session: IActiveSession, chat: IChat) => URI | undefined;
+type BackendChatResolver = (session: IHostSession, chat: IChat) => URI | undefined;
 
 interface ISubagentChatMatch {
-	readonly session: IActiveSession;
+	readonly session: IHostSession;
 	readonly chat: IChat;
 	readonly order: number;
 }
@@ -74,12 +75,12 @@ class SubagentChatIndex {
 	}
 }
 
-function createSubagentChatLookup(sessionsService: ISessionsService, backendChatOf: BackendChatResolver, reader: IReader): (target: SubagentChatTarget) => ISubagentChatMatch | undefined {
+function createSubagentChatLookup(sessionsService: ISessionsService, sessionHostService: ISessionHostService, backendChatOf: BackendChatResolver, reader: IReader): (target: SubagentChatTarget) => ISubagentChatMatch | undefined {
 	const allChats = new SubagentChatIndex(0);
 	const bySession = new ResourceMap<SubagentChatIndex>();
 	const byLegacyPath = new Map<string, SubagentChatIndex>();
-	// Chat windows too, such as for a link in a chat window that is not the active session.
-	const sessions = [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader), ...sessionsService.windowSessions.read(reader)];
+	// The sessions other hosts show too, such as of a link in a chat window's chat.
+	const sessions: (IHostSession | undefined)[] = [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader), ...sessionHostService.hosts.read(reader).map(host => host.session.read(reader))];
 	let order = 0;
 	for (const session of sessions) {
 		if (!session || bySession.has(session.resource)) {
@@ -121,6 +122,7 @@ export class OpenSubagentChatActionViewItemContribution extends Disposable imple
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ILogService logService: ILogService,
 	) {
@@ -129,7 +131,7 @@ export class OpenSubagentChatActionViewItemContribution extends Disposable imple
 			const provider = sessionsProvidersService.getProvider(session.providerId);
 			return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 		};
-		const findSubagentChat = derived(this, reader => createSubagentChatLookup(sessionsService, backendChatOf, reader));
+		const findSubagentChat = derived(this, reader => createSubagentChatLookup(sessionsService, sessionHostService, backendChatOf, reader));
 		this._register(subagentChatOpenerRegistry.register({
 			open: async context => {
 				const resource = context.chatResource;

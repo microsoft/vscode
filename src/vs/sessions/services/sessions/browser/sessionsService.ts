@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { distinct } from '../../../../base/common/arrays.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -31,6 +32,7 @@ import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSession, VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
+import { IChatHostOpenerService } from './chatHostOpener.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
@@ -349,6 +351,12 @@ export interface ISessionsService {
 	openSessionsInGrid(sessions: readonly ISession[]): Promise<void>;
 	/** Opens exact chats, including multiple chats of one session, in a tiled grid. */
 	openChatsInGrid(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void>;
+	/**
+	 * Shows chats that move into the main window, such as those of a chat window: the first one as the active chat, the
+	 * other chats of its session beside it, and the sessions of the others beside its session, keeping those the grid
+	 * already shows. Only the session of the first one becomes active.
+	 */
+	openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void>;
 	arrangeSessions(): void;
 	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
 	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
@@ -405,6 +413,14 @@ export interface ISessionsService {
 	 * `false`. {@link closeSession} stops showing it, which closes its window.
 	 */
 	showSessionInWindow(session: ISession, options?: IShowSessionInWindowOptions): IActiveSession;
+
+	/**
+	 * Hides `chat` of `session` from the grid while the returned disposable is not disposed, such as while a chat window
+	 * shows it: its tab leaves the session's slot, and the session leaves the grid when that was the only chat it showed
+	 * there. Releasing it does not show the chat in the grid again. Idempotent, and safe whichever ends first, the hold or
+	 * the session.
+	 */
+	hideChatFromGrid(session: ISession, chat: URI): IDisposable;
 
 	/** Submit the live input in the active new-session composer. */
 	submitNewSessionInput(): Promise<boolean>;
@@ -506,6 +522,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
+		@IChatHostOpenerService private readonly chatHostOpenerService: IChatHostOpenerService,
 	) {
 		super();
 
@@ -1085,6 +1102,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 			session = resolved.session;
 			chatUri = resolved.chatUri ?? chatUri;
+			// A chat that another surface shows, such as a chat window, is revealed there, not shown in the grid.
+			const opener = this.chatHostOpenerService.getOpenerOf(chatUri);
+			if (opener) {
+				navigation.complete();
+				await opener.reveal(chatUri, { preserveFocus: options?.preserveFocus });
+				return;
+			}
 			if (options?.source) {
 				await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
 					this.sessionOpenTelemetryService.sessionResolved(
@@ -1166,6 +1190,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+		// A chat another surface shows, such as a chat editor, closes there: the grid does not show it.
+		const shownBy = this.chatHostOpenerService.getOpenerOf(chat.resource);
+		if (shownBy) {
+			await shownBy.close(chat.resource);
+			return;
+		}
 		this._cancelRestore();
 		this._startOpenSession();
 		// Closing hides the chat from the tab strip; it stays reopenable from the
@@ -1565,6 +1595,42 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._openGrid(chats);
 	}
 
+	async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void> {
+		const [first, ...others] = chats;
+		if (!first) {
+			return;
+		}
+		await this.openChat(first.session, first.chatResource);
+		const ofOtherSessions: { readonly session: ISession; readonly chatResource: URI }[] = [];
+		for (const other of others) {
+			if (other.session.sessionId === first.session.sessionId) {
+				await this.openChatToSide(first.session, other.chatResource, { preserveFocus: true, referenceChatResource: first.chatResource });
+			} else {
+				ofOtherSessions.push(other);
+			}
+		}
+		// Placed without activating them: each would otherwise become the active session in turn.
+		const toPlace = distinct(ofOtherSessions.map(other => other.session), session => session.sessionId).filter(session => !this._visibility.getSlot(session.sessionId));
+		if (toPlace.length) {
+			await this.openSessionsAt(toPlace, first.session.sessionId, 'right', { activate: false, preserveFocus: true });
+		}
+		// Each moved chat shows as a tab of its session, and stays so, such as a closed chat or a subagent the main window
+		// never showed; the first moved chat of each other session is its active chat.
+		const activeChatSet = new Set<string>();
+		for (const moved of chats) {
+			const chat = moved.session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, moved.chatResource));
+			if (!chat || !this._visibility.getSlot(moved.session.sessionId)) {
+				continue;
+			}
+			this._visibility.openChat(moved.session, chat);
+			this._setChatVisibilityState(moved.session, chat, true);
+			if (moved.session.sessionId !== first.session.sessionId && !activeChatSet.has(moved.session.sessionId)) {
+				activeChatSet.add(moved.session.sessionId);
+				this._visibility.setActiveChat(moved.session, chat);
+			}
+		}
+	}
+
 	private async _openGrid(targets: readonly { readonly session: ISession; readonly chatResource?: URI }[]): Promise<void> {
 		this._cancelRestore();
 		this._beginNavigation('explicit');
@@ -1670,6 +1736,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
+		// A chat another surface shows, such as a chat window, is revealed there; a subagent chat opens beside its reference
+		// chat where that surface shows it.
+		const shownBy = this.chatHostOpenerService.getOpenerOf(chatResource);
+		if (shownBy) {
+			await shownBy.reveal(chatResource, options);
+			return;
+		}
+		const reference = options?.referenceChatResource;
+		const referenceShownBy = reference && this.chatHostOpenerService.getOpenerOf(reference);
+		if (reference && referenceShownBy && session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatResource))?.origin?.kind === ChatOriginKind.Tool) {
+			await referenceShownBy.openBeside(chatResource, reference, options);
+			return;
+		}
 		const windowSession = this._getSubagentWindowSession(session, chatResource, options?.referenceChatResource);
 		if (windowSession) {
 			this._activate(windowSession, options?.preserveFocus, 'explicit');
@@ -2019,6 +2098,24 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
+		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
+		// The session leaves the grid too when that was the only chat it shows there.
+		const gridSessions = this._visibility.gridSessions.get().filter(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const onlyChat = gridSessions.every(candidate => candidate!.openChats.get().every(openChat => this.uriIdentityService.extUri.isEqual(openChat.resource, chat)));
+		if (gridSessions.length && onlyChat) {
+			this._cancelRestore();
+			this._startOpenSession();
+			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
+			this._visibility.removeMany([session.sessionId]);
+			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
+				// The grid shows the new-session composer instead, without taking focus from the window.
+				this._visibility.setActive(undefined, true);
+			}
+		}
+		return hold;
+	}
+
 	showSessionInWindow(session: ISession, options?: IShowSessionInWindowOptions): IActiveSession {
 		const gridSession = this._visibility.gridSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
 		const chatResource = options?.chatResource ?? gridSession?.activeChat.get().resource;
@@ -2048,6 +2145,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	closeSession(session: ISession | undefined): void {
+		// The session of a chat another surface shows, such as a chat editor's, closes there, not in the grid.
+		const scopedChat = (session as Partial<IActiveSession> | undefined)?.scopedChatResource;
+		const shownBy = scopedChat && this.chatHostOpenerService.getOpenerOf(scopedChat);
+		if (shownBy) {
+			void shownBy.close(scopedChat).catch(onUnexpectedError);
+			return;
+		}
 		// Closing the session of another window leaves alone what the main window is opening.
 		const windowSession = this._visibility.isWindowSession(session) ? session
 			: session && !this._visibility.visibleSessions.get().some(candidate => candidate?.sessionId === session.sessionId) ? this._visibility.getWindowSession(session.sessionId) : undefined;

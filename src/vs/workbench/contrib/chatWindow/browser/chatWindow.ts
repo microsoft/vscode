@@ -41,6 +41,8 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
+	readonly beside?: URI;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
 	/**
@@ -159,7 +161,7 @@ export interface IChatWindowProvider {
 	resolveContent(chat: URI): Promise<IChatWindowContent | undefined>;
 	readonly chrome?: IChatWindowChrome;
 	readonly look: IChatWindowLook;
-	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed. */
+	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed; the first is the one that was active there. */
 	moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void>;
 	/**
 	 * Whether a chat window of `chat` that was open when the window last closed opens again, waiting as long as it needs

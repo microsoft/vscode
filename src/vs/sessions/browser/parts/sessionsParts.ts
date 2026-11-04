@@ -133,6 +133,17 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 				return windowView;
 			}
 		}
+		if (typeof session === 'object') {
+			const shown = this._mainPart.getViewOfSession(session);
+			if (shown) {
+				return shown;
+			}
+			// A session scoped to a chat that no part shows a view of, such as one of a chat window's editors: none, not the
+			// main window's view of another chat of its session.
+			if ((session as Partial<IActiveSession>).scopedChatResource) {
+				return undefined;
+			}
+		}
 		const sessionId = typeof session === 'object' ? session.sessionId : session;
 		return this._mainPart.getSessionView(sessionId)
 			?? (sessionId !== undefined ? this._getWindowView(candidate => candidate.sessionId === sessionId) : undefined);

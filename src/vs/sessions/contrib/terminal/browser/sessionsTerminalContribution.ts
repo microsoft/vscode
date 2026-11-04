@@ -981,6 +981,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
+	getChatWindowTerminalOwner(instance: ITerminalInstance): string | undefined {
+		for (const [sessionId, terminalIds] of this._sessionTerminals) {
+			if (terminalIds.has(instance.instanceId)) {
+				return sessionId;
+			}
+		}
+		return undefined;
+	}
+
 	trackChatWindowTerminal(session: ISession, instance: ITerminalInstance): void {
 		this.setShownInChatWindow(instance, true);
 		if (instance.isDisposed || this._sessionTerminals.get(session.sessionId)?.has(instance.instanceId)) {

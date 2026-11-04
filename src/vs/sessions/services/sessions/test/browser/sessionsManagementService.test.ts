@@ -79,6 +79,7 @@ import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayou
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../browser/chatHostOpener.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -390,13 +391,19 @@ function createView(
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeActiveWindow = onDidChangeActiveWindow.event;
 	}());
+	const chatHostOpenerService = new ChatHostOpenerService();
+	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
 	const view = disposables.add(instantiationService.createInstance(SessionsService));
 	activeWindowChanges.set(view, onDidChangeActiveWindow);
+	chatHostOpeners.set(view, chatHostOpenerService);
 	return view;
 }
 
 /** Makes a window the active one, for the {@link SessionsService} {@link createView} built. */
 const activeWindowChanges = new WeakMap<SessionsService, Emitter<number>>();
+
+/** Where chats another surface shows open and close, for the {@link SessionsService} {@link createView} built. */
+const chatHostOpeners = new WeakMap<SessionsService, IChatHostOpenerService>();
 
 suite('SessionsManagementService', () => {
 
@@ -1870,6 +1877,18 @@ suite('SessionsManagementService', () => {
 			await view.openSessionsAt([b, c], 'a', 'down', { activate: 'last' });
 			assert.deepStrictEqual({ background, active: view.activeSession.get()?.sessionId, visible: view.visibleSessions.get().map(session => session?.sessionId) },
 				{ background: 'a', active: 'c', visible: ['a', 'b', 'c'] });
+		});
+
+		test('chats that move into the main window show there: the session of the first one active, the sessions of the others beside it, without each becoming active in turn', async () => {
+			const [a, b, c] = ['a', 'b', 'c'].map(created);
+			const { view } = harness([a, b, c]);
+			await view.openSession(a.resource);
+			const activated: (string | undefined)[] = [];
+			disposables.add(autorun(reader => activated.push(view.activeSession.read(reader)?.sessionId)));
+
+			await view.openMovedChats([b, c].map(session => ({ session, chatResource: session.mainChat.get().resource })));
+
+			assert.deepStrictEqual({ activated, visible: view.visibleSessions.get().map(session => session?.sessionId) }, { activated: ['a', 'b'], visible: ['b', 'c'] });
 		});
 
 		test('reopening uses ordinary replacement after the recorded neighbor leaves', async () => {
@@ -8632,6 +8651,55 @@ suite('SessionsManagementService', () => {
 				activeChat: 'subagentA',
 				visibleTabs: ['mainA', 'subagentA'],
 			});
+		});
+
+		test('chats that move into the main window from a chat window show as tabs of their sessions, also a closed one and a subagent the main window never showed; only the session of the first one becomes active, and they stay so as their session shows again', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat), chat('subagentB', SessionStatus.Completed, ChatOriginKind.Tool)]);
+			const [mainB, peerB, subagentB] = sessionB.chats.get();
+			const { view } = setup([sessionA, sessionB]);
+			// The peer of B was closed in the main window before; its subagent opened beside it in a chat window only.
+			await view.openSession(sessionB.resource);
+			await view.openChat(sessionB, peerB.resource);
+			await view.closeChat(view.activeSession.get()!, peerB);
+			await view.openSession(sessionA.resource);
+			const tabsOf = (sessionId: string) => view.visibleSessions.get().find(session => session?.sessionId === sessionId)?.visibleChatTabs.get().map(chat => chat.title.get());
+
+			await view.openMovedChats([{ session: sessionA, chatResource: sessionA.mainChat.get().resource }, { session: sessionB, chatResource: peerB.resource }, { session: sessionB, chatResource: subagentB.resource }]);
+			const moved = { active: view.activeSession.get()?.sessionId, tabsOfB: tabsOf('B'), activeChatOfB: view.visibleSessions.get().find(session => session?.sessionId === 'B')?.activeChat.get().title.get() };
+			// Its session shows again, as after a reload: from what was remembered of it.
+			view.closeSession(view.visibleSessions.get().find(session => session?.sessionId === 'B'));
+			await view.openSession(sessionB.resource);
+
+			assert.deepStrictEqual({ moved, again: tabsOf('B'), mainB: mainB.title.get() }, {
+				moved: { active: 'A', tabsOfB: ['mainB', 'peerB', 'subagentB'], activeChatOfB: 'peerB' },
+				again: ['mainB', 'peerB', 'subagentB'],
+				mainB: 'mainB',
+			});
+		});
+
+		test('closing a chat that a chat editor shows, or the session of its chat, closes its editor, and leaves the grid alone, which shows the same session', async () => {
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const [, peerB] = sessionB.chats.get();
+			const { view } = setup([sessionB]);
+			await view.openSession(sessionB.resource);
+			await view.openChat(sessionB, peerB.resource);
+			const closes: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === peerB.resource.toString(),
+				reveal: async () => { },
+				openBeside: async () => { },
+				close: async closed => { closes.push(closed.path); },
+			}));
+			const editorSession = upcastPartial<IActiveSession>({ sessionId: 'B', resource: sessionB.resource, scopedChatResource: peerB.resource, mainChat: sessionB.mainChat, chats: sessionB.chats });
+			const grid = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId, activeChat: view.activeSession.get()?.activeChat.get().title.get(), closed: closedTitles(view) });
+			const before = grid();
+
+			await view.closeChat(editorSession, peerB);
+			view.closeSession(editorSession);
+			await timeout(0);
+
+			assert.deepStrictEqual({ closes, grid: grid() }, { closes: ['/chat/peerB', '/chat/peerB'], grid: before });
 		});
 
 		test('a session-list open selects the main chat instead of the previously active chat', async () => {

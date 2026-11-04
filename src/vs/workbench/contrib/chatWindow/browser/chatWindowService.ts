@@ -25,7 +25,7 @@ import { EditorCloseContext, EditorsOrder, GroupIdentifier, GroupModelChangeKind
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
-import { GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
@@ -769,15 +769,39 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (!added) {
 			return undefined;
 		}
-		const shown = this._windowOfChat(added.chat.get());
-		if (shown || (!opening && !this._windows.get().includes(window))) {
-			added.dispose();
+		// What the content resolved to may be a chat a window shows already, such as of another resource of its chat; then
+		// the entry may be the one that window owns, which stays.
+		const owned = this._windows.get().some(candidate => candidate.chatsOfWindow.includes(added));
+		const canonical = added.chat.get();
+		const shown = this._windowOfChat(canonical);
+		if (shown) {
+			if (!owned) {
+				added.dispose();
+			}
+			if (options?.preserveFocus) {
+				shown.activateChat(canonical);
+			} else {
+				shown.revealChat(canonical);
+			}
 			return shown;
 		}
+		if (!opening && !this._windows.get().includes(window)) {
+			if (!owned) {
+				added.dispose();
+			}
+			return undefined;
+		}
 		window.addChat(added);
-		const target = group ?? window.chatPart.groups.find(candidate => candidate.contains(window.chatEditor)) ?? window.chatPart.activeGroup;
+		const target = group ?? this._besideGroup(window, options?.beside) ?? window.chatPart.groups.find(candidate => candidate.contains(window.chatEditor)) ?? window.chatPart.activeGroup;
 		await target.openEditor(added.input, { pinned: true, preserveFocus: options?.preserveFocus, inactive: options?.preserveFocus });
 		return window;
+	}
+
+	/** A new group to the right of the group of the window that shows `reference`, one of its chats. */
+	private _besideGroup(window: ChatWindow, reference: URI | undefined): IEditorGroup | undefined {
+		const input = reference && window.chatsOfWindow.find(chat => isEqual(chat.chat.get(), reference))?.input;
+		const referenceGroup = input && this._editorGroupsService.groups.find(group => group.windowId === window.windowId && group.contains(input));
+		return referenceGroup ? this._editorGroupsService.addGroup(referenceGroup, GroupDirection.RIGHT) : undefined;
 	}
 
 	private async _openWindow(provider: IChatWindowProvider, content: IChatWindowContent, firstChat: IChatWindowChat, options: IChatWindowOpenOptions | undefined, disposables: DisposableStore, setClose: (close: () => boolean) => void): Promise<ChatWindow> {
@@ -1089,7 +1113,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (!chatWindow || !provider) {
 			return;
 		}
-		const chats = chatWindow.chats.get();
+		// Its active chat first, as the one the main window then shows active
+		const active = chatWindow.chat.get();
+		const chats = [...chatWindow.chats.get()].sort((a, b) => Number(isEqual(b, active)) - Number(isEqual(a, active)));
 		// Serialized, as closing the chat window disposes them, and opened again in the main window
 		const serialized = serializeChatWindowEditorsBesideChat(chatWindow, this._grids.get(chatWindow)?.createdParts ?? []);
 		if (!chatWindow.close()) {

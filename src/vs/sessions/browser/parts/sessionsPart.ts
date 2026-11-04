@@ -17,6 +17,7 @@ import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, observableSignal } from '../../../base/common/observable.js';
@@ -333,6 +334,11 @@ export class SessionsPart extends Part {
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._findSessionSlot(sessionId)?.view;
+	}
+
+	/** The view of exactly `session`, of those it shows, such as one of a chat it shows in a pane of its own. */
+	getViewOfSession(session: ISession): SessionView | undefined {
+		return this._slots.find(slot => slot.session === session)?.view;
 	}
 
 	private _findSessionSlot(sessionId: string | undefined): IGridSlot | undefined {
