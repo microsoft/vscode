@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { formatSubprocessArguments } from '../../../../base/node/processes.js';
 import { ILogService } from '../../../log/common/log.js';
-import { ACP_AGENT_PROVIDER_PREFIX, type AgentChatMigrationResult, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPermissionResponseContext, type IAgentResolveChatConfigParams, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { ACP_AGENT_PROVIDER_PREFIX, type AgentChatMigrationResult, AgentPermissionKind, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPermissionResponseContext, type IAgentResolveChatConfigParams, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import type { IAgentHostAcpAgentConfig } from '../../common/agentHostSchema.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AgentSelection, MessageAttachment, ModelSelection } from '../../common/state/protocol/state.js';
@@ -597,14 +597,14 @@ function permissionKindForTool(kind: string | undefined): IAgentToolPendingConfi
 		case 'edit':
 		case 'delete':
 		case 'move':
-			return 'write';
+			return AgentPermissionKind.Write;
 		case 'execute':
-			return 'shell';
+			return AgentPermissionKind.Shell;
 		case 'read':
 		case 'search':
-			return 'read';
+			return AgentPermissionKind.Read;
 		case 'fetch':
-			return 'url';
+			return AgentPermissionKind.Url;
 		default:
 			return undefined;
 	}

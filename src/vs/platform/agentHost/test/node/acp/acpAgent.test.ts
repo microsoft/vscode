@@ -12,7 +12,7 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import type { AgentSignal } from '../../../common/agent.js';
+import { AgentPermissionKind, type AgentSignal } from '../../../common/agent.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { AcpAgent, choosePermissionOption, describeAuthRequired, modelsFromConfigOptions } from '../../../node/acp/acpAgent.js';
 import { FakeAcpAgentProcess } from './acpTestUtils.js';
@@ -124,7 +124,7 @@ suite('AcpAgent', () => {
 		const pending = signals.find(s => s.kind === 'pending_confirmation')!;
 		assert.ok(pending.kind === 'pending_confirmation');
 		assert.strictEqual(pending.state.toolCallId, 'call-1');
-		assert.strictEqual(pending.permissionKind, 'write');
+		assert.strictEqual(pending.permissionKind, AgentPermissionKind.Write);
 		agent.respondToPermissionRequest('call-1', true);
 		assert.deepStrictEqual(await answered.p, { outcome: { outcome: 'selected', optionId: 'yes' } });
 	});
