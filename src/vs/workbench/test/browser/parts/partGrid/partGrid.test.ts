@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import { $, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -1260,6 +1261,32 @@ suite('Part Grid', () => {
 			slidBack: { layers: 0, mainMoved: false },
 			dropped: { shape: 'row(side, main)', created: 0 },
 			settled: { shape: 'row(side, new1, main)', created: 1, layers: 0 }
+		});
+	});
+
+	test('a drag of editors from another window that ends there, such as cancelled there, leaves the cards and the slot of a new part as they were', async () => {
+		const { container, card, over, feedback } = await createEditorDragGrid(true);
+		const frame = append(mainWindow.document.body, $<HTMLIFrameElement>('iframe'));
+		disposables.add(toDisposable(() => frame.remove()));
+		const otherWindow = frame.contentWindow!;
+		ensureCodeWindow(otherWindow, 2000);
+		disposables.add(registerWindow(otherWindow));
+		const main = card('main');
+		const y = main.top + main.height / 2;
+
+		over('dragover', main.left + 6, y);
+		const whileDragged = feedback();
+		// Escape in the other window: a leave with no related target, inside the grid, and the end there
+		dispatch(container.querySelector('.part-grid')!, 'dragleave', main.left + 6, y);
+		const afterLeave = feedback();
+		otherWindow.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ whileDragged, afterLeave, afterEnd: feedback(), layers: container.querySelectorAll('.part-grid-frame-layer').length }, {
+			whileDragged: { slot: true, partOverlay: false, mainMoved: true },
+			afterLeave: { slot: true, partOverlay: false, mainMoved: true },
+			afterEnd: { slot: false, partOverlay: false, mainMoved: false },
+			layers: 0
 		});
 	});
 

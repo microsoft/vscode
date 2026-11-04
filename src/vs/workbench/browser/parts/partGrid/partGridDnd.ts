@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, hide, isAncestor, isHTMLElement, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindows, hide, isAncestor, isHTMLElement, onDidRegisterWindow, onDidUnregisterWindow, show } from '../../../../base/browser/dom.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IEditorIdentifier } from '../../../common/editor.js';
 import { DraggedEditorIdentifier } from '../../dnd.js';
@@ -292,6 +293,11 @@ export class PartGridDropTarget extends Disposable {
 		this._register(addDisposableListener(container, EventType.DROP, e => this.onDrop(e), true));
 		// Only once the pointer is out of the grid: Chromium tells no related target as what is under the pointer changes, as the cards make way
 		this._register(addDisposableListener(container, EventType.DRAG_LEAVE, e => {
+			// Editors no longer dragged, such as a drag from another window that ended there, show nowhere
+			if (!this.getDragged()) {
+				this.reset();
+				return;
+			}
 			if (e.relatedTarget && isAncestor(e.relatedTarget as Node, container)) {
 				return;
 			}
@@ -300,8 +306,15 @@ export class PartGridDropTarget extends Disposable {
 				this.reset();
 			}
 		}));
-		// In the capture phase: a drag that a cell takes over ends there
-		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => this.reset(), true));
+		// A drag ends in the window it started in, such as another window whose editors were dragged here and
+		// cancelled there. In the capture phase: a drag that a cell takes over ends there.
+		const dragEndListeners = this._register(new DisposableMap<number>());
+		const listen = (window: CodeWindow) => dragEndListeners.set(window.vscodeWindowId, addDisposableListener(window, EventType.DRAG_END, () => this.reset(), true));
+		for (const { window } of getWindows()) {
+			listen(window);
+		}
+		this._register(onDidRegisterWindow(({ window }) => listen(window)));
+		this._register(onDidUnregisterWindow(window => dragEndListeners.deleteAndDispose(window.vscodeWindowId)));
 	}
 
 	private getDragged(): readonly IEditorIdentifier[] | undefined {
