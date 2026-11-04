@@ -5,6 +5,7 @@
 
 import { registerContentDropTarget } from '../../../../workbench/browser/dnd.js';
 import { $ } from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -182,6 +183,22 @@ export class SessionChatViewInputOnly extends Disposable {
 			}
 			if (chatView.inputOnly.read(reader) !== windowInputOnly(undefined)) {
 				chatWindow.toggleConversation();
+			}
+		}));
+		// What a resize showed is announced once it lets go, not at each snap while it drags
+		let inputOnlyBeforeResize: boolean | undefined;
+		this._register(autorun(reader => {
+			const chatWindow = window.read(reader);
+			const resizing = !!chatWindow?.resizing.read(reader);
+			if (resizing) {
+				inputOnlyBeforeResize ??= windowInputOnly(undefined);
+				return;
+			}
+			const before = inputOnlyBeforeResize;
+			inputOnlyBeforeResize = undefined;
+			const inputOnly = windowInputOnly(undefined);
+			if (before !== undefined && before !== inputOnly && stacked.read(undefined)) {
+				status(inputOnly ? localize('chatConversationHidden', "Chat conversation hidden") : localize('chatConversationShown', "Chat conversation shown"));
 			}
 		}));
 	}

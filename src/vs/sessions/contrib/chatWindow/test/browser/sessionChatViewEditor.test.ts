@@ -11,6 +11,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { $ } from '../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -145,6 +146,37 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ notDragged, letGo: read() }, {
 			notDragged: true,
 			letGo: { shown: false, chosen: false, maximumHeight: Number.POSITIVE_INFINITY, minimumHeight: Math.min(collapsed, SESSION_CHAT_VIEW_MINIMUM_HEIGHT) },
+		});
+	});
+
+	test('what a drag of the sash showed is announced once, as it lets go: the conversation shown or hidden, and nothing for a drag that changed nothing', async () => {
+		const { controller, resizing } = createInputOnly({ inputOnly: true, mode: ChatWindowLayoutMode.Stacked });
+		const ariaContainer = $('.aria-container');
+		setARIAContainer(ariaContainer);
+		const collapsed = HEADER_HEIGHT + INPUT_HEIGHT;
+		const announced = () => ariaContainer.textContent ?? '';
+		const drag = async (...heights: number[]) => {
+			ariaContainer.querySelectorAll('[aria-live]').forEach(element => element.textContent = '');
+			resizing.set(true, undefined);
+			for (const height of heights) {
+				controller.layout(height);
+				await timeout(0);
+			}
+			const whileDragging = announced();
+			resizing.set(false, undefined);
+			return { whileDragging, letGo: announced() };
+		};
+
+		assert.deepStrictEqual({
+			up: await drag(collapsed + 60),
+			upAndDownAndUp: await drag(collapsed + 60, collapsed + 2, collapsed + 80),
+			down: await drag(collapsed + 2),
+			nothing: await drag(collapsed + 3),
+		}, {
+			up: { whileDragging: '', letGo: 'Chat conversation shown' },
+			upAndDownAndUp: { whileDragging: '', letGo: '' },
+			down: { whileDragging: '', letGo: 'Chat conversation hidden' },
+			nothing: { whileDragging: '', letGo: '' },
 		});
 	});
 

@@ -292,20 +292,30 @@ export class ChatWindowGrid extends Disposable {
 		}));
 		// Only the sizes the user gives the cells are remembered: those of a sash they drag or reset. The sizes the grid takes
 		// otherwise, such as by the least size of a part or as a mode shows, are not theirs.
-		this._register(addDisposableListener(_container, EventType.MOUSE_DOWN, e => {
+		// On the pointer, before the sash takes the press, for a mouse, a pen or touch alike
+		this._register(addDisposableListener(_container, EventType.POINTER_DOWN, e => {
 			const sash = this._sashOf(e);
 			if (!sash) {
 				return;
 			}
 			const before = this._cellSizes();
 			const window = getWindow(_container);
-			// Set before the sash takes the press, so that what the resize allows, such as a chat that shows only its
-			// input growing to show its conversation, is what the sash drags within
-			this._resizing.set(true, undefined);
-			const up = this._userResize.value = combinedDisposable(addDisposableListener(window, EventType.MOUSE_UP, () => {
+			const end = () => {
 				up.dispose();
 				this._rememberUserSizes(before);
-			}), toDisposable(() => this._resizing.set(false, undefined)));
+			};
+			// Replacing a resize that never ended, such as one whose release went elsewhere, ends that one first
+			const up = this._userResize.value = combinedDisposable(
+				addDisposableListener(window, EventType.POINTER_UP, end),
+				addDisposableListener(window, 'pointercancel', end),
+				toDisposable(() => {
+					if (!this._store.isDisposed) {
+						this._resizing.set(false, undefined);
+					}
+				}));
+			// What the resize allows, such as a chat that shows only its input growing to show its conversation, is what
+			// the sash drags within
+			this._resizing.set(true, undefined);
 		}, true));
 		this._register(addDisposableListener(_container, EventType.DBLCLICK, e => {
 			if (this._sashOf(e)) {

@@ -72,8 +72,11 @@ suite('Chat window grid', () => {
 		const sashBounds = sash.getBoundingClientRect();
 		const start = { clientX: sashBounds.left + sashBounds.width / 2, clientY: sashBounds.top + sashBounds.height / 2 };
 		const end = edge === 'top' ? { ...start, clientY: start.clientY + current - size } : { ...start, clientX: start.clientX + size - current };
+		// As the browser does, each pointer event before its mouse event
+		sash.dispatchEvent(new PointerEvent('pointerdown', { ...start, bubbles: true, button: 0 }));
 		sash.dispatchEvent(new MouseEvent('mousedown', { ...start, bubbles: true, button: 0 }));
 		mainWindow.dispatchEvent(new MouseEvent('mousemove', { ...end, bubbles: true }));
+		mainWindow.dispatchEvent(new PointerEvent('pointerup', { ...end, bubbles: true }));
 		mainWindow.dispatchEvent(new MouseEvent('mouseup', { ...end, bubbles: true }));
 	}
 
@@ -498,6 +501,23 @@ suite('Chat window grid', () => {
 			resizing: false,
 			letGo: 101,
 		});
+	});
+
+	test('the grid resizes from a press on a sash by any pointer, also after a press whose release went elsewhere, until it lets go or the grid goes', () => {
+		const { grid, container } = setupWithTerminals(ChatWindowLayoutMode.Stacked);
+		const sash = container.querySelector<HTMLElement>('.monaco-sash.horizontal')!;
+		const press = (pointerType: string) => sash.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType }));
+		press('mouse');
+		const pressed = grid.resizing.get();
+		// Released outside the window: no pointerup
+		press('pen');
+		const pressedAgain = grid.resizing.get();
+		mainWindow.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+		const released = grid.resizing.get();
+		press('touch');
+		mainWindow.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }));
+
+		assert.deepStrictEqual({ pressed, pressedAgain, released, cancelled: grid.resizing.get() }, { pressed: true, pressedAgain: true, released: false, cancelled: false });
 	});
 
 	test('a part does not merge into the terminals, whose groups stay locked to terminals, as it does not into the chat', () => {
