@@ -49,7 +49,7 @@ import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeCopilotPolicyHelperConfig, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
@@ -1638,6 +1638,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return runtimePath ? runtimePath : undefined;
 	}
 
+	private _getPolicyHelper(): string | undefined {
+		const policyHelper = normalizeCopilotPolicyHelperConfig(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.PolicyHelper));
+		return policyHelper ? JSON.stringify(policyHelper) : undefined;
+	}
+
 	/**
 	 * Returns the installed Computer Use plugin. On a cache miss the client starts
 	 * without it while the plugin downloads in the background; the client then
@@ -1896,6 +1901,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isExecutionSubagentEnabled(),
 			this._getExecutionSubagentModel(),
 			this._isComputerUseEnabled(),
+			this._getPolicyHelper(),
 		);
 	}
 
@@ -4347,6 +4353,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Auto's tiers, including Fusion's, come from the service. This also moves the runtime's whole model catalog to CAPI `/meta`.
 			addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
 			this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
+
+			deleteEnvironmentVariable(env, 'COPILOT_CLI_POLICY_HELPER');
+			if (startupConfig.policyHelper) {
+				addCopilotFeatureFlag(env, 'POLICY_HELPER');
+				env['COPILOT_CLI_POLICY_HELPER'] = startupConfig.policyHelper;
+			}
 
 			// Identify VS Code's agent host traffic in CAPI
 			env['GITHUB_COPILOT_INTEGRATION_ID'] = COPILOT_INTEGRATION_ID;
