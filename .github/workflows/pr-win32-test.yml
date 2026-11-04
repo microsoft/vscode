@@ -330,7 +330,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-agent-host-e2e.bat --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }} --tfs "Integration Tests"
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
