@@ -2445,6 +2445,73 @@ suite('Mission Control environment discovery', () => {
 	});
 });
 
+suite('CloudSandboxApiService archived discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('active-only startup reads neither archived inventory nor archived task details', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [
+				task('active', 'Active', undefined, 'active-session', 'environment'),
+				{ ...task('archived', 'Archived', undefined, 'archived-session', 'environment'), archived_at: '2026-10-01T00:00:00Z' },
+			],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			lists: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('is_archived')),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+		}, { kind: 'scoped', sessions: ['active'], lists: ['false', 'false'], details: ['/agents/tasks/active'] });
+	});
+
+	test('first archived discovery does not reuse an active-only checkpoint and later active refreshes retain its cache', async () => {
+		const archived = {
+			...task('archived', 'Archived', undefined, 'archived-session', 'environment'),
+			archived_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
+		};
+		const { service, requestedUrls } = createService(store, {
+			tasks: [archived], repositories: new Map(),
+			discoveryDate: () => '2026-10-01T00:00:00Z',
+		});
+		await service.listSessions(CancellationToken.None, { includeArchived: false });
+		requestedUrls.length = 0;
+		const expanded = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: true });
+		const expansionLists = requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => ({
+			archived: new URL(url).searchParams.get('is_archived'), since: new URL(url).searchParams.get('since'),
+		}));
+		requestedUrls.length = 0;
+		const collapsed = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const readsWhileCollapsed = [...requestedUrls];
+		requestedUrls.length = 0;
+		const reopened = await service.listSessions(CancellationToken.None, { includeArchived: true });
+		assert.deepStrictEqual({
+			expansion: expanded.kind === 'failed' ? [] : expanded.sessions.map(session => session.taskId),
+			expansionLists, collapsed,
+			readsWhileCollapsed: readsWhileCollapsed.map(url => new URL(url).searchParams.get('is_archived')),
+			reopened: reopened.kind === 'failed' ? [] : reopened.sessions.map(session => session.taskId),
+			reopenedDetails: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks/archived').length,
+		}, {
+			expansion: ['archived'],
+			expansionLists: ['false', 'false', 'true', 'true'].map(archived => ({ archived, since: null })),
+			collapsed: { kind: 'scoped', sessions: [], removedTaskIds: [] }, readsWhileCollapsed: ['false', 'false'],
+			reopened: ['archived'], reopenedDetails: 0,
+		});
+	});
+
+	test('known archived tasks remain targetable without archived inventory demand', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [{ ...task('archived', 'Archived', undefined, 'session', 'environment'), archived_at: '2026-10-01T00:00:00Z' }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { includeArchived: false, taskIds: ['archived'] });
+		assert.deepStrictEqual({
+			archived: result.kind === 'failed' ? [] : result.sessions.map(session => session.isArchived),
+			urls: requestedUrls.map(url => new URL(url).pathname),
+		}, { archived: [true], urls: ['/agents/tasks/archived'] });
+	});
+});
+
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

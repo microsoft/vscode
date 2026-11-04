@@ -253,6 +253,7 @@ export interface ISessionSection {
 	readonly collapseStateId?: string;
 	readonly label: string;
 	readonly sessions: ISession[];
+	readonly archiveDiscoveryState?: 'idle' | 'loading' | 'loaded' | 'error';
 	/** The repository of a repository section. */
 	readonly repository?: ISessionRepository;
 	readonly environment?: ISessionEnvironment;
@@ -2981,7 +2982,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		template.label.textContent = element.label;
 		template.countLabel.style.display = '';
-		if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID && (this.hideSectionCount || shortcut)) {
+		template.container.setAttribute('aria-busy', String(element.archiveDiscoveryState === 'loading'));
+		if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID && (this.hideSectionCount || shortcut || element.archiveDiscoveryState && element.archiveDiscoveryState !== 'loaded')) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else if (element.id !== INBOX_NOTIFICATIONS_SECTION_ID) {
@@ -3526,6 +3528,15 @@ class SessionsAccessibilityProvider {
 				: this.getSectionAriaLabel(element.group.name, element.subtreeSessions);
 		}
 		if (isSessionSection(element)) {
+			if (element.archiveDiscoveryState === 'idle') {
+				return localize('archivedSessionsIdleAria', "{0}, expand to load sessions", element.label);
+			}
+			if (element.archiveDiscoveryState === 'loading') {
+				return localize('archivedSessionsLoadingAria', "{0}, loading sessions", element.label);
+			}
+			if (element.archiveDiscoveryState === 'error') {
+				return localize('archivedSessionsErrorAria', "{0}, unable to load sessions. Collapse and expand to retry.", element.label);
+			}
 			if (element.id === NEW_SESSION_SECTION_ID) {
 				return derived(this, reader => {
 					const keybindingAriaLabel = this.options?.newSessionKeybindingAriaLabel?.read(reader);
@@ -4506,6 +4517,7 @@ function resettableValue<T>(read: () => T, write: (value: T) => void, defaultVal
 }
 
 export class SessionsList extends Disposable implements ISessionsList {
+	private readonly archiveDemand = this._register(new MutableDisposable());
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 	private static readonly SESSION_COLLAPSE_STATE_KEY = 'sessionsListControl.sessionCollapseState';
@@ -5362,6 +5374,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (this.persistsCollapseState()) {
 					this.saveSectionCollapseState(element.collapseStateId ?? element.id, e.node.collapsed);
 				}
+				if (element.id === 'archived') {
+					this.updateArchiveDemand();
+				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
 				if (this.persistsCollapseState()) {
@@ -5463,6 +5478,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
+		this._register(autorun(reader => {
+			this._sessionsManagementService.archivedSessionItems.read(reader);
+			this.scheduleListUpdate();
+		}));
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
@@ -5655,7 +5674,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// are listed in the Done section as rows of their own instead of under
 		// their session's row.
 		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session).map(chat => ({ session, chat })));
-		if (standaloneDoneChats.length > 0 && !sections.some(s => s.id === 'archived')) {
+		if ((standaloneDoneChats.length > 0 || !this._excludeArchived && this._sessionsManagementService.archivedSessionItems.get().available) && !sections.some(s => s.id === 'archived')) {
 			sections.push({ id: 'archived', label: archivedSectionLabel, sessions: [] });
 		}
 		const comparisonGroupsBySectionId = new Map<string, ISessionGroup[]>();
@@ -5962,6 +5981,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
 				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
 			}
+			if (section.id === 'archived' && sectionChildren.length === 0) {
+				const state = this._sessionsManagementService.archivedSessionItems.get().state;
+				sectionChildren = [{
+					element: {
+						placeholder: true as const, sectionId: section.id,
+						label: state === 'error'
+							? localize('archivedSessionsError', "Unable to load sessions. Collapse and expand to retry.")
+							: state === 'loaded' ? localize('noArchivedSessions', "No sessions") : localize('loadingArchivedSessions', "Loading sessions..."),
+					}
+				}];
+			}
 
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
@@ -6189,12 +6219,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const archivedSection = sections.find(s => s.id === 'archived');
 		if (archivedSection) {
-			children.push(renderSection(archivedSection));
+			const archive = this._sessionsManagementService.archivedSessionItems.get();
+			children.push(renderSection({ ...archivedSection, archiveDiscoveryState: archive.available ? archive.state : undefined }));
 		}
 
 		// Match sessions again: their text may have changed since the last update.
 		this.searchFilter.invalidate();
 		this.tree.setChildren(null, children);
+		this.updateArchiveDemand();
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
 		this.reconcileChatRowHeights();
@@ -6638,8 +6670,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 		this.visible = visible;
+		this.updateArchiveDemand();
 		if (this.visible) {
 			this.refresh();
+		}
+	}
+
+	private updateArchiveDemand(): void {
+		const section = this.tree.getNode().children.find(node => node.element && isSessionSection(node.element) && node.element.id === 'archived');
+		const requested = this.visible && !this._excludeArchived && section && !section.collapsed
+			&& this._sessionsManagementService.archivedSessionItems.get().available;
+		if (requested && !this.archiveDemand.value) {
+			this.archiveDemand.value = this._sessionsManagementService.acquireArchivedSessionItems();
+		} else if (!requested) {
+			this.archiveDemand.clear();
 		}
 	}
 

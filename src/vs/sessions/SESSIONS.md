@@ -59,6 +59,8 @@ The model-orchestration service:
 
 It does not own active or visible session state, focus, or layout.
 
+Archived inventory discovery is an optional `IChatSessionsService` capability, registered independently of per-environment controllers so it remains reachable before any archived session is known. Management exposes its observable state and disposable demand to Sessions surfaces. Providers without the capability keep their existing discovery behavior; opening a known session does not depend on archive-list demand.
+
 ### `ISessionsService`
 
 The view service:

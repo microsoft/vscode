@@ -180,6 +180,33 @@ suite('Sessions - SessionsList', () => {
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
+	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
+		const harness = createListHarness(disposables, []);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setExcludeArchived(false);
+		list.refresh();
+		const before = harness.managementService.archiveRequests;
+		const expanded = list.setItemCollapsed({ section: 'archived' }, false);
+		const after = harness.managementService.archiveRequests;
+		list.refresh();
+		const afterRefresh = harness.managementService.archiveRequests;
+		list.setItemCollapsed({ section: 'archived' }, true);
+		const collapsed = harness.managementService.archiveRequests;
+		list.setItemCollapsed({ section: 'archived' }, false);
+		list.setVisible(false);
+		const hidden = harness.managementService.archiveRequests;
+		list.setVisible(true);
+		const restored = harness.managementService.archiveRequests;
+		list.dispose();
+		assert.deepStrictEqual({ before, expanded, after, afterRefresh, collapsed, hidden, restored, disposed: harness.managementService.archiveRequests }, {
+			before: 0, expanded: true, after: 1, afterRefresh: 1, collapsed: 0, hidden: 0, restored: 1, disposed: 0,
+		});
+	});
+
 	suite('catalogue refresh scheduling', () => {
 		async function nextFrame(): Promise<void> {
 			await new Promise<void>(resolve => {

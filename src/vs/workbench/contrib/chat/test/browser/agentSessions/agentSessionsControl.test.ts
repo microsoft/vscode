@@ -13,7 +13,7 @@ import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessio
 import { IAgentSession, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItemArchiveState, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -23,6 +23,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 suite('AgentSessionsControl', () => {
 
@@ -58,6 +59,58 @@ suite('AgentSessionsControl', () => {
 		};
 	}
 
+	test('lazy archive discovery keeps an empty header expandable and releases hidden demand', async () => {
+		const model: IAgentSessionsModel = {
+			sessions: [], resolved: true, getSession: () => undefined,
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		let requests = 0;
+		const service = new class extends MockChatSessionsService {
+			override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: true, state: 'idle' });
+			override acquireArchivedSessionItems() {
+				requests++;
+				return toDisposable(() => requests--);
+			}
+		}();
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatSessionsService, service);
+		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+			overrideStyles: {}, source: 'test',
+			filter: {
+				...createFilter(), groupResults: () => AgentSessionsGrouping.Date,
+				getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
+			},
+			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
+		}));
+		control.layout(300, 400);
+		await control.update();
+		const before = requests;
+		control.focus();
+		container.querySelector<HTMLElement>('.agent-session-section-label')?.click();
+		await timeout(0);
+		const expanded = requests;
+		control.setVisible(false);
+		const hidden = requests;
+		control.setVisible(true);
+		await control.update();
+		const reopened = requests;
+		control.dispose();
+		assert.deepStrictEqual({ before, expanded, hidden, reopened, disposed: requests }, {
+			before: 0, expanded: 1, hidden: 0, reopened: 1, disposed: 0,
+		});
+	});
+
 	test('creates a new chat when double-clicking empty list space', () => {
 		const model: IAgentSessionsModel = {
 			sessions: [],
@@ -72,7 +125,7 @@ suite('AgentSessionsControl', () => {
 		};
 		const filter = createFilter();
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { });
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
 		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 			override readonly model = model;
@@ -119,7 +172,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -178,7 +231,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiation.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -239,7 +292,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiation.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -300,7 +353,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -366,7 +419,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
