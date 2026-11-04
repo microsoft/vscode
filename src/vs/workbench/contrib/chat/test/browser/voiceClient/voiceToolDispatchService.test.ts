@@ -23,7 +23,7 @@ import { TestContextService } from '../../../../../test/common/workbenchTestServ
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ConfirmedReason, IChatModelReference, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, ConfirmedReason, IChatModelReference, IChatQuestionAnswers, IChatSendRequestData, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -96,6 +96,10 @@ suite('VoiceToolDispatchService - model selection', () => {
 suite('VoiceToolDispatchService - session actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
+
+	function sentResult(newSessionResource?: URI): ChatSendResult {
+		return { kind: 'sent', data: upcastDeepPartial<IChatSendRequestData>({}), newSessionResource };
+	}
 
 	for (const scenario of [
 		{ name: 'preferred Copilot', hostEnabled: true, expected: SessionType.AgentHostCopilot },
@@ -178,7 +182,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 				override async acquireOrLoadSession() {
 					return { object: upcastDeepPartial<IChatModel>({ sessionResource: resource }), dispose: () => calls.push('dispose') };
 				}
-				override async sendRequest(target: URI) { calls.push(`send:${target}`); return { kind: 'rejected', reason: 'test' } as const; }
+				override async sendRequest(target: URI) { calls.push(`send:${target}`); return sentResult(); }
 			}();
 			const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() {
 				override getTools() { return []; }
@@ -194,6 +198,78 @@ suite('VoiceToolDispatchService - session actions', () => {
 			assert.deepStrictEqual({ result, calls }, canShow
 				? { result: 'ok', calls: [`show:${resource}`, `target:${resource}`, `send:${resource}`, 'dispose'] }
 				: { result: 'error: unable to show the new chat session', calls: [`show:${resource}`, 'dispose'] });
+		});
+	}
+
+	for (const outcome of ['sent', 'queued', 'rejected', 'refused', 'error', 'retargeted', 'retargeted-during-switch', 'canceled'] as const) {
+		test(`direct send adopts its materialized conversation before finishing (${outcome})`, async () => {
+			const draft = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-voice`);
+			const materialized = URI.parse(`${SessionType.AgentHostCopilot}:/materialized-voice`);
+			const other = URI.parse(`${SessionType.AgentHostCopilot}:/other`);
+			const calls: string[] = [];
+			const started = new DeferredPromise<void>();
+			const sent = new DeferredPromise<ChatSendResult>();
+			const cts = store.add(new CancellationTokenSource());
+			let shown: URI | undefined;
+			let target: URI | undefined;
+			const chat = new class extends mock<IChatService>() {
+				override async acquireOrLoadSession() {
+					return { object: upcastDeepPartial<IChatModel>({ sessionResource: draft }), dispose: () => calls.push('dispose') };
+				}
+				override async sendRequest(resource: URI): Promise<ChatSendResult> {
+					calls.push(`send:${resource}`);
+					started.complete();
+					return outcome === 'queued' ? { kind: 'queued', deferred: sent.p } : sent.p;
+				}
+			}();
+			const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() {
+				override getTools() { return []; }
+			}(), { hostEnabled: true });
+			service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+				override acceptInput() { return false; }
+				override getTargetSessionResource() { return target; }
+				override async getCurrentSessionResource() { return shown; }
+				override async switchToSession(resource: URI) {
+					calls.push(`show:${resource}`);
+					if (resource.toString() === materialized.toString()) {
+						if (outcome === 'error') {
+							throw new Error('materialized switch failed');
+						}
+						if (outcome === 'refused') {
+							return false;
+						}
+						if (outcome === 'retargeted-during-switch') {
+							target = shown = other;
+							return true;
+						}
+						target = resource;
+					}
+					shown = resource;
+					return true;
+				}
+				override setTargetSession(resource: URI) { calls.push(`target:${resource}`); target = resource; }
+			}());
+			const submitting = service.dispatchToolCall({ callId: 'materialized', name: 'send_to_chat', args: { text: 'Hello' } }, cts.token)
+				.catch(err => err instanceof Error ? err.message : String(err));
+			await started.p;
+			if (outcome === 'retargeted') {
+				target = shown = other;
+			} else if (outcome === 'canceled') {
+				cts.cancel();
+			}
+			await sent.complete(outcome === 'rejected' ? { kind: 'rejected', reason: 'read-only', newSessionResource: materialized } : sentResult(materialized));
+			const failedSwitch = outcome === 'refused' || outcome === 'error';
+			const retargeted = outcome === 'retargeted' || outcome === 'retargeted-during-switch';
+			const adopted = !failedSwitch && !retargeted && outcome !== 'canceled';
+			assert.deepStrictEqual({ result: await submitting, target: target?.toString(), shown: shown?.toString(), calls }, {
+				result: outcome === 'error' ? 'materialized switch failed' : outcome === 'refused' ? 'error: unable to show the new chat session'
+					: retargeted ? 'error: voice target changed' : outcome === 'canceled' ? 'Canceled' : outcome === 'rejected' ? 'error: chat request was rejected' : 'ok',
+				target: (retargeted ? other : adopted ? materialized : draft).toString(),
+				shown: (retargeted ? other : adopted ? materialized : draft).toString(),
+				calls: [`show:${draft}`, `target:${draft}`, `send:${draft}`,
+				...(outcome !== 'retargeted' && outcome !== 'canceled' ? [`show:${materialized}`] : []),
+				...(adopted ? [`target:${materialized}`] : []), 'dispose'],
+			});
 		});
 	}
 

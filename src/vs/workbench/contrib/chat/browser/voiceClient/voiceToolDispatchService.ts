@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { IChatModelReference, IChatPlanReviewResult, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { ChatSendResult, IChatModelReference, IChatPlanReviewResult, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voiceClient/voiceQuestionAnswers.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -129,7 +129,7 @@ export interface IVoiceToolDispatchService {
 	/**
 	 * Dispatch a tool call and return the result string.
 	 */
-	dispatchToolCall(toolCall: IVoiceToolCall): Promise<string>;
+	dispatchToolCall(toolCall: IVoiceToolCall, token?: CancellationToken): Promise<string>;
 
 	/**
 	 * Apply a backend-resolved response to whatever a session is waiting on.
@@ -225,7 +225,43 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		};
 	}
 
-	async dispatchToolCall(toolCall: IVoiceToolCall): Promise<string> {
+	private async _sendChatRequest(delegate: IVoiceToolDispatchDelegate, resource: URI, text: string, token: CancellationToken): Promise<string> {
+		const target = delegate.getTargetSessionResource();
+		let result = await this.chatService.sendRequest(resource, text, this._agentModeOptions);
+		while (ChatSendResult.isQueued(result)) {
+			result = await raceCancellationError(result.deferred, token);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const materializedResource = result.newSessionResource;
+		const isCurrent = () => this._delegate === delegate && !token.isCancellationRequested
+			&& (isEqual(delegate.getTargetSessionResource(), target) || !!materializedResource && isEqual(delegate.getTargetSessionResource(), materializedResource));
+		if (!isCurrent()) {
+			return 'error: voice target changed';
+		}
+		if (materializedResource) {
+			const current = await delegate.getCurrentSessionResource();
+			if (!isCurrent()) {
+				return 'error: voice target changed';
+			}
+			if (isEqual(current, resource)) {
+				const switched = await delegate.switchToSession(materializedResource);
+				if (!isCurrent()) {
+					return 'error: voice target changed';
+				}
+				if (!switched) {
+					return 'error: unable to show the new chat session';
+				}
+			}
+			if (isEqual(target, resource) || isEqual(current, resource)) {
+				delegate.setTargetSession(materializedResource, true);
+			}
+		}
+		return ChatSendResult.isRejected(result) ? 'error: chat request was rejected' : 'ok';
+	}
+
+	async dispatchToolCall(toolCall: IVoiceToolCall, token: CancellationToken = CancellationToken.None): Promise<string> {
 		const delegate = this._delegate;
 		if (!delegate) {
 			return 'error: no delegate set';
@@ -239,23 +275,38 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 		switch (toolCall.name) {
 			case 'send_to_chat': {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				const text = argString('text');
 				if (text) {
 					const target = delegate.getTargetSessionResource();
 					const current = await delegate.getCurrentSessionResource();
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
 					if ((target && !isEqual(target, current)) || !delegate.acceptInput(text)) {
 						const resource = target ?? current;
 						if (resource) {
-							await this.chatService.sendRequest(resource, text, this._agentModeOptions);
+							return this._sendChatRequest(delegate, resource, text, token);
 						} else {
-							const ref = await this.createChatSession();
+							const ref = await this.createChatSession(token);
 							try {
 								const resource = ref.object.sessionResource;
+								if (this._delegate !== delegate || !isEqual(delegate.getTargetSessionResource(), target)) {
+									return 'error: voice target changed';
+								}
 								if (!await delegate.switchToSession(resource)) {
 									return 'error: unable to show the new chat session';
 								}
+								if (token.isCancellationRequested) {
+									throw new CancellationError();
+								}
+								if (this._delegate !== delegate || !isEqual(delegate.getTargetSessionResource(), target) && !isEqual(delegate.getTargetSessionResource(), resource)) {
+									return 'error: voice target changed';
+								}
 								delegate.setTargetSession(resource, true);
-								await this.chatService.sendRequest(resource, text, this._agentModeOptions);
+								return await this._sendChatRequest(delegate, resource, text, token);
 							} finally {
 								ref.dispose();
 							}

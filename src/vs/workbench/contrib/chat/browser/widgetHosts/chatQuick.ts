@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../nls.js';
@@ -33,14 +34,12 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../services/policies/common/accountPolicyService.js';
-import { isCellTextEditOperationArray } from '../../common/model/chatModel.js';
 import { ChatMode } from '../../common/chatModes.js';
-import { IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
-import { IChatModelReference, IChatProgress, IChatService } from '../../common/chatService/chatService.js';
+import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, getDefaultNewChatSessionTypeAndReasonFromServices } from '../../common/constants.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
-import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
@@ -53,6 +52,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	// TODO@TylerLeonhardt: support multiple chat providers eventually
 	private _currentChat: QuickChat | undefined;
 	private _container: HTMLElement | undefined;
+	private queryGeneration = 0;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -106,6 +106,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	}
 
 	private async doOpen(options?: IQuickChatOpenOptions): Promise<void> {
+		const queryGeneration = options?.query ? ++this.queryGeneration : this.queryGeneration;
 		if (this._input) {
 			if (this._currentChat && options?.query) {
 				const input = this._input;
@@ -113,7 +114,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 				chat.focus();
 				chat.setValue(options.query, options.selection);
 				await chat.whenReady();
-				if (this._input !== input) {
+				if (this._input !== input || queryGeneration !== this.queryGeneration) {
 					return;
 				}
 				if (!options.isPartialQuery) {
@@ -157,7 +158,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		}
 		const input = this._input;
 		await this._currentChat.whenReady();
-		if (this._input !== input) {
+		if (this._input !== input || queryGeneration !== this.queryGeneration) {
 			return;
 		}
 
@@ -195,7 +196,7 @@ export class QuickChat extends Disposable {
 	private _deferUpdatingDynamicLayout: boolean = false;
 
 	public get sessionResource() {
-		return this.modelRef?.object.sessionResource;
+		return this.widget?.viewModel?.sessionResource ?? this.modelRef?.object.sessionResource;
 	}
 
 	constructor(
@@ -294,7 +295,12 @@ export class QuickChat extends Disposable {
 					menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' },
 					enableImplicitContext: true,
 					defaultMode: ChatMode.Ask,
+					supportsChangingModes: true,
 					clear: () => this.clear(),
+					submitHandler: async () => {
+						await this.whenReady();
+						return false;
+					},
 				},
 				{
 					listForeground: quickInputForeground,
@@ -303,7 +309,22 @@ export class QuickChat extends Disposable {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
+		this._register(this.widget.onDidChangeViewModel(({ currentSessionResource }) => {
+			if (!currentSessionResource || this.modelCancellation.token.isCancellationRequested || isEqual(currentSessionResource, this.modelRef?.object.sessionResource)) {
+				return;
+			}
+			const modelRef = this.chatService.acquireExistingSession(currentSessionResource, 'ChatQuick#onDidChangeViewModel');
+			if (modelRef) {
+				this.modelRef?.dispose();
+				this.modelRef = modelRef;
+			}
+		}));
 		this.widget.render(parent);
+		this._register(this.widget.input.onDidChangeCurrentChatMode(() => {
+			if (this.widget.input.currentModeObs.get().kind !== ChatModeKind.Ask) {
+				this.widget.input.setChatMode(ChatMode.Ask.id, false);
+			}
+		}));
 		this.widget.setVisible(true);
 		this.widget.setDynamicChatTreeItemLayout(2, this.maxHeight);
 		this.initializeModel();
@@ -373,62 +394,15 @@ export class QuickChat extends Disposable {
 
 	async openChatView(): Promise<void> {
 		await this.whenReady();
-		const widget = await this.chatWidgetService.revealWidget();
-		const model = this.modelRef?.object;
-		if (!widget?.viewModel || !model) {
+		const sessionResource = this.sessionResource;
+		if (!sessionResource) {
 			return;
 		}
-
-		for (const request of model.getRequests()) {
-			if (request.response?.response.value || request.response?.result) {
-
-
-				const message: IChatProgress[] = [];
-				for (const item of request.response.response.value) {
-					if (item.kind === 'textEditGroup') {
-						for (const group of item.edits) {
-							message.push({
-								kind: 'textEdit',
-								edits: group,
-								uri: item.uri
-							});
-						}
-					} else if (item.kind === 'notebookEditGroup') {
-						for (const group of item.edits) {
-							if (isCellTextEditOperationArray(group)) {
-								message.push({
-									kind: 'textEdit',
-									edits: group.map(e => e.edit),
-									uri: group[0].uri
-								});
-							} else {
-								message.push({
-									kind: 'notebookEdit',
-									edits: group,
-									uri: item.uri
-								});
-							}
-						}
-					} else {
-						message.push(item);
-					}
-				}
-
-				this.chatService.addCompleteRequest(widget.viewModel.sessionResource,
-					request.message as IParsedChatRequest,
-					request.variableData,
-					request.attempt,
-					{
-						message,
-						result: request.response.result,
-						followups: request.response.followups
-					});
-			} else if (request.message) {
-
-			}
-		}
-
 		const value = this.widget.getInputState();
+		const widget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		if (!widget?.viewModel || !isEqual(widget.viewModel.sessionResource, sessionResource)) {
+			throw new Error(localize('quickChat.openSessionFailed', "Could not open this conversation in Chat. Please try again."));
+		}
 		if (value) {
 			widget.viewModel.model.inputModel.setState(value);
 		}
@@ -490,6 +464,12 @@ export class QuickChat extends Disposable {
 			mode: { id: ChatMode.Ask.id, kind: ChatModeKind.Ask }
 		});
 		this.widget.setModel(modelRef.object);
+		await raceCancellationError(this.widget.input.currentChatModesObs.get().waitForPendingUpdates(), token);
+		if (token.isCancellationRequested || generation !== this.modelGeneration) {
+			throw new CancellationError();
+		}
+		// Mode controls stay hidden in Quick Chat, but Ask must resolve to the host's read-only agent.
+		this.widget.input.setChatMode(ChatMode.Ask.id, false);
 	}
 
 	override dispose(): void {
