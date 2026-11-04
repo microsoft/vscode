@@ -40,7 +40,7 @@ import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { ChatModel } from '../../common/model/chatModel.js';
+import { ChatModel, type IChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
@@ -62,7 +62,7 @@ import { createImportedConversationStats, importedTurnsFromChatModel, resolveImp
 import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import type { ModelSelection } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ModelSelection, Turn } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -207,7 +207,7 @@ type ChatConversationImportEvent = {
 
 type ChatConversationImportClassification = {
 	owner: 'vijayupadya';
-	comment: 'Tracks what a Local conversation imported into an Agent Host session had to summarize or leave out, to prioritize closing the gaps. Sent only once the conversation has opened in its new session; failed or cancelled moves send nothing.';
+	comment: 'Tracks what a Local conversation imported into an Agent Host session had to summarize or leave out, to prioritize closing the gaps. Sent only once the destination session holds the imported conversation; failed or cancelled moves send nothing.';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the conversation was imported by Move to Copilot or by Continue In.' };
 	turns: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns imported.' };
 	editedFiles: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of edited files summarized as links instead of carrying their edits, counted once per turn.' };
@@ -229,6 +229,17 @@ function logConversationImport(telemetryService: ITelemetryService, source: Chat
 		skippedAttachmentKinds: [...stats.skippedAttachmentKinds].sort().join(','),
 		droppedToolOutputs: stats.droppedToolOutputs,
 	});
+}
+
+/**
+ * Whether a session opened by Continue In holds the imported conversation:
+ * its first user requests carry the imported prompts, in order. Opening still
+ * returns a session when the import or the initial send fails, and the host
+ * gives imported turns new ids, so the history itself is what confirms it.
+ */
+export function holdsImportedTurns(destination: IChatModel | undefined, turns: readonly Turn[]): boolean {
+	const requests = destination?.getRequests().filter(request => !request.isSystemInitiated) ?? [];
+	return turns.length > 0 && requests.length >= turns.length && turns.every((turn, index) => requests[index].message.text === turn.message.text);
 }
 
 export class ContinueChatInCopilotAction extends Action2 {
@@ -844,8 +855,8 @@ export class CreateRemoteAgentJobAction {
 								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 							}
 						));
-						// Reported only once the conversation has opened in its new session.
-						if (opened && importConversationTurns?.length) {
+						// Reported only once the new session holds the imported conversation.
+						if (importConversationTurns && opened && holdsImportedTurns(chatService.getSession(opened), importConversationTurns)) {
 							logConversationImport(telemetryService, 'continueIn', importStats);
 						}
 					}

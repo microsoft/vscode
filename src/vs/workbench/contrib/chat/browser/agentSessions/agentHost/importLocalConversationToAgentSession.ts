@@ -6,7 +6,7 @@
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { detectImageMimeType } from '../../../../../../base/common/image.js';
-import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -20,7 +20,7 @@ import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../c
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import type { ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
-import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 
 /** Renders a chat message (plain string or markdown) as plain text. */
 function stringifyChatMessage(message: string | IMarkdownString | undefined): string {
@@ -53,7 +53,7 @@ function stringifyToolInput(rawInput: unknown): string {
  * their `name`, so a path-like label is collapsed to the URI's basename to
  * avoid leaking the tree into the imported transcript.
  */
-function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlineReference'], name: string | undefined): string {
+function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlineReference'], name: string | undefined, resourceUris: IAgentHostResourceUriMapper): string {
 	let uri: URI | undefined;
 	let label = name;
 	let isSymbol = false;
@@ -81,7 +81,18 @@ function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlin
 	if (!label || (!isSymbol && /[\\/]/.test(label))) {
 		label = basename(uri);
 	}
-	return `[${label}](${uri.toString()})`;
+	return markdownResourceLink(label, uri, resourceUris);
+}
+
+/**
+ * Renders a link to a client resource for an imported turn. The label is
+ * escaped so names containing `]` or `\` keep the link intact, and the target
+ * is written as the host's resource, which is how link targets in agent-host
+ * history are read back (e.g. a `vscode-remote:` resource becomes the host's
+ * `file:` resource).
+ */
+function markdownResourceLink(label: string, uri: URI, resourceUris: IAgentHostResourceUriMapper): string {
+	return `[${escapeMarkdownLinkLabel(label)}](${resourceUris.toAgentHost(uri).toString()})`;
 }
 
 /**
@@ -117,6 +128,8 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 		}
 		isError = !!resultDetails.isError;
 		resultInput = resultDetails.input;
+	} else if (resultDetails && isToolResultOutputDetails(resultDetails) && stats) {
+		stats.droppedToolOutputs++;
 	}
 	isError ||= phaseStatus === 'failed' || phaseStatus === 'cancelled';
 	// Fall back to the sub-agent summary when the generic result details are empty.
@@ -184,8 +197,8 @@ const nonContentResponsePartKinds: ReadonlySet<string> = new Set(['undoStop', 'c
  * markdown parts are concatenated when the history is written; otherwise it
  * could join the end of surrounding text, such as a closing code fence.
  */
-function editedFilesToMarkdown(files: readonly URI[]): string {
-	const links = files.map(uri => `[${basename(uri)}](${uri.toString()})`);
+function editedFilesToMarkdown(files: readonly URI[], resourceUris: IAgentHostResourceUriMapper): string {
+	const links = files.map(uri => markdownResourceLink(basename(uri), uri, resourceUris));
 	return `\n\n${localize('chat.importConversation.editedFiles', "Edited {0}", links.join(', '))}\n\n`;
 }
 
@@ -201,13 +214,13 @@ function editedFilesToMarkdown(files: readonly URI[]): string {
  * belongs to (a continuation shares its turn's), so a file edited again in a
  * later run is counted in `stats` once per turn.
  */
-function responsePartsFromRequest(request: IChatRequestModel, stats: IImportedConversationStats | undefined, turnEditedFiles: ResourceSet): ResponsePart[] {
+function responsePartsFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper, stats: IImportedConversationStats | undefined, turnEditedFiles: ResourceSet): ResponsePart[] {
 	const responseParts: ResponsePart[] = [];
 	const response = request.response;
 	const editedFiles = new ResourceMap<URI>();
 	const flushEditedFiles = () => {
 		if (editedFiles.size) {
-			responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: editedFilesToMarkdown([...editedFiles.values()]) });
+			responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: editedFilesToMarkdown([...editedFiles.values()], resourceUris) });
 			editedFiles.clear();
 		}
 	};
@@ -247,7 +260,7 @@ function responsePartsFromRequest(request: IChatRequestModel, stats: IImportedCo
 			} else if (part.kind === 'inlineReference') {
 				// A file/symbol chip interleaved with the response text; render it
 				// as a markdown link so it survives instead of leaving a gap.
-				const content = inlineReferenceToMarkdown(part.inlineReference, part.name);
+				const content = inlineReferenceToMarkdown(part.inlineReference, part.name, resourceUris);
 				if (content) {
 					responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
 				}
@@ -448,7 +461,7 @@ export function importedTurnsFromChatModel(model: IChatModel, options?: IImporte
 		if (!request.isSystemInitiated) {
 			turnEditedFiles = new ResourceSet();
 		}
-		const responseParts = responsePartsFromRequest(request, stats, turnEditedFiles);
+		const responseParts = responsePartsFromRequest(request, resourceUris, stats, turnEditedFiles);
 		const outcome = turnOutcomeFromRequest(request);
 		if (outcome.error) {
 			responseParts.push({ kind: ResponsePartKind.Error, error: outcome.error });

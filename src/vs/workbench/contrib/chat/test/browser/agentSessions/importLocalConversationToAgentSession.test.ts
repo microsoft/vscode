@@ -12,6 +12,7 @@ import type { IChatToolInvocationSerialized } from '../../../common/chatService/
 import type { ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('importedTurnsFromChatModel', () => {
 
@@ -185,6 +186,33 @@ suite('importedTurnsFromChatModel', () => {
 		]);
 	});
 
+	test('links to edited and referenced files of a remote window resolve back to them, whatever their names', () => {
+		// An SSH window's client resources are `vscode-remote:`; the host sees them as `file:`.
+		const remote = (path: string) => URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+box', path });
+		const resourceUris = {
+			toAgentHost: (uri: URI) => uri.scheme === 'vscode-remote' ? uri.with({ scheme: 'file', authority: '' }) : uri,
+			fromAgentHost: (uri: URI) => uri.scheme === 'file' ? remote(uri.path) : uri,
+		};
+		const edited = remote('/repo/a]b\\c.ts');
+		const referenced = remote('/repo/ref.ts');
+		const turns = importedTurnsFromChatModel(model([request('edit', response([
+			{ kind: 'textEditGroup', uri: edited, edits: [], done: true } as unknown as IChatProgressResponseContent,
+			inlineReference(referenced, 'x]y'),
+		]))]), { resourceUris });
+
+		const links = turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown
+			? [...part.content.matchAll(/\[(?<label>(?:\\.|[^\]\\])*)\]\((?<target>[^)]*)\)/g)].map(match => ({
+				label: match.groups!.label,
+				// How the restored transcript resolves a link target to a client resource.
+				resource: rewriteAgentHostLinkTarget(match.groups!.target, 'box', resourceUris),
+			}))
+			: []);
+		assert.deepStrictEqual(links, [
+			{ label: 'a\\]b\\\\c.ts', resource: edited.toString() },
+			{ label: 'x\\]y', resource: referenced.toString() },
+		]);
+	});
+
 	test('reports what the import summarized or left out', () => {
 		const stats = createImportedConversationStats();
 		const tool = (output: unknown[]) => ({
@@ -199,6 +227,10 @@ suite('importedTurnsFromChatModel', () => {
 				{ kind: 'warning', content: new MarkdownString('careful') } as unknown as IChatProgressResponseContent,
 				{ kind: 'progressMessage', content: new MarkdownString('working') } as unknown as IChatProgressResponseContent,
 				tool([{ type: 'embed', isText: true, value: 'text' }, { type: 'embed', mimeType: 'image/png', value: 'AAEC' }, { type: 'ref', uri: URI.file('/repo/out.bin') }]),
+				{
+					kind: 'toolInvocationSerialized', toolId: 'screenshot', toolCallId: 'image', invocationMessage: 'Capturing', pastTenseMessage: 'Captured',
+					resultDetails: { output: { type: 'data', mimeType: 'image/png', base64Data: 'AAEC' } }, toolSpecificData: undefined,
+				} as unknown as IChatProgressResponseContent,
 				editA,
 			]), { variables: [{ kind: 'file', id: 'f', name: 'a.ts', value: URI.file('/repo/a.ts') }, { kind: 'tool', id: 't', name: 'runTests', value: undefined }] }),
 			request('', response([{ kind: 'warning', content: new MarkdownString('again') } as unknown as IChatProgressResponseContent, editA]), { systemInitiated: true }),
@@ -213,7 +245,7 @@ suite('importedTurnsFromChatModel', () => {
 			skippedResponsePartKinds: ['progressMessage', 'warning'],
 			skippedAttachments: 2,
 			skippedAttachmentKinds: ['tool', 'toolset'],
-			droppedToolOutputs: 2,
+			droppedToolOutputs: 3,
 		});
 	});
 
