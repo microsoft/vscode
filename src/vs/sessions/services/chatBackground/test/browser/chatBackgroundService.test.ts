@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as css from '../../../../../base/browser/cssValue.js';
+import { FileAccess } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -155,6 +157,72 @@ suite('Sessions Chat Background Service', () => {
 			backgroundConfigured: true,
 			imageConfigured: false,
 		});
+	});
+
+	test('resolves bundled koi presets independently without adding them to user image history', async () => {
+		const configurationService = new CapturingConfigurationService();
+		configurationService.fireChangeEvents = true;
+		const themeService = new TestThemeService();
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, contextKeyService, disposables.add(new InMemoryStorageService()), NullTelemetryService));
+		const actual = [];
+
+		for (const [preset, scheme] of [['koi-dark', ColorScheme.DARK], ['koi-light', ColorScheme.LIGHT]] as const) {
+			themeService.setTheme(new TestColorTheme({}, scheme));
+			await service.setBackground(preset, 'backgroundPicker');
+			const background = service.getBackground();
+			actual.push({
+				configured: service.getConfiguredBackground()?.kind === 'image',
+				image: service.getConfiguredBackgroundImage()?.path.endsWith(`/${preset}.webp`),
+				animated: background?.kind === 'image' && background.backgroundImage === css.asCSSUrl(service.getConfiguredBackgroundImage()),
+				reducedMotion: background?.kind === 'image' && background.backgroundImageReducedMotion === css.asCSSUrl(FileAccess.asFileUri(`vs/sessions/services/chatBackground/browser/media/${preset}-static.webp`)),
+				backgroundConfigured: contextKeyService.getContextKeyValue(SessionsChatBackgroundConfiguredContext.key),
+				imageConfigured: contextKeyService.getContextKeyValue(SessionsChatBackgroundImageConfiguredContext.key),
+			});
+		}
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.HIGH_CONTRAST_DARK));
+		const highContrastBackground = service.getBackground();
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK));
+
+		assert.deepStrictEqual({
+			actual,
+			recent: service.getRecentBackgroundImages(),
+			referenced: service.getReferencedBackgroundImages(),
+			highContrastBackground,
+			restoredDark: service.getConfiguredBackgroundImage()?.path.endsWith('/koi-dark.webp'),
+			settings: configurationService.updates.map(update => ({ key: update.key, value: update.value })),
+		}, {
+			actual: Array.from({ length: 2 }, () => ({
+				configured: true, image: true, animated: true, reducedMotion: true, backgroundConfigured: true, imageConfigured: true,
+			})),
+			recent: [],
+			referenced: [],
+			highContrastBackground: undefined,
+			restoredDark: true,
+			settings: [
+				{ key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, value: 'koi-dark' },
+				{ key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, value: 'koi-light' },
+			],
+		});
+	});
+
+	test('reports koi presets and their image layout changes as built-in backgrounds', async () => {
+		const configurationService = new CapturingConfigurationService();
+		configurationService.fireChangeEvents = true;
+		const events: unknown[] = [];
+		const telemetryService = upcastPartial<ITelemetryService>({ publicLog2: (_name, data) => events.push(data) });
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), telemetryService));
+
+		await service.setBackground('koi-dark', 'backgroundPicker');
+		await service.setBackground('koi-dark', 'backgroundPicker');
+		await service.setBackgroundImageLayout('center', 'layoutPicker');
+		await service.setBackground('koi-light', 'agent', ColorScheme.LIGHT);
+
+		assert.deepStrictEqual(events, [
+			{ source: 'backgroundPicker', change: 'background', background: 'builtin', layout: 'repeat', colorScheme: 'dark' },
+			{ source: 'layoutPicker', change: 'layout', background: 'builtin', layout: 'center', colorScheme: 'dark' },
+			{ source: 'agent', change: 'background', background: 'builtin', layout: 'repeat', colorScheme: 'light' },
+		]);
 	});
 
 	test('returns every configured image layout', async () => {

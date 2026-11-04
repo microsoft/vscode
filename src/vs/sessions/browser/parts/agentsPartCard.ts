@@ -10,11 +10,18 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 const AGENTS_PART_CARD_BORDER_WIDTH = 1;
 
 /**
- * Marks a part as a floating content card. Carries the shared background,
- * border, corner radius and outer margin (see `media/workbench.css`) so every
- * content part in the Agents window is styled from one place.
+ * Marks a part as a floating content card in the main window's layout: its outer
+ * margins (see `media/workbench.css`). Its look comes from {@link AGENTS_CARD_SURFACE_CLASS}.
  */
 export const AGENTS_PART_CARD_CLASS = 'agents-part-card';
+
+/**
+ * Gives an element the look of a floating content card: its background, frame
+ * and corners per Layout Density and theme (see `media/workbench.css`), so every
+ * card in the Agents window is styled from one place.
+ */
+export const AGENTS_CARD_SURFACE_CLASS = 'agents-card-surface';
+
 export const AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS = 'agents-side-pane-multiple-tabs';
 
 /** Visual metrics of a card part, kept in sync with the CSS in `media/workbench.css`. */

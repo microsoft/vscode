@@ -120,6 +120,7 @@ export class ModelPicker extends Disposable {
 				this._selectionModel.selectModel(model.identifier, false);
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
+			getAgentModelPreferences: () => this._selectionModel.state.get().agentModelPreferences,
 			getComparisonModels: () => [...(this._selectionModel.getComparisonModels?.() ?? this._selectionModel.state.get().models)],
 			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
 			getSessionType: () => {
@@ -127,7 +128,8 @@ export class ModelPicker extends Disposable {
 				return (state.currentModel ?? state.models[0])?.metadata.targetChatSessionType;
 			},
 			// On-device models are offered only by the local Agent Host.
-			getLocalModelConnection: () => this._sessionContext.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
+			getLocalModelConnection: () => !this._selectionModel.state.get().agentModelPreferences?.required
+				&& this._sessionContext.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,

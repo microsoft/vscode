@@ -803,6 +803,7 @@ export class ModelPickerWidget extends Disposable {
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true, availability);
 		const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false, availability);
 		this._showTabbedPicker(anchorElement, {
+			agentModelPreferences: this._delegate.getAgentModelPreferences?.(),
 			comparison: this._delegate.comparison,
 			models,
 			comparisonModels,
