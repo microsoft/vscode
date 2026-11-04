@@ -103,7 +103,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
-import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
+import { buildSessionEventLogFromTurns, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedTurnDurations } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
@@ -6319,7 +6319,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The event log does not record usage, so imported usage is saved the way live
 			// usage is: keyed by the turn's id, which is its `user.message` event id.
 			const usages = importConfig.turns.filter(turn => isUUID(turn.id) && hasReportedUsage(turn.usage));
-			if (responses.length || usages.length) {
+			// The event log's timestamps are synthesized, so record the real durations for the replay.
+			const durations = serializeImportedTurnDurations(importConfig.turns);
+			if (responses.length || usages.length || durations) {
 				const reference = this._sessionDataService.openDatabase(this._resolveChatStorageScope(chat));
 				try {
 					for (const response of responses) {
@@ -6327,6 +6329,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 					for (const turn of usages) {
 						await reference.object.setTurnUsage(turn.id, JSON.stringify(turn.usage));
+					}
+					if (durations) {
+						await reference.object.setMetadata(IMPORTED_TURN_DURATIONS_DB_KEY, durations);
 					}
 				} finally {
 					reference.dispose();

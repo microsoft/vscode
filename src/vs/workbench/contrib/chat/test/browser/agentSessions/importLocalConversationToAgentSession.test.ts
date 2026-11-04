@@ -46,7 +46,7 @@ suite('importedTurnsFromChatModel', () => {
 		} as unknown as IChatProgressResponseContent;
 	}
 
-	function response(parts: IChatProgressResponseContent[], opts?: { canceled?: boolean; error?: { message: string; code?: string }; completionTimestamp?: number; elapsedMs?: number; usage?: { promptTokens: number; completionTokens: number; copilotCredits?: number; modelTotals?: unknown[] } }): IChatResponseModel {
+	function response(parts: IChatProgressResponseContent[], opts?: { canceled?: boolean; error?: { message: string; code?: string }; completionTimestamp?: number; elapsedMs?: number; usage?: { promptTokens: number; completionTokens: number; copilotCredits?: number; modelTotals?: unknown[] }; lastCallKnown?: boolean }): IChatResponseModel {
 		return {
 			entireResponse: { value: parts },
 			isCanceled: !!opts?.canceled,
@@ -54,6 +54,7 @@ suite('importedTurnsFromChatModel', () => {
 			completionTimestamp: opts?.completionTimestamp,
 			elapsedMs: opts?.elapsedMs,
 			usage: opts?.usage,
+			lastCallCompletionTokensKnown: opts?.lastCallKnown ?? true,
 		} as unknown as IChatResponseModel;
 	}
 
@@ -172,6 +173,18 @@ suite('importedTurnsFromChatModel', () => {
 			request('partly reported', response([markdown('F')], { usage: { promptTokens: 40, completionTokens: 4, copilotCredits: 0.1, modelTotals: [total('gpt-5', 40, 4)] } })),
 			// No credits or totals reported: the turn's whole-turn figures can no longer be known.
 			request('', response([markdown('G')], { usage: { promptTokens: 60, completionTokens: 6 } }), { systemInitiated: true }),
+			// The continuation reported nothing: its context is unknown and the turn's totals are incomplete.
+			request('silent continuation', response([markdown('H')], { usage: { promptTokens: 70, completionTokens: 7, copilotCredits: 0.2, modelTotals: [total('gpt-5', 70, 7)] } })),
+			request('', response([markdown('I')]), { systemInitiated: true }),
+			// The turn itself reported nothing: the continuation's totals do not cover the turn.
+			request('silent turn', response([markdown('J')])),
+			request('', response([markdown('K')], { usage: { promptTokens: 80, completionTokens: 8, copilotCredits: 0.3, modelTotals: [total('gpt-5', 80, 8)] } }), { systemInitiated: true }),
+			// A gap in the middle of several continuations keeps the totals incomplete.
+			request('gap between continuations', response([markdown('L')], { usage: { promptTokens: 90, completionTokens: 9, copilotCredits: 0.4, modelTotals: [total('gpt-5', 90, 9)] } })),
+			request('', response([markdown('M')]), { systemInitiated: true }),
+			request('', response([markdown('N')], { usage: { promptTokens: 95, completionTokens: 2, copilotCredits: 0.1, modelTotals: [total('gpt-5', 95, 2)] } }), { systemInitiated: true }),
+			// Restored from an older save that kept only the whole-response output total.
+			request('older save', response([markdown('O')], { usage: { promptTokens: 300, completionTokens: 250 }, lastCallKnown: false })),
 		]));
 
 		assert.deepStrictEqual(turns.map(turn => ({ text: turn.message.text, usage: turn.usage })), [
@@ -180,6 +193,10 @@ suite('importedTurnsFromChatModel', () => {
 			{ text: 'no usage', usage: undefined },
 			{ text: 'continued', usage: { inputTokens: 330, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 750_000_000 }, turnTokenTotals: [total('gpt-5', 500, 50), total('claude-haiku-5.5', 50, 5)] } } },
 			{ text: 'partly reported', usage: { inputTokens: 60, outputTokens: 6 } },
+			{ text: 'silent continuation', usage: undefined },
+			{ text: 'silent turn', usage: { inputTokens: 80, outputTokens: 8 } },
+			{ text: 'gap between continuations', usage: { inputTokens: 95, outputTokens: 2 } },
+			{ text: 'older save', usage: { inputTokens: 300 } },
 		]);
 	});
 

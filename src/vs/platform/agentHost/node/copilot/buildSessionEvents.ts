@@ -452,3 +452,63 @@ export function serializeSessionEventsToJsonl(events: readonly SessionEvent[]): 
 export function buildSessionEventLogFromTurns(turns: readonly Turn[], options: IBuildSessionEventsOptions): string {
 	return serializeSessionEventsToJsonl(buildSessionEventsFromTurns(turns, options));
 }
+
+/**
+ * Session-database metadata key holding the original duration of each imported
+ * turn, keyed by turn id. An event log only has event timestamps, from which a
+ * replay infers a duration; those are synthesized for imported turns, so the
+ * inferred duration would be invented for a turn whose duration was never
+ * known, and distorted where events had to be moved to stay in order.
+ */
+export const IMPORTED_TURN_DURATIONS_DB_KEY = 'agentHost.importedTurnDurations';
+
+/** Serializes each imported turn's duration (`null` when unknown) for {@link IMPORTED_TURN_DURATIONS_DB_KEY}. */
+export function serializeImportedTurnDurations(turns: readonly Turn[]): string | undefined {
+	const durations: Record<string, number | null> = {};
+	for (const turn of turns) {
+		if (isUUID(turn.id)) {
+			durations[turn.id] = turn.duration !== undefined && Number.isFinite(turn.duration) && turn.duration >= 0 ? turn.duration : null;
+		}
+	}
+	return Object.keys(durations).length ? JSON.stringify(durations) : undefined;
+}
+
+/** Reads the value written by {@link serializeImportedTurnDurations}; malformed entries are ignored. */
+export function parseImportedTurnDurations(value: string | undefined): ReadonlyMap<string, number | undefined> | undefined {
+	if (!value) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(value);
+	} catch {
+		return undefined;
+	}
+	if (!isObject(parsed) || Array.isArray(parsed)) {
+		return undefined;
+	}
+	const durations = new Map<string, number | undefined>();
+	for (const [turnId, duration] of Object.entries(parsed)) {
+		if (duration === null) {
+			durations.set(turnId, undefined);
+		} else if (typeof duration === 'number' && Number.isFinite(duration) && duration >= 0) {
+			durations.set(turnId, duration);
+		}
+	}
+	return durations;
+}
+
+/** Replaces the inferred durations of imported turns with their recorded originals. */
+export function withImportedTurnDurations(turns: Turn[], durations: ReadonlyMap<string, number | undefined> | undefined): Turn[] {
+	if (!durations?.size) {
+		return turns;
+	}
+	return turns.map(turn => {
+		if (!durations.has(turn.id)) {
+			return turn;
+		}
+		const { duration: _inferred, ...rest } = turn;
+		const duration = durations.get(turn.id);
+		return duration === undefined ? rest : { ...rest, duration };
+	});
+}

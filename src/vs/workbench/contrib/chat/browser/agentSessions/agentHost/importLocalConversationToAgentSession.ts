@@ -398,7 +398,8 @@ function agentFromRequest(request: IChatRequestModel, resourceUris: IAgentHostRe
  * without per-model totals (most Local responses) only records its whole
  * output total (`completionTokenCount`); an agent-host turn has no field for
  * an output total without the matching input totals, so it is not carried
- * rather than presented with invented input figures.
+ * rather than presented with invented input figures. A response restored from
+ * an older save kept only that total, so its latest call's output is omitted.
  */
 function usageFromRequest(request: IChatRequestModel): UsageInfo | undefined {
 	const usage = request.response?.usage;
@@ -408,7 +409,11 @@ function usageFromRequest(request: IChatRequestModel): UsageInfo | undefined {
 	const credits = usage.copilotCredits;
 	const nanoAiu = credits !== undefined && Number.isFinite(credits) && credits >= 0 ? Math.round(credits * 1_000_000_000) : undefined;
 	const turnTokenTotals = usage.modelTotals?.length ? usage.modelTotals.map(({ model, inputTokens, cachedTokens, outputTokens }) => ({ model, inputTokens, cachedTokens, outputTokens })) : undefined;
-	return withWholeTurnUsage({ inputTokens: usage.promptTokens, outputTokens: usage.completionTokens }, nanoAiu, turnTokenTotals);
+	// A response restored from an older save only kept the whole-response output total, so its latest call's output is unknown.
+	const counters: UsageInfo = request.response.lastCallCompletionTokensKnown
+		? { inputTokens: usage.promptTokens, outputTokens: usage.completionTokens }
+		: { inputTokens: usage.promptTokens };
+	return withWholeTurnUsage(counters, nanoAiu, turnTokenTotals);
 }
 
 function withWholeTurnUsage(usage: UsageInfo, nanoAiu: number | undefined, turnTokenTotals: readonly ITurnTokenTotal[] | undefined): UsageInfo {
@@ -420,36 +425,41 @@ function withWholeTurnUsage(usage: UsageInfo, nanoAiu: number | undefined, turnT
 }
 
 /**
- * Combines a turn's usage with that of a continuation folded into it. The
- * continuation ran last, so its latest-call counters describe the context the
- * turn ended on and replace the turn's; the credits and per-model totals are
- * whole-turn consumption and are added together. A whole-turn figure only one
- * side reported is left out, since adding it to an unknown would understate it.
+ * Combines the usage of a turn's responses (its own, then any continuations
+ * folded into it, in order). The last response ran last, so its latest-call
+ * counters describe the context the turn ended on; when it reported none,
+ * that context is unknown. Credits and per-model totals are whole-turn
+ * consumption: they are summed only when every response reported them, since
+ * a sum missing any response would understate the turn.
  */
-function combineContinuationUsage(turnUsage: UsageInfo | undefined, continuation: UsageInfo | undefined): UsageInfo | undefined {
-	if (!turnUsage || !continuation) {
-		return turnUsage ?? continuation;
-	}
-	const turnMeta = readUsageInfoMeta(turnUsage);
-	const continuationMeta = readUsageInfoMeta(continuation);
-	const turnNanoAiu = turnMeta.copilotUsage?.totalNanoAiu;
-	const continuationNanoAiu = continuationMeta.copilotUsage?.totalNanoAiu;
-	const nanoAiu = turnNanoAiu !== undefined && continuationNanoAiu !== undefined ? turnNanoAiu + continuationNanoAiu : undefined;
-	let turnTokenTotals: ITurnTokenTotal[] | undefined;
-	if (turnMeta.turnTokenTotals && continuationMeta.turnTokenTotals) {
-		const byModel = new Map<string, ITurnTokenTotal>();
-		for (const total of [...turnMeta.turnTokenTotals, ...continuationMeta.turnTokenTotals]) {
-			const current = byModel.get(total.model);
-			byModel.set(total.model, current ? {
+function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo | undefined {
+	const last = usages.at(-1);
+	const metas = usages.map(usage => usage && readUsageInfoMeta(usage));
+	let nanoAiu: number | undefined = 0;
+	let turnTokenTotals: Map<string, ITurnTokenTotal> | undefined = new Map();
+	for (const meta of metas) {
+		const responseNanoAiu = meta?.copilotUsage?.totalNanoAiu;
+		nanoAiu = nanoAiu !== undefined && responseNanoAiu !== undefined ? nanoAiu + responseNanoAiu : undefined;
+		if (!turnTokenTotals || !meta?.turnTokenTotals) {
+			turnTokenTotals = undefined;
+			continue;
+		}
+		for (const total of meta.turnTokenTotals) {
+			const current = turnTokenTotals.get(total.model);
+			turnTokenTotals.set(total.model, current ? {
 				model: total.model,
 				inputTokens: current.inputTokens + total.inputTokens,
 				cachedTokens: current.cachedTokens + total.cachedTokens,
 				outputTokens: current.outputTokens + total.outputTokens,
 			} : total);
 		}
-		turnTokenTotals = [...byModel.values()];
 	}
-	return withWholeTurnUsage({ inputTokens: continuation.inputTokens, outputTokens: continuation.outputTokens }, nanoAiu, turnTokenTotals);
+	const counters: UsageInfo = {
+		...(last?.inputTokens !== undefined ? { inputTokens: last.inputTokens } : {}),
+		...(last?.outputTokens !== undefined ? { outputTokens: last.outputTokens } : {}),
+	};
+	const usage = withWholeTurnUsage(counters, usages.length ? nanoAiu : undefined, turnTokenTotals?.size ? [...turnTokenTotals.values()] : undefined);
+	return Object.keys(usage).length ? usage : undefined;
 }
 
 /**
@@ -465,11 +475,13 @@ function combineContinuationUsage(turnUsage: UsageInfo | undefined, continuation
  * not real user turns, so their synthetic message is dropped and their response
  * (and end state) is folded into the preceding turn as a continuation, adding
  * its generation time and whole-turn consumption (see
- * {@link combineContinuationUsage}).
+ * {@link combineTurnUsage}).
  */
 export function importedTurnsFromChatModel(model: IChatModel, options?: IImportedTurnsOptions): Turn[] {
 	const resourceUris = options?.resourceUris ?? identityAgentHostResourceUriMapper;
 	const turns: Turn[] = [];
+	// Every response's usage per turn, its own first, combined once the turn is complete.
+	const turnUsages = new Map<Turn, (UsageInfo | undefined)[]>();
 	for (const request of model.getRequests()) {
 		const responseParts = responsePartsFromRequest(request);
 		const outcome = turnOutcomeFromRequest(request);
@@ -491,14 +503,14 @@ export function importedTurnsFromChatModel(model: IChatModel, options?: IImporte
 				previous.duration = previous.duration !== undefined && continuationDuration !== undefined
 					? previous.duration + continuationDuration
 					: undefined;
-				previous.usage = combineContinuationUsage(previous.usage, usageFromRequest(request));
+				turnUsages.get(previous)?.push(usageFromRequest(request));
 			}
 			continue;
 		}
 		const attachments = attachmentsFromRequest(request, resourceUris);
 		const messageModel = request.modelId ? options?.resolveModel?.(request.modelId) : undefined;
 		const agent = agentFromRequest(request, resourceUris);
-		turns.push({
+		const turn: Turn = {
 			id: generateUuid(),
 			...timingFromRequest(request),
 			message: {
@@ -509,9 +521,14 @@ export function importedTurnsFromChatModel(model: IChatModel, options?: IImporte
 				...(agent ? { agent } : {}),
 			},
 			responseParts,
-			usage: usageFromRequest(request),
+			usage: undefined,
 			state: outcome.state,
-		} satisfies Turn);
+		};
+		turns.push(turn);
+		turnUsages.set(turn, [usageFromRequest(request)]);
+	}
+	for (const [turn, usages] of turnUsages) {
+		turn.usage = combineTurnUsage(usages);
 	}
 	return turns;
 }

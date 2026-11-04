@@ -150,6 +150,7 @@ import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService, createSessionDataService, TestSessionDatabase as InMemorySessionDatabase } from '../common/sessionTestHelpers.js';
+import { IMPORTED_TURN_DURATIONS_DB_KEY } from '../../node/copilot/buildSessionEvents.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
@@ -26759,7 +26760,7 @@ suite('CopilotAgent', () => {
 			});
 		}).timeout(30_000);
 
-		test('an imported conversation saves each turn\'s reported usage for restore', async () => {
+		test('an imported conversation saves each turn\'s reported usage and original duration for restore', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-usage-home-`));
 			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-usage-cwd-`));
 			const database = new InMemorySessionDatabase();
@@ -26782,6 +26783,7 @@ suite('CopilotAgent', () => {
 			});
 			const withUsage = generateUuid();
 			const creditsOnly = generateUuid();
+			const noUsage = generateUuid();
 			const usage = { inputTokens: 1200, outputTokens: 300, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } };
 
 			await provisionSession(agent, {
@@ -26789,19 +26791,26 @@ suite('CopilotAgent', () => {
 				workingDirectories: [workingDirectory],
 				importConversation: {
 					turns: [
-						turn(withUsage, usage),
+						{ ...turn(withUsage, usage), duration: 4_000 },
 						turn(creditsOnly, { _meta: { copilotUsage: { totalNanoAiu: 0 } } }),
-						turn(generateUuid(), undefined),
+						turn(noUsage, undefined),
 						turn('not-a-uuid', usage),
 					],
 				},
 			});
 
 			const usages = [...(await database.getTurnUsages()).entries()].sort(([a], [b]) => a.localeCompare(b));
-			assert.deepStrictEqual(usages, [
-				[withUsage, JSON.stringify(usage)],
-				[creditsOnly, JSON.stringify({ _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
-			].sort(([a], [b]) => a.localeCompare(b)));
+			assert.deepStrictEqual({
+				usages,
+				durations: JSON.parse(await database.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY) ?? 'null'),
+			}, {
+				usages: [
+					[withUsage, JSON.stringify(usage)],
+					[creditsOnly, JSON.stringify({ _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
+				].sort(([a], [b]) => a.localeCompare(b)),
+				// Recorded so a replay does not invent durations from the synthesized event times.
+				durations: { [withUsage]: 4_000, [creditsOnly]: null, [noUsage]: null },
+			});
 		}).timeout(30_000);
 
 		test('createChat mints a provisional session', async () => {
