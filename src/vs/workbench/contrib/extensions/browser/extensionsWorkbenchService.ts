@@ -7,6 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
+import { equals } from '../../../../base/common/objects.js';
 import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -28,7 +29,8 @@ import {
 	shouldRequireRepositorySignatureFor,
 	IGalleryExtensionVersion,
 	IExtensionBlockingInfo,
-	ExtensionBlockingScope
+	ExtensionBlockingScope,
+	MarketplaceDeprecationConfigKey
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry, getExtensionBlockedMessage } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -109,6 +111,8 @@ export class Extension implements IExtension {
 	private _blockingInfo: IExtensionBlockingInfo | undefined;
 	private _installedBlockingInfo: IExtensionBlockingInfo | undefined;
 	private _local: ILocalExtension | undefined;
+	private _marketplaceDeprecationInfo: IDeprecationInfo | undefined;
+	private _legacyDeprecationInfo: IDeprecationInfo | undefined;
 
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
@@ -121,10 +125,12 @@ export class Extension implements IExtension {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this._local = local;
 		this._blockingInfo = _gallery?.blockingInfo;
+		this._marketplaceDeprecationInfo = _gallery?.deprecationInfo;
 		if (local && _gallery && local.manifest.version === _gallery.version) {
 			this._installedBlockingInfo = _gallery.blockingInfo;
 		}
@@ -373,7 +379,20 @@ export class Extension implements IExtension {
 		return this.malicious?.learnMoreLink;
 	}
 
-	public deprecationInfo: IDeprecationInfo | undefined;
+	get deprecationInfo(): IDeprecationInfo | undefined {
+		if (this._legacyDeprecationInfo?.extension?.autoMigrate) {
+			return this._legacyDeprecationInfo;
+		}
+		return this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey)
+			? this._marketplaceDeprecationInfo ?? this._legacyDeprecationInfo
+			: this._legacyDeprecationInfo;
+	}
+
+	setMarketplaceDeprecationInfo(info: IDeprecationInfo | undefined): boolean {
+		const previous = this.deprecationInfo;
+		this._marketplaceDeprecationInfo = info;
+		return !equals(previous, this.deprecationInfo);
+	}
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -633,7 +652,7 @@ ${this.description}
 
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
 		this.malicious = findMatchingMaliciousEntry(this.identifier, extensionsControlManifest.malicious);
-		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
+		this._legacyDeprecationInfo = extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()];
 	}
 
 	private getManifestFromLocalOrResource(): IExtensionManifest | null {
@@ -736,10 +755,12 @@ class Extensions extends Disposable {
 		flagExtensionsMissingFromGallery?: IExtensionInfo[],
 		installedVersionBlockingInfo?: ReadonlyMap<string, IExtensionBlockingInfo | undefined>
 	): Promise<void> {
-		const blockingInfoChanged = new Set<Extension>();
+		const metadataChanged = new Set<Extension>();
 		for (const [extension, gallery] of this.mapInstalledExtensionWithGalleryExtension(galleryExtensions)) {
-			if (extension.setBlockingInfo(gallery.blockingInfo)) {
-				blockingInfoChanged.add(extension);
+			const blockingInfoChanged = extension.setBlockingInfo(gallery.blockingInfo);
+			const deprecationInfoChanged = extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+			if (blockingInfoChanged || deprecationInfoChanged) {
+				metadataChanged.add(extension);
 			}
 		}
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
@@ -760,13 +781,13 @@ class Extensions extends Disposable {
 				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin
 				|| extension.gallery.blockingInfo?.scope !== gallery.blockingInfo?.scope) {
 				extension.gallery = gallery;
-				blockingInfoChanged.delete(extension);
+				metadataChanged.delete(extension);
 				this._onChange.fire({ extension });
-			} else if (installedBlockingInfoChanged || blockingInfoChanged.delete(extension)) {
+			} else if (installedBlockingInfoChanged || metadataChanged.delete(extension)) {
 				this._onChange.fire({ extension });
 			}
 		}
-		for (const extension of blockingInfoChanged) {
+		for (const extension of metadataChanged) {
 			this._onChange.fire({ extension });
 		}
 		// Detect extensions that do not have a corresponding gallery entry.
@@ -799,6 +820,7 @@ class Extensions extends Disposable {
 					queriedIds.push(extension.identifier.id);
 					const gallery = queryResult.find(g => areSameExtensions(g.identifier, extension.identifier));
 					if (gallery) {
+						extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
 						extension.gallery = gallery;
 					} else {
 						extension.missingFromGallery = true;
@@ -973,6 +995,9 @@ class Extensions extends Disposable {
 					}
 					extension.local = local;
 					if (!extension.gallery) {
+						if (gallery) {
+							extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+						}
 						extension.gallery = gallery;
 					}
 					extension.enablementState = this.extensionEnablementService.getEnablementState(local);
@@ -1011,6 +1036,7 @@ class Extensions extends Disposable {
 		for (const extension of extensions) {
 			const compatible = galleryExtensions.find(e => areSameExtensions(e.identifier, extension.identifier));
 			if (compatible) {
+				extension.setMarketplaceDeprecationInfo(compatible.deprecationInfo);
 				extension.gallery = compatible;
 				this._onChange.fire({ extension });
 			}
@@ -1134,6 +1160,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		super();
 
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(MarketplaceDeprecationConfigKey)) {
+				this._onChange.fire(undefined);
+			}
+		}));
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions,
 				extensionManagementServerService.localExtensionManagementServer,
@@ -1756,11 +1787,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension) {
 			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
-		} else if (extension.version === gallery.version) {
+		} else {
 			const installedExtension = extension as Extension;
-			const blockingInfoChanged = installedExtension.setBlockingInfo(gallery.blockingInfo);
-			const installedBlockingInfoChanged = installedExtension.setInstalledBlockingInfo(gallery.blockingInfo);
-			if (blockingInfoChanged || installedBlockingInfoChanged) {
+			const deprecationInfoChanged = installedExtension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+			const blockingInfoChanged = extension.version === gallery.version && installedExtension.setBlockingInfo(gallery.blockingInfo);
+			const installedBlockingInfoChanged = extension.version === gallery.version && installedExtension.setInstalledBlockingInfo(gallery.blockingInfo);
+			if (deprecationInfoChanged || blockingInfoChanged || installedBlockingInfoChanged) {
 				this._onChange.fire(extension);
 			}
 		}
