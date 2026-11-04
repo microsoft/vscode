@@ -64,7 +64,10 @@ suite('MainThreadTask', function () {
 	test('removal before initial remote readiness does not release the readiness promise', async () => {
 		const { taskService, instantiationService } = createTaskService(store, 'test-remote');
 		let ready = false;
-		const readiness = taskService.whenTaskSystemReady.then(() => ready = true);
+		const readiness = (async () => {
+			await taskService.whenTaskSystemReady;
+			ready = true;
+		})();
 		const local = store.add(instantiationService.createInstance(MainThreadTask, SingleProxyRPCProtocol(null)));
 		local.$registerTaskSystem(Schemas.file, { scheme: Schemas.file, authority: '', platform: 'win32' });
 		local.dispose();

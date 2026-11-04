@@ -74,10 +74,11 @@ suite('Task system readiness', function () {
 		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.platform)));
 		assert.strictEqual(taskService.hasTaskSystemInfo, true);
 		let completed = false;
-		const discovery = taskService.getWorkspaceTasks().then(tasks => {
+		const discovery = (async () => {
+			const tasks = await taskService.getWorkspaceTasks();
 			completed = true;
 			return tasks;
-		});
+		})();
 		await timeout(0);
 		assert.strictEqual(completed, false, 'discovery must stay pending while the remote host restarts');
 		store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Windows))).dispose();
@@ -107,10 +108,11 @@ suite('Task system readiness', function () {
 			return resume.p;
 		});
 		let completed = false;
-		const discovery = taskService.getWorkspaceTasks().then(tasks => {
+		const discovery = (async () => {
+			const tasks = await taskService.getWorkspaceTasks();
 			completed = true;
 			return tasks;
-		});
+		})();
 		await entered.p;
 		remote.dispose();
 		await resume.complete();
@@ -164,7 +166,9 @@ suite('Task system readiness', function () {
 				remote.dispose();
 			}
 			let result: Map<string, IWorkspaceFolderTaskResult> | undefined;
-			const discovery = taskService.getWorkspaceTasks().then(tasks => result = tasks);
+			const discovery = (async () => {
+				result = await taskService.getWorkspaceTasks();
+			})();
 			if (parsingStarted) {
 				await entered.p;
 				remote.dispose();
@@ -212,10 +216,11 @@ suite('Task system readiness', function () {
 		const system = store.add(taskService.createTerminalTaskSystem());
 		remote.dispose();
 		let completed = false;
-		const execution = system.run(task, { resolve: async () => undefined }).promise.then(result => {
+		const execution = (async () => {
+			const result = await system.run(task, { resolve: async () => undefined }).promise;
 			completed = true;
 			return result;
-		});
+		})();
 		await timeout(0);
 		assert.strictEqual(completed, false);
 		const resolveVariables = sinon.stub().resolves(undefined);
@@ -300,10 +305,11 @@ suite('Task system readiness', function () {
 		system.lastTask = previous;
 		remote.dispose();
 		let completed = false;
-		const execution = system.rerun()!.promise.then(result => {
+		const execution = (async () => {
+			const result = await system.rerun()!.promise;
 			completed = true;
 			return result;
-		});
+		})();
 		await timeout(0);
 		assert.deepStrictEqual({ completed, oldCalls: oldResolveVariables.callCount }, { completed: false, oldCalls: 0 });
 		const resolveVariables = sinon.stub().resolves(undefined);
@@ -326,7 +332,10 @@ suite('Task system readiness', function () {
 	test('removal before initial remote readiness does not release the readiness promise', async () => {
 		const { taskService } = createTaskService(store, 'test-remote');
 		let ready = false;
-		const readiness = taskService.whenTaskSystemReady.then(() => ready = true);
+		const readiness = (async () => {
+			await taskService.whenTaskSystemReady;
+			ready = true;
+		})();
 		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
 		taskService.removeTaskSystem(Schemas.file);
 		await timeout(0);

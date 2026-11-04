@@ -2610,13 +2610,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._workspaceTasksCancellation.value?.cancel();
 		const cancellation = new CancellationTokenSource(this._taskSystemInfoCancellation);
 		this._workspaceTasksCancellation.value = cancellation;
-		const promise: Promise<Map<string, IWorkspaceFolderTaskResult>> = this._computeWorkspaceTasks(runSource, cancellation.token).then(result => {
+		this._workspaceTasksPromise = this._doUpdateWorkspaceTasks(runSource, cancellation);
+		return this._workspaceTasksPromise;
+	}
+
+	private async _doUpdateWorkspaceTasks(runSource: TaskRunSource, cancellation: CancellationTokenSource): Promise<Map<string, IWorkspaceFolderTaskResult>> {
+		try {
+			const result = await this._computeWorkspaceTasks(runSource, cancellation.token);
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}
-			// If invalidated while computing, use the current computation instead.
-			if (this._workspaceTasksPromise !== promise) {
-				return this._workspaceTasksPromise ?? this._updateWorkspaceTasks(runSource);
+			// Registration changes clear the cache; a newer computation replaces the token source.
+			if (!this._workspaceTasksPromise || this._workspaceTasksCancellation.value !== cancellation) {
+				return await (this._workspaceTasksPromise ?? this._updateWorkspaceTasks(runSource));
 			}
 			const hasAnyTasks = Array.from(result.values()).some(folderResult =>
 				(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
@@ -2624,19 +2630,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			);
 			this._tasksAvailableState.set(hasAnyTasks);
 			return result;
-		}, error => {
-			if (isCancellationError(error) && !this._store.isDisposed && this._workspaceTasksPromise !== promise) {
-				return this._workspaceTasksPromise ?? this._updateWorkspaceTasks(runSource);
+		} catch (error) {
+			if (isCancellationError(error) && !this._store.isDisposed && this._workspaceTasksCancellation.value !== cancellation) {
+				return await (this._workspaceTasksPromise ?? this._updateWorkspaceTasks(runSource));
 			}
 			throw error;
-		}).finally(() => {
+		} finally {
 			cancellation.cancel();
 			if (this._workspaceTasksCancellation.value === cancellation) {
 				this._workspaceTasksCancellation.clear();
 			}
-		});
-		this._workspaceTasksPromise = promise;
-		return promise;
+		}
 	}
 
 	private async _getAFolder(): Promise<IWorkspaceFolder> {
