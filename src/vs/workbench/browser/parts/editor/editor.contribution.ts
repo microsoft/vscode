@@ -17,6 +17,8 @@ import {
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from '../../../common/editor/sideBySideEditorInput.js';
 import { TextResourceEditor } from './textResourceEditor.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
+import { ViewEditorPane } from './viewEditorPane.js';
+import { ViewEditorInput } from './viewEditorInput.js';
 import { DiffEditorInput, DiffEditorInputSerializer } from '../../../common/editor/diffEditorInput.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
@@ -119,6 +121,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(SideBySideEditorInput)
+	]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ViewEditorPane,
+		ViewEditorPane.ID,
+		localize('viewEditor', "View Editor")
+	),
+	[
+		new SyncDescriptor(ViewEditorInput)
 	]
 );
 

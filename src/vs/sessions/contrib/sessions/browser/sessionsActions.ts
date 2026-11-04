@@ -31,7 +31,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
@@ -41,6 +41,7 @@ import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, 
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
@@ -273,6 +274,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // -- Go Back --
 
+const sessionNavigationWhen = ContextKeyExpr.and(IsSessionsWindowContext,
+	ContextKeyExpr.or(EditorAreaFocusContext.toNegated(), ActiveEditorContext.isEqualTo(WindowCanvasInput.EDITOR_ID)));
+
 registerAction2(class GoBackAction extends Action2 {
 	constructor() {
 		super({
@@ -293,11 +297,11 @@ registerAction2(class GoBackAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: sessionNavigationWhen,
 			}, {
 				weight: KeybindingWeight.SessionsContrib,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(sessionNavigationWhen, InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
 			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
@@ -339,11 +343,11 @@ registerAction2(class GoForwardAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: sessionNavigationWhen,
 			}, {
 				weight: KeybindingWeight.SessionsContrib,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(sessionNavigationWhen, InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
 			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,

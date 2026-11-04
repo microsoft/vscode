@@ -683,12 +683,12 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the tab-level editor actions before layout actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Run Code Review is the first primary action of the Changes editor header', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(headerItem, 'expected Run Code Review in the tab-level editor actions');
+		assert.ok(headerItem, 'expected Run Code Review in the Changes editor header');
 		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
@@ -697,7 +697,7 @@ suite('Code Review Contributions', () => {
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			oldHeaderActions: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			tabRowActions: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 				.filter(isIMenuItem)
 				.filter(item => item.command.id === 'sessions.codeReview.run')
 				.map(item => item.command.id),
@@ -714,7 +714,7 @@ suite('Code Review Contributions', () => {
 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			oldHeaderActions: [],
+			tabRowActions: [],
 			group: 'navigation',
 			order: 10,
 			enabledFromSessionChanges: true,

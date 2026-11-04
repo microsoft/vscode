@@ -495,6 +495,41 @@ const setTimeout0 = (() => {
 	return (callback) => setTimeout(callback);
 })();
 
+/**
+ * Keeps every <n>th of the loaded tests, starting with the <i>th (--testShard <i>/<n>), so that the tests
+ * of one file can run in several processes. Taking every <n>th test, rather than a contiguous part, spreads
+ * the slow tests that files group together across the processes. Mocha skips the suites left without
+ * tests, hooks included. Tests selected with .only() are rejected: Mocha would restore them in every
+ * shard.
+ * @param {Mocha.Suite} rootSuite
+ * @param {string} testShard
+ */
+function shardTests(rootSuite, testShard) {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(testShard);
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	if (!match || index < 1 || index > total) {
+		throw new Error(`Invalid --testShard ${testShard}: expected <index>/<total> with 1 <= index <= total, for example 1/2`);
+	}
+	// @ts-expect-error hasOnly() is missing from the Mocha types
+	if (rootSuite.hasOnly()) {
+		throw new Error(`--testShard ${testShard} cannot run tests selected with .only(), which every shard would run. Remove the .only() or --testShard.`);
+	}
+	/** @type {Mocha.Test[]} */
+	const tests = [];
+	const collect = (/** @type {Mocha.Suite} */ suite) => {
+		tests.push(...suite.tests);
+		suite.suites.forEach(collect);
+	};
+	collect(rootSuite);
+	const kept = new Set(tests.filter((_test, position) => position % total === index - 1));
+	const filter = (/** @type {Mocha.Suite} */ suite) => {
+		suite.tests = suite.tests.filter(test => kept.has(test));
+		suite.suites.forEach(filter);
+	};
+	filter(rootSuite);
+}
+
 async function runTests(opts) {
 	// @ts-expect-error
 	Mocha.Runner.immediately = setTimeout0;
@@ -517,6 +552,10 @@ async function runTests(opts) {
 	const testFiles = opts.workerDir ? trackTestFiles(mocha.suite) : undefined;
 
 	await loadTests(opts);
+
+	if (opts.testShard) {
+		shardTests(mocha.suite, opts.testShard);
+	}
 
 	if (testFiles) {
 		distributeTestFiles(mocha.suite, testFiles, { workerId: opts.worker, workerDir: opts.workerDir });
@@ -547,7 +586,9 @@ ipcRenderer.on('run', async (_e, opts) => {
 	try {
 		await runTests(opts);
 	} catch (err) {
-		if (typeof err !== 'string') {
+		if (err instanceof Error) {
+			err = err.stack ?? err.message;
+		} else if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
 		console.error(err);

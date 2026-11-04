@@ -104,7 +104,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.29-preview.1",
+    "@github/copilot-sdk": "1.0.29-preview.5",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -183,10 +183,7 @@
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/chrome-remote-interface": "^0.33.0",
     "@types/cookie": "^0.3.3",
-    "@types/debug": "^4.1.5",
-    "@types/eslint": "^9.6.1",
     "@types/estree": "^1.0.9",
-    "@types/http-proxy-agent": "^2.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/kerberos": "^1.1.2",
     "@types/minimist": "^1.2.1",
@@ -259,14 +256,12 @@
     "js-yaml": "^4.2.0",
     "json-schema-to-typescript": "16.0.0",
     "lazy.js": "^0.4.2",
-    "merge-options": "^1.0.1",
     "mime": "^1.4.1",
     "minimatch": "^3.1.5",
     "mocha": "^10.8.2",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all2": "^8.0.4",
-    "os-browserify": "^0.3.0",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
     "rcedit": "^1.1.0",
@@ -296,5 +291,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.106-2"
+  "copilotRuntimeVersion": "1.0.106-6"
 }
