@@ -435,7 +435,7 @@ suite('Part Grid', () => {
 
 	test('laying cells out, such as dragging a sash, does not read the frames of the cards again; updating the look does', () => {
 		const container = createContainer();
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
 		grid.addView('title', createView());
 		grid.addView('other', { ...createView(), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY }, { edge: Direction.Down });
 		grid.layout(1000, 800);
