@@ -2273,6 +2273,8 @@ suite('ChatPetWidget', () => {
 		}();
 		const modelValue = observableValue<IChatModel | undefined>('model', model);
 		widget.setHost({ ...firstHost, model: modelValue });
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.CowboyHat).id);
+		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
 		const createSubagent = (id: string) => {
 			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
 			tool.toolSpecificData = { kind: 'subagent', isActive: true };
@@ -2284,6 +2286,14 @@ suite('ChatPetWidget', () => {
 		const first = createSubagent('first');
 		const firstMini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
 		assert.ok(firstMini.offsetLeft >= button.offsetLeft + button.offsetWidth);
+		const [bodyImage, accessoryImage] = firstMini.querySelectorAll<HTMLImageElement>('img');
+		assert.ok(accessoryImage?.src.includes('/accessories/'));
+		await Promise.all([bodyImage.decode(), accessoryImage.decode()]);
+		const miniCanvas = firstMini.querySelector<HTMLCanvasElement>('canvas')!;
+		const draws = sinon.spy(miniCanvas.getContext('2d')!, 'drawImage');
+		bodyImage.dispatchEvent(new mainWindow.Event('load'));
+		assert.ok(draws.calledWith(accessoryImage));
+		draws.restore();
 		button.dataset.state = 'idle';
 		const miniPupil = firstMini.querySelector<HTMLElement>('.chat-pet-pupil')!;
 		const mainPupil = button.querySelector<HTMLElement>('.chat-pet-pupil')!;

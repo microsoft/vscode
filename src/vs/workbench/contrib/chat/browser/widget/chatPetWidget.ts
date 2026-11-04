@@ -1246,7 +1246,7 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
-	private readonly _subagentPets = new Map<string, { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; eyes: HTMLElement; disposables: DisposableStore; slot: number; side: 'left' | 'right' }>();
+	private readonly _subagentPets = new Map<string, { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; accessoryImage: HTMLImageElement | undefined; eyes: HTMLElement; disposables: DisposableStore; slot: number; side: 'left' | 'right' }>();
 	private _subagentModel: IChatModel | undefined;
 	private readonly _subagentEffects = this._register(new DisposableStore());
 	private readonly _subagentLayer: HTMLElement;
@@ -2896,15 +2896,30 @@ export class ChatPetWidget extends Disposable {
 			const sources = getChatPetSpriteSources(this._variant).idle;
 			const source = this._motionReduced ? sources.reducedMotion : sources.animated;
 			const sprite: ChatPetSpriteElement = { container: element, canvas, image, color: this._color };
-			disposables.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation)));
+			const accessory = this._selectedAccessory ? getChatPetAccessory(this._selectedAccessory) : undefined;
+			const accessoryImage = accessory ? dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement : undefined;
+			if (accessoryImage && accessory) {
+				accessoryImage.alt = '';
+				disposables.add(dom.addDisposableListener(accessoryImage, 'load', () => sprite.redrawFrame?.()));
+				setChatPetImageSource(accessoryImage, getChatPetAccessoryImageSource(accessory).url);
+			}
+			disposables.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation, undefined, false, frameIndex => {
+				if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
+					const context = canvas.getContext('2d');
+					if (context) {
+						drawChatPetComposite(context, image, accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', 'idle', source.fixedOrientationDecorations, true, accessory.eyeAccessoryMirrorsWithFacing !== false, accessory.coversAntennae === true, sprite.color);
+					}
+				}
+			})));
 			setChatPetImageSource(image, source.url);
-			this._subagentPets.set(id, { element, canvas, image, eyes, disposables, slot, side });
+			this._subagentPets.set(id, { element, canvas, image, accessoryImage, eyes, disposables, slot, side });
 		}
 	}
 
-	private _despawnSubagentPet(pet: { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; eyes: HTMLElement; disposables: DisposableStore }): void {
+	private _despawnSubagentPet(pet: { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; accessoryImage: HTMLImageElement | undefined; eyes: HTMLElement; disposables: DisposableStore }): void {
 		this._subagentEffects.delete(pet.disposables);
 		pet.image.remove();
+		pet.accessoryImage?.remove();
 		pet.element.classList.remove('chat-pet-subagent', 'arriving');
 		pet.element.classList.add('chat-pet-subagent-despawning');
 		pet.eyes.remove();
