@@ -59,4 +59,45 @@ suite('Request Service response URL', () => {
 			url: `${finalOrigin}/asset`, status: 401, body: 'unauthorized',
 		});
 	});
+
+	for (const redirect of ['same-origin', 'cross-origin', 'out-and-back'] as const) {
+		test(`reports retained authorization after a ${redirect} redirect`, async () => {
+			const authorizations: (string | undefined)[] = [];
+			const otherOrigin = await listen((request, response) => {
+				authorizations.push(request.headers.authorization);
+				if (redirect === 'out-and-back') {
+					response.writeHead(302, { Location: `${entryOrigin}/final` });
+				} else {
+					response.writeHead(401);
+				}
+				response.end();
+			});
+			const entryOrigin = await listen((request, response) => {
+				authorizations.push(request.headers.authorization);
+				if (request.url === '/entry') {
+					response.writeHead(302, { Location: redirect === 'same-origin' ? '/final' : `${otherOrigin}/asset` });
+				} else {
+					response.writeHead(401);
+				}
+				response.end();
+			});
+			const result = await nodeRequest({
+				url: `${entryOrigin}/entry`,
+				headers: { aUtHoRiZaTiOn: 'Bearer test-token' },
+				callSite: 'requestFinalUrl.test',
+			}, CancellationToken.None);
+			await streamToBuffer(result.stream);
+
+			assert.deepStrictEqual({
+				url: result.url, status: result.res.statusCode, retained: result.requestHasAuthorization, authorizations,
+			}, {
+				url: redirect === 'cross-origin' ? `${otherOrigin}/asset` : `${entryOrigin}/final`,
+				status: 401,
+				retained: redirect === 'same-origin',
+				authorizations: redirect === 'out-and-back'
+					? ['Bearer test-token', undefined, undefined]
+					: ['Bearer test-token', redirect === 'same-origin' ? 'Bearer test-token' : undefined],
+			});
+		});
+	}
 });
