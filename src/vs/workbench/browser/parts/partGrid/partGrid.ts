@@ -1066,33 +1066,38 @@ export class PartGrid extends Disposable {
 		const before = this.describe();
 		const sizes = this.getVisibleCellSizes(id);
 		const neighbor = this.dimension ? this.grid.getNeighborViews(cell, direction).find(candidate => candidate.part && this.isCellVisible(candidate.id)) : undefined;
-		if (neighbor) {
-			const grid = this.grid;
-			this.arrange(() => {
+		const grid = this.grid;
+		// At that edge already, the cells keep their places, sizes and focus
+		const state = neighbor ? undefined : grid.serialize();
+		const focused = getActiveElement();
+		let moved = false;
+		// The cells glide to where they end up, with their sizes
+		this.arrange(() => {
+			if (neighbor) {
 				grid.moveView(cell, Sizing.Distribute, neighbor, direction);
-				this.updateAllVisibility();
-			});
-		} else {
-			// At that edge already, the cells keep their places, sizes and focus
-			const state = this.grid.serialize();
-			const focused = getActiveElement();
-			this.moveCell(id, { edge: direction });
-			if (this.describe() === before) {
+			} else {
+				moveInArrangement(this.arrangement(), cell, cellId => this.getCell(cellId), { edge: direction });
+			}
+			this.updateAllVisibility();
+
+			if (state && this.describe() === before) {
 				this.setGrid(this.deserialize(state));
 				this.updateAllVisibility();
-				if (isHTMLElement(focused) && focused.isConnected && !isActiveElement(focused)) {
-					focused.focus();
-				}
-				return false;
+				return;
 			}
+
+			// The other cells keep their sizes, and the moved part takes the rest, so that moving it back restores them
+			for (const [otherId, size] of sizes) {
+				this.resizeCell(otherId, size);
+			}
+			moved = this.describe() !== before;
+		});
+
+		if (!moved && isHTMLElement(focused) && focused.isConnected && !isActiveElement(focused)) {
+			focused.focus();
 		}
 
-		// The other cells keep their sizes, and the moved part takes the rest, so that moving it back restores them
-		for (const [otherId, size] of sizes) {
-			this.resizeCell(otherId, size);
-		}
-
-		return this.describe() !== before;
+		return moved;
 	}
 
 	private getVisibleCellSizes(excludedId: string): [string, IViewSize][] {
