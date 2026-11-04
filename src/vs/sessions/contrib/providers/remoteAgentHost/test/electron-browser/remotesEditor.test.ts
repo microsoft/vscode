@@ -281,6 +281,42 @@ suite('RemotesEditor', () => {
 		});
 	});
 
+	test('This Computer explains a policy-disabled GitHub Environments option and offers the managed setting', async () => {
+		const { editor, container, input, instantiation, configuration } = createEditor();
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, false);
+		const inspect = configuration.inspect.bind(configuration);
+		configuration.inspect = <T>(key: string) => key === GitHubEnvironmentsEnabledSettingId ? { ...inspect<T>(key), policyValue: false as T } : inspect<T>(key);
+		const opened: unknown[] = [];
+		instantiation.stub(IPreferencesService, { openSettings: async (options: unknown) => { opened.push(options); return undefined; } });
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const policy = section.querySelector<HTMLElement>('.remotes-this-computer-policy')!;
+		const radio = section.querySelector<HTMLElement>('.monaco-custom-radio')!;
+		const github = [...radio.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'GitHub Environments (Preview)')!;
+		const link = policy.querySelector<HTMLElement>('.monaco-link')!;
+		link.focus();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			visible: !policy.hidden,
+			text: policy.textContent,
+			describes: radio.getAttribute('aria-describedby') === policy.id,
+			githubDisabled: github.getAttribute('aria-disabled'),
+			linkFocusable: link.tabIndex,
+			opened,
+			accessible: editor.getAccessibilityContent().includes('GitHub Environments is disabled by your organization. Contact your administrator.'),
+		}, {
+			visible: true,
+			text: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			describes: true,
+			githubDisabled: 'true',
+			linkFocusable: 0,
+			opened: [{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }],
+			accessible: true,
+		});
+	});
+
 	test('shows This Computer only while its experimental setting is enabled', async () => {
 		const { editor, container, input, configuration } = createEditor();
 		await editor.setInput(input, undefined, {}, CancellationToken.None);

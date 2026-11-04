@@ -84,8 +84,21 @@
 }
 
 .remotes-this-computer-status,
+.remotes-this-computer-policy,
 .remotes-this-computer-description {
 	margin: 0;
+}
+
+.remotes-this-computer-policy:not([hidden]) {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+}
+
+.remotes-this-computer-policy > .codicon {
+	flex-shrink: 0;
+	align-self: center;
+	color: var(--vscode-descriptionForeground);
 }
 
 .remotes-this-computer-description {

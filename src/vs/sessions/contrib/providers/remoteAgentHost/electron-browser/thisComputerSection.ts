@@ -17,12 +17,13 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { GITHUB_ENVIRONMENTS_DOCS_URL } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState } from '../../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 function getMethodLabel(method: Exclude<RemoteConnectionsMethod, 'off'>): string {
@@ -45,6 +46,8 @@ export class ThisComputerSection extends Disposable {
 	private readonly rename: Action;
 	private readonly radio: Radio;
 	private readonly status: HTMLElement;
+	private readonly policy: HTMLElement;
+	private readonly policyText = localize('thisComputer.policyDisabled', "GitHub Environments is disabled by your organization. Contact your administrator.");
 	private readonly descriptionText = localize('thisComputer.description', "Local sessions run directly here. Sharing lets other clients access agents and folders on this computer.");
 	private methods: readonly RemoteConnectionsMethod[] = [];
 	private itemsKey: string | undefined;
@@ -57,6 +60,7 @@ export class ThisComputerSection extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super();
 		const state = this._register(instantiationService.createInstance(RemoteConnectionsState));
@@ -87,6 +91,16 @@ export class ThisComputerSection extends Disposable {
 		this.domNode.appendChild(this.radio.domNode);
 		this._register(this.radio.onDidSelect(index => this.select(this.methods[index])));
 
+		// A disabled option cannot be focused, so the policy reason and its next step stay outside the options.
+		this.policy = dom.append(this.domNode, dom.$('p.remotes-this-computer-policy', { id: generateUuid() }));
+		dom.append(this.policy, renderIcon(Codicon.briefcase)).setAttribute('aria-hidden', 'true');
+		dom.append(this.policy, dom.$('span', undefined, `${this.policyText} `));
+		this._register(instantiationService.createInstance(Link, this.policy, {
+			label: localize('thisComputer.viewSetting', "View Setting"),
+			href: '#',
+			title: localize('thisComputer.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+		}, { opener: () => { void preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }); } }));
+
 		this.status = dom.append(this.domNode, dom.$('p.remotes-this-computer-status', { role: 'status' }));
 		const description = dom.append(this.domNode, dom.$('p.remotes-this-computer-description', undefined, `${this.descriptionText} `));
 		this._register(instantiationService.createInstance(Link, description, {
@@ -104,6 +118,7 @@ export class ThisComputerSection extends Disposable {
 			localize('thisComputer.title', "This Computer"),
 			...(name ? [localize('thisComputer.accessibleName', "Sharing name: {0}", name)] : []),
 			this.status.textContent ?? '',
+			...(this.policy.hidden ? [] : [this.policyText]),
 			this.descriptionText,
 			localize('thisComputer.accessibleLearnMore', "Learn More: {0}", GITHUB_ENVIRONMENTS_DOCS_URL),
 		].join('\n');
@@ -142,6 +157,13 @@ export class ThisComputerSection extends Disposable {
 			this.radio.setItems(methods.map(method => this.getItem(method, availability)));
 		}
 		this.radio.setActiveItem(methods.indexOf(shown));
+		const policyDisabled = availability === 'policyDisabled';
+		this.policy.hidden = !policyDisabled;
+		if (policyDisabled) {
+			this.radio.domNode.setAttribute('aria-describedby', this.policy.id);
+		} else {
+			this.radio.domNode.removeAttribute('aria-describedby');
+		}
 
 		const name = this.sharing.name;
 		this.nameGroup.hidden = !name;

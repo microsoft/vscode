@@ -22,6 +22,7 @@ interface IThisComputerFixtureState {
 	readonly method: 'off' | 'devTunnel' | 'githubEnvironment';
 	readonly starting?: boolean;
 	readonly width?: number;
+	readonly policyDisabled?: boolean;
 }
 
 async function render({ container, disposableStore, theme }: ComponentFixtureContext, state: IThisComputerFixtureState): Promise<void> {
@@ -57,8 +58,14 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		},
 	});
 	const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+	await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, !state.policyDisabled);
 	await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, github ? 'githubEnvironment' : 'devTunnel');
+	if (state.policyDisabled) {
+		const inspect = configuration.inspect.bind(configuration);
+		configuration.inspect = <T>(key: string) => key === GitHubEnvironmentsEnabledSettingId
+			? { ...inspect<T>(key), policyValue: false as T }
+			: inspect<T>(key);
+	}
 	disposableStore.add(instantiationService.createInstance(ThisComputerSection, container));
 	await waitForFixtureCondition(() => !!container.querySelector('.remotes-this-computer-name')?.textContent, 'This Computer should show its sharing name before capture');
 }
@@ -72,4 +79,5 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	GitHubEnvironments: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'githubEnvironment' }) }),
 	GitHubEnvironmentsStarting: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'githubEnvironment', starting: true }) }),
 	Narrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'githubEnvironment', width: 360 }) }),
+	PolicyDisabled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'off', policyDisabled: true }) }),
 });

@@ -75,6 +75,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._localTunnelId.set(this._storageService.get(LOCAL_TUNNEL_ID_KEY, StorageScope.APPLICATION), undefined);
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, LOCAL_TUNNEL_ID_KEY, this._store)(() => {
 			this._localTunnelId.set(this._storageService.get(LOCAL_TUNNEL_ID_KEY, StorageScope.APPLICATION), undefined);
+			this._syncHostedTunnelSuppression();
 		}));
 		this._syncHostedTunnelSuppression();
 		// Create providers for cached tunnels
@@ -182,6 +183,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		return isTunnelHosted(this._remoteTunnelStatus.type === 'connected' ? this._remoteTunnelStatus.info : undefined, tunnel);
 	}
 
+	/** Whether the tunnel belongs to this computer, either hosted now or remembered from earlier sharing. */
+	private _isLocalTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+		return this._isHostedTunnel(tunnel) || tunnel.tunnelId === this._localTunnelId.get();
+	}
+
 	private async _loadRemoteTunnelStatus(): Promise<void> {
 		const status = await this._remoteTunnelService.getTunnelStatus();
 		if (!this._hasReceivedRemoteTunnelStatus) {
@@ -205,10 +211,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
+	/** Keeps this computer's own tunnels from auto-connecting, also after sharing stops. */
 	private _syncHostedTunnelSuppression(): void {
 		const hostedTunnelIds = new Set<string>();
 		for (const tunnel of this._tunnelService.getCachedTunnels()) {
-			if (!this._isHostedTunnel(tunnel)) {
+			if (!this._isLocalTunnel(tunnel)) {
 				continue;
 			}
 			hostedTunnelIds.add(tunnel.tunnelId);
@@ -406,7 +413,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		for (const tunnel of this._tunnelService.getCachedTunnels()) {
-			if (this._isHostedTunnel(tunnel) || this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
+			if (this._isLocalTunnel(tunnel) || this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
 				continue;
 			}
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;

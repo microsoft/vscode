@@ -588,7 +588,7 @@ suite('TunnelAgentHostContribution', () => {
 		});
 	});
 
-	test('suppresses a locally hosted tunnel without removing its provider', () => {
+	test('suppresses this computer\'s tunnel without removing its provider, also after sharing stops', () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -624,7 +624,12 @@ suite('TunnelAgentHostContribution', () => {
 		});
 
 		remoteTunnelService.setStatus({ type: 'disconnected' });
-		assert.strictEqual(tunnelService.isAutoConnectSuppressed(tunnelId), false);
+		const afterSharingStops = tunnelService.isAutoConnectSuppressed(tunnelId);
+		remoteTunnelService.setStatus({ type: 'connected', info: { tunnelName: 'Replacement Tunnel', tunnelId: 'tunnel-replacement', isAttached: false }, serviceInstallFailed: false });
+		assert.deepStrictEqual({ afterSharingStops, afterHostingAnotherTunnel: tunnelService.isAutoConnectSuppressed(tunnelId) }, {
+			afterSharingStops: true,
+			afterHostingAnotherTunnel: false,
+		});
 	});
 
 	for (const web of [false, true]) {
