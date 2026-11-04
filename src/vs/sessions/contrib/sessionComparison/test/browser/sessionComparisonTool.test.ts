@@ -206,6 +206,45 @@ suite('SessionComparisonTool', () => {
 		});
 	});
 
+	test('nested participants authorize the exact Judge chat and read each attempt workspace and status', async () => {
+		const base = stubComparison();
+		const parentResource = URI.parse('test:/parent');
+		const judgeChat = parentResource.with({ fragment: 'judge' });
+		const attempt = stubAttemptSession();
+		const chat = {
+			...attempt.mainChat.get(),
+			workspace: attempt.workspace,
+			changesSummary: attempt.changesSummary,
+			modelId: constObservable('nested-model'),
+		};
+		const comparison: ISessionComparison = {
+			...base, sessionResource: parentResource,
+			participants: base.participants.map(participant => ({
+				...participant, sessionResource: parentResource,
+				chatResource: participant.role === SessionComparisonParticipantRole.Judge ? judgeChat : chat.resource,
+			})),
+		};
+		const parent = upcastPartial<ISession>({
+			resource: parentResource, providerId: 'provider', chats: constObservable([chat]),
+			status: constObservable(SessionStatus.InProgress), workspace: constObservable(undefined),
+		});
+		const service = upcastPartial<ISessionComparisonService>({ getComparison: () => comparison });
+		const tool = new ReadSessionComparisonTool(service, upcastPartial<ISessionsManagementService>({
+			getSession: () => parent, getSessionContextReference: resource => resource.toString(),
+		}));
+		const denied = await invoke(tool, { comparisonId: comparison.id }, chat.resource);
+		const manifest = JSON.parse(getText(await invoke(tool, { comparisonId: comparison.id }, judgeChat)));
+		assert.deepStrictEqual({
+			denied: getText(denied),
+			attempts: manifest.attempts.map((entry: { status: string; sessionContextTarget: string; worktree: { workingDirectory: string }; harness: { currentModelId: string } }) => ({
+				status: entry.status, target: entry.sessionContextTarget, folder: entry.worktree.workingDirectory, model: entry.harness.currentModelId,
+			})),
+		}, {
+			denied: 'Only the Judge or synthesis session for this comparison can read its manifest.',
+			attempts: [{ status: 'completed', target: chat.resource.toString(), folder: URI.file('/workspace').fsPath, model: 'nested-model' }],
+		});
+	});
+
 	for (const scenario of [
 		{ name: 'changed model', initialModelId: 'original', currentModelId: 'replacement', sessionAvailable: true, differs: true },
 		{ name: 'unchanged model', initialModelId: 'original', currentModelId: 'original', sessionAvailable: true, differs: false },
@@ -634,6 +673,7 @@ function stubComparison(): ISessionComparison {
 function stubAttemptSession(): ISession {
 	const chat = upcastPartial<IChat>({
 		resource: attemptChatResource,
+		status: constObservable(SessionStatus.Completed),
 		modelId: constObservable(undefined),
 		changes: constObservable([{
 			uri: URI.file('/workspace/src/example.ts'),

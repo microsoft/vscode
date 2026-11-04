@@ -21,7 +21,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
@@ -98,9 +98,10 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis])) {
 			return toolError('Only the Judge or synthesis session for this comparison can read its manifest.');
 		}
-		const invokingSession = invocation.context?.sessionResource
-			? this.sessionsManagementService.getSession(invocation.context.sessionResource)
-			: undefined;
+		const invokingParticipant = comparison.participants.find(participant =>
+			isEqual(invocation.context?.sessionResource, participant.chatResource ?? participant.sessionResource));
+		const invokingSession = invokingParticipant?.sessionResource
+			? this.sessionsManagementService.getSession(invokingParticipant.sessionResource) : undefined;
 
 		const allAttemptParticipants = comparison.participants
 			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
@@ -108,19 +109,20 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		const attemptParticipants = allAttemptParticipants.filter(participant => participant.sessionResource);
 		const attempts = attemptParticipants.map(participant => {
 			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
-			const changes = session?.mainChat.get().changes.get() ?? [];
+			const chat = getSessionComparisonChat(participant, session);
+			const changes = chat?.changes.get() ?? [];
 			const changedFiles = changes.slice(0, 200).map(change => ({
 				resource: (isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri).toString(),
 				insertions: change.insertions,
 				deletions: change.deletions,
 			}));
-			const workspace = session?.workspace.get();
-			const changesSummary = session?.changesSummary?.get();
-			const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
-				? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
+			const workspace = participant.chatResource ? chat?.workspace.get() : session?.workspace.get();
+			const changesSummary = participant.chatResource ? chat?.changesSummary?.get() : session?.changesSummary?.get();
+			const sessionContextTarget = chat && session && invokingSession && invokingSession.providerId === session.providerId
+				? this.sessionsManagementService.getSessionContextReference(chat.resource)
 				: undefined;
 			const reasoningEffort = participant.harness.modelConfiguration?.[ReasoningEffortConfigKey];
-			const currentModelId = session?.mainChat.get().modelId.get();
+			const currentModelId = chat?.modelId.get();
 			const modelSelectionDiffers = currentModelId !== undefined && participant.harness.modelId !== undefined
 				? currentModelId !== participant.harness.modelId
 				: undefined;
@@ -143,7 +145,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 						label: participant.harness.permissionLabel ?? 'Default',
 					},
 				},
-				status: getManifestSessionStatus(session?.status.get()),
+				status: getManifestSessionStatus(participant.chatResource ? chat?.status.get() : session?.status.get()),
 				launchError: participant.launchError,
 				sessionContextTarget,
 				sessionContextUnavailableReason: session && !sessionContextTarget
@@ -386,7 +388,7 @@ function isInvokingParticipant(comparison: ISessionComparison, invocation: ITool
 	return !!invokingSession && comparison.participants.some(participant =>
 		roles.includes(participant.role)
 		&& !!participant.sessionResource
-		&& isEqual(invokingSession, participant.sessionResource));
+		&& isEqual(invokingSession, participant.chatResource ?? participant.sessionResource));
 }
 
 function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined {

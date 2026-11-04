@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -19,7 +19,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
@@ -37,6 +37,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 		return this._sessions;
 	}
 
+	override getSession(resource: URI): ISession | undefined {
+		return this._sessions.find(session => session.resource.toString() === resource.toString());
+	}
+
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
 	}
@@ -48,9 +52,14 @@ class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 	override readonly mainWindowActiveSession = this.activeSession;
 	override readonly visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
+	override readonly visibleSessionPanes = this.visibleSessions;
 
 	override async openSession(sessionResource: URI): Promise<void> {
 		this.opened.push(sessionResource);
+	}
+
+	override async openChat(_session: ISession, chatResource: URI): Promise<void> {
+		this.opened.push(chatResource);
 	}
 }
 
@@ -107,9 +116,10 @@ function createSession(id: string, initialStatus: SessionStatus, workspaceLabel 
 }
 
 function comparisonService(...sessions: ISession[]): ISessionComparisonService {
-	const comparison = upcastPartial<ISessionComparison>({ id: 'comparison' });
+	const comparison = upcastPartial<ISessionComparison>({ id: 'comparison', participants: [] });
 	const resources = new Set(sessions.map(session => session.resource.toString()));
 	return new class extends mock<ISessionComparisonService>() {
+		override readonly comparisons = constObservable<readonly ISessionComparison[]>([]);
 		override getComparisonForSession(resource: URI): ISessionComparison | undefined {
 			return resources.has(resource.toString()) ? comparison : undefined;
 		}
@@ -291,6 +301,55 @@ suite('SessionsWindowNotifier', () => {
 		});
 	});
 
+	test('notifies and opens each inactive nested attempt without relying on parent status changes', async () => {
+		const base = createSession('parent', SessionStatus.InProgress);
+		const chats = ['active', 'waiting-one', 'waiting-two'].map(id => ({
+			resource: URI.parse(`test:/parent#${id}`),
+			status: observableValue(id, SessionStatus.InProgress),
+			title: constObservable(id),
+			workspace: base.session.workspace,
+		}));
+		const parent = upcastPartial<ISession>({ resource: base.session.resource, sessionId: 'parent', status: base.status, chats: constObservable(chats.map(chat => upcastPartial<IChat>(chat))) });
+		const management = store.add(new TestSessionsManagementService([parent]));
+		const sessions = new TestSessionsService();
+		const panes = chats.map(chat => upcastPartial<IActiveSession>({ resource: parent.resource, sessionId: parent.sessionId, activeChat: constObservable(upcastPartial<IChat>(chat)) }));
+		sessions.activeSession.set(panes[0], undefined);
+		sessions.visibleSessionPanes.set(panes, undefined);
+		const comparison = upcastPartial<ISessionComparison>({
+			id: 'comparison', sessionResource: parent.resource,
+			participants: chats.map(chat => upcastPartial<ISessionComparison['participants'][number]>({ sessionResource: parent.resource, chatResource: chat.resource })),
+		});
+		const host = new TestHostService();
+		host.hasFocus = true;
+		host.toastResult = { supported: true, clicked: true };
+		const chatService = new TestChatService();
+		chatService.model = upcastPartial<IChatModel>({ requestNeedsInput: constObservable({ title: 'Question' }) });
+		store.add(new TestSessionsWindowNotifier(
+			management, sessions, host,
+			new TestConfigurationService({ [ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused }),
+			chatService, new TestChatWidgetService(),
+			new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([comparison]);
+				override getComparisonForSession(): ISessionComparison { return comparison; }
+			}(),
+		));
+		for (const chat of chats.slice(1)) {
+			chat.status.set(SessionStatus.NeedsInput, undefined);
+			await flushNotifications();
+		}
+		chats[0].status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+		assert.deepStrictEqual({
+			toasts: host.toasts.map(toast => toast.dedupeKey),
+			opened: sessions.opened.map(resource => resource.toString()),
+			parentStatus: base.status.get(),
+		}, {
+			toasts: ['chat-session:test:/parent#waiting-one:needsInput', 'chat-session:test:/parent#waiting-two:needsInput'],
+			opened: ['test:/parent#waiting-one', 'test:/parent#waiting-two'],
+			parentStatus: SessionStatus.InProgress,
+		});
+	});
+
 	test('does not notify an inactive ordinary pane while the window is focused', async () => {
 		const active = createSession('ordinary-active', SessionStatus.InProgress);
 		const waiting = createSession('ordinary-waiting', SessionStatus.InProgress);
@@ -346,8 +405,9 @@ suite('SessionsWindowNotifier', () => {
 			chat,
 			new TestChatWidgetService(),
 			new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable<readonly ISessionComparison[]>([]);
 				override getComparisonForSession(): ISessionComparison | undefined {
-					return upcastPartial<ISessionComparison>({ id: 'comparison', archivedAt: 1 });
+					return upcastPartial<ISessionComparison>({ id: 'comparison', archivedAt: 1, participants: [] });
 				}
 			},
 		));

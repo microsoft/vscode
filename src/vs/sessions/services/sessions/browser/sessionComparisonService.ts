@@ -9,6 +9,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,16 +25,18 @@ import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/ch
 import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
-interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
+interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource' | 'chatResource'> {
 	readonly sessionResource?: string;
+	readonly chatResource?: string;
 }
 
-interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'attachedContext' | 'participants'> {
+interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'sessionResource' | 'attachedContext' | 'participants'> {
 	readonly version?: number;
 	readonly workspace?: string;
+	readonly sessionResource?: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
 }
@@ -92,6 +95,19 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._markParticipantDeleted(session)));
+		this._register(this.sessionsManagementService.onDidDeleteChat(event => this._markParticipantDeleted(event.session, event.chatResource)));
+		this._register(this.sessionsManagementService.onDidMoveChat(({ from, to }) => {
+			const comparison = this.getComparisonForSession(from.session.resource);
+			if (!comparison) {
+				return;
+			}
+			const participants = comparison.participants.map(participant =>
+				isEqual(participant.sessionResource, from.session.resource)
+					&& isEqual(participant.chatResource ?? from.session.mainChat.get().resource, from.chat)
+					? { ...participant, sessionResource: to.session.resource, chatResource: to.chat, missingSession: undefined, launchError: undefined }
+					: participant);
+			this._replaceComparison({ ...comparison, participants });
+		}));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {
 				this._archiveComparisonsWithMissingGroups();
@@ -155,6 +171,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 						const updated = this._updateComparisonParticipant(id, participant.id, currentParticipant => ({
 							...currentParticipant,
 							sessionResource: createdSession.resource,
+							chatResource: createdSession.mainChat.get().resource,
 							launchError: undefined,
 						}));
 						this._groupCreatedSession(updated, createdSession);
@@ -163,6 +180,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				return {
 					...participant,
 					sessionResource: session?.resource,
+					chatResource: session?.mainChat.get().resource,
 					...(!session ? { launchError: localize('sessionComparison.launchUnavailable', "The session did not start.") } : {}),
 				} satisfies ISessionComparisonParticipant;
 			} catch (error) {
@@ -183,7 +201,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const launchedById = new Map(launchedAttempts.map(participant => [participant.id, participant] as const));
 		comparison = {
 			...current,
-			launching: undefined,
 			participants: current.participants.map(participant => launchedById.get(participant.id) ?? participant),
 		};
 		this._ensureComparisonGroupMembership([comparison]);
@@ -204,6 +221,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				launchFailures
 			));
 		}
+		await this._nestComparisonParticipants(comparison);
+		comparison = { ...this._requireComparison(comparison.id), launching: undefined };
+		this._replaceComparison(comparison);
 		this._archiveFullyArchivedComparisons([comparison]);
 		const reconciled = this.getComparison(comparison.id) ?? comparison;
 		if (reconciled.archivedAt === undefined) {
@@ -381,6 +401,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 						role: SessionComparisonParticipantRole.Synthesis,
 						harness,
 						sessionResource: createdSession.resource,
+						chatResource: createdSession.mainChat.get().resource,
 					};
 					const updated = { ...current, participants: [...current.participants, synthesis] };
 					this._replaceComparison(updated);
@@ -400,7 +421,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				}
 				return;
 			}
-			if (session) {
+			if (session && !current.sessionResource) {
 				this.sessionGroupsService.addToGroup(session.sessionId, current.groupId);
 			}
 			const synthesis: ISessionComparisonParticipant = {
@@ -408,6 +429,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				role: SessionComparisonParticipantRole.Synthesis,
 				harness,
 				sessionResource: session?.resource,
+				chatResource: session?.mainChat.get().resource,
 				...(!session ? { launchError: localize('sessionComparison.synthesisUnavailable', "The synthesis session did not start.") } : {}),
 			};
 			const registered = current.participants.some(participant => participant.id === synthesisParticipantId);
@@ -418,7 +440,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 					: [...current.participants, synthesis],
 			};
 			this._replaceComparison(updated);
-			this._checkComparison(updated);
+			await this._nestComparisonParticipants(updated);
+			this._checkComparison(this._requireComparison(comparisonId));
 		} catch (error) {
 			const current = this.getComparison(comparisonId);
 			if (current?.participants.some(participant => participant.id === synthesisParticipantId)) {
@@ -457,8 +480,58 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _groupCreatedSession(comparison: ISessionComparison | undefined, session: ISession): void {
-		if (comparison && comparison.archivedAt === undefined) {
+		if (comparison && !comparison.sessionResource && comparison.archivedAt === undefined) {
 			this.sessionGroupsService.addToGroup(session.sessionId, comparison.groupId);
+		}
+	}
+
+	private async _nestComparisonParticipants(comparison: ISessionComparison): Promise<void> {
+		if ((!comparison.launching && !comparison.sessionResource) || comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
+			return;
+		}
+		const participants = comparison.participants.filter(participant => participant.sessionResource && !participant.launchError);
+		const parentResource = comparison.sessionResource ?? participants[0]?.sessionResource;
+		const parent = parentResource && this.sessionsManagementService.getSession(parentResource);
+		const sessions = participants.flatMap(participant => {
+			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
+			return session && !isEqual(session.resource, parentResource) ? [session] : [];
+		});
+		if (!parent) {
+			return;
+		}
+		const capabilities = parent.capabilities.get();
+		const canNest = capabilities.supportsMultipleChats
+			&& sessions.every(session => session.providerId === parent.providerId
+				&& (session.harness === parent.harness || capabilities.supportsChatHarnesses?.includes(session.harness))
+				&& this.sessionsManagementService.canMoveSessionUnder(session));
+		if (!canNest && !comparison.sessionResource) {
+			return;
+		}
+		try {
+			if (!canNest) {
+				throw new Error('The comparison participant cannot join its parent session.');
+			}
+			for (const session of sessions) {
+				await this.sessionsManagementService.moveSessionUnder(session, parent, parent.chats.get().at(-1));
+			}
+			if (this._requireComparison(comparison.id).archivedAt !== undefined || this._requireComparison(comparison.id).cancelledAt !== undefined) {
+				return;
+			}
+			await this.sessionsManagementService.renameSession(parent, comparison.title);
+			const current = this._requireComparison(comparison.id);
+			if (current.archivedAt !== undefined || current.cancelledAt !== undefined) {
+				return;
+			}
+			this._replaceComparison({ ...current, sessionResource: parent.resource });
+			this.sessionGroupsService.deleteGroup(current.groupId);
+		} catch (error) {
+			this.logService.warn('[SessionComparisonService] Could not nest comparison participants; retaining their sessions.', error);
+			const current = this._requireComparison(comparison.id);
+			if (current.sessionResource) {
+				const group = this.sessionGroupsService.createGroup(current.title);
+				this._replaceComparison({ ...current, sessionResource: undefined, groupId: group.id });
+			}
+			this._ensureComparisonGroupMembership([this._requireComparison(comparison.id)]);
 		}
 	}
 
@@ -514,7 +587,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _checkComparison(comparison: ISessionComparison): void {
-		if (comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
+		if (comparison.launching || comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
 			return;
 		}
 		comparison = this._captureTerminalAttemptMetrics(comparison);
@@ -544,7 +617,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (!session) {
 				return;
 			}
-			const status = session.status.get();
+			const status = getSessionComparisonChat(participant, session)?.status.get();
 			if (status === SessionStatus.Completed) {
 				terminalAttemptCount++;
 				completedAttemptCount++;
@@ -592,11 +665,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				continue;
 			}
 			const session = this.sessionsManagementService.getSession(participant.sessionResource);
-			const status = session?.status.get();
-			if (!session || (status !== SessionStatus.Completed && status !== SessionStatus.Error)) {
+			const chat = getSessionComparisonChat(participant, session);
+			const status = chat?.status.get();
+			if (!chat || (status !== SessionStatus.Completed && status !== SessionStatus.Error)) {
 				continue;
 			}
-			const requests = this.chatService.getSession(session.mainChat.get().resource)?.getRequests() ?? [];
+			const requests = this.chatService.getSession(chat.resource)?.getRequests() ?? [];
 			const firstTurnElapsedMs = requests[0]?.response?.elapsedMs;
 			const storedElapsedMs = participant.completion?.elapsedMs;
 			const elapsedMs = typeof firstTurnElapsedMs === 'number' && Number.isFinite(firstTurnElapsedMs) && firstTurnElapsedMs >= 0
@@ -665,11 +739,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				attemptCount: attempts.length,
 				providerId: getSessionsTelemetryProviderId(participant.harness.providerId),
 				agentId: getSessionsTelemetryAgentId(participant.harness.sessionTypeId),
-				modelId: getSessionsTelemetryModelId(participant.harness.sessionTypeId, session?.modelId.get() ?? participant.harness.modelId),
+				modelId: getSessionsTelemetryModelId(participant.harness.sessionTypeId, getSessionComparisonChat(participant, session)?.modelId.get() ?? participant.harness.modelId),
 				recommended: verdict.recommendedParticipantId === participant.id,
 				judgeProviderId: getSessionsTelemetryProviderId(judge.harness.providerId),
 				judgeAgentId: getSessionsTelemetryAgentId(judge.harness.sessionTypeId),
-				judgeModelId: getSessionsTelemetryModelId(judge.harness.sessionTypeId, judgeSession?.modelId.get() ?? judge.harness.modelId),
+				judgeModelId: getSessionsTelemetryModelId(judge.harness.sessionTypeId, getSessionComparisonChat(judge, judgeSession)?.modelId.get() ?? judge.harness.modelId),
 			});
 		}
 	}
@@ -709,6 +783,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				const updated = this._updateComparisonParticipant(comparison.id, judgeParticipantId, participant => ({
 					...participant,
 					sessionResource: createdSession.resource,
+					chatResource: createdSession.mainChat.get().resource,
 					launchError: undefined,
 				}));
 				this._groupCreatedSession(updated, createdSession);
@@ -727,7 +802,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 			return;
 		}
-		if (session) {
+		if (session && !current.sessionResource) {
 			this.sessionGroupsService.addToGroup(session.sessionId, comparison.groupId);
 		}
 		const updated = {
@@ -736,12 +811,14 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				? {
 					...participant,
 					sessionResource: session?.resource,
+					chatResource: session?.mainChat.get().resource,
 					...(!session ? { launchError: localize('sessionComparison.judgeUnavailable', "The judge session did not start.") } : {}),
 				}
 				: participant),
 		};
 		this._replaceComparison(updated);
-		this._checkComparison(updated);
+		await this._nestComparisonParticipants(updated);
+		this._checkComparison(this._requireComparison(comparison.id));
 	}
 
 	private async _cancelAndDeleteSessions(sessions: readonly ISession[], context: string): Promise<void> {
@@ -826,7 +903,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _ensureComparisonGroupMembership(comparisons: readonly ISessionComparison[]): void {
 		for (const comparison of comparisons) {
-			if (comparison.archivedAt !== undefined) {
+			if (comparison.sessionResource || comparison.archivedAt !== undefined) {
 				continue;
 			}
 			const sessionIds = comparison.participants
@@ -843,7 +920,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const archivedAt = Date.now();
 		let changed = false;
 		const updated = comparisons.map(comparison => {
-			if (comparison.archivedAt !== undefined || this.sessionGroupsService.getGroup(comparison.groupId)) {
+			if (comparison.sessionResource || comparison.archivedAt !== undefined || this.sessionGroupsService.getGroup(comparison.groupId)) {
 				return comparison;
 			}
 			changed = true;
@@ -885,6 +962,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _migrateLegacyAttemptTitles(comparisons: readonly ISessionComparison[]): void {
 		for (const comparison of comparisons) {
+			if (comparison.sessionResource) {
+				continue;
+			}
 			const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 			for (const [index, participant] of attempts.entries()) {
 				const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
@@ -974,23 +1054,30 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	/** Confirmed deletion is terminal, unlike a session that only dropped out of its provider's catalog. */
-	private _markParticipantDeleted(session: ISession): void {
+	private _markParticipantDeleted(session: ISession, chatResource?: URI): void {
 		const comparison = this.getComparisonForSession(session.resource);
-		const participant = comparison?.participants.find(candidate => candidate.sessionResource?.toString() === session.resource.toString());
-		if (!comparison || comparison.archivedAt !== undefined || !participant) {
+		if (!comparison || comparison.archivedAt !== undefined) {
 			return;
 		}
-		const updated = this._updateComparisonParticipant(comparison.id, participant.id, current => ({
-			...current,
-			missingSession: undefined,
-			launchError: current.launchError ?? getAttemptUnavailableMessage(),
-		}));
-		if (updated) {
-			this._checkComparison(updated);
+		const participants = comparison.participants.map(participant =>
+			isEqual(participant.sessionResource, session.resource) && (!chatResource || isEqual(participant.chatResource, chatResource))
+				? { ...participant, missingSession: undefined, launchError: participant.launchError ?? getAttemptUnavailableMessage() }
+				: participant);
+		const updated = { ...comparison, participants };
+		this._replaceComparison(updated);
+		if (!chatResource && isEqual(comparison.sessionResource, session.resource)) {
+			this.archiveComparison(comparison.id);
+			return;
 		}
+		this._checkComparison(updated);
 	}
 
 	private _reconcileSessionAvailability(comparison: ISessionComparison, event: ISessionsChangeEvent): ISessionComparison {
+		if (comparison.sessionResource && comparison.archivedAt !== undefined
+			&& [...event.added, ...event.changed].some(session => isEqual(session.resource, comparison.sessionResource) && !session.isArchived.get())) {
+			comparison = { ...comparison, archivedAt: undefined };
+			this._replaceComparison(comparison);
+		}
 		const availableResources = new Set([...event.added, ...event.changed].map(session => session.resource.toString()));
 		const missingResources = new Set(event.removed
 			.filter(session => !session.isArchived.get() && !this.sessionsManagementService.getSession(session.resource))
@@ -1046,10 +1133,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				} : undefined,
 				launching: undefined,
 				workspace: comparison.workspace ? URI.parse(comparison.workspace) : undefined,
+				sessionResource: comparison.sessionResource ? URI.parse(comparison.sessionResource) : undefined,
 				attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.fromExport),
 				participants: comparison.participants.map(participant => ({
 					...participant,
 					sessionResource: participant.sessionResource ? URI.parse(participant.sessionResource) : undefined,
+					chatResource: participant.chatResource ? URI.parse(participant.chatResource) : undefined,
 					// Launches do not resume after a reload, so an attempt that never received a session will not start.
 					...(comparison.launching && participant.role === SessionComparisonParticipantRole.Attempt && !participant.sessionResource && !participant.launchError
 						? { launchError: localize('sessionComparison.attemptInterrupted', "The attempt was interrupted before it started.") }
@@ -1067,10 +1156,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			...comparison,
 			version: 1,
 			workspace: comparison.workspace?.toString(),
+			sessionResource: comparison.sessionResource?.toString(),
 			attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.toExport),
 			participants: comparison.participants.map(participant => ({
 				...participant,
 				sessionResource: participant.sessionResource?.toString(),
+				chatResource: participant.chatResource?.toString(),
 			})),
 		}));
 		this.storageService.store(SessionComparisonService.STORAGE_KEY, stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
