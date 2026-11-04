@@ -460,9 +460,9 @@ export class PartGrid extends Disposable {
 			previewNewPart: (editors, location) => {
 				const source = this.getSourceCell(editors);
 				const remaining = source?.part ? source.part.groups.reduce((count, group) => count + group.count, 0) - editors.length : 1;
-				return this.previewNewPart(PART_GRID_NEW_PART_ID, location, source?.id, remaining <= 0);
+				return this.previewNewPart(PART_GRID_NEW_PART_ID, location, source?.id, remaining <= 0, true);
 			},
-			moveEditorsIntoNewPart: (editors, location, copy) => this.moveEditorsIntoNewPart(editors, location, { copy }),
+			moveEditorsIntoNewPart: (editors, location, copy) => this.moveEditorsIntoNewPart(editors, location, { copy, dropped: true }),
 			splitsOnDragAndDrop: () => !!this.editorGroupsService.partOptions.splitOnDragAndDrop
 		}));
 
@@ -637,7 +637,7 @@ export class PartGrid extends Disposable {
 			return;
 		}
 
-		moveInArrangement(this.arrangement(), this.getCell(id), cellId => this.getCell(cellId), drop.location);
+		placeInArrangement(this.arrangement(), this.getCell(id), cellId => this.getCell(cellId), drop.location, false, true);
 		this.updateAllVisibility();
 		status(localize('movedPart', "Moved {0}", getPartName(part)));
 	}
@@ -760,7 +760,7 @@ export class PartGrid extends Disposable {
 				// A part that merges goes away, as a part without editors does
 				arrangement.grid.setViewVisible(stubOf(id), false);
 			} else {
-				moveInArrangement(arrangement, stubOf(id), stubOf, drop.location);
+				placeInArrangement(arrangement, stubOf(id), stubOf, drop.location, false, true);
 			}
 		});
 	}
@@ -772,19 +772,14 @@ export class PartGrid extends Disposable {
 	 * `sourceId`; under `newId`. `sourceEmpties`: the source part has no
 	 * editors left, and hides.
 	 */
-	previewNewPart(newId: string, location: PartGridLocation, sourceId: string | undefined, sourceEmpties: boolean): Map<string, IPartGridRect> | undefined {
+	previewNewPart(newId: string, location: PartGridLocation, sourceId: string | undefined, sourceEmpties: boolean, dropped = false): Map<string, IPartGridRect> | undefined {
 		const like = sourceId !== undefined ? this.cells.get(sourceId) : Array.from(this.cells.values()).find(cell => cell.part);
 		if (!like || (hasKey(location, { reference: true }) && !this.cells.has(location.reference))) {
 			return undefined;
 		}
 
 		return this.preview((arrangement, stubOf) => {
-			const stub = stubOf(newId);
-			if (hasKey(location, { reference: true })) {
-				arrangement.grid.addView(stub, Sizing.Split, stubOf(location.reference), location.direction);
-			} else {
-				addAtEdge(arrangement, stub, location.edge, undefined, sourceId);
-			}
+			placeInArrangement(arrangement, stubOf(newId), stubOf, location, true, dropped);
 			if (sourceEmpties && sourceId !== undefined && this.cells.get(sourceId)?.part && !this.cells.get(sourceId)?.options.showWhileEmpty) {
 				arrangement.grid.setViewVisible(stubOf(sourceId), false);
 			}
@@ -913,18 +908,22 @@ export class PartGrid extends Disposable {
 	 * Moves editors into a new part at a location, created by the part
 	 * factory. Returns the id of the new part's cell, if it got the editors.
 	 */
-	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation, options?: { readonly copy?: boolean }): string | undefined {
+	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation, options?: { readonly copy?: boolean; readonly dropped?: boolean }): string | undefined {
 		const sourceGroup = editors.length ? this.editorGroupsService.getGroup(editors[0].groupId) : undefined;
 		if (!this.partFactory || !sourceGroup) {
 			return undefined;
 		}
 
 		const { id, part } = this.partFactory.createPart();
-		// The new part takes its room from the part the editors come from, not from the other parts
-		const sourceCell = this.getSourceCell(editors);
 		const cell = this.register(id, { part });
 		this.markCreated(id);
-		this.addCell(cell, location, undefined, sourceCell?.id);
+		if (this.grid) {
+			// As every part put somewhere, with an even share of where it goes
+			placeInArrangement(this.arrangement(), cell, cellId => this.getCell(cellId), location, true, !!options?.dropped);
+			this.updateAllVisibility();
+		} else {
+			this.addCell(cell, location, undefined);
+		}
 
 		const targetGroup = part.activeGroup;
 		const editorsWithOptions = editors.map(({ editor }) => ({ editor, options: { pinned: true } }));
@@ -1152,8 +1151,10 @@ export class PartGrid extends Disposable {
 	 * preview of where a dragged cell goes.
 	 */
 	private arrangement(): IArrangement<PartGridCell> {
+		const partGrid = this;
 		return {
-			grid: this.grid!,
+			// The grid as it is now: a change can replace it
+			get grid() { return partGrid.grid!; },
 			isPart: id => !!this.cells.get(id)?.part,
 			replace: state => this.setGrid(this.deserialize(state))
 		};
@@ -1253,7 +1254,6 @@ export class PartGrid extends Disposable {
 		}
 
 		const before = this.describe();
-		const sizes = this.getVisibleCellSizes(id);
 		const neighbor = this.dimension ? this.grid.getNeighborViews(cell, direction).find(candidate => candidate.part && this.isCellVisible(candidate.id)) : undefined;
 		const grid = this.grid;
 		// At that edge already, the cells keep their places, sizes and focus
@@ -1262,11 +1262,8 @@ export class PartGrid extends Disposable {
 		let moved = false;
 		// The cells glide to where they end up, with their sizes
 		this.arrange(() => {
-			if (neighbor) {
-				grid.moveView(cell, Sizing.Distribute, neighbor, direction);
-			} else {
-				moveInArrangement(this.arrangement(), cell, cellId => this.getCell(cellId), { edge: direction });
-			}
+			// Past the part beside it, or to the edge: as every part put somewhere, with an even share of where it goes
+			placeInArrangement(this.arrangement(), cell, cellId => this.getCell(cellId), neighbor ? { reference: neighbor.id, direction } : { edge: direction }, false, false);
 			this.updateAllVisibility();
 
 			if (state && this.describe() === before) {
@@ -1275,10 +1272,6 @@ export class PartGrid extends Disposable {
 				return;
 			}
 
-			// The other cells keep their sizes, and the moved part takes the rest, so that moving it back restores them
-			for (const [otherId, size] of sizes) {
-				this.resizeCell(otherId, size);
-			}
 			moved = this.describe() !== before;
 		});
 
@@ -1287,12 +1280,6 @@ export class PartGrid extends Disposable {
 		}
 
 		return moved;
-	}
-
-	private getVisibleCellSizes(excludedId: string): [string, IViewSize][] {
-		return Array.from(this.cells.keys())
-			.filter(id => id !== excludedId && this.isCellVisible(id))
-			.map(id => [id, this.getCellSize(id)]);
 	}
 
 	/**
@@ -1582,6 +1569,7 @@ export class PartGrid extends Disposable {
  * for it while previewing a move.
  */
 interface IArrangedView extends ISerializableView {
+	readonly id: string;
 	toJSON(): object;
 }
 
@@ -1689,6 +1677,27 @@ function addAtEdgeOfParts<T extends IArrangedView>(arrangement: IArrangement<T>,
 }
 
 /**
+ * A node of a grid at `size` along the orientation of its branch: what is
+ * in it along that orientation, such as the cells of a row in a row in it,
+ * takes its share in proportion too, rather than the last of them all of it.
+ */
+function scaleAlong(node: ISerializedNode, size: number): ISerializedNode {
+	const factor = node.size ? size / node.size : 1;
+	const scale = (inner: ISerializedNode): ISerializedNode => {
+		const scaled = Math.round(inner.size * factor);
+		if (inner.type !== 'branch') {
+			return { ...inner, size: scaled };
+		}
+		return { ...inner, size: scaled, data: inner.data.map(child => child.type === 'branch' ? { ...child, data: child.data.map(scale) } : child) };
+	};
+	if (node.type !== 'branch') {
+		return { ...node, size };
+	}
+
+	return { ...node, size, data: node.data.map(child => child.type === 'branch' ? { ...child, data: child.data.map(scale) } : child) };
+}
+
+/**
  * With a donor, the room of a cell added among `children`: the donor's
  * child, or the largest part's, gives it, by default half of its own,
  * and the other children keep their sizes. Without one, the children
@@ -1723,6 +1732,145 @@ function moveInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>
 		arrangement.grid.removeView(view);
 		addAtEdge(arrangement, view, location.edge, undefined);
 	}
+}
+
+/**
+ * Puts a part where the user puts it, beside another view or at an edge of
+ * the window, moved there (`adding` false) or added: the same way for every
+ * gesture, a drop or a command, so that the same place gives the same size.
+ * Dropped beside a part with no part beyond it on that side, it goes to
+ * that edge of the window, as a drop there does. It then takes an even
+ * share of the row or column it joins (see {@link giveEvenShare}).
+ */
+function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation, adding: boolean, dropped: boolean): void {
+	const resolved = dropped ? toEdgeIfAtEdge(arrangement, view, getView, location) : location;
+	// The sizes before, which the other parts make room in proportion to
+	const before = getViewSizes(arrangement.grid);
+	if (hasKey(resolved, { reference: true })) {
+		if (adding) {
+			arrangement.grid.addView(view, Sizing.Split, getView(resolved.reference), resolved.direction);
+		} else {
+			arrangement.grid.moveView(view, Sizing.Distribute, getView(resolved.reference), resolved.direction);
+		}
+	} else {
+		if (!adding) {
+			arrangement.grid.removeView(view);
+		}
+		addAtEdge(arrangement, view, resolved.edge, undefined);
+	}
+
+	giveEvenShare(arrangement, view, before);
+}
+
+function getViewSizes<T extends IArrangedView>(grid: SerializableGrid<T>): Map<string, IViewSize> {
+	const sizes = new Map<string, IViewSize>();
+	const collect = (node: GridNode<T>) => {
+		if (isGridBranchNode(node)) {
+			node.children.forEach(collect);
+		} else if (grid.isViewVisible(node.view)) {
+			sizes.set(node.view.id, grid.getViewSize(node.view));
+		}
+	};
+	collect(grid.getViews());
+	return sizes;
+}
+
+/**
+ * Beside a part with no other part beyond it on that side, the edge of the
+ * window on that side.
+ */
+function toEdgeIfAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation): PartGridLocation {
+	if (!hasKey(location, { reference: true })) {
+		return location;
+	}
+
+	const grid = arrangement.grid;
+	const reference = getView(location.reference);
+	const beyond = grid.getNeighborViews(reference, location.direction).filter(neighbor => neighbor !== view && arrangement.isPart(neighbor.id) && grid.isViewVisible(neighbor));
+	return beyond.length ? location : { edge: location.direction };
+}
+
+/**
+ * Gives a part an even share of the row or column it is in, of the parts
+ * that show there: the other parts make room in proportion to their sizes,
+ * and views that are not parts, such as a title row, keep theirs. Its least
+ * and most sizes hold.
+ */
+function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>): void {
+	const state = arrangement.grid.serialize();
+	const id = view.id;
+	const isView = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
+	const findLine = (node: ISerializedNode, orientation: Orientation, path: number[]): { readonly path: number[]; readonly orientation: Orientation } | undefined => {
+		if (node.type !== 'branch') {
+			return undefined;
+		}
+		const index = node.data.findIndex(isView);
+		if (index >= 0) {
+			return { path, orientation };
+		}
+		for (let i = 0; i < node.data.length; i++) {
+			const found = findLine(node.data[i], orthogonal(orientation), [...path, i]);
+			if (found) {
+				return found;
+			}
+		}
+		return undefined;
+	};
+	const line = findLine(state.root, state.orientation, []);
+	if (!line) {
+		return;
+	}
+
+	const nodeAt = (path: number[]) => path.reduce<ISerializedNode>((node, index) => (node as Extract<ISerializedNode, { type: 'branch' }>).data[index], state.root);
+	const branch = nodeAt(line.path) as Extract<ISerializedNode, { type: 'branch' }>;
+	const shows = (node: ISerializedNode) => node.type === 'branch' || node.visible !== false;
+	const isPart = (node: ISerializedNode) => node.type === 'branch' || arrangement.isPart((node.data as { id: string }).id);
+	const shown = branch.data.filter(node => shows(node) && isPart(node));
+	const sizeOf = (node: ISerializedNode) => node.size ?? 0;
+	const total = shown.reduce((sum, node) => sum + sizeOf(node), 0);
+	const placed = branch.data.find(isView)!;
+	if (shown.length < 2 || !shows(placed) || total <= 0) {
+		return;
+	}
+
+	const horizontal = line.orientation === Orientation.HORIZONTAL;
+	const [minimum, maximum] = horizontal ? [view.minimumWidth, view.maximumWidth] : [view.minimumHeight, view.maximumHeight];
+	const share = Math.round(Math.min(Math.max(total / shown.length, minimum), maximum, total));
+
+	// What a node took along the line before, from the sizes of its views then: the sum of what is along the line in it,
+	// the most of what is across it
+	const extentBefore = (node: ISerializedNode, orientation: Orientation): number => {
+		if (node.type !== 'branch') {
+			const size = before.get((node.data as { id: string }).id);
+			return size ? (horizontal ? size.width : size.height) : sizeOf(node);
+		}
+		const extents = node.data.filter(shows).map(child => extentBefore(child, orthogonal(orientation)));
+		return orientation === line.orientation ? extents.reduce((sum, extent) => sum + extent, 0) : Math.max(0, ...extents);
+	};
+	const others = shown.filter(node => node !== placed);
+	const weights = others.map(node => extentBefore(node, orthogonal(line.orientation)));
+	const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+	if (!others.length || weightTotal <= 0) {
+		return;
+	}
+
+	// The others make room in proportion to their sizes, the last taking what rounding leaves, and so do the parts in them
+	let left = total - share;
+	const resizedNodes = new Map<ISerializedNode, ISerializedNode>([[placed, { ...placed, size: share }]]);
+	others.forEach((node, index) => {
+		const size = index === others.length - 1 ? left : Math.round(weights[index] * (total - share) / weightTotal);
+		resizedNodes.set(node, scaleAlong(node, size));
+		left -= size;
+	});
+	if (Array.from(resizedNodes).every(([node, resized]) => Math.abs(sizeOf(node) - sizeOf(resized)) <= 1)) {
+		return;
+	}
+	const resized: ISerializedNode = { ...branch, data: branch.data.map(node => resizedNodes.get(node) ?? node) };
+
+	const replace = (node: ISerializedNode, depth: number): ISerializedNode => depth === line.path.length || node.type !== 'branch'
+		? resized
+		: { ...node, data: node.data.map((child, index) => index === line.path[depth] ? replace(child, depth + 1) : child) };
+	arrangement.replace({ ...state, root: replace(state.root, 0) });
 }
 
 /**

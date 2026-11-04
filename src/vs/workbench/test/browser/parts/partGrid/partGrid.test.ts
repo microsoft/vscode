@@ -22,7 +22,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridRect, IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
@@ -741,6 +741,59 @@ suite('Part Grid', () => {
 		});
 	});
 
+	async function createVideoLayout() {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		container.style.setProperty('--vscode-spacing-size40', '8px');
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		const file = await openEditor(main, '/main.txt');
+		await Promise.all([openEditor(main, '/other.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down });
+		grid.layout(1000, 800);
+		grid.resizeCell('main', { width: 580, height: grid.getCellSize('main').height });
+		const cards = () => new Map(['main', 'chat', 'terminals', 'new'].filter(id => container.querySelector(`[data-part-grid-cell="${id}"]`)).map(id => {
+			const { left, top, width, height } = container.querySelector(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+			return [id, { left, top, width, height }];
+		}));
+		return { parts, container, grid, main, file, cards };
+	}
+
+	const round = (rects: ReadonlyMap<string, IPartGridRect> | undefined) => Object.fromEntries(Array.from(rects ?? [], ([id, { left, top, width, height }]) => [id, [left, top, width, height].map(Math.round)]));
+
+	test('a part dropped beside a part at an edge of the window goes where a drop at that edge puts it, with the same size: an even share of where it goes; and the drop ends where its preview showed', async () => {
+		const { container, grid, cards } = await createVideoLayout();
+
+		const besideChat = round(grid.previewArrangement('terminals', { location: { reference: 'chat', direction: Direction.Right } }));
+		const atRightEdge = round(grid.previewArrangement('terminals', { location: { edge: Direction.Right } }));
+		// Dropped there by its card, without motion: at once
+		const handle = container.querySelector<HTMLElement>('[data-part-grid-cell="terminals"] .part-grid-drag-handle')!.getBoundingClientRect();
+		dragCard(container, 'terminals', [[handle.left + handle.width / 2, 300], [996, 300]]);
+
+		assert.deepStrictEqual({ besideChat, dropped: { shape: grid.describe(), cards: round(cards()) } }, {
+			besideChat: atRightEdge,
+			dropped: { shape: 'row(main, chat, terminals)', cards: atRightEdge }
+		});
+		// An even share: a third of the window, the others making room in proportion to their 580 and 420
+		assert.deepStrictEqual(atRightEdge.terminals[2], 333);
+	});
+
+	test('editors dropped into a new part at an edge of the window or on the rim of the part at that edge give the same part, with an even share of where it goes, as its preview showed', async () => {
+		const { parts, grid, main, file, cards } = await createVideoLayout();
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'new', part: createPart(parts) }) }));
+
+		const atEdge = round(grid.previewNewPart('new', { edge: Direction.Right }, 'main', false, true));
+		const onRim = round(grid.previewNewPart('new', { reference: 'chat', direction: Direction.Right }, 'main', false, true));
+		grid.moveEditorsIntoNewPart([{ editor: file, groupId: main.activeGroup.id }], { reference: 'chat', direction: Direction.Right }, { dropped: true });
+
+		assert.deepStrictEqual({ onRim, dropped: { shape: grid.describe(), cards: round(cards()) } }, {
+			onRim: atEdge,
+			dropped: { shape: 'row(column(row(main, chat), terminals), new)', cards: atEdge }
+		});
+	});
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
@@ -887,7 +940,8 @@ suite('Part Grid', () => {
 
 	test('a dragged card finds where the cards go once for each place, in zones where the cards show, and drops there once', async () => {
 		const { grid, container, cellOf, translates, start, shownLeft, middleY: y, previews, arrangementChanges } = await createRowOfThree(true);
-		const width = Math.round(start.c.width);
+		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
+		const makeWay = { a: 300, b: 380 };
 
 		// c, its center, over the left side of a, by small moves: the others make way at once, with one dry run
 		dragCard(container, 'c', [[30, y], [32, y + 2], [28, y - 2], [31, y + 5]], { hold: true });
@@ -906,8 +960,8 @@ suite('Part Grid', () => {
 		const dropped = { shape: grid.describe(), arrangementChanges: arrangementChanges() };
 
 		assert.deepStrictEqual({ overA, overShownA, settling, dropped, settled: { translates: translates(), moving: container.querySelectorAll('.part-grid-lifted, .part-grid-reflow, .part-grid-settle, .part-grid-frame-layer').length } }, {
-			overA: { previews: 1, translates: { a: [width], b: [width] }, lifted: true, slot: true },
-			overShownA: { inShownZoneOnly: true, previews: 1, translates: { a: [width], b: [width] } },
+			overA: { previews: 1, translates: { a: [makeWay.a], b: [makeWay.b] }, lifted: true, slot: true },
+			overShownA: { inShownZoneOnly: true, previews: 1, translates: { a: [makeWay.a], b: [makeWay.b] } },
 			settling: { shape: 'row(a, b, c)', arrangementChanges: 0 },
 			dropped: { shape: 'row(c, a, b)', arrangementChanges: 1 },
 			settled: { translates: { a: [], b: [] }, moving: 0 }
@@ -916,7 +970,8 @@ suite('Part Grid', () => {
 
 	test('a dragged card goes beside a part by where its center is, and to an edge of the window where the pointer pushes it, also over its own slot once it left it', async () => {
 		const { grid, container, translates, start, arrangementChanges } = await createRowOfThree(true);
-		const width = Math.round(start.c.width);
+		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
+		const makeWay = { a: 300, b: 380 };
 
 		// The pointer over the top of a, the center of the card, below it, over its left side: c goes left of a
 		dragCard(container, 'c', [[start.a.left + start.a.width * 0.2, 60]], { hold: true });
@@ -928,7 +983,7 @@ suite('Part Grid', () => {
 		await timeout(PART_GRID_REFLOW_DURATION + 80);
 
 		assert.deepStrictEqual({ byCenter, shape: grid.describe(), arrangementChanges: arrangementChanges() }, {
-			byCenter: { a: [width], b: [width] },
+			byCenter: { a: [makeWay.a], b: [makeWay.b] },
 			shape: 'column(c, row(a, b))',
 			arrangementChanges: 1
 		});
@@ -1051,9 +1106,10 @@ suite('Part Grid', () => {
 	});
 
 	test('Escape puts the dragged card and the others back, and moves nothing', async () => {
-		const { grid, container, translates, start, middleY: y, arrangementChanges } = await createRowOfThree(true);
+		const { grid, container, translates, middleY: y, arrangementChanges } = await createRowOfThree(true);
 		const before = grid.describe();
-		const width = Math.round(start.c.width);
+		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
+		const makeWay = { a: 300, b: 380 };
 
 		dragCard(container, 'c', [[30, y]], { hold: true });
 		const dragging = translates();
@@ -1063,7 +1119,7 @@ suite('Part Grid', () => {
 		pointer(mainWindow.document.body, 'pointerup', 30, 300);
 
 		assert.deepStrictEqual({ dragging, cancelling, after: { shape: grid.describe(), translates: translates(), arrangementChanges: arrangementChanges(), layers: container.querySelectorAll('.part-grid-frame-layer, .part-grid-motion-layer, .part-grid-drop-indicator.part').length } }, {
-			dragging: { a: [width], b: [width] },
+			dragging: { a: [makeWay.a], b: [makeWay.b] },
 			cancelling: true,
 			after: { shape: before, translates: { a: [], b: [] }, arrangementChanges: 0, layers: 0 }
 		});
@@ -1161,7 +1217,7 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ movePart, newPart }, { movePart: 'The parts of this window do not move', newPart: 'Editors do not go into new parts in this window' });
 	});
 
-	test('Move Part keeps the sizes of the other parts, the moved part takes the rest, and moving it back restores the layout', async () => {
+	test('Move Part gives the moved part an even share of the row or column it joins, the other parts making room in proportion, as every part put somewhere', async () => {
 		const parts = await createParts();
 		const grid = createGrid();
 		const [chat, main, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
@@ -1182,9 +1238,9 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ before, down, movedDown, up, movedUp: heights() }, {
 			before: { shape: 'column(title, row(chat, main), terminals)', chat: 698, terminals: 72 },
 			down: true,
-			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 698, terminals: 72 },
+			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 385, terminals: 385 },
 			up: true,
-			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 698, terminals: 72 }
+			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 385, terminals: 385 }
 		});
 	});
 

@@ -1018,7 +1018,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(leads, { sideBySide: true, movedRight: false, movedBack: true, stacked: false, editorOnly: false });
 	});
 
-	test('the terminals keep the height the user gave them when an editor moves into a new part beside the main part or at an edge of the window, also once the arrangement shows again', () => {
+	test('the terminals keep the height the user gave them when an editor moves into a new part beside the main part; at an edge of the window, they make room for it in proportion, as every part in its column does; also once the arrangement shows again', () => {
 		const results: Record<string, { added: number; rearranged: number }> = {};
 		const editor = new class extends mock<EditorInput>() {
 			override readonly typeId = 'testEditor';
@@ -1072,7 +1072,10 @@ suite('Chat window grid', () => {
 		}
 		sourcePart = undefined;
 
-		assert.deepStrictEqual(results, Object.fromEntries(cases.map(([name]) => [name, { added: 199, rearranged: 199 }])));
+		// At an edge, the new part takes an even third of the parts' column (257 of 770), the others making room in
+		// proportion: the terminals 199 * 513 / 770
+		const atEdge = { added: 133, rearranged: 133 };
+		assert.deepStrictEqual(results, Object.fromEntries(cases.map(([name]) => [name, name.endsWith('edge') ? atEdge : { added: 199, rearranged: 199 }])));
 	});
 
 	test('a part created for an editor dropped on an edge of the window stays when the layout mode changes, until it closes, and the sizes of the arrangement with it or without it are remembered', () => {
