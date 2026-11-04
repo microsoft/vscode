@@ -39,6 +39,7 @@ import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalP
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -187,7 +188,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITimerService private readonly _timerService: ITimerService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
 		super();
 
@@ -346,7 +348,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		this._register(host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances));
-		this._register(host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
+		this._register(host.onDidDisposeInstance(instance => this._onInstanceDisposed(instance)));
 		this._register(host.onDidChangeActiveInstance(instance => this._evaluateActiveInstance(host, instance)));
 		this._register(host.onDidFocusInstance(instance => {
 			this._onDidFocusInstance.fire(instance);
@@ -1326,7 +1328,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 			this._backgroundedTerminalInstances.splice(index, 1);
 		}
 		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
+		this._onInstanceDisposed(instance);
+	}
+
+	private _onInstanceDisposed(instance: ITerminalInstance): void {
 		this._onDidDisposeInstance.fire(instance);
+		this._decorationsService.clearCachedDecorations(instance.resource);
 	}
 
 	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {

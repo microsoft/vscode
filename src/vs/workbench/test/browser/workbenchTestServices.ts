@@ -588,6 +588,7 @@ export class TestDecorationsService implements IDecorationsService {
 
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
+	clearCachedDecorations(_uri: URI): void { }
 }
 
 export class TestMenuService implements IMenuService {

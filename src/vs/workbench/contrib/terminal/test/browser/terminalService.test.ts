@@ -3,17 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, strictEqual } from 'assert';
+import sinon from 'sinon';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { ITerminalEditingService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { IDecorationsService, IResourceDecorationChangeEvent } from '../../../../services/decorations/common/decorations.js';
+import { IResourceLabel } from '../../../../browser/labels.js';
 import { TerminalService } from '../../browser/terminalService.js';
+import { TerminalTabList } from '../../browser/terminalTabsList.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -26,6 +35,9 @@ suite('Workbench - TerminalService', () => {
 	let configurationService: TestConfigurationService;
 	let dialogService: TestDialogService;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
+	let groupDisposed: Emitter<ITerminalInstance>;
+	let editorDisposed: Emitter<ITerminalInstance>;
+	let clearedResources: URI[];
 
 	setup(async () => {
 		dialogService = new TestDialogService();
@@ -46,9 +58,61 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(ITerminalInstanceService, 'getBackend', undefined);
 		instantiationService.stub(ITerminalInstanceService, 'getRegisteredBackends', []);
 		instantiationService.stub(IRemoteAgentService, 'getConnection', null);
+		groupDisposed = store.add(new Emitter<ITerminalInstance>());
+		editorDisposed = store.add(new Emitter<ITerminalInstance>());
+		clearedResources = [];
+		instantiationService.stub(ITerminalGroupService, 'onDidDisposeInstance', groupDisposed.event);
+		instantiationService.stub(ITerminalEditorService, 'onDidDisposeInstance', editorDisposed.event);
+		instantiationService.stub(IDecorationsService, 'clearCachedDecorations', (resource: URI) => clearedResources.push(resource));
 
-		terminalService = store.add(instantiationService.createInstance(TerminalService));
-		instantiationService.stub(ITerminalService, terminalService);
+		const clock = sinon.useFakeTimers();
+		try {
+			terminalService = store.add(instantiationService.createInstance(TerminalService));
+			instantiationService.stub(ITerminalService, terminalService);
+			// Finish the scheduled editor-style initialization before a test can dispose the service.
+			await clock.runAllAsync();
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('clears decoration caches when panel and editor terminals are disposed', () => {
+		const panel = new class extends mock<ITerminalInstance>() {
+			override readonly resource = URI.parse('vscode-terminal:/test/1');
+		};
+		const editor = new class extends mock<ITerminalInstance>() {
+			override readonly resource = URI.parse('vscode-terminal:/test/2');
+		};
+		groupDisposed.fire(panel);
+		editorDisposed.fire(editor);
+		deepStrictEqual(clearedResources, [panel.resource, editor.resource]);
+	});
+
+	test('pooled terminal tab labels ignore later decoration changes', () => {
+		const changed = store.add(new Emitter<IResourceDecorationChangeEvent>());
+		instantiationService.stub(IDecorationsService, 'onDidChangeDecorations', changed.event);
+		const queries = instantiationService.stub(IDecorationsService, 'getDecoration', () => undefined);
+		instantiationService.stub(ITerminalEditingService, { isEditable: () => false });
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const list = store.add(instantiationService.createInstance(TerminalTabList, container));
+		const renderers = Reflect.get(Reflect.get(list, 'view'), 'renderers') as Map<string, IListRenderer<ITerminalInstance, { label?: IResourceLabel }[]>>;
+		const renderer = renderers.get('terminal.tabs')!;
+		const template = renderer.renderTemplate(container);
+		store.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const instance = new class extends mock<ITerminalInstance>() {
+			override readonly resource = URI.parse('vscode-terminal:/test/1');
+		};
+		const label = template.find(part => part.label)?.label!;
+		label.setResource({ resource: instance.resource, name: 'terminal' }, {
+			fileDecorations: { colors: true, badges: true }
+		});
+		const before = queries.callCount;
+		strictEqual(before > 0, true);
+		groupDisposed.fire(instance);
+		renderer.disposeElement!(instance, 0, template);
+		changed.fire({ affectsResource: () => true });
+		deepStrictEqual({ cleared: clearedResources, queries: queries.callCount }, { cleared: [instance.resource], queries: before });
 	});
 
 	suite('background terminals', () => {
@@ -56,6 +120,7 @@ suite('Workbench - TerminalService', () => {
 			const disposalEmitters = Array.from({ length: 3 }, () => store.add(new Emitter<ITerminalInstance>()));
 			const instances = disposalEmitters.map((emitter, index) => ({
 				instanceId: index + 1,
+				resource: URI.parse(`vscode-terminal:/test/${index + 1}`),
 				onDisposed: emitter.event,
 			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance));
 			let instanceIndex = 0;
@@ -79,6 +144,7 @@ suite('Workbench - TerminalService', () => {
 				strictEqual(terminalService.instances.includes(instance), false);
 				strictEqual(backgroundedTerminalDisposables.size, 0);
 				strictEqual(disposalEmitters[i].hasListeners(), false);
+				strictEqual(clearedResources.at(-1), instance.resource);
 			}
 		});
 	});

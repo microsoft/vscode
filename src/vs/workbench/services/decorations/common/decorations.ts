@@ -70,4 +70,9 @@ export interface IDecorationsService {
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
 
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined;
+
+	/**
+	 * Remove cached decorations and pending requests for a resource that no longer exists.
+	 */
+	clearCachedDecorations(uri: URI): void;
 }
