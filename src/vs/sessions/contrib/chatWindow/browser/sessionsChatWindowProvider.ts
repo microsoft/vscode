@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import './media/chatWindow.css';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -21,12 +23,12 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { hasCustomTitlebar } from '../../../../platform/window/common/window.js';
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
 import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
-import { IEditorPartOptions } from '../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowProvider } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowColumnPlacement, ChatWindowLayoutMode, ChatWindowTerminalPosition, computeChatWindowLayout } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -168,13 +170,53 @@ function resolveChat(sessionsManagementService: ISessionsManagementService, reso
 }
 
 /**
+ * The editor of the chat of a chat window. Its tab, which shows while other editors are beside it in its group, shows the
+ * title of the chat and, then, no close action: the chat closes with its window.
+ */
+export class SessionChatViewEditorInput extends ViewEditorInput {
+
+	private _name = '';
+	private _cannotClose = false;
+
+	constructor(chatResource: URI) {
+		super(SESSION_CHAT_VIEW_TYPE, chatResource);
+	}
+
+	setName(name: string): void {
+		if (this._name !== name) {
+			this._name = name;
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	setCannotClose(cannotClose: boolean): void {
+		if (this._cannotClose !== cannotClose) {
+			this._cannotClose = cannotClose;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override getName(): string {
+		return this._name || super.getName();
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.commentDiscussion;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | (this._cannotClose ? EditorInputCapabilities.CannotClose : 0);
+	}
+}
+
+/**
  * What a chat window shows of a session: one of its chats, as a session of its own window (`showSessionInWindow`), once
  * the window exists; the window acts on that session ({@link ISessionScope}) and binds its keys.
  */
 class SessionsChatWindowContent extends Disposable implements IChatWindowContent, ISessionChatViewHost, IReplaceableChatWindow, IGoneChatWindow {
 
 	readonly chat: ISettableObservable<URI>;
-	readonly input: ViewEditorInput;
+	readonly input: SessionChatViewEditorInput;
 	readonly title: IObservable<string>;
 	readonly services: ServiceCollection;
 
@@ -222,13 +264,16 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IHostService private readonly _hostService: IHostService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IChatService chatService: IChatService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
-		this.input = this._register(new ViewEditorInput(SESSION_CHAT_VIEW_TYPE, chatResource));
+		const input = this.input = this._register(new SessionChatViewEditorInput(chatResource));
 		this._register(registerSessionChatViewHost(this.input, this));
 		this.title = derived(this, reader => chatWindowTitle(this._session.read(reader) ?? sourceSession, this.chat.read(reader), reader));
+		// Its tab, while other editors are beside it in its group, shows the title of the chat
+		this._register(autorun(reader => input.setName(this.title.read(reader))));
 		// What the window shows acts on its session, not on the one the main window shows.
 		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: this._session };
 		this.services = new ServiceCollection([ISessionScope, sessionScope]);
@@ -267,12 +312,40 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		// Those of its changes too, such as the changeset operations its Changes editor shows.
 		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this._session, changes: this._changesViewService.getSessionChanges(this._session) }, contextKeyService));
 
+		// Its tab offers no close action while other editors are beside it in its group, as the chat closes with its window.
+		store.add(this._trackChatGroup(window));
+
 		// Its empty groups offer the same Add Tab entries as the main window's.
 		const addTabs = store.add(new DisposableMap<IEditorGroupView>());
 		const add = (group: IEditorGroupView) => addTabs.set(group, this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab));
 		window.mainPart.groups.forEach(group => add(group as IEditorGroupView));
 		store.add(window.mainPart.onDidAddGroup(group => add(group as IEditorGroupView)));
 		store.add(window.mainPart.onDidRemoveGroup(group => addTabs.deleteAndDispose(group as IEditorGroupView)));
+		return store;
+	}
+
+	private _trackChatGroup(window: IChatWindow): IDisposable {
+		const store = new DisposableStore();
+		const input = this.input;
+		const update = () => {
+			const group = this._editorGroupsService.groups.find(candidate => candidate.windowId === window.windowId && candidate.contains(input, { strictEquals: true }));
+			input.setCannotClose(!!group && group.count > 1);
+		};
+		const groups = store.add(new DisposableMap<IEditorGroup>());
+		const add = (group: IEditorGroup) => {
+			if (group.windowId === window.windowId) {
+				groups.set(group, group.onDidModelChange(e => {
+					if (e.kind === GroupModelChangeKind.EDITOR_OPEN || e.kind === GroupModelChangeKind.EDITOR_CLOSE) {
+						update();
+					}
+				}));
+			}
+		};
+		this._editorGroupsService.groups.forEach(add);
+		store.add(this._editorGroupsService.onDidAddGroup(add));
+		store.add(this._editorGroupsService.onDidRemoveGroup(group => { groups.deleteAndDispose(group); update(); }));
+		store.add(toDisposable(() => input.setCannotClose(false)));
+		update();
 		return store;
 	}
 

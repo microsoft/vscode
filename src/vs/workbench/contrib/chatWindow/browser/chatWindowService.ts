@@ -53,6 +53,18 @@ export function getTerminalsPartGroupViewOptions(mainPartGroupViewOptions: IEdit
 	};
 }
 
+/**
+ * The options of the groups of a chat window's chat part: those of its main part, but for the header of the group of the
+ * chat while the chat shows, as the chat shows its own; such as with another editor beside it, as a tab.
+ */
+export function getChatPartGroupViewOptions(mainPartGroupViewOptions: IEditorGroupViewOptions | undefined, chat: EditorInput): IEditorGroupViewOptions | undefined {
+	if (!mainPartGroupViewOptions) {
+		return undefined;
+	}
+	const showHeaderFor = mainPartGroupViewOptions.showHeaderFor;
+	return { ...mainPartGroupViewOptions, showHeaderFor: editor => editor !== chat && (showHeaderFor?.(editor) ?? true) };
+}
+
 /** The size of a chat window when it opens. */
 const CHAT_WINDOW_SIZE = { width: 1200, height: 800 };
 
@@ -168,13 +180,13 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
 		const chatMoved = observableSignal(this);
 		// The chat leads the window from the first group of the chat part, at its top left, such as not after a group
-		// split off to its left
+		// split off to its left, while it shows there, not while another editor beside it, as a tab, does
 		this._register(Event.any(chatPart.onDidAddGroup, chatPart.onDidRemoveGroup, chatPart.onDidMoveGroup)(() => chatMoved.trigger(undefined)));
 		this.chatLeads = derived(this, reader => {
 			chatMoved.read(reader);
-			return _host.chatPartLeads.read(reader) && !!chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0]?.contains(content.input);
+			return _host.chatPartLeads.read(reader) && chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0]?.activeEditor === content.input;
 		});
-		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, combinedDisposable(group.onDidModelChange(e => {
+		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, combinedDisposable(group.onDidActiveEditorChange(() => chatMoved.trigger(undefined)), group.onDidModelChange(e => {
 			if (e.editor === content.input) {
 				chatMoved.trigger(undefined);
 			}
@@ -234,6 +246,9 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 	setLayoutMode(mode: ChatWindowLayoutMode): void {
 		this._returnChat();
+		if (mode !== ChatWindowLayoutMode.EditorOnly) {
+			this._revealChat();
+		}
 		this.state.setLayoutMode(mode);
 	}
 
@@ -244,11 +259,13 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 	showChatOnly(): void {
 		this._returnChat();
+		this._revealChat();
 		this.state.showChatOnly();
 	}
 
 	toggleConversation(): void {
 		this._returnChat();
+		this._revealChat();
 		if (this.state.layoutMode.get() === ChatWindowLayoutMode.Stacked) {
 			this.state.setInputOnly(!this.state.inputOnly.get());
 		}
@@ -281,6 +298,14 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		const group = this._findChatGroup();
 		if (group && !this.chatPart.groups.includes(group)) {
 			group.moveEditor(this.content.input, this.chatPart.activeGroup, { preserveFocus: true });
+		}
+	}
+
+	/** Shows the chat where another editor beside it, as a tab of its group, shows: a layout that shows the chat shows it. */
+	private _revealChat(): void {
+		const group = this._findChatGroup();
+		if (group && group.activeEditor !== this.content.input) {
+			void group.openEditor(this.content.input, { preserveFocus: true });
 		}
 	}
 
@@ -504,7 +529,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const mainPart = this._editorGroupsService.createEditorPart({ container: mainPartElement, label: localize('chatWindow.mainPart', "Editor"), services, groupViewOptions: look.mainPartGroupViewOptions });
 		// The groups of the chat part look as those of the main part, such as an editor split beside the chat: the chat's own
 		// group shows no title area while it shows only the chat, whose view provides its title.
-		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services, state: options?.chatPart?.state, groupViewOptions: look.mainPartGroupViewOptions });
+		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services, state: options?.chatPart?.state, groupViewOptions: getChatPartGroupViewOptions(look.mainPartGroupViewOptions, content.input) });
 		if (look.mainPartOptions) {
 			const mainPartOptions = look.mainPartOptions;
 			for (const part of [mainPart, chatPart]) {
@@ -637,7 +662,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// With the groups of the chat part it showed before, the chat goes back into its own group among them
 		const chatGroup = getRestoredChatGroup(chatPart, options?.chatPart);
 		chatPart.activateGroup(chatGroup);
-		await chatGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus });
+		// First in its group, before the editors beside it there, as tabs, if any
+		await chatGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus, index: 0 });
 		await this._openEditors(options?.editors, mainPart);
 		await this._openCreatedParts(options?.createdParts, mainPart, grid);
 		showChatInsteadOfEmptyMainPart(mainPart, window, !rememberedLayout);

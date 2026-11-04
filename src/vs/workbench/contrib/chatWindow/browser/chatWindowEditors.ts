@@ -74,7 +74,9 @@ export function isSerializedChatWindowEditor(value: unknown): value is ISerializ
 export function captureChatPart(chatPart: IContentPart, chatInput: EditorInput): IChatWindowChatPart | undefined {
 	const groups = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
 	const chatGroup = groups.findIndex(group => group.contains(chatInput));
-	return groups.length > 1 && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
+	// Its groups, or the editors beside the chat in its group, as tabs
+	const hasMore = groups.length > 1 || (chatGroup !== -1 && groups[chatGroup].count > 1);
+	return hasMore && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
 }
 
 /** The group of a chat part, restored from what {@link captureChatPart} captured, to open the chat in: its own group, else the active one. */

@@ -320,5 +320,6 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({
 	viewType: SESSION_CHAT_VIEW_TYPE,
 	name: localize('sessionChatViewEditor', "Chat"),
+	providesTitle: true,
 	createView: (instantiationService, input) => instantiationService.createInstance(SessionChatViewEditorView, hosts.get(input)),
 });

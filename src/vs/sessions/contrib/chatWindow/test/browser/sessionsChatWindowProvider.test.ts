@@ -22,7 +22,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IContentPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
@@ -43,6 +43,9 @@ import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleCli
 import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, reserveChatWindowControls, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
+import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -80,6 +83,12 @@ suite('Sessions chat window provider', () => {
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
+		const editorGroups: IEditorGroup[] = [];
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override get groups() { return editorGroups; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+		}());
 		instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 			override readonly sentimentObs = sentiment as IObservable<IChatSentiment>;
 		}());
@@ -163,7 +172,7 @@ suite('Sessions chat window provider', () => {
 			override readonly onDidClose = Event.None;
 		}();
 		const windowInstantiationService = store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))])));
-		return { provider, events, window, windowInstantiationService, onDidChangeSessions, sentiment, configuration, onDidChangeActiveWindow };
+		return { provider, events, window, windowInstantiationService, onDidChangeSessions, sentiment, configuration, onDidChangeActiveWindow, editorGroups };
 	}
 
 	test('a chat window shows a chat, or the main chat of a session, as a session of its own window once its window exists, acts on that session, binds its keys and those of its changes on the window, and stops showing it as it closes', async () => {
@@ -196,6 +205,31 @@ suite('Sessions chat window provider', () => {
 			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'], changesFileList: true },
 			events: ['show session /second', 'active session', 'close session'],
 		});
+	});
+
+	test('the chat\'s tab, while another editor is beside the chat in its group, shows the chat\'s title and offers no close action; alone again, it closes as before', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const { provider, window, windowInstantiationService, editorGroups } = createProvider(store, [session]);
+		const content = (await provider.resolveContent(session.resource))!;
+		const onModelChange = store.add(new Emitter<IGroupModelChangeEvent>());
+		const tab = upcastPartial<EditorInput>({});
+		const editors: EditorInput[] = [content.input, tab];
+		editorGroups.push(upcastPartial<IEditorGroup>({
+			windowId: window.windowId,
+			get count() { return editors.length; },
+			contains: (editor: EditorInput) => editors.includes(editor),
+			onDidModelChange: onModelChange.event,
+		}));
+
+		store.add(content.bind!(window, windowInstantiationService));
+		const withTab = { name: content.input.getName(), cannotClose: content.input.hasCapability(EditorInputCapabilities.CannotClose) };
+		editors.pop();
+		onModelChange.fire({ kind: GroupModelChangeKind.EDITOR_CLOSE, editor: tab });
+		const alone = content.input.hasCapability(EditorInputCapabilities.CannotClose);
+		content.dispose();
+
+		assert.deepStrictEqual({ withTab, alone }, { withTab: { name: content.title.get(), cannotClose: true }, alone: false });
 	});
 
 	test('the session of a chat window becomes the active session as its window gains focus, wherever in the window, without moving focus', async () => {

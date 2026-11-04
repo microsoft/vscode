@@ -15,14 +15,17 @@ import { BrowserViewCommandId } from '../../../../platform/browserView/common/br
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ViewEditorPane } from '../../../../workbench/browser/parts/editor/viewEditorPane.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { ActiveEditorContext, EditorPartMultipleEditorGroupsContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorCannotCloseContext, ActiveEditorContext, EditorPartMultipleEditorGroupsContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatShownContext, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -33,6 +36,35 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+
+//#region Close
+
+export const CLOSE_CHAT_WINDOW_COMMAND_ID = 'workbench.action.chatWindow.close';
+
+// Closing the chat closes its window. While other editors are beside the chat in its group, as tabs, the chat cannot be
+// closed as an editor, so that its tab offers no close action: the key that closes an editor closes the window then.
+registerAction2(class CloseChatWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: CLOSE_CHAT_WINDOW_COMMAND_ID,
+			title: localize2('chatWindowClose', "Close Chat Window"),
+			category: ChatWindowCategory,
+			precondition: ChatWindowLayoutCommandsContext,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: ContextKeyExpr.and(ChatWindowLayoutCommandsContext, ActiveEditorContext.isEqualTo(ViewEditorPane.ID), ActiveEditorCannotCloseContext),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		resolveChatWindow(accessor, args)?.close();
+	}
+});
+
+//#endregion
 
 //#region Layout menu and buttons
 

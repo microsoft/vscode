@@ -94,6 +94,18 @@ suite('Chat window: moving editors', () => {
 		const single = parts.createEditorPart({ container: document.createElement('div') });
 		disposables.add({ dispose: () => single.close() });
 		const notSplit = captureChatPart(single, chat);
+		// Nor with the chat alone in its group; with an editor beside it there, as a tab, it is captured too
+		const alone = parts.createEditorPart({ container: document.createElement('div') });
+		disposables.add({ dispose: () => alone.close() });
+		const aloneChat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput'));
+		await alone.activeGroup.openEditor(aloneChat, { pinned: true });
+		const chatAlone = captureChatPart(alone, aloneChat);
+		const beta = disposables.add(new TestFileEditorInput(URI.file('/beta'), 'chatWindowChatPartInput'));
+		await alone.activeGroup.openEditor(beta, { pinned: true });
+		const tabbed = captureChatPart(alone, aloneChat);
+		const restoredTabbed = parts.createEditorPart({ container: document.createElement('div'), state: tabbed!.state });
+		disposables.add({ dispose: () => restoredTabbed.close() });
+		await getRestoredChatGroup(restoredTabbed, tabbed).openEditor(disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput')), { pinned: true, index: 0 });
 
 		const restoredChat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput'));
 		const restored = parts.createEditorPart({ container: document.createElement('div'), state: captured!.state });
@@ -104,9 +116,12 @@ suite('Chat window: moving editors', () => {
 		const none = getRestoredChatGroup(restored, undefined) === restored.activeGroup;
 
 		const names = (part: IContentPart) => part.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.path));
-		assert.deepStrictEqual({ chatGroup: captured?.chatGroup, notSplit, gone, none, before: names(chatPart), restored: names(restored) }, {
+		assert.deepStrictEqual({ chatGroup: captured?.chatGroup, notSplit, chatAlone, tabbedChatGroup: tabbed?.chatGroup, restoredTabbed: names(restoredTabbed), gone, none, before: names(chatPart), restored: names(restored) }, {
 			chatGroup: 0,
 			notSplit: undefined,
+			chatAlone: undefined,
+			tabbedChatGroup: 0,
+			restoredTabbed: [['/chat', '/beta']],
 			gone: true,
 			none: true,
 			before: [['/chat'], ['/alpha']],

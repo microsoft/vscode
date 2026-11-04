@@ -11,14 +11,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { EditorCloseContext, GroupModelChangeKind, IEditorCloseEvent } from '../../../../common/editor.js';
+import { EditorCloseContext, GroupModelChangeKind, IActiveEditorChangeEvent, IEditorCloseEvent } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindowContent } from '../../browser/chatWindow.js';
 import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
-import { ChatWindow, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
+import { ChatWindow, getChatPartGroupViewOptions, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
@@ -34,9 +34,22 @@ suite('Chat window', () => {
 	class TestGroup extends mock<IEditorGroup>() {
 		readonly onModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
 		readonly onCloseEditor = disposables.add(new Emitter<IEditorCloseEvent>());
+		readonly onActiveEditorChange = disposables.add(new Emitter<IActiveEditorChangeEvent>());
 		override readonly onDidModelChange = this.onModelChange.event;
 		override readonly onDidCloseEditor = this.onCloseEditor.event;
+		override readonly onDidActiveEditorChange = this.onActiveEditorChange.event;
 		testEditors: EditorInput[] = [];
+		private _active: EditorInput | undefined;
+		override get activeEditor() { return this._active && this.testEditors.includes(this._active) ? this._active : this.testEditors.at(-1) ?? null; }
+		override get count() { return this.testEditors.length; }
+		override async openEditor(editor: EditorInput) {
+			if (!this.testEditors.includes(editor)) {
+				this.open(editor);
+			}
+			this._active = editor;
+			this.onActiveEditorChange.fire({ editor });
+			return undefined;
+		}
 		readonly immovable = new Set<EditorInput>();
 		override get isEmpty() { return this.testEditors.length === 0; }
 		override getEditors() { return [...this.testEditors]; }
@@ -45,7 +58,9 @@ suite('Chat window', () => {
 		override focus() { this._events.push(`focus ${this._name}`); }
 		open(editor: EditorInput) {
 			this.testEditors.push(editor);
+			this._active = editor;
 			this.onModelChange.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor });
+			this.onActiveEditorChange.fire({ editor });
 		}
 		fireCloseEditor(editor: EditorInput, context = EditorCloseContext.UNKNOWN) {
 			this.testEditors = this.testEditors.filter(candidate => candidate !== editor);
@@ -462,6 +477,68 @@ suite('Chat window', () => {
 			afterMerge: [],
 			closed: ['close main', 'close chat', 'will close', 'close window', 'closed'],
 			movedOut: ['moved out'],
+		});
+	});
+
+	test('with another editor beside the chat in its group, as a tab, the chat leads the window only while it shows there, so that the title row of the window shows the session meanwhile', async () => {
+		const { window, chat, chatInput } = createWindow();
+		const leads = [window.chatLeads.get()];
+		chat.group.open(editor());
+		leads.push(window.chatLeads.get());
+		await chat.group.openEditor(chatInput);
+		leads.push(window.chatLeads.get());
+
+		assert.deepStrictEqual(leads, [true, false, true]);
+	});
+
+	test('a layout that shows the chat shows it where another editor beside it, as a tab, shows; one that shows only the main part does not', () => {
+		const { window, chat, chatInput } = createWindow();
+		const tab = editor();
+		const active = () => chat.group.activeEditor === chatInput ? 'chat' : 'tab';
+		chat.group.open(tab);
+		window.setLayoutMode(ChatWindowLayoutMode.EditorOnly);
+		const editorOnly = active();
+		window.showChatOnly();
+		const chatOnly = active();
+		chat.group.open(tab);
+		window.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+		const sideBySide = active();
+
+		assert.deepStrictEqual({ editorOnly, chatOnly, sideBySide }, { editorOnly: 'tab', chatOnly: 'chat', sideBySide: 'chat' });
+	});
+
+	test('the groups of its chat part look as those of its main part, but for the header of the chat\'s group while the chat shows, as the chat shows its own', () => {
+		const chatInput = editor();
+		const other = editor();
+		const headerPrimary = new MenuId('test.chatPart.headerPrimary');
+		const options = getChatPartGroupViewOptions({ menuIds: { headerPrimary }, showHeader: true, useModernUITabs: true }, chatInput);
+
+		assert.deepStrictEqual({
+			menuIds: options?.menuIds,
+			showHeader: options?.showHeader,
+			useModernUITabs: options?.useModernUITabs,
+			chat: options?.showHeaderFor?.(chatInput),
+			other: options?.showHeaderFor?.(other),
+			withoutMainPartOptions: getChatPartGroupViewOptions(undefined, chatInput),
+		}, { menuIds: { headerPrimary }, showHeader: true, useModernUITabs: true, chat: false, other: true, withoutMainPartOptions: undefined });
+	});
+
+	test('an editor beside the chat in its own group, as a tab, moves into the main part before the parts close; when it cannot move, the window stays as it was', () => {
+		const closing = createWindow();
+		const tab = editor();
+		closing.chat.group.open(tab);
+		const closed = closing.window.close();
+		const closedResult = { closed, events: closing.events };
+
+		const staying = createWindow();
+		const stuck = editor();
+		staying.chat.group.open(stuck);
+		staying.chat.group.immovable.add(stuck);
+		const stayed = { closed: staying.window.close(), events: staying.events, besideChat: staying.chat.group.contains(stuck) && staying.chat.group.contains(staying.chatInput) };
+
+		assert.deepStrictEqual({ closedResult, stayed }, {
+			closedResult: { closed: true, events: ['move to main', 'close main', 'close chat', 'will close', 'close window', 'closed'] },
+			stayed: { closed: false, events: [], besideChat: true },
 		});
 	});
 
