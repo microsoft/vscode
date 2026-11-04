@@ -192,6 +192,11 @@
 	cursor: grabbing;
 }
 
+/* From the press until the card lifts, the cursor of what was pressed */
+.part-grid-drag-cursor.part-grid-drag-pending {
+	cursor: grab;
+}
+
 .part-grid-frame-layer {
 	position: fixed;
 	inset: 0;

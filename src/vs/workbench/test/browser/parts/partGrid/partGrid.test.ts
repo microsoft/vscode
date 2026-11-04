@@ -629,6 +629,44 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('from the press on its grabber, a layer over the window takes the pointer, also over a webview the first move goes into, so that a card dragged toward it lifts; a press that loses the pointer ends', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		container.style.setProperty('--vscode-spacing-size40', '8px');
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [top, bottom] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(top, '/top.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('top', top);
+		grid.addPart('bottom', bottom, { reference: 'top', direction: Direction.Down });
+		grid.layout(1000, 800);
+
+		// A webview over the top part, drawn above the cards as webviews are
+		const topRect = container.querySelector<HTMLElement>('[data-part-grid-cell="top"]')!.getBoundingClientRect();
+		const webview = container.appendChild(mainWindow.document.createElement('iframe'));
+		webview.style.cssText = `position: fixed; left: ${topRect.left}px; top: ${topRect.top}px; width: ${topRect.width}px; height: ${topRect.height}px; z-index: 2; border: none;`;
+		const handle = container.querySelector<HTMLElement>('[data-part-grid-cell="bottom"] .part-grid-drag-handle')!;
+		const start = handle.getBoundingClientRect();
+		const [x, y] = [start.left + start.width / 2, start.top + start.height / 2];
+		const firstMove = [x, y - 20] as const;
+
+		const beforePress = mainWindow.document.elementFromPoint(...firstMove) === webview;
+		pointer(handle, 'pointerdown', x, y);
+		const takesThePointer = mainWindow.document.elementFromPoint(...firstMove);
+		pointer(takesThePointer!, 'pointermove', ...firstMove);
+		const lifted = container.classList.contains('part-grid-card-dragging');
+		pressEscape();
+		pointer(mainWindow.document.body, 'pointerup', ...firstMove);
+		pointer(handle, 'pointerdown', x, y);
+		handle.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1 }));
+
+		assert.deepStrictEqual({ beforePress, layerTakesThePointer: takesThePointer?.classList.contains('part-grid-drag-cursor'), lifted, layerAfterLostPress: !!container.querySelector('.part-grid-drag-cursor') }, {
+			beforePress: true,
+			layerTakesThePointer: true,
+			lifted: true,
+			layerAfterLostPress: false
+		});
+	});
+
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);

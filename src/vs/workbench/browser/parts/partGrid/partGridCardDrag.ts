@@ -154,6 +154,8 @@ class CardDragSession extends Disposable {
 	private readonly startY: number;
 
 	private phase: 'pending' | 'dragging' | 'settling' = 'pending';
+	/** The layer over the window that takes the pointer from the press, with the cursor of the drag once the card lifted. */
+	private readonly cursor: HTMLElement;
 	private reflow: PartGridReflow | undefined;
 	private dragged: IPartGridReflowCellState | undefined;
 
@@ -195,11 +197,17 @@ class CardDragSession extends Disposable {
 			// a pointer that is not down, such as a synthetic one, is not captured
 		}
 
+		// From the press, a layer over the window takes the pointer: the first move can otherwise go into what draws over
+		// the window, such as a webview beside the card, which takes the pointer from the window before its capture applies
+		const cursor = this.cursor = append(host.container, $('.part-grid-drag-cursor.part-grid-drag-pending'));
+		this._register(toDisposable(() => cursor.remove()));
+
 		this._register(addDisposableListener(this.targetWindow, EventType.POINTER_MOVE, e => this.onPointerMove(e), true));
 		this._register(addDisposableListener(this.targetWindow, EventType.POINTER_UP, e => this.onPointerUp(e), true));
 		this._register(addDisposableListener(this.targetWindow, 'pointercancel', () => this.cancel(), true));
 		if (target) {
-			this._register(addDisposableListener(target, 'lostpointercapture', () => this.isDragging ? this.cancel() : undefined));
+			// Losing the pointer before it lifted, such as to another window, is a press that ends there
+			this._register(addDisposableListener(target, 'lostpointercapture', () => this.isDragging ? this.cancel() : this.phase === 'pending' ? this.onDidEnd() : undefined));
 		}
 		this._register(addDisposableListener(this.targetWindow, EventType.KEY_DOWN, e => {
 			if (this.phase !== 'settling' && new StandardKeyboardEvent(e).equals(KeyCode.Escape)) {
@@ -291,7 +299,8 @@ class CardDragSession extends Disposable {
 
 		// The cursor grabs over the whole window: one layer over it, rather than a cursor on every element
 		const container = this.host.container;
-		const cursor = append(container, $('.part-grid-drag-cursor'));
+		const cursor = this.cursor;
+		cursor.classList.remove('part-grid-drag-pending');
 		container.classList.add('part-grid-card-dragging');
 		this.visuals.add(toDisposable(() => { cursor.remove(); container.classList.remove('part-grid-card-dragging'); }));
 
