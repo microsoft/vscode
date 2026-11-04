@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getZoomFactor, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
+import { getZoomFactor, isFullscreen, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
 import { $, append, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
-import { timeout } from '../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
@@ -363,7 +364,7 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
 	});
 
-	function createAuxiliaryTitlebar(options?: { createdBeforeInWindow?: boolean; hostFullscreen?: () => boolean | undefined }) {
+	function createAuxiliaryTitlebar(options?: { createdBeforeInWindow?: boolean; hostFullscreen?: () => Promise<boolean | undefined> | boolean | undefined }) {
 		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
 		store.add(toDisposable(() => iframe.remove()));
 		const auxiliaryWindow = iframe.contentWindow!;
@@ -398,7 +399,7 @@ suite('Sessions - Titlebar Part', () => {
 			fullscreenClass: parent.classList.contains('titlebar-fullscreen'),
 			spacer: hasTrafficLightSpacer ? parent.querySelector<HTMLElement>('.titlebar-left > .window-controls-container')!.style.display : 'absent',
 		});
-		return { auxiliaryWindow, read, hasTrafficLightSpacer, hostQueries };
+		return { auxiliaryWindow, part, read, hasTrafficLightSpacer, hostQueries };
 	}
 
 	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
@@ -442,29 +443,46 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
-	test('a stale full-screen state of an auxiliary window is corrected by its host as the window resizes, and the title bar moving to the window asks its host', async () => {
+	test('a stale full-screen state of an auxiliary window is corrected by its host once the window is done resizing, and the title bar moving to the window asks its host', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		let hostFullscreen: boolean | undefined = undefined;
 		const { auxiliaryWindow, read, hasTrafficLightSpacer, hostQueries } = createAuxiliaryTitlebar({ createdBeforeInWindow: true, hostFullscreen: () => hostFullscreen });
 		const askedOnMove = hostQueries.length;
+		const resize = async () => {
+			// Many resize events as the window animates: the host is asked once, after the last
+			for (let i = 0; i < 5; i++) {
+				auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
+				await timeout(50);
+			}
+			await timeout(1000);
+		};
 
 		// Told it is in full screen, which it left without being told
 		setFullscreen(true, auxiliaryWindow);
 		const stale = read();
 		hostFullscreen = false;
-		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
-		await timeout(0);
-		const corrected = read();
+		await resize();
+		const corrected = { ...read(), asked: hostQueries.length - askedOnMove };
 		// And the other way
 		hostFullscreen = true;
-		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
-		await timeout(0);
+		await resize();
 
-		assert.deepStrictEqual({ askedOnMove, stale, corrected, enteredUntold: read() }, {
+		assert.deepStrictEqual({ askedOnMove, stale, corrected, enteredUntold: { ...read(), asked: hostQueries.length - askedOnMove } }, {
 			askedOnMove: 1,
 			stale: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
-			corrected: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
-			enteredUntold: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
+			corrected: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent', asked: 1 },
+			enteredUntold: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent', asked: 2 },
 		});
+	}));
+
+	test('an answer of the host that comes after the title bar is disposed changes nothing', async () => {
+		const answer = new DeferredPromise<boolean | undefined>();
+		const { auxiliaryWindow, part, read } = createAuxiliaryTitlebar({ hostFullscreen: () => answer.p });
+		const before = read();
+		part.dispose();
+		answer.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, fullscreen: isFullscreen(auxiliaryWindow) }, { before: { fullscreenClass: false, spacer: before.spacer }, fullscreen: false });
 	});
 
 	test('a title bar created before it is in its window, such as the title row of a chat view, looks active while the window it is in is the active window, not while the main window is', () => {

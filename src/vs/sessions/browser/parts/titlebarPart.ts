@@ -13,6 +13,7 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
@@ -40,6 +41,9 @@ const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
 /** The width reserved for the macOS traffic lights while they show. */
 const TRAFFIC_LIGHTS_WIDTH = 70;
+
+/** How long a window is still after resizing, such as into or out of full screen, before its host is asked whether it is in full screen. */
+const FULLSCREEN_RECHECK_DELAY = 300;
 
 const SHOWS_NO_ACTIONS_CLASS = 'shows-no-actions';
 
@@ -285,11 +289,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				trafficLightSpacer.style.display = fullscreen ? 'none' : '';
 			}
 		};
-		// The full-screen state of an auxiliary window comes from the events of its host, which the host is asked again as
-		// the window resizes or the title bar moves to it, in case the state it was told of is stale.
+		// The full-screen state of an auxiliary window comes from the events of its host, which the host is asked again once
+		// the window is done resizing or the title bar moves to it, in case the state it was told of is stale.
 		let querying = false;
 		let queryAgain = false;
-		const correctFullscreen = async (targetWindow: CodeWindow) => {
+		const correctFullscreen = async () => {
 			if (querying) {
 				queryAgain = true;
 				return;
@@ -298,25 +302,32 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			try {
 				do {
 					queryAgain = false;
+					const targetWindow = trackedWindow;
+					if (!targetWindow || targetWindow === mainWindow) {
+						return;
+					}
 					const fullscreen = await this.queryWindowFullscreen(targetWindow);
+					if (this._store.isDisposed) {
+						return;
+					}
 					if (fullscreen !== undefined && targetWindow === trackedWindow && fullscreen !== isFullscreen(targetWindow)) {
 						setFullscreen(fullscreen, targetWindow);
 					}
-				} while (queryAgain && targetWindow === trackedWindow);
+				} while (queryAgain);
 			} finally {
 				querying = false;
 			}
 		};
+		const correctFullscreenScheduler = this._register(new RunOnceScheduler(() => void correctFullscreen(), FULLSCREEN_RECHECK_DELAY));
 		const windowResize = this._register(new MutableDisposable());
 		let trackedWindow: CodeWindow | undefined;
 		this.trackFullscreenOfWindow = () => {
 			const targetWindow = getWindow(parent);
 			if (targetWindow !== trackedWindow) {
 				trackedWindow = targetWindow;
-				windowResize.value = targetWindow !== mainWindow ? addDisposableListener(targetWindow, EventType.RESIZE, () => void correctFullscreen(targetWindow)) : undefined;
-				if (targetWindow !== mainWindow) {
-					void correctFullscreen(targetWindow);
-				}
+				correctFullscreenScheduler.cancel();
+				windowResize.value = targetWindow !== mainWindow ? addDisposableListener(targetWindow, EventType.RESIZE, () => correctFullscreenScheduler.schedule()) : undefined;
+				void correctFullscreen();
 			}
 			updateFullscreen();
 		};
