@@ -80,13 +80,13 @@ function requestContext(statusCode: number, body: object): IRequestContext {
 	};
 }
 
-function galleryQueryResponse(extensions: object[]): object {
+function galleryQueryResponse(extensions: object[], totalCount = extensions.length): object {
 	return {
 		results: [{
 			extensions,
 			resultMetadata: [{
 				metadataType: 'ResultCount',
-				metadataItems: [{ name: 'TotalCount', count: extensions.length }]
+				metadataItems: [{ name: 'TotalCount', count: totalCount }]
 			}]
 		}]
 	};
@@ -210,6 +210,46 @@ suite('Extension Gallery Service', () => {
 		const requestService = new RecordingRequestService(() => requestContext(200, { ...rawLatestExtension(), flags: 'deprecated' }));
 		const [extension] = await createExtensionGalleryService(requestService).getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
 		assert.strictEqual(extension.deprecationInfo, undefined);
+	});
+
+	test('Marketplace deprecation maps subsequent query pages without additional lookups', async () => {
+		const flags: number[] = [];
+		const requestService = new RecordingRequestService(options => {
+			const query: { filters: { pageNumber: number }[]; flags: number } = JSON.parse(options.data!);
+			flags.push(query.flags);
+			return requestContext(200, galleryQueryResponse([{ ...rawLatestExtension(), deprecation: { customMessage: `Page ${query.filters[0].pageNumber}` } }], 2));
+		});
+		const pager = await createExtensionGalleryService(requestService).query({ text: 'extension', pageSize: 1 }, CancellationToken.None);
+		const secondPage = await pager.getPage(1, CancellationToken.None);
+		assert.deepStrictEqual({
+			messages: [...pager.firstPage, ...secondPage].map(extension => extension.deprecationInfo?.additionalInfo),
+			requests: requestService.requests.length,
+			sameFlags: flags[0] === flags[1]
+		}, { messages: ['Page 1', 'Page 2'], requests: 2, sameFlags: true });
+	});
+
+	test('Marketplace metadata does not alter legacy control normalization or operational migrations', async () => {
+		productService = {
+			...productService,
+			extensionsGallery: { ...productService.extensionsGallery!, controlUrl: 'https://marketplace.test/control' }
+		};
+		const requestService = new RecordingRequestService(options => requestContext(200, options.url === 'https://marketplace.test/control' ? {
+			malicious: [],
+			deprecated: { 'Publisher.Extension': true },
+			migrateToPreRelease: { 'Publisher.Old': { id: 'publisher.new', displayName: 'New', migrateStorage: true } }
+		} : { ...rawLatestExtension(), deprecation: { replacementExtension: { name: 'publisher.other', displayName: 'Other' } } }));
+		const service = createExtensionGalleryService(requestService);
+		await service.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const report = await service.getExtensionsControlManifest();
+		assert.deepStrictEqual({
+			ordinary: report.deprecated['publisher.extension'],
+			migration: report.deprecated['publisher.old'],
+			copilotMigration: report.deprecated[productService.defaultChatAgent.extensionId.toLowerCase()]?.extension?.autoMigrate
+		}, {
+			ordinary: {},
+			migration: { disallowInstall: true, extension: { id: 'publisher.new', displayName: 'New', autoMigrate: { storage: true }, preRelease: true } },
+			copilotMigration: { storage: false, donotDisable: true }
+		});
 	});
 
 	test('marketplace machine id', async () => {
