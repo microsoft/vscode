@@ -1069,14 +1069,9 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
-			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
-			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch
-			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
-			|| (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()))) {
+		const rebuild = this._pendingRebuildReasons();
+		if (rebuild.required.length > 0 || (rebuild.deferrable.length > 0 && !this._deferRebuildForBackgroundTasks(rebuild.deferrable))) {
+			this._logService.info(`[Claude:${this.sessionId}] rebuilding before turn ${turnId}: ${[...rebuild.required, ...rebuild.deferrable].join(', ')}`);
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
@@ -1090,6 +1085,60 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 			this._hostInstructions = undefined;
 			this._agentMergeTurn = false;
 		}
+	}
+
+	/**
+	 * Why the next turn would rebuild the SDK subprocess, split by whether
+	 * the rebuild can wait. `required` reasons change what the process IS
+	 * (its transport, owner, or the transcript point it resumes from) and
+	 * cannot be served by the live one. `deferrable` reasons only refresh
+	 * startup `Options` (client tools, plugins, MCP enablement, extra
+	 * directories); the live process keeps working without them, so they
+	 * can be held while it still has background tasks.
+	 */
+	private _pendingRebuildReasons(): { readonly required: readonly string[]; readonly deferrable: readonly string[] } {
+		const required: string[] = [];
+		const deferrable: string[] = [];
+		if (this._pendingResumeSessionAt !== undefined) {
+			required.push('resume anchor');
+		}
+		if (this._pendingTransportSwitch) {
+			required.push('transport switch');
+		}
+		// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
+		if (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get())) {
+			required.push('owner change');
+		}
+		if (this.toolDiff.hasDifference) {
+			deferrable.push('client tools');
+		}
+		if (this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))) {
+			deferrable.push('client customizations');
+		}
+		if (this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision) {
+			deferrable.push('mcp launch enablement');
+		}
+		if (!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			deferrable.push('additional directories');
+		}
+		return { required, deferrable };
+	}
+
+	/**
+	 * Whether a deferrable rebuild should wait for this turn. Rebuilding
+	 * disposes the live subprocess, which SIGKILLs every background task
+	 * it hosts (a subagent mid-command dies with exit 137 and reports on
+	 * the next turn as "didn't finish before the previous session
+	 * ended"). The diffs stay dirty, so the rebuild runs on the first turn
+	 * that finds no background work.
+	 */
+	private _deferRebuildForBackgroundTasks(reasons: readonly string[]): boolean {
+		const tasks = this._requirePipeline().liveBackgroundTasks;
+		if (tasks.length === 0) {
+			return false;
+		}
+		this._logService.info(`[Claude:${this.sessionId}] deferring rebuild (${reasons.join(', ')}): ${tasks.length} background task(s) still running: ${tasks.map(task => `${task.taskType} "${task.description}"`).join('; ')}`);
+		return true;
 	}
 
 	private _restrictAgentMergeGitHubTool(toolName: string, input: unknown, restrictedMcpServerNames: ReadonlySet<string>): SyncHookJSONOutput | undefined {

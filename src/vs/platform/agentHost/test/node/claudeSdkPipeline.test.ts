@@ -21,6 +21,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
@@ -55,8 +56,8 @@ class FakeWarmQuery implements WarmQuery {
 
 class ImmediatelyDoneQuery implements Query {
 	[Symbol.asyncIterator](): this { return this; }
-	async next(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
-	async return(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
+	async next(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
+	async return(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
 	async throw(err: unknown): Promise<IteratorResult<never, void>> { throw err; }
 	async setModel(): Promise<void> { /* not exercised here */ }
 	async applyFlagSettings(_settings: Parameters<Query['applyFlagSettings']>[0]): Promise<void> { /* not exercised here */ }
@@ -181,6 +182,87 @@ class ControllableWarmQuery extends FakeWarmQuery {
 		this.queries.push(q);
 		return q;
 	}
+}
+
+/**
+ * A {@link Query}-shaped stub whose async stream carries exactly the SDK
+ * messages a test pushes, in order, blocking in between. Models the live
+ * stream well enough to drive the consumer loop's `result` and
+ * `system` handling without a subprocess.
+ */
+class ScriptedQuery extends ImmediatelyDoneQuery {
+	private readonly _pending: SDKMessage[] = [];
+	private _wake: (() => void) | undefined;
+	private _ended = false;
+
+	push(message: SDKMessage): void {
+		this._pending.push(message);
+		this._wake?.();
+		this._wake = undefined;
+	}
+
+	end(): void {
+		this._ended = true;
+		this._wake?.();
+		this._wake = undefined;
+	}
+
+	override async next(): Promise<IteratorResult<SDKMessage, void>> {
+		while (this._pending.length === 0 && !this._ended) {
+			await new Promise<void>(resolve => { this._wake = resolve; });
+		}
+		const message = this._pending.shift();
+		return message ? { done: false, value: message } : { done: true, value: undefined };
+	}
+}
+
+/**
+ * {@link WarmQuery} whose bound query is a single {@link ScriptedQuery}.
+ * Drains the prompt iterable like the real SDK does, so pushed prompts
+ * reach the queue's yielded list and a `result` can settle them.
+ */
+class ScriptedWarmQuery extends FakeWarmQuery {
+	readonly scripted = new ScriptedQuery();
+
+	override query(prompt: string | AsyncIterable<SDKUserMessage>): Query {
+		this.queryCallCount++;
+		if (typeof prompt !== 'string') {
+			void (async () => {
+				for await (const _ of prompt) { /* yielded to the SDK */ }
+			})();
+		}
+		return this.scripted;
+	}
+}
+
+function makeResult(userMessageUuid: string | undefined): SDKMessage {
+	return {
+		type: 'result',
+		subtype: 'success',
+		duration_ms: 1,
+		duration_api_ms: 1,
+		is_error: false,
+		num_turns: 1,
+		result: '',
+		stop_reason: 'end_turn',
+		total_cost_usd: 0,
+		usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+		modelUsage: {},
+		permission_denials: [],
+		user_message_uuid: userMessageUuid,
+		uuid: makeUuid('result'),
+		session_id: 'sess-1',
+	} as unknown as SDKMessage;
+}
+
+function makeBackgroundTasksChanged(tasks: readonly { id: string; ambient?: boolean }[]): SDKMessage {
+	return {
+		type: 'system',
+		subtype: 'background_tasks_changed',
+		tasks: tasks.map(task => ({ task_id: task.id, task_type: 'local_agent', description: task.id, ambient: task.ambient })),
+		uuid: makeUuid('tasks'),
+		session_id: 'sess-1',
+	} as SDKMessage;
 }
 
 // ===== Harness =====
@@ -524,6 +606,105 @@ suite('ClaudeSdkPipeline', () => {
 				freshAborted: fresh.abortController.signal.aborted,
 				activeTurn: pipeline.hasActiveTurn,
 			}, { originalDisposals: 1, freshDisposals: 1, freshAborted: true, activeTurn: false });
+		});
+	});
+
+	suite('result matching', () => {
+
+		/** Send one prompt and collect every `ChatTurnComplete` the pipeline fires. */
+		function sendAndTrack(disposablesStore: Pick<DisposableStore, 'add'>, pipeline: ClaudeSdkPipeline, uuid: string, turnId: string): { readonly sent: Promise<void>; readonly completedTurns: string[] } {
+			const completedTurns: string[] = [];
+			disposablesStore.add(pipeline.onDidProduceSignal(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete) {
+					completedTurns.push(signal.action.turnId);
+				}
+			}));
+			const sent = pipeline.send(makePrompt(uuid), turnId);
+			return { sent, completedTurns };
+		}
+
+		test('a result for an SDK-initiated turn leaves the pending user prompt open; the result naming it settles it', async () => {
+			// Regression: after a resume the CLI runs its stopped-task notices
+			// as a turn of their own and emits a `result` for it before it
+			// answers the prompt the user just sent. Settling by position
+			// consumed the user's slot, closed the protocol turn with no
+			// response, and the real reply then arrived with no owning turn.
+			const warm = new ScriptedWarmQuery();
+			const { pipeline } = createPipeline(disposables, warm);
+			const { sent, completedTurns } = sendAndTrack(disposables, pipeline, 'user', 'turn-user');
+			await flushMicrotasks();
+
+			warm.scripted.push(makeResult(makeUuid('notice')));
+			await flushMicrotasks();
+			assert.deepStrictEqual({ activeTurn: pipeline.hasActiveTurn, completedTurns }, { activeTurn: true, completedTurns: [] }, 'foreign result must not close the user turn');
+
+			warm.scripted.push(makeResult(makeUuid('user')));
+			await sent;
+			assert.deepStrictEqual({ activeTurn: pipeline.hasActiveTurn, completedTurns }, { activeTurn: false, completedTurns: ['turn-user'] });
+
+			warm.scripted.end();
+			await flushMicrotasks();
+		});
+
+		test('a result that does not name a user message settles by position (older CLIs)', async () => {
+			const warm = new ScriptedWarmQuery();
+			const { pipeline } = createPipeline(disposables, warm);
+			const { sent, completedTurns } = sendAndTrack(disposables, pipeline, 'user', 'turn-user');
+			await flushMicrotasks();
+
+			warm.scripted.push(makeResult(undefined));
+			await sent;
+			assert.deepStrictEqual({ activeTurn: pipeline.hasActiveTurn, completedTurns }, { activeTurn: false, completedTurns: ['turn-user'] });
+
+			warm.scripted.end();
+			await flushMicrotasks();
+		});
+	});
+
+	suite('liveBackgroundTasks', () => {
+
+		test('tracks the non-ambient set from background_tasks_changed with replace semantics and resets on init', async () => {
+			const warm = new ScriptedWarmQuery();
+			const { pipeline } = createPipeline(disposables, warm);
+			pipeline.send(makePrompt('p1'), 'turn-1').catch(() => { /* unwound on teardown */ });
+			await flushMicrotasks();
+			const observed: string[][] = [];
+
+			warm.scripted.push(makeBackgroundTasksChanged([{ id: 'agent-1' }, { id: 'watcher', ambient: true }]));
+			await flushMicrotasks();
+			observed.push(pipeline.liveBackgroundTasks.map(task => task.taskId));
+
+			warm.scripted.push(makeBackgroundTasksChanged([{ id: 'agent-2' }]));
+			await flushMicrotasks();
+			observed.push(pipeline.liveBackgroundTasks.map(task => task.taskId));
+
+			warm.scripted.push({ type: 'system', subtype: 'init', plugins: [], uuid: makeUuid('init'), session_id: 'sess-1' } as unknown as SDKMessage);
+			await flushMicrotasks();
+			observed.push(pipeline.liveBackgroundTasks.map(task => task.taskId));
+
+			assert.deepStrictEqual(observed, [['agent-1'], ['agent-2'], []]);
+
+			warm.scripted.end();
+			await flushMicrotasks();
+		});
+
+		test('a rebind clears the set: the old subprocess and its tasks are gone', async () => {
+			const warm = new ScriptedWarmQuery();
+			const { pipeline } = createPipeline(disposables, warm);
+			pipeline.send(makePrompt('p1'), 'turn-1').catch(() => { /* unwound on teardown */ });
+			await flushMicrotasks();
+			warm.scripted.push(makeBackgroundTasksChanged([{ id: 'agent-1' }]));
+			await flushMicrotasks();
+			assert.strictEqual(pipeline.liveBackgroundTasks.length, 1);
+
+			const warm2 = new ControllableWarmQuery();
+			pipeline.attachRematerializer({ rematerialize: async () => ({ warm: warm2, abortController: new AbortController() }) });
+			await pipeline.rebindForRestart();
+			assert.strictEqual(pipeline.liveBackgroundTasks.length, 0);
+
+			warm.scripted.end();
+			warm2.queries[0]?.end();
+			await flushMicrotasks();
 		});
 	});
 

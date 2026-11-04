@@ -151,10 +151,29 @@ export class ClaudePromptQueue extends Disposable {
 	 * every popped-but-deferred deferred from this turn including the
 	 * one we just popped. Otherwise hold the popped entry's deferred
 	 * until the turn ends — the M10 invariant for steering preempt.
-	 * Called by the consumer on every `result` message.
+	 * Called by the consumer on a `result` message that does not name
+	 * the user message it answers (older CLIs).
 	 */
 	settleHead(): IPendingSdkMessage | undefined {
-		const completed = this._yielded.shift();
+		return this._settleAt(0);
+	}
+
+	/**
+	 * Pop the yielded entry whose `sdkUuid` is one of `sdkUuids` (the
+	 * `user_message_uuid` / `user_message_uuids` a `result` message
+	 * names). Same batching semantics as {@link settleHead}. Returns
+	 * `undefined` and leaves the queue untouched when no yielded entry
+	 * matches: the result then belongs to a turn the SDK started on its
+	 * own (a stopped-task notice after a resume, a cross-session
+	 * message) and must not consume a pending user prompt's slot.
+	 */
+	settle(sdkUuids: readonly string[]): IPendingSdkMessage | undefined {
+		const index = this._yielded.findIndex(entry => sdkUuids.includes(entry.sdkUuid));
+		return index === -1 ? undefined : this._settleAt(index);
+	}
+
+	private _settleAt(index: number): IPendingSdkMessage | undefined {
+		const [completed] = this._yielded.splice(index, 1);
 		if (!completed) {
 			return undefined;
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKResultMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -28,6 +28,26 @@ import type { SessionClientToolsModel } from './clientTools/claudeSessionClientT
  */
 export interface IRematerializer {
 	rematerialize(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
+}
+
+/** One background task (subagent, shell, monitor) the live SDK subprocess still runs. */
+export interface ILiveBackgroundTask {
+	readonly taskId: string;
+	readonly taskType: string;
+	readonly description: string;
+}
+
+/**
+ * The uuids of the user message(s) a `result` answers, or `[]` when the
+ * CLI predates `user_message_uuid` and the result must be matched by
+ * queue position instead.
+ */
+function resultUserMessageUuids(message: SDKResultMessage): string[] {
+	const uuids = message.user_message_uuids ?? [];
+	if (message.user_message_uuid && !uuids.includes(message.user_message_uuid)) {
+		return [message.user_message_uuid, ...uuids];
+	}
+	return uuids;
 }
 
 /**
@@ -200,6 +220,14 @@ export class ClaudeSdkPipeline extends Disposable {
 	private _isResumed = false;
 
 	/**
+	 * Background tasks (subagents, shells, monitors) the live subprocess
+	 * reports via `system:background_tasks_changed`, minus ambient ones.
+	 * Per process: reset on every `system:init` and on rebind. Empty on
+	 * CLIs that predate the signal.
+	 */
+	private _liveBackgroundTasks: readonly ILiveBackgroundTask[] = [];
+
+	/**
 	 * Native plugins reported by the most recent `system:init` message.
 	 * Captured on *every* init (including resume) so the post-materialize
 	 * native-plugin filter always reflects the live set. `source` is the
@@ -289,6 +317,13 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * release to avoid tearing the pipeline down mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
+
+	/**
+	 * Background tasks the live subprocess is still running between turns.
+	 * A rebind disposes that subprocess and kills them mid-flight, so
+	 * callers that can defer a rebuild should check this first.
+	 */
+	get liveBackgroundTasks(): readonly ILiveBackgroundTask[] { return this._liveBackgroundTasks; }
 
 	/**
 	 * Abort the live SDK subprocess and **await its actual exit**.
@@ -618,6 +653,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._bindAbortController(built.abortController);
 		this._queue.resetForRebind();
 		this._needsRebind = false;
+		// The old subprocess (and every background task it hosted) is gone.
+		this._liveBackgroundTasks = [];
 		// New SDK starts with the materializer's `Options.model` / effort /
 		// permissionMode but we don't trust that to match `_currentModel`
 		// etc. — reset the applied cache and let `_replayCurrentConfig`
@@ -657,6 +694,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					// Capture the loaded native-plugin list on every init (incl.
 					// resume / post-rebind) so the post-materialize filter is fresh.
 					this._initPlugins = message.plugins ?? [];
+					// The background-task level is per process: a fresh init
+					// means a fresh (empty) set until the CLI reports otherwise.
+					this._liveBackgroundTasks = [];
 					if (!this._isResumed) {
 						this._isResumed = true;
 					}
@@ -675,8 +715,32 @@ export class ClaudeSdkPipeline extends Disposable {
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
+				if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
+					// Level signal with replace semantics (see the SDK docs on
+					// `SDKBackgroundTasksChangedMessage`): swap the set wholesale
+					// rather than pairing `task_started` / `task_notification`.
+					this._liveBackgroundTasks = message.tasks.filter(task => !task.ambient).map(task => ({
+						taskId: task.task_id,
+						taskType: task.task_type,
+						description: task.description,
+					}));
+				}
 				if (message.type === 'result') {
-					const completed = this._queue.settleHead();
+					// A result names the user message(s) it answers. Settle that
+					// entry rather than whichever one happens to be at the head:
+					// after a resume the CLI runs its stopped-task notices as a
+					// turn of their own, and a cross-session message does the
+					// same, so the first result the stream carries is not
+					// necessarily the answer to the prompt the user just sent.
+					// Consuming the user's slot there closed the protocol turn
+					// with no response and the real reply then arrived with no
+					// owning turn (`result for sdkUuid=undefined`).
+					const answered = resultUserMessageUuids(message);
+					const completed = answered.length > 0 ? this._queue.settle(answered) : this._queue.settleHead();
+					if (!completed && answered.length > 0 && !this._queue.isEmpty) {
+						this._logService.info(`[Claude:${this.sessionId}] result for SDK-initiated turn user_message_uuid=${answered.join(',')}; keeping the pending user turn open`);
+						continue;
+					}
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a

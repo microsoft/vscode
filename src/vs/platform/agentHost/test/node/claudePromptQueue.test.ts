@@ -320,6 +320,49 @@ suite('ClaudePromptQueue', () => {
 		});
 	});
 
+	test('settle by uuid pops the matching yielded entry even when it is not the head', async () => {
+		const { queue } = createQueue(disposables);
+		const iter = queue.iterable[Symbol.asyncIterator]();
+		const a = makeEntry('a');
+		const b = makeEntry('b');
+		void queue.push(a);
+		void queue.push(b);
+		await drainOne(iter);
+		await drainOne(iter);
+
+		const completed = queue.settle(['b']);
+		assert.deepStrictEqual({
+			completed: completed?.sdkUuid,
+			aSettled: a.deferred.isSettled,
+			bSettled: b.deferred.isSettled,
+			empty: queue.isEmpty,
+		}, { completed: 'b', aSettled: false, bSettled: false, empty: false }, 'b popped but held until the turn drains (M10)');
+
+		queue.settle(['a']);
+		assert.deepStrictEqual({ aSettled: a.deferred.isSettled, bSettled: b.deferred.isSettled, empty: queue.isEmpty }, { aSettled: true, bSettled: true, empty: true });
+	});
+
+	test('settle by uuid with no matching yielded entry returns undefined and leaves the pending user prompt in flight', async () => {
+		const { queue } = createQueue(disposables);
+		const iter = queue.iterable[Symbol.asyncIterator]();
+		const user = makeEntry('user');
+		void queue.push(user);
+		await drainOne(iter);
+
+		// A result for a turn the SDK started on its own (stopped-task notice
+		// after a resume, cross-session message) names a uuid we never queued.
+		const completed = queue.settle(['sdk-initiated']);
+		assert.deepStrictEqual({
+			completed,
+			userSettled: user.deferred.isSettled,
+			parent: queue.peekParent()?.sdkUuid,
+			empty: queue.isEmpty,
+		}, { completed: undefined, userSettled: false, parent: 'user', empty: false });
+
+		queue.settle(['user']);
+		assert.deepStrictEqual({ userSettled: user.deferred.isSettled, empty: queue.isEmpty }, { userSettled: true, empty: true });
+	});
+
 	test('settleHead on an empty yielded list returns undefined and is a no-op', () => {
 		const { queue } = createQueue(disposables);
 		assert.strictEqual(queue.settleHead(), undefined);
