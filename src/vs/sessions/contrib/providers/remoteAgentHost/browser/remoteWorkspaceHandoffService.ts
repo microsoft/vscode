@@ -258,35 +258,61 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 					this._tunnelService.clearTunnelDismissal(cached.tunnelId);
 					return { name: cached.name, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: cached.tunnelId, clusterId: cached.clusterId, label: cached.name, authProvider: cached.authProvider } };
 				}
+				const findTunnel = async (authProvider: 'github' | 'microsoft'): Promise<IRemoteAgentHostEntry | undefined> => {
+					const tunnel = (await this._tunnelService.listTunnels({ silent: true, authProvider })).find(tunnel => matchesTunnel(tunnel, machine.name));
+					if (!tunnel) {
+						return undefined;
+					}
+					this._tunnelService.clearTunnelDismissal(tunnel.tunnelId);
+					this._tunnelService.cacheTunnel(tunnel, authProvider);
+					return { name: tunnel.name, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, label: tunnel.name, authProvider } };
+				};
 				// Like Remote - Tunnels, look for the tunnel with each signed-in account, the most recent one first.
 				const preferred = await this._tunnelService.getAuthProvider({ silent: true });
 				const authProviders = [...new Set([preferred, 'github', 'microsoft'] as const)].filter(provider => provider !== undefined);
 				let listed = false;
-				let signInRequired = false;
+				let signInProvider: 'github' | 'microsoft' | undefined;
 				let failure: unknown;
 				for (const authProvider of authProviders) {
 					try {
-						const tunnel = (await this._tunnelService.listTunnels({ silent: true, authProvider })).find(tunnel => matchesTunnel(tunnel, machine.name));
+						const entry = await findTunnel(authProvider);
 						listed = true;
-						if (tunnel) {
-							this._tunnelService.clearTunnelDismissal(tunnel.tunnelId);
-							this._tunnelService.cacheTunnel(tunnel, authProvider);
-							return { name: tunnel.name, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, label: tunnel.name, authProvider } };
+						if (entry) {
+							return entry;
 						}
 					} catch (error) {
 						if (error instanceof TunnelAuthenticationRequiredError) {
-							signInRequired = true;
+							signInProvider ??= error.authProvider;
 						} else {
 							failure ??= error;
 						}
 					}
 				}
+				const signInMessage = localize('remoteWorkspaceHandoff.tunnelSignIn', "Sign in to find tunnel '{0}'.", machine.name);
+				// The tunnel may belong to an account that is not signed in yet; opening its folder is reason enough to sign in.
+				if (signInProvider && this._tunnelService.signIn) {
+					try {
+						await this._tunnelService.signIn(signInProvider);
+					} catch (error) {
+						if (isCancellationError(error)) {
+							return signInMessage;
+						}
+						throw error;
+					}
+					const entry = await findTunnel(signInProvider);
+					if (entry) {
+						return entry;
+					}
+					listed = true;
+				}
+				// Another account failing for an unrelated reason, such as having no tunnel configuration, must not hide the sign-in.
+				if (!listed && signInProvider) {
+					return signInMessage;
+				}
 				if (!listed && failure) {
 					throw failure;
 				}
-				return !listed && signInRequired
-					? localize('remoteWorkspaceHandoff.tunnelSignIn', "Sign in to find tunnel '{0}'.", machine.name)
-					: localize('remoteWorkspaceHandoff.tunnelNotFound', "Tunnel '{0}' was not found for the signed-in accounts.", machine.name);
+				return localize('remoteWorkspaceHandoff.tunnelNotFound', "Tunnel '{0}' was not found for the signed-in accounts.", machine.name);
 			}
 		}
 	}

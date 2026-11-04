@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { encodeHex, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -42,6 +43,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 		readonly defaultDistro?: string;
 		readonly cachedTunnels?: readonly ICachedTunnel[];
 		readonly listTunnels?: (authProvider: 'github' | 'microsoft' | undefined) => Promise<ITunnelInfo[]>;
+		readonly signIn?: (authProvider: 'github' | 'microsoft') => Promise<void>;
 		readonly dismissedTunnels?: readonly string[];
 	} = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -66,6 +68,10 @@ suite('RemoteWorkspaceHandoffService', () => {
 			getAuthProvider: async () => 'github',
 			listTunnels: async discovery => options.listTunnels ? options.listTunnels(discovery?.authProvider) : [],
 			cacheTunnel: (info, authProvider) => { calls.push(`cacheTunnel:${info.tunnelId}:${authProvider}`); },
+			signIn: options.signIn && (async authProvider => {
+				calls.push(`signIn:${authProvider}`);
+				await options.signIn?.(authProvider);
+			}),
 		}));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProviders: () => providers,
@@ -220,6 +226,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 
 	test('explains why a remote cannot provide its folder', async () => {
 		const resolve = async (remoteAuthority: string, options?: Parameters<typeof createHarness>[0]) => describe(await createHarness(options).service.resolveFolder({ remoteAuthority, path: '/project' }, CancellationToken.None));
+		const signedOut = async (): Promise<ITunnelInfo[]> => { throw new TunnelAuthenticationRequiredError('github'); };
 		assert.deepStrictEqual([
 			await resolve('codespaces+name'),
 			await resolve('wsl+ubuntu@tunnel+surface'),
@@ -227,7 +234,10 @@ suite('RemoteWorkspaceHandoffService', () => {
 			await resolve('wsl+Missing', { distros: ['Ubuntu'] }),
 			await resolve('wsl+default', { distros: ['Ubuntu'] }),
 			await resolve('tunnel+missing', { listTunnels: async () => [tunnel('other')] }),
-			await resolve('tunnel+signed-out', { listTunnels: async () => { throw new TunnelAuthenticationRequiredError('github'); } }),
+			await resolve('tunnel+signed-out', { listTunnels: signedOut }),
+			// An account without tunnel configuration fails to list, which must not hide the sign-in.
+			await resolve('tunnel+unconfigured', { listTunnels: async authProvider => authProvider === 'github' ? signedOut() : Promise.reject(new Error('No authentication is available to enumerate tunnels.')) }),
+			await resolve('tunnel+sign-in-cancelled', { listTunnels: signedOut, signIn: async () => { throw new CancellationError(); } }),
 		], [
 			{ unavailableReason: 'The Agents Window cannot connect to this kind of remote.' },
 			{ unavailableReason: 'The Agents Window cannot connect to this kind of remote.' },
@@ -236,7 +246,30 @@ suite('RemoteWorkspaceHandoffService', () => {
 			{ unavailableReason: 'No default WSL distribution was found. Remote agent hosts require WSL 2.' },
 			{ unavailableReason: 'Tunnel \'missing\' was not found for the signed-in accounts.' },
 			{ unavailableReason: 'Sign in to find tunnel \'signed-out\'.' },
+			{ unavailableReason: 'Sign in to find tunnel \'unconfigured\'.' },
+			{ unavailableReason: 'Sign in to find tunnel \'sign-in-cancelled\'.' },
 		]);
+	});
+
+	test('signs in to find the tunnel of an account that is not signed in yet', async () => {
+		let signedIn = false;
+		const harness = createHarness({
+			listTunnels: async authProvider => {
+				if (authProvider === 'microsoft') {
+					throw new Error('No authentication is available to enumerate tunnels.');
+				}
+				if (!signedIn) {
+					throw new TunnelAuthenticationRequiredError('github');
+				}
+				return [tunnel('signed-out-tunnel')];
+			},
+			signIn: async () => { signedIn = true; },
+		});
+		const result = describe(await harness.service.resolveFolder({ remoteAuthority: 'tunnel+signed-out-tunnel', path: '/project' }, CancellationToken.None));
+		assert.deepStrictEqual({ result, calls: harness.calls }, {
+			result: { authority: agentHostAuthority('tunnel:signed-out-tunnel-id'), folder: 'file:///project' },
+			calls: ['signIn:github', 'clearTunnelDismissal:signed-out-tunnel-id', 'cacheTunnel:signed-out-tunnel-id:github'],
+		});
 	});
 
 	test('reveals and connects the host once its provider registers, reporting failures', async () => {
