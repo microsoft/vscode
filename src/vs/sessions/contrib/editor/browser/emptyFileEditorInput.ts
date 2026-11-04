@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DockedEditorInput, isEditorPartOfEditorVisible } from '../../../common/dockedEditorInput.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DockedEditorInput } from '../../../browser/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
@@ -24,15 +23,10 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 
 	constructor(
 		private _workspace: ISessionWorkspace | undefined,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 	) {
-		super();
-		this._register(layoutService.onDidChangePartVisibility(event => {
-			if (event.partId === Parts.EDITOR_PART) {
-				this._onDidChangeCapabilities.fire();
-			}
-		}));
+		super(editorGroupsService, layoutService);
 	}
 
 	override get resource(): undefined {
@@ -59,9 +53,7 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		const capabilities = super.capabilities | EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal;
-		// Closable while the part that shows it is visible, in whichever window, as the Changes editor
-		return isEditorPartOfEditorVisible(this.editorGroupsService, this, () => this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
+		return super.capabilities | EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal;
 	}
 
 	override getName(): string {
