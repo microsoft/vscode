@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,6 +24,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { CopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 
 type LoginStep = Awaited<ReturnType<CopilotSession['rpc']['accounts']['login']['advance']>>;
+type AccountResult = Awaited<ReturnType<CopilotSession['rpc']['accounts']['get']>>;
 
 suite('Copilot account context', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,35 +65,50 @@ suite('Copilot account context', () => {
 			step: both, selected: '', activeSelection: undefined as string | undefined,
 			disconnected: 0, deleted: 0, cancelled: 0, advances: [] as (string | undefined)[],
 			activation: undefined as DeferredPromise<LoginStep> | undefined,
+			accountResult: undefined as AccountResult | undefined,
+			confirmation: undefined as DeferredPromise<AccountResult> | undefined,
+			confirmationStarted: undefined as DeferredPromise<void> | undefined,
+			cleanup: undefined as DeferredPromise<void> | undefined,
+			cleanupStarted: undefined as DeferredPromise<void> | undefined,
+			created: 0,
 		};
 		const session = new class extends mock<CopilotSession>() {
 			override readonly sessionId = 'private-auth-session';
-			override get rpc() { return upcastPartial<CopilotSession['rpc']>({
-				accounts: {
-					login: {
-						begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
-						advance: async request => {
-							state.advances.push(request.input);
-							if (!request.input) {
-								return state.step;
-							}
-							state.selected = request.input;
-							return state.activation?.p ?? { kind: 'completed', result: { status: 'completed' } };
+			override get rpc() {
+				return upcastPartial<CopilotSession['rpc']>({
+					accounts: {
+						login: {
+							begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
+							advance: async request => {
+								state.advances.push(request.input);
+								if (!request.input) {
+									return state.step;
+								}
+								state.selected = request.input;
+								return state.activation?.p ?? { kind: 'completed', result: { status: 'completed' } };
+							},
+							cancel: async () => {
+								state.cancelled++;
+								state.cleanupStarted?.complete();
+								await state.cleanup?.p;
+							},
 						},
-						cancel: async () => { state.cancelled++; },
+						get: async () => {
+							state.confirmationStarted?.complete();
+							return state.confirmation?.p ?? state.accountResult ?? {
+								kind: 'activeAccount',
+								account: { ...choices.find(choice => choice.selectionId === (state.activeSelection ?? state.selected))!, active: true, derivedFrom: 'opaque-runtime-base' },
+							};
+						},
+						set: async () => { throw new Error('Account verification must not switch accounts'); },
+						enumerate: async () => ({ kind: 'accounts', items: [] }),
 					},
-					get: async () => ({
-						kind: 'activeAccount',
-						account: { ...choices.find(choice => choice.selectionId === (state.activeSelection ?? state.selected))!, active: true, derivedFrom: 'opaque-runtime-base' },
-					}),
-					set: async () => { throw new Error('Account verification must not switch accounts'); },
-					enumerate: async () => ({ kind: 'accounts', items: [] }),
-				},
-			}); }
+				});
+			}
 			override async disconnect() { state.disconnected++; }
 		}();
 		const client = new class extends mock<CopilotClient>() {
-			override async createSession() { return session; }
+			override async createSession() { state.created++; return session; }
 			override async deleteSession() { state.deleted++; }
 		}();
 		const credential = (operation: CopilotAccountOperation, service?: 'github' | 'm365', accountId = 'entra-identity'): AuthenticateParams => {
@@ -148,18 +164,97 @@ suite('Copilot account context', () => {
 		assert.deepStrictEqual(f.context.state.get(), { kind: 'error', entraAccountId: 'entra-identity', stage: 'activation' });
 	});
 
-	test('leaves discovery incomplete after runtime single-choice auto-completion', async () => {
+	for (const choice of choices) {
+		test(`uses best-effort automatic ${choice.kind} completion only after confirming the runtime account`, async () => {
+			const f = fixture();
+			f.state.step = { kind: 'completed', result: { status: 'completed', host: choice.host, login: choice.login } };
+			f.state.activeSelection = choice.selectionId;
+			await f.discover();
+			const ready = f.context.requireReady();
+			await f.discover();
+			await f.select(ready.choice.service);
+			assert.deepStrictEqual({
+				ready,
+				resources: f.context.getProtectedResources().map(resource => resource.resource),
+				advances: f.state.advances,
+			}, {
+				ready: {
+					kind: 'ready', entraAccountId: 'entra-identity', discoveryId: 'opaque-flow',
+					choice: {
+						service: choice.kind === 'loki' ? 'm365' : 'github',
+						resource: copilotEntraResources.get(choice.kind === 'loki' ? copilotEntraM365Audience : copilotEntraEmuAudience),
+						host: choice.host, selectionId: choice.selectionId, accountName: choice.login, displayName: choice.login,
+					},
+					derivedFrom: 'opaque-runtime-base',
+				},
+				resources: [copilotEntraDiscoveryResource, ready.choice.resource],
+				advances: [undefined],
+			});
+		});
+	}
+
+	test('rejects automatic completion without a matching supported active derived account', async () => {
+		const active = { ...choices[0], active: true, derivedFrom: 'opaque-runtime-base' };
+		const results: AccountResult[] = [
+			{ kind: 'activeAccount' },
+			{ kind: 'activeAccount', account: { ...active, active: false } },
+			{ kind: 'activeAccount', account: { ...active, host: 'https://other.example' } },
+			{ kind: 'activeAccount', account: { ...active, login: 'other-account' } },
+			{ kind: 'activeAccount', account: { ...active, selectionId: undefined } },
+			{ kind: 'activeAccount', account: active, authSelectionId: 'another-selection' },
+			{ kind: 'activeAccount', account: { ...active, derivedFrom: undefined } },
+			{ kind: 'activeAccount', account: { ...active, kind: 'githubDotCom' } },
+			{ kind: 'activeAccount', account: { ...choices[1], active: true, derivedFrom: 'opaque-runtime-base' } },
+		];
+		const states = [];
+		for (const result of results) {
+			const f = fixture();
+			f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
+			f.state.accountResult = result;
+			await assert.rejects(f.discover());
+			states.push(f.context.state.get());
+		}
+		assert.deepStrictEqual(states, results.map(() => ({ kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' })));
+	});
+
+	test('confirms the active authentication handle when the account is not a switch target', async () => {
 		const f = fixture();
 		f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
+		f.state.accountResult = {
+			kind: 'activeAccount', authSelectionId: choices[0].selectionId,
+			account: { ...choices[0], selectionId: undefined, switchable: false, active: true, derivedFrom: 'opaque-runtime-base' },
+		};
 		await f.discover();
-		assert.deepStrictEqual(f.context.state.get(), { kind: 'incomplete', entraAccountId: 'entra-identity' });
+		const ready = f.context.requireReady();
+		await f.context.verifySessionContext(f.session, ready);
+		assert.deepStrictEqual({ kind: ready.kind, service: ready.choice.service, selectionId: ready.choice.selectionId, advances: f.state.advances }, {
+			kind: 'ready', service: 'm365', selectionId: choices[0].selectionId, advances: [undefined],
+		});
+	});
+
+	test('does not publish automatic readiness before confirmation or after authority withdrawal', async () => {
+		const f = fixture();
+		f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
+		f.state.confirmation = new DeferredPromise<AccountResult>();
+		f.state.confirmationStarted = new DeferredPromise<void>();
+		const states: string[] = [];
+		store.add(autorun(reader => states.push(f.context.state.read(reader).kind)));
+		const discovery = f.discover();
+		await f.state.confirmationStarted.p;
 		assert.throws(() => f.context.requireReady());
+		const rejected = assert.rejects(discovery);
+		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, f.connection.token);
+		f.state.confirmation.complete({ kind: 'activeAccount', account: { ...choices[0], active: true, derivedFrom: 'opaque-runtime-base' } });
+		await rejected;
+		assert.deepStrictEqual(states, ['signedOut', 'discovering', 'signedOut']);
 	});
 
 	for (const step of [
 		{ kind: 'error', message: 'discovery failed' },
 		{ kind: 'completed', result: { status: 'needs-account-selection', accounts: [] } },
+		{ kind: 'completed', result: { status: 'needs-account-selection', accounts: [choices[0], { ...choices[1], selectionId: choices[0].selectionId }] } },
 		{ kind: 'completed', result: { status: 'needs-plaintext-consent' } },
+		{ kind: 'completed', result: { status: 'completed' } },
 		{ kind: 'open-url', url: 'https://unexpected-runtime-auth.example' },
 	] satisfies LoginStep[]) {
 		test(`does not interpret ${JSON.stringify(step)} as no services or ready`, async () => {
@@ -169,6 +264,24 @@ suite('Copilot account context', () => {
 			assert.deepStrictEqual(f.context.state.get(), { kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' });
 		});
 	}
+
+	test('waits for failed discovery cleanup before starting a retry', async () => {
+		const f = fixture();
+		f.state.step = { kind: 'error', message: 'discovery failed' };
+		f.state.cleanup = new DeferredPromise<void>();
+		f.state.cleanupStarted = new DeferredPromise<void>();
+		const failed = assert.rejects(f.discover(), /discovery failed/);
+		await f.state.cleanupStarted.p;
+		f.state.step = both;
+		const retry = f.discover();
+		await timeout(0);
+		const whileReleasing = { created: f.state.created, kind: f.context.state.get().kind };
+		f.state.cleanup.complete();
+		await Promise.all([failed, retry]);
+		assert.deepStrictEqual({ whileReleasing, created: f.state.created, kind: f.context.state.get().kind }, {
+			whileReleasing: { created: 1, kind: 'error' }, created: 2, kind: 'choiceRequired',
+		});
+	});
 
 	test('rejects stale choices and another Microsoft identity without activating', async () => {
 		const f = fixture();

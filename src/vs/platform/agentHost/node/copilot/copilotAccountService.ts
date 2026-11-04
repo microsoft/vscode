@@ -163,13 +163,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		if (!attempt) {
 			return this._releasing ?? Promise.resolve();
 		}
-		const releasing = this.release(attempt).finally(() => {
-			if (this._releasing === releasing) {
-				this._releasing = undefined;
-			}
-		});
-		this._releasing = releasing;
-		return releasing;
+		return this.release(attempt);
 	}
 
 	private async discover(client: Promise<CopilotClient>, entraAccountId: string): Promise<void> {
@@ -197,7 +191,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 				step = await raceCancellationError(attempt.session.rpc.accounts.login.advance({ flowId: flow.flowId }), attempt.cancellation.token);
 				this.assertCurrent(attempt);
 			}
-			this.publishDiscovery(attempt, step);
+			await this.publishDiscovery(attempt, step);
 		} catch (error) {
 			if (this._attempt === attempt) {
 				this._state.set({ kind: 'error', entraAccountId, stage: 'discovery' }, undefined);
@@ -208,20 +202,29 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		}
 	}
 
-	private publishDiscovery(attempt: ILoginAttempt, step: LoginStep): void {
+	private async publishDiscovery(attempt: ILoginAttempt, step: LoginStep): Promise<void> {
 		if (step.kind !== 'completed') {
 			throw new Error(step.kind === 'error' ? step.message : 'The runtime requested an unsupported Microsoft login interaction.');
 		}
+		if (!attempt.session || !attempt.flowId) {
+			throw new CancellationError();
+		}
 		if (step.result.status === 'completed') {
-			// The pinned runtime can auto-select after losing a failed probe; do not call this confirmed discovery.
-			this._state.set({ kind: 'incomplete', entraAccountId: attempt.entraAccountId }, undefined);
+			const { choice, derivedFrom } = await raceCancellationError(readActiveAccount(attempt.session), attempt.cancellation.token);
+			this.assertCurrent(attempt);
+			if (choice.host !== step.result.host || choice.accountName !== step.result.login) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The runtime did not confirm the completed Copilot login.');
+			}
+			// Best effort until runtime #33336: confirmation does not prove the other service is unavailable.
+			this._state.set({ kind: 'ready', entraAccountId: attempt.entraAccountId, discoveryId: attempt.flowId, choice, derivedFrom }, undefined);
 			return;
 		}
-		if (step.result.status !== 'needs-account-selection' || !attempt.flowId) {
+		if (step.result.status !== 'needs-account-selection') {
 			throw new Error('Microsoft service discovery did not return selectable accounts.');
 		}
 		const choices = (step.result.accounts ?? []).map(toServiceChoice);
-		if (choices.length !== 2 || new Set(choices.map(choice => choice.service)).size !== 2) {
+		if (choices.length !== 2 || new Set(choices.map(choice => choice.service)).size !== 2
+			|| new Set(choices.map(choice => choice.selectionId)).size !== 2) {
 			throw new Error('Microsoft service discovery did not return two distinct supported services.');
 		}
 		this._state.set({ kind: 'choiceRequired', entraAccountId: attempt.entraAccountId, discoveryId: attempt.flowId, choices }, undefined);
@@ -262,24 +265,32 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		}
 	}
 
-	private async release(attempt: ILoginAttempt): Promise<void> {
+	private release(attempt: ILoginAttempt): Promise<void> {
 		attempt.cancellation.dispose(true);
 		const session = attempt.session;
 		if (!session) {
-			return;
+			return this._releasing ?? Promise.resolve();
 		}
 		attempt.session = undefined;
-		try {
-			if (attempt.flowId) {
-				await session.rpc.accounts.login.cancel({ flowId: attempt.flowId });
-			}
-		} finally {
+		const releasing = (async () => {
 			try {
-				await session.disconnect();
+				if (attempt.flowId) {
+					await session.rpc.accounts.login.cancel({ flowId: attempt.flowId });
+				}
 			} finally {
-				await (await attempt.client).deleteSession(session.sessionId);
+				try {
+					await session.disconnect();
+				} finally {
+					await (await attempt.client).deleteSession(session.sessionId);
+				}
 			}
-		}
+		})().finally(() => {
+			if (this._releasing === releasing) {
+				this._releasing = undefined;
+			}
+		});
+		this._releasing = releasing;
+		return releasing;
 	}
 }
 
@@ -297,12 +308,23 @@ function resourceForChoice(choice: ICopilotServiceChoice): ProtectedResourceMeta
 	return { resource: choice.resource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${audience}/${choice.service === 'github' ? 'user_impersonation' : '.default'}`] };
 }
 
-async function confirmAccount(session: CopilotSession, choice: ICopilotServiceChoice): Promise<string> {
+async function readActiveAccount(session: CopilotSession): Promise<{ choice: ICopilotServiceChoice; derivedFrom: string }> {
 	const result = await session.rpc.accounts.get({ query: { kind: 'activeAccount' } });
 	const account = result.kind === 'activeAccount' ? result.account : undefined;
-	if (!account?.active || account.selectionId !== choice.selectionId || account.host !== choice.host || account.login !== choice.accountName
-		|| account.kind !== (choice.service === 'github' ? 'entraEmu' : 'loki') || !account.derivedFrom) {
+	const authSelectionId = result.kind === 'activeAccount' ? result.authSelectionId : undefined;
+	const selectionId = authSelectionId ?? account?.selectionId;
+	if (!account?.active || !selectionId || !account.derivedFrom
+		|| authSelectionId && account.selectionId && authSelectionId !== account.selectionId) {
+		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The runtime did not confirm an active derived Copilot account.');
+	}
+	return { choice: toServiceChoice({ ...account, selectionId }), derivedFrom: account.derivedFrom };
+}
+
+async function confirmAccount(session: CopilotSession, choice: ICopilotServiceChoice): Promise<string> {
+	const active = await readActiveAccount(session);
+	if (active.choice.selectionId !== choice.selectionId || active.choice.host !== choice.host
+		|| active.choice.accountName !== choice.accountName || active.choice.service !== choice.service) {
 		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The runtime did not confirm the intended Copilot account and service.');
 	}
-	return account.derivedFrom;
+	return active.derivedFrom;
 }

@@ -29,7 +29,7 @@ suite('Agent Host Copilot account setup', () => {
 	];
 	const offered: CopilotAccountContext = { kind: 'choiceRequired', discoveryId: 'opaque-flow', entraAccountId: 'account-id', choices };
 
-	function fixture() {
+	function fixture(discoveryResult: CopilotAccountContext = offered) {
 		const changed = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 		const rootChanged = store.add(new Emitter<RootState>());
 		const rootFailed = store.add(new Emitter<Error>());
@@ -59,7 +59,7 @@ suite('Agent Host Copilot account setup', () => {
 					if (state.rejectDiscovery) {
 						return { authenticated: false };
 					}
-					setContext(offered);
+					setContext(discoveryResult);
 				} else if (operation?.kind === 'select') {
 					setContext({ kind: 'ready', entraAccountId: identity.account.id, discoveryId: operation.discoveryId, choice: choices.find(choice => choice.selectionId === operation.selectionId)!, derivedFrom: 'opaque-runtime-base' });
 				}
@@ -95,6 +95,18 @@ suite('Agent Host Copilot account setup', () => {
 		const state = await f.service.discover(f.connection, f.identity.id);
 		assert.deepStrictEqual({ kind: state.kind, resources: f.requests.map(request => request.resource) }, {
 			kind: 'choiceRequired', resources: [copilotEntraDiscoveryResource],
+		});
+	});
+
+	test('returns the host-confirmed automatic context without requesting another selection', async () => {
+		const ready: CopilotAccountContext = {
+			kind: 'ready', discoveryId: 'opaque-flow', entraAccountId: 'account-id',
+			choice: choices[0], derivedFrom: 'opaque-runtime-base',
+		};
+		const f = fixture(ready);
+		const context = await f.service.discover(f.connection, f.identity.id);
+		assert.deepStrictEqual({ context, operations: f.requests.map(readCopilotAccountOperation) }, {
+			context: ready, operations: [{ kind: 'discover' }],
 		});
 	});
 
