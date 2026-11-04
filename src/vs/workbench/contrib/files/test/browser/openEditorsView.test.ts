@@ -28,6 +28,7 @@ import { TestEditorGroupsService, TestEditorGroupView, TestEditorInput, workbenc
 
 suite('Files - OpenEditorsView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	class TestDirtyEditorInput extends TestEditorInput {
 		override isDirty(): boolean {
@@ -65,71 +66,92 @@ suite('Files - OpenEditorsView', () => {
 		}));
 	}
 
-	test('released terminal editor rows do not recreate decorations after queued notifications', async () => {
-		const configurationService = new TestConfigurationService({
-			files: {},
-			explorer: { decorations: { colors: true, badges: true }, openEditors: { sortOrder: 'editorOrder' } }
-		});
-		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, store);
-		instantiationService.stubInstance(CloseEditorAction, store.add(instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL)));
-		instantiationService.stubInstance(UnpinEditorAction, store.add(instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL)));
-		const modelChanged = store.add(new Emitter<IGroupModelChangeEvent>());
-		const group = new class extends TestEditorGroupView {
-			override readonly onDidModelChange = modelChanged.event;
-		}(1);
-		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([group]));
-		instantiationService.stub(IViewDescriptorService, {
-			onDidChangeLocation: Event.None,
-			getViewLocationById: () => ViewContainerLocation.Sidebar,
-			getViewDescriptorById: () => null,
-			getViewContainerByViewId: () => null,
-			getViewContainerModel: () => new class extends mock<IViewContainerModel>() {
-				override readonly visibleViewDescriptors = [];
-				override readonly onDidChangeAllViewDescriptors = Event.None;
-			}
-		});
-		const decorations = store.add(instantiationService.createInstance(DecorationsService));
-		instantiationService.stub(IDecorationsService, decorations);
-		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
-		store.add(toDisposable(() => container.remove()));
-		const file = store.add(new TestEditorInput(URI.file('/surviving.txt'), 'testEditor'));
-		group.editors = [file];
-		group.activeEditor = file;
-		const clock = sinon.useFakeTimers();
-		try {
-			const view = store.add(instantiationService.createInstance(class extends OpenEditorsView {
-				public override renderBody(container: HTMLElement): void {
-					super.renderBody(container);
+	for (const visibility of ['visible', 'hidden', 'hidden with queued notification', 'hidden with pending refresh'] as const) {
+		test(`released terminal editor rows do not recreate decorations (${visibility})`, async () => {
+			const configurationService = new TestConfigurationService({
+				files: {},
+				explorer: { decorations: { colors: true, badges: true }, openEditors: { sortOrder: 'editorOrder' } }
+			});
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, store);
+			instantiationService.stubInstance(CloseEditorAction, store.add(instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL)));
+			instantiationService.stubInstance(UnpinEditorAction, store.add(instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL)));
+			const modelChanged = store.add(new Emitter<IGroupModelChangeEvent>());
+			const group = new class extends TestEditorGroupView {
+				override readonly onDidModelChange = modelChanged.event;
+			}(1);
+			instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([group]));
+			instantiationService.stub(IViewDescriptorService, {
+				onDidChangeLocation: Event.None,
+				getViewLocationById: () => ViewContainerLocation.Sidebar,
+				getViewDescriptorById: () => null,
+				getViewContainerByViewId: () => null,
+				getViewContainerModel: () => new class extends mock<IViewContainerModel>() {
+					override readonly visibleViewDescriptors = [];
+					override readonly onDidChangeAllViewDescriptors = Event.None;
 				}
-			}, { id: OpenEditorsView.ID, title: 'Open Editors' }));
-			view.renderBody(container);
-			view.setVisible(true);
-			const list = Reflect.get(view, 'list') as WorkbenchList<OpenEditor | IEditorGroup>;
-			list.layout(200, 400);
-			await clock.runAllAsync();
-			const cache = Reflect.get(decorations, '_data') as { get(resource: URI): object | undefined };
-			const closedResources: URI[] = [];
-			for (let i = 0; i < 3; i++) {
-				const terminal = store.add(new TestEditorInput(URI.parse(`vscode-terminal:/test/${i}`), 'testEditor'));
-				group.editors = [terminal, file];
-				modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor: terminal });
+			});
+			const decorations = store.add(instantiationService.createInstance(DecorationsService));
+			instantiationService.stub(IDecorationsService, decorations);
+			const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			store.add(toDisposable(() => container.remove()));
+			const file = store.add(new TestEditorInput(URI.file('/surviving.txt'), 'testEditor'));
+			group.editors = [file];
+			group.activeEditor = file;
+			const clock = sinon.useFakeTimers();
+			try {
+				const view = store.add(instantiationService.createInstance(class extends OpenEditorsView {
+					public override renderBody(container: HTMLElement): void {
+						super.renderBody(container);
+					}
+				}, { id: OpenEditorsView.ID, title: 'Open Editors' }));
+				view.renderBody(container);
+				view.setVisible(true);
+				const list = Reflect.get(view, 'list') as WorkbenchList<OpenEditor | IEditorGroup>;
+				list.layout(200, 400);
 				await clock.runAllAsync();
-				assert.ok(cache.get(terminal.resource));
-				decorations.clearCachedDecorations(terminal.resource);
-				group.editors = [file];
-				modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_CLOSE, editor: terminal });
+				const cache = Reflect.get(decorations, '_data') as { get(resource: URI): object | undefined };
+				const closedResources: URI[] = [];
+				for (let i = 0; i < 3; i++) {
+					const terminal = store.add(new TestEditorInput(URI.parse(`vscode-terminal:/test/${i}`), 'testEditor'));
+					group.editors = [terminal, file];
+					modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_OPEN, editor: terminal });
+					await clock.runAllAsync();
+					assert.ok(cache.get(terminal.resource));
+					if (visibility !== 'visible') {
+						list.setSelection([0, 1]);
+						view.setVisible(false);
+						view.setVisible(true);
+						assert.deepStrictEqual(list.getSelection(), [0, 1]);
+						if (visibility === 'hidden with pending refresh') {
+							view.setStructuralRefreshDelay(200);
+							modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_MOVE, editor: terminal });
+						}
+						view.setVisible(false);
+					}
+					decorations.clearCachedDecorations(terminal.resource);
+					group.editors = [file];
+					modelChanged.fire({ kind: GroupModelChangeKind.EDITOR_CLOSE, editor: terminal });
+					if (visibility === 'hidden' || visibility === 'hidden with pending refresh') {
+						await clock.tickAsync(100);
+					}
+					if (visibility !== 'visible') {
+						view.setVisible(true);
+						assert.strictEqual(cache.get(terminal.resource), undefined);
+					}
+					await clock.runAllAsync();
+					assert.deepStrictEqual(list.getSelectedElements().map(element => element instanceof OpenEditor ? element.editor : undefined), [file]);
+					closedResources.push(terminal.resource);
+					assert.deepStrictEqual(closedResources.map(resource => cache.get(resource)), closedResources.map(() => undefined));
+				}
+				// Reused rows must still render decorations for resources that remain open.
+				decorations.clearCachedDecorations(file.resource);
 				await clock.runAllAsync();
-				closedResources.push(terminal.resource);
-				assert.deepStrictEqual(closedResources.map(resource => cache.get(resource)), closedResources.map(() => undefined));
+				assert.ok(cache.get(file.resource));
+			} finally {
+				clock.restore();
 			}
-			// Reused rows must still render decorations for resources that remain open.
-			decorations.clearCachedDecorations(file.resource);
-			await clock.runAllAsync();
-			assert.ok(cache.get(file.resource));
-		} finally {
-			clock.restore();
-		}
-	});
+		});
+	}
 
 	test('preserves multi-selection when an editor is refreshed', () => {
 		const group = new TestEditorGroupView(1);

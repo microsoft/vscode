@@ -143,6 +143,10 @@ export class OpenEditorsView extends ViewPane {
 		const groupDisposables = this._register(new DisposableMap<number>());
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
+				if (!this.isBodyVisible() || !this.list) {
+					this.needsRefresh = true;
+					return;
+				}
 				if (this.listRefreshScheduler?.isScheduled()) {
 					switch (e.kind) {
 						case GroupModelChangeKind.EDITOR_ACTIVE:
@@ -153,11 +157,6 @@ export class OpenEditorsView extends ViewPane {
 					}
 					return;
 				}
-				if (!this.isBodyVisible() || !this.list) {
-					this.needsRefresh = true;
-					return;
-				}
-
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
 					case GroupModelChangeKind.EDITOR_ACTIVE:
@@ -256,6 +255,14 @@ export class OpenEditorsView extends ViewPane {
 
 		this.dnd = new OpenEditorsDragAndDrop(this.sortOrder, this.instantiationService, this.editorGroupService);
 
+		// Release stale rows before ResourceLabels redraws them on becoming visible.
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.list?.splice(0, this.list.length);
+				this.scheduleListRefresh(false, 0);
+			}
+		}));
+
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
@@ -338,12 +345,6 @@ export class OpenEditorsView extends ViewPane {
 		}));
 
 		this.scheduleListRefresh(false, 0);
-
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.scheduleListRefresh(false, 0);
-			}
-		}));
 
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
