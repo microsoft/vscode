@@ -9,6 +9,7 @@ import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
@@ -129,6 +130,13 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				reader.store.add(this._returnChat(window, part));
 			}
 		}));
+		// Those beside the chat, or in its main part or the parts it created, leave it before those parts close, rather than
+		// closing with them.
+		store.add(window.onWillCloseParts(() => {
+			for (const instance of this._terminalsInEditorsOf(window, true)) {
+				this._releaseToPanel(instance);
+			}
+		}));
 		store.add(window.onWillClose(() => {
 			onlyTerminals.dispose();
 			this.release(window);
@@ -239,7 +247,12 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		// Focus in the terminals stays in the window, in its chat, rather than going to no element as they hide.
 		const element = window.terminalsPart.get()?.element as HTMLElement | undefined;
 		const hadFocus = keepFocus && !!element && isAncestor(getActiveElement(), element);
-		for (const instance of this._terminals.get(window) ?? []) {
+		const instances = new Set(this._terminals.get(window));
+		if (all) {
+			// Also those it never took, such as one opened beside the chat
+			this._terminalsInEditorsOf(window).forEach(instance => instances.add(instance));
+		}
+		for (const instance of instances) {
 			if (instance.isDisposed || (!all && this._isElsewhereInWindow(window, instance))) {
 				continue;
 			}
@@ -250,6 +263,14 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}
 	}
 
+	/** The terminals that show in editors of `window`; `outsideTerminalsPart`: but those of the part that holds its terminals. */
+	private _terminalsInEditorsOf(window: IChatWindow, outsideTerminalsPart = false): ITerminalInstance[] {
+		const terminalsGroups = outsideTerminalsPart ? window.terminalsPart.get()?.groups ?? [] : [];
+		return this._editorGroupsService.groups
+			.filter(group => group.windowId === window.windowId && !terminalsGroups.includes(group))
+			.flatMap(group => group.editors.map(editor => this._instanceOf(editor)).filter(isDefined));
+	}
+
 	/**
 	 * Lets the window's terminal `instance` go with its session, to the panel: one in an editor, such as one created for
 	 * the window's terminals after the window closed, at a column of a group that may now be another window's, goes into
@@ -257,6 +278,15 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	 */
 	private _releaseToPanel(instance: ITerminalInstance): void {
 		if (instance.target === TerminalLocation.Editor) {
+			// Its editor lets go of it and closes first, also one the terminal editor service no longer knows: it forgets the
+			// editor of a terminal that moves between groups, until the editor shows, such as one beside the chat that moves
+			// into the main part as the window closes. That editor closing with its part would end the terminal, and left
+			// open, it would show a terminal it no longer has.
+			const editors = this._editorGroupsService.groups.flatMap(group => group.editors).filter((editor): editor is TerminalEditorInput => editor instanceof TerminalEditorInput && editor.terminalInstance === instance);
+			for (const editor of editors) {
+				editor.detachInstance();
+				editor.dispose();
+			}
 			this._terminalService.moveToBackground(instance);
 			instance.target = TerminalLocation.Panel;
 		}
@@ -506,8 +536,15 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}
 	}
 
-	/** The terminal `editor` shows, if it is a terminal. */
+	/**
+	 * The terminal `editor` shows, if it is a terminal: from the editor itself, as the terminal editor service lists a
+	 * terminal only while its editor is open, and not while it moves between groups, such as beside the chat into the
+	 * main part as the window closes.
+	 */
 	private _instanceOf(editor: EditorInput | undefined): ITerminalInstance | undefined {
+		if (editor instanceof TerminalEditorInput) {
+			return editor.terminalInstance;
+		}
 		return editor && isTerminalEditor(editor) ? this._terminalService.getInstanceFromResource(editor.resource) : undefined;
 	}
 

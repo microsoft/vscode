@@ -20,6 +20,7 @@ import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/e
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ICreateTerminalOptions, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
+import { TerminalEditorInput } from '../../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -62,6 +63,19 @@ function createPart(group: TestGroup, element = $('div')): IContentPart {
 
 function editor(typeId: string, resource?: URI): EditorInput {
 	return upcastPartial<EditorInput>({ typeId, resource });
+}
+
+/**
+ * The editor of a terminal, which knows its terminal also while the terminal services do not list it, such as while it
+ * moves between groups; records in `detached` when it lets go of its terminal.
+ */
+function terminalEditor(instance: ITerminalInstance, detached: string[]): EditorInput {
+	const input = Object.create(TerminalEditorInput.prototype) as TerminalEditorInput;
+	Object.defineProperty(input, 'resource', { value: instance.resource });
+	Object.defineProperty(input, 'terminalInstance', { value: instance });
+	Object.defineProperty(input, 'detachInstance', { value: () => detached.push(`detach:${instance.instanceId}`) });
+	Object.defineProperty(input, 'dispose', { value: () => detached.push(`dispose:${instance.instanceId}`) });
+	return input;
 }
 
 function terminal(instanceId: number, options: { target?: TerminalLocation; resource?: URI; calls?: string[] } = {}): ITerminalInstance {
@@ -117,6 +131,7 @@ suite('Chat window terminals', () => {
 		const terminalsPart = createPart(terminalsGroup, terminalsElement);
 		const terminalsPartObs = observableValue<IContentPart | undefined>('terminalsPart', options.restoredWithTerminals ? terminalsPart : undefined);
 		const onWillClose = disposables.add(new Emitter<void>());
+		const onWillCloseParts = disposables.add(new Emitter<void>());
 		let focused = 0;
 		const window = new class extends mock<IChatWindow>() {
 			override readonly windowId = options.windowId ?? CHAT_WINDOW_ID;
@@ -126,6 +141,7 @@ suite('Chat window terminals', () => {
 			override readonly terminalsPart: IObservable<IContentPart | undefined> = terminalsPartObs;
 			override readonly terminalsVisible = derived(reader => !!terminalsPartObs.read(reader) && terminalsGroup.editors.length > 0);
 			override readonly onWillClose = onWillClose.event;
+			override readonly onWillCloseParts = onWillCloseParts.event;
 			override getOrCreateTerminalsPart() {
 				if (!terminalsPartObs.get()) {
 					calls.push('createPart');
@@ -161,7 +177,10 @@ suite('Chat window terminals', () => {
 			override moveToBackground(instance: ITerminalInstance) {
 				foreground.splice(foreground.indexOf(instance), 1);
 				calls.push('toBackground');
-				terminalsGroup.editors = terminalsGroup.editors.filter(candidate => candidate.resource?.toString() !== instance.resource.toString());
+				// Its editor closes, wherever it is
+				for (const group of [terminalsGroup, mainGroup, chatGroup]) {
+					group.editors = group.editors.filter(candidate => candidate.resource?.toString() !== instance.resource.toString());
+				}
 			}
 			override async createTerminal(createOptions?: ICreateTerminalOptions) {
 				calls.push(`new:${JSON.stringify(createOptions?.location)}`);
@@ -211,7 +230,7 @@ suite('Chat window terminals', () => {
 		};
 		windows.set([window], undefined);
 		const terminals = disposables.add(instantiationService.createInstance(ChatWindowTerminals, source));
-		return { calls, shownInChatWindow, tracked, window, windows, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, get focused() { return focused; } };
+		return { calls, shownInChatWindow, tracked, window, windows, terminals, terminalsGroup, terminalsElement, mainGroup, otherWindowGroups, chatGroup, chatEditor, onWillClose, onWillCloseParts, get focused() { return focused; } };
 	}
 
 	test('shows a terminal of the window\'s session in the part that holds its terminals, and gives it back to the panel, still running, as the window closes', async () => {
@@ -396,6 +415,7 @@ suite('Chat window terminals', () => {
 			override readonly mainPart = createPart(otherMainGroup);
 			override readonly terminalsPart = constObservable(undefined);
 			override readonly onWillClose = Event.None;
+			override readonly onWillCloseParts = Event.None;
 		}()], undefined);
 		terminalsGroup.moveEditor(terminalEditor, otherGroup);
 		calls.length = 0;
@@ -491,6 +511,35 @@ suite('Chat window terminals', () => {
 		terminals.release(window);
 
 		assert.deepStrictEqual(tracked, ['session-1:9', 'session-1:11']);
+	});
+
+	test('as the window closes, a terminal beside the chat, or in its main part, goes to the panel, still running, before those parts close, rather than closing with them; the terminals of the part that holds them leave once it unloads; also as its window unloads, which closes it without that step', () => {
+		const shown = terminal(5, { target: TerminalLocation.Editor });
+		const besideChat = terminal(6, { target: TerminalLocation.Editor });
+		const inMain = terminal(7, { target: TerminalLocation.Editor });
+		// The terminal service does not list the one beside the chat: its editor moved into the main part as the window closes
+		const closing = createEnvironment({ instances: [shown, inMain], foreground: [shown, besideChat, inMain] });
+		closing.window.getOrCreateTerminalsPart();
+		closing.terminalsGroup.editors.push(editor('workbench.editors.terminal', shown.resource));
+		const detached: string[] = [];
+		closing.chatGroup.editors.push(terminalEditor(besideChat, detached));
+		closing.mainGroup.editors.push(editor('workbench.editors.terminal', inMain.resource));
+		const unloading = createEnvironment({ instances: [besideChat], foreground: [besideChat] });
+		unloading.chatGroup.editors.push(editor('workbench.editors.terminal', besideChat.resource));
+
+		closing.onWillCloseParts.fire();
+		const beforePartsClose = [...closing.shownInChatWindow];
+		closing.onWillClose.fire();
+		unloading.onWillClose.fire();
+
+		// The editor beside the chat lets go of its terminal itself, and closes: the terminal editor service does not know
+		// it, and its closing with the part would end the terminal.
+		assert.deepStrictEqual({ beforePartsClose, detached, closed: closing.shownInChatWindow, unloaded: unloading.shownInChatWindow }, {
+			beforePartsClose: ['7:false', '6:false'],
+			detached: ['detach:6', 'dispose:6'],
+			closed: ['7:false', '6:false', '5:false'],
+			unloaded: ['6:false'],
+		});
 	});
 
 	test('a window that closes while its first terminal is created does not take it: nothing moves into the window, the terminal stays with its session', async () => {

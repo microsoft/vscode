@@ -376,6 +376,26 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ closed, events }, { closed: true, events: ['move to main', 'close main', 'close chat', 'will close', 'close window', 'closed'] });
 	});
 
+	test('as it closes, what shows in its parts can leave the window once nothing keeps it open, after editors beside the chat moved into the main part and before the main part closes; not while an editor beside the chat cannot leave', () => {
+		const closing = createWindow();
+		closing.chat.addGroup().open(editor());
+		disposables.add(closing.window.onWillCloseParts(() => closing.events.push('will close parts')));
+		const kept = createWindow();
+		const beside = kept.chat.addGroup();
+		const immovable = editor();
+		beside.open(immovable);
+		beside.immovable.add(immovable);
+		disposables.add(kept.window.onWillCloseParts(() => kept.events.push('will close parts')));
+
+		closing.window.close();
+		kept.window.close();
+
+		assert.deepStrictEqual({ closing: closing.events, kept: kept.events }, {
+			closing: ['move to main', 'will close parts', 'close main', 'close chat', 'will close', 'close window', 'closed'],
+			kept: [],
+		});
+	});
+
 	test('the window stays as it was, none of its parts closed, while an editor beside the chat cannot leave the chat part', () => {
 		const { window, main, chat, chatInput, events } = createWindow();
 		const file = editor();
