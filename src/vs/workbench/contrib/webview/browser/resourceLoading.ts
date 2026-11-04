@@ -10,8 +10,9 @@ import { Schemas } from '../../../../base/common/network.js';
 import { posix, win32 } from '../../../../base/common/path.js';
 import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
 import { originalFSPath } from '../../../../base/common/resources.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, hasFileRealpathCapability, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -62,12 +63,20 @@ export async function loadLocalResource(
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, uriIdentityService, options.remoteOS);
+	const request = toContainmentRequest(requestUri, options.roots, options.remoteOS);
+	const resourceToLoad = request && isContainedInAnyRoot(request.resource, request.roots, uriIdentityService, request.forcePosixSemantics)
+		? normalizeResourcePath(request.requestUri)
+		: undefined;
 
 	logService.trace(`Webview.loadLocalResource - trying to load resource. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
-	if (!resourceToLoad) {
+	if (!request || !resourceToLoad) {
 		logService.trace(`Webview.loadLocalResource - access denied. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+		return WebviewResourceResponse.AccessDenied;
+	}
+
+	if (!await isResolvedResourceInAnyRoot(request, fileService, uriIdentityService, options.remoteOS)) {
+		logService.trace(`Webview.loadLocalResource - access denied, resolved resource is outside of all roots. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 		return WebviewResourceResponse.AccessDenied;
 	}
 
@@ -110,6 +119,23 @@ export function getResourceToLoad(
 	uriIdentityService: IUriIdentityService,
 	remoteOS?: OperatingSystem,
 ): URI | undefined {
+	const request = toContainmentRequest(requestUri, roots, remoteOS);
+	if (!request || !isContainedInAnyRoot(request.resource, request.roots, uriIdentityService, request.forcePosixSemantics)) {
+		return undefined;
+	}
+	return normalizeResourcePath(request.requestUri);
+}
+
+interface IContainmentRequest {
+	/** The normalized request, including its query. */
+	readonly requestUri: URI;
+	/** The normalized resource whose containment is checked. */
+	readonly resource: URI;
+	readonly roots: ReadonlyArray<URI>;
+	readonly forcePosixSemantics: boolean;
+}
+
+function toContainmentRequest(requestUri: URI, roots: ReadonlyArray<URI>, remoteOS: OperatingSystem | undefined): IContainmentRequest | undefined {
 	if (requestUri.scheme === Schemas.vscodeRemote) {
 		if (remoteOS === undefined) {
 			return undefined;
@@ -117,20 +143,75 @@ export function getResourceToLoad(
 		requestUri = normalizeRemoteResource(requestUri, remoteOS);
 		roots = roots.map(root => root.scheme === Schemas.vscodeRemote ? normalizeRemoteResource(root, remoteOS) : root);
 	}
-	const requestUriNoQueryString = requestUri.with({ query: '' });
-	if (hasWindowsParentTraversalSegment(requestUriNoQueryString)) {
+	const resource = requestUri.with({ query: '' });
+	if (hasWindowsParentTraversalSegment(resource)) {
 		return undefined;
 	}
 
 	const forcePosixSemantics = requestUri.scheme === Schemas.vscodeRemote
 		&& (remoteOS === OperatingSystem.Linux || remoteOS === OperatingSystem.Macintosh);
-	for (const root of roots) {
-		if (containsResource(root, requestUriNoQueryString, uriIdentityService, forcePosixSemantics)) {
-			return normalizeResourcePath(requestUri);
-		}
+	return { requestUri, resource, roots, forcePosixSemantics };
+}
+
+function isContainedInAnyRoot(resource: URI, roots: ReadonlyArray<URI>, uriIdentityService: IUriIdentityService, forcePosixSemantics: boolean): boolean {
+	return roots.some(root => containsResource(root, resource, uriIdentityService, forcePosixSemantics));
+}
+
+/**
+ * The lexical check does not see symbolic links or junctions inside a root that point outside of it,
+ * while reading the resource follows them. On file systems that can resolve links, also require the
+ * resolved resource to be inside a root, or inside the resolved location of a root (roots may be
+ * links themselves). File systems without link resolution keep the lexical check only.
+ */
+async function isResolvedResourceInAnyRoot(
+	request: IContainmentRequest,
+	fileService: IFileService,
+	uriIdentityService: IUriIdentityService,
+	remoteOS: OperatingSystem | undefined,
+): Promise<boolean> {
+	let resolvedResource: URI | undefined;
+	try {
+		resolvedResource = await resolveRealpath(request.resource, fileService, remoteOS);
+	} catch {
+		// Unresolvable (e.g. a dangling link): never fall back to the unresolved resource.
+		return false;
+	}
+	if (!resolvedResource) {
+		return true;
 	}
 
-	return undefined;
+	if (isContainedInAnyRoot(resolvedResource, request.roots, uriIdentityService, request.forcePosixSemantics)) {
+		return true;
+	}
+
+	const resolvedRoots = await Promise.all(request.roots
+		.filter(root => root.scheme === request.resource.scheme)
+		.map(root => resolveRealpath(root, fileService, remoteOS).catch(() => undefined)));
+	return isContainedInAnyRoot(resolvedResource, resolvedRoots.filter(isDefined), uriIdentityService, request.forcePosixSemantics);
+}
+
+/**
+ * Resolves all links in the path of a resource, or returns `undefined` when its file system cannot.
+ */
+async function resolveRealpath(resource: URI, fileService: IFileService, remoteOS: OperatingSystem | undefined): Promise<URI | undefined> {
+	if (!await fileService.canHandleResource(resource)) {
+		return undefined;
+	}
+	const provider = fileService.getProvider(resource.scheme);
+	if (!provider || !hasFileRealpathCapability(provider)) {
+		return undefined;
+	}
+
+	// Providers return a path in the format of the (possibly remote) operating system.
+	const realpath = await provider.realpath(resource.with({ query: '', fragment: '' }));
+	if (resource.scheme === Schemas.file) {
+		return URI.file(realpath);
+	}
+	if (resource.scheme === Schemas.vscodeRemote && remoteOS === OperatingSystem.Windows) {
+		const path = realpath.replace(/\\/g, '/');
+		return resource.with({ path: path.startsWith('/') ? path : `/${path}`, query: '', fragment: '' });
+	}
+	return resource.with({ path: realpath, query: '', fragment: '' });
 }
 
 function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService, forcePosixSemantics: boolean): boolean {

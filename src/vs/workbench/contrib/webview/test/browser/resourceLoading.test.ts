@@ -5,12 +5,15 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -436,5 +439,141 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 			const result = getResourceToLoad(resource, [], uriIdentityService);
 			assert.strictEqual(result, undefined);
 		});
+	});
+});
+
+suite('Webview Resource Loading - resolved links', () => {
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Simulates a file system with links: `realpath` maps a lexical link prefix to its target,
+	 * while reads at the lexical path succeed as if they followed the link.
+	 */
+	class LinkResolvingFileSystemProvider extends InMemoryFileSystemProvider {
+		constructor(private readonly links: ReadonlyMap<string, string | undefined>, private readonly canResolve = true) {
+			super();
+		}
+
+		override get capabilities(): FileSystemProviderCapabilities {
+			return this.canResolve ? super.capabilities | FileSystemProviderCapabilities.FileRealpath : super.capabilities;
+		}
+
+		async realpath(resource: URI): Promise<string> {
+			for (const [link, target] of this.links) {
+				if (resource.path === link || resource.path.startsWith(link + '/')) {
+					if (target === undefined) {
+						throw createFileSystemProviderError('dangling link', FileSystemProviderErrorCode.FileNotFound);
+					}
+					return toProviderPath(target + resource.path.substring(link.length));
+				}
+			}
+			return toProviderPath(resource.path);
+		}
+	}
+
+	let providerPathStyle: 'posix' | 'windows' = 'posix';
+	const toProviderPath = (path: string) => providerPathStyle === 'windows' ? path.replace(/^\//, '').replace(/\//g, '\\') : path;
+
+	async function loadAll(scheme: string, links: ReadonlyMap<string, string | undefined>, roots: readonly URI[], resources: readonly URI[], options?: { canResolve?: boolean; remoteOS?: OperatingSystem }) {
+		const instantiationService = disposableStore.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, NullLogService);
+		const fileService = disposableStore.add(new FileService(new NullLogService()));
+		disposableStore.add(fileService.registerProvider(scheme, disposableStore.add(new LinkResolvingFileSystemProvider(links, options?.canResolve))));
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IUriIdentityService, disposableStore.add(new UriIdentityService(fileService)));
+		for (const resource of resources) {
+			await fileService.writeFile(resource.with({ query: '' }), VSBuffer.fromString('content'));
+		}
+
+		const results = [];
+		for (const resource of resources) {
+			const result = await instantiationService.invokeFunction(accessor => loadLocalResource(
+				accessor,
+				resource,
+				{ ifNoneMatch: undefined, roots, remoteOS: options?.remoteOS },
+				CancellationToken.None
+			));
+			if (result.type === WebviewResourceResponse.Type.Success) {
+				result.stream.resume();
+			}
+			results.push({ resource: resource.path, type: WebviewResourceResponse.Type[result.type] });
+		}
+		return results;
+	}
+
+	setup(() => {
+		providerPathStyle = 'posix';
+	});
+
+	test('Denies links that resolve outside of all roots and allows links that stay inside', async () => {
+		const links = new Map([
+			['/ws/outside-link', '/outside'],
+			['/ws/outside-file.svg', '/outside/canary.svg'],
+			['/ws/inner-link', '/ws/sub'],
+			['/ws/dangling', undefined],
+		]);
+		const file = (path: string) => URI.from({ scheme: 'test-links', path });
+
+		assert.deepStrictEqual(await loadAll('test-links', links, [file('/ws')], [
+			file('/ws/inside.svg'),
+			file('/ws/inner-link/inner.svg'),
+			file('/ws/outside-link/canary.svg'),
+			file('/ws/outside-file.svg'),
+			file('/ws/dangling/file.svg'),
+		]), [
+			{ resource: '/ws/inside.svg', type: 'Success' },
+			{ resource: '/ws/inner-link/inner.svg', type: 'Success' },
+			{ resource: '/ws/outside-link/canary.svg', type: 'AccessDenied' },
+			{ resource: '/ws/outside-file.svg', type: 'AccessDenied' },
+			{ resource: '/ws/dangling/file.svg', type: 'AccessDenied' },
+		]);
+	});
+
+	test('Allows resources when a root itself is a link, or the link resolves into another root', async () => {
+		const links = new Map([
+			['/linked-ws', '/real-ws'],
+			['/ws/media-link', '/extension/media'],
+		]);
+		const file = (path: string) => URI.from({ scheme: 'test-links', path });
+
+		assert.deepStrictEqual(await loadAll('test-links', links, [file('/linked-ws'), file('/ws'), file('/extension/media')], [
+			file('/linked-ws/file.svg'),
+			file('/ws/media-link/icon.svg'),
+		]), [
+			{ resource: '/linked-ws/file.svg', type: 'Success' },
+			{ resource: '/ws/media-link/icon.svg', type: 'Success' },
+		]);
+	});
+
+	test('Keeps the lexical check on file systems that cannot resolve links', async () => {
+		const links = new Map([['/ws/outside-link', '/outside']]);
+		const file = (path: string) => URI.from({ scheme: 'test-links', path });
+
+		assert.deepStrictEqual(await loadAll('test-links', links, [file('/ws')], [
+			file('/ws/outside-link/canary.svg'),
+			file('/outside/canary.svg'),
+		], { canResolve: false }), [
+			{ resource: '/ws/outside-link/canary.svg', type: 'Success' },
+			{ resource: '/outside/canary.svg', type: 'AccessDenied' },
+		]);
+	});
+
+	test('Compares Windows paths resolved by a remote file system', async () => {
+		providerPathStyle = 'windows';
+		const links = new Map([
+			['/c:/ws/outside-link', '/c:/outside'],
+			['/c:/ws/inner-link', '/c:/ws/sub'],
+		]);
+		const remote = (path: string) => URI.from({ scheme: Schemas.vscodeRemote, authority: 'test', path });
+
+		// The in-memory provider cannot serve the `/vscode-resource` request that is sent to a remote,
+		// so an allowed resource fails to read (`Failed`) instead of being denied (`AccessDenied`).
+		assert.deepStrictEqual(await loadAll(Schemas.vscodeRemote, links, [remote('/c:/ws')], [
+			remote('/c:/ws/inner-link/inner.svg'),
+			remote('/c:/ws/outside-link/canary.svg'),
+		], { remoteOS: OperatingSystem.Windows }), [
+			{ resource: '/c:/ws/inner-link/inner.svg', type: 'Failed' },
+			{ resource: '/c:/ws/outside-link/canary.svg', type: 'AccessDenied' },
+		]);
 	});
 });
