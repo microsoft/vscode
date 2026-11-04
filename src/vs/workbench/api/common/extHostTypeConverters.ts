@@ -904,15 +904,19 @@ export namespace StructuralDiff {
 	function nodeFrom(node: vscode.StructuralDiffNode): languages.StructuralDiffNode {
 		return {
 			id: node.id,
-			original: node.original && entityFrom(node.original),
-			modified: node.modified && entityFrom(node.modified),
+			original: node.original && entityFrom(node, 'original', node.original),
+			modified: node.modified && entityFrom(node, 'modified', node.modified),
 			originalChanges: node.originalChanges.map(coverageFrom),
 			modifiedChanges: node.modifiedChanges.map(coverageFrom),
 			children: node.children.map(nodeFrom),
 		};
 	}
 
-	function entityFrom(entity: vscode.StructuralDiffEntity): languages.StructuralDiffEntity {
+	function entityFrom(node: vscode.StructuralDiffNode, side: 'original' | 'modified', entity: vscode.StructuralDiffEntity): languages.StructuralDiffEntity {
+		// SymbolKind.from maps unknown kinds to a valid kind, which would hide them from the validation of the result.
+		if (typeof types.SymbolKind[entity.kind] !== 'string') {
+			throw new Error(`Invalid structural diff: node '${node.id}' has an invalid ${side} entity kind`);
+		}
 		return {
 			name: entity.name,
 			detail: entity.detail,
