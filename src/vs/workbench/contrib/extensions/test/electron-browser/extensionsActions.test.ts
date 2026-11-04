@@ -65,7 +65,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { Mutable } from '../../../../../base/common/types.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
-import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesService, toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -345,6 +345,73 @@ suite('ExtensionsActions', () => {
 		assert.strictEqual('Uninstall', testObject.label);
 		assert.strictEqual('extension-action label uninstall', testObject.class);
 	});
+
+	for (const uninstallServer of ['local', 'remote'] as const) {
+		for (const isApplicationScoped of [false, true]) {
+			test(`Uninstall and manage actions after uninstalling the ${uninstallServer} copy${isApplicationScoped ? ' for all profiles' : ''} while the other copy remains installed`, async () => {
+				const gallery = aGalleryExtension('a');
+				const localExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { identifier: gallery.identifier, isApplicationScoped });
+				const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, {
+					identifier: gallery.identifier,
+					isApplicationScoped,
+					location: localExtension.location.with({ scheme: Schemas.vscodeRemote })
+				});
+				const localService = createExtensionManagementService([localExtension]);
+				const remoteService = createExtensionManagementService([remoteExtension]);
+				const targetService = uninstallServer === 'local' ? localService : remoteService;
+				const onUninstall = disposables.add(new Emitter<UninstallExtensionEvent>());
+				const onDidUninstall = disposables.add(new Emitter<DidUninstallExtensionEvent>());
+				targetService.onUninstallExtension = onUninstall.event;
+				targetService.onDidUninstallExtension = onDidUninstall.event;
+				const servers = aMultiExtensionManagementServerService(instantiationService, localService, remoteService);
+				instantiationService.stub(IExtensionManagementServerService, servers);
+				instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+				const currentProfile = instantiationService.get(IUserDataProfileService).currentProfile;
+				instantiationService.stub(IUserDataProfilesService, {
+					profiles: [currentProfile, toUserDataProfile('other', 'other', URI.file('other'), URI.file('cache'))]
+				});
+				const workbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
+				instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+				const local = (await workbenchService.queryLocal(servers.localExtensionManagementServer!))[0];
+				const remote = (await workbenchService.queryLocal(servers.remoteExtensionManagementServer!))[0];
+				local.gallery = remote.gallery = gallery;
+				const extensions = uninstallServer === 'local' ? [local, remote] : [remote, local];
+				const actions = extensions.map(extension => {
+					const uninstall = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+					const manage = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+					const containers = disposables.add(instantiationService.createInstance(ExtensionContainers, [uninstall, manage]));
+					containers.extension = extension;
+					return { uninstall, manage };
+				});
+				const actionStates = () => actions.map(({ uninstall, manage }) => ({
+					uninstallEnabled: uninstall.enabled,
+					uninstallLabel: uninstall.label,
+					manageEnabled: manage.enabled,
+					manageHidden: manage.class.trim().split(/\s+/).includes('hide')
+				}));
+				const installedState = {
+					uninstallEnabled: true,
+					uninstallLabel: isApplicationScoped ? 'Uninstall (All Profiles)' : 'Uninstall',
+					manageEnabled: true,
+					manageHidden: false
+				};
+				assert.deepStrictEqual(actionStates(), [installedState, installedState]);
+
+				const event = { identifier: extensions[0].identifier, profileLocation: currentProfile.extensionsResource };
+				onUninstall.fire(event);
+				assert.deepStrictEqual(actionStates(), [
+					{ ...installedState, uninstallEnabled: false, uninstallLabel: 'Uninstalling', manageEnabled: false },
+					installedState
+				]);
+
+				onDidUninstall.fire(event);
+				assert.deepStrictEqual(actionStates(), [
+					{ ...installedState, uninstallEnabled: false, manageEnabled: false, manageHidden: true },
+					installedState
+				]);
+			});
+		}
+	}
 
 	test('Test UpdateAction when there is no extension', () => {
 		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
@@ -1397,18 +1464,19 @@ suite('ExtensionRuntimeStateAction', () => {
 		const localExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a') });
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const localExtensionManagementService = createExtensionManagementService([localExtension]);
-		const uninstallEvent = new Emitter<UninstallExtensionEvent>();
-		const onDidUninstallEvent = new Emitter<{ identifier: IExtensionIdentifier; profileLocation: URI }>();
+		const uninstallEvent = disposables.add(new Emitter<UninstallExtensionEvent>());
+		const onDidUninstallEvent = disposables.add(new Emitter<{ identifier: IExtensionIdentifier; profileLocation: URI }>());
 		localExtensionManagementService.onUninstallExtension = uninstallEvent.event;
 		localExtensionManagementService.onDidUninstallExtension = onDidUninstallEvent.event;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
-		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
+		const onDidChangeExtensionsEmitter = disposables.add(new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>());
 		instantiationService.stub(IExtensionService, {
 			extensions: [toExtensionDescription(remoteExtension)],
 			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
 			canAddExtension: (extension) => false,
+			canRemoveExtension: () => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
 		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
@@ -1425,7 +1493,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		assert.ok(!testObject.enabled);
 
 		uninstallEvent.fire({ identifier: localExtension.identifier, profileLocation: null! });
-		didUninstallEvent.fire({ identifier: localExtension.identifier, profileLocation: null! });
+		onDidUninstallEvent.fire({ identifier: localExtension.identifier, profileLocation: null! });
 
 		assert.ok(!testObject.enabled);
 	});
