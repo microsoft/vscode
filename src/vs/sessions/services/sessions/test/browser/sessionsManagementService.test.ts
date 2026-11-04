@@ -1492,6 +1492,38 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('focus moving into another window activates its session passively: what the main window opens, restores and shows, such as its canvas, goes on', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const loading = observableValue('loading', true);
+			const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///third/chat'), status: constObservable(SessionStatus.Completed) };
+			const otherChat: IChat = { ...stubChat, resource: URI.parse('test:///third/other'), status: constObservable(SessionStatus.Completed) };
+			const third = stubSession({ sessionId: 'third', providerId: 'test', status: constObservable(SessionStatus.Completed), loading, mainChat: constObservable(mainChat), chats: constObservable([mainChat, otherChat]) });
+			const { view, canvasService } = harness([first, second, third]);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(first.resource);
+			const windowSession = view.showSessionInWindow(second, { chatResource: second.mainChat.get().resource });
+			view.setActive(view.mainWindowActiveSession.get());
+
+			// The main window shows its canvas as focus moves into the other window, such as its title row.
+			await canvasService.openCanvas('inbox');
+			const navigation = view.navigationRequest.get();
+			view.setActive(windowSession, true);
+			const overCanvas = { active: view.activeSession.get() === windowSession, canvas: canvasService.activeCanvasOpen.get()?.id, sameNavigation: view.navigationRequest.get() === navigation };
+
+			// The main window opens a chat as focus moves into the other window.
+			view.setActive(view.mainWindowActiveSession.get());
+			const opening = view.openChat(third, otherChat.resource);
+			await timeout(0);
+			view.setActive(windowSession, true);
+			loading.set(false, undefined);
+			await opening;
+
+			assert.deepStrictEqual({ overCanvas, opened: { session: view.mainWindowActiveSession.get()?.sessionId, chat: view.mainWindowActiveSession.get()?.activeChat.get().resource.toString() } }, {
+				overCanvas: { active: true, canvas: 'inbox', sameNavigation: true },
+				opened: { session: 'third', chat: otherChat.resource.toString() },
+			});
+		});
+
 		test('closing the session of another window leaves alone what the main window is opening', async () => {
 			const [first, second] = ['first', 'second'].map(created);
 			const loading = observableValue('loading', true);

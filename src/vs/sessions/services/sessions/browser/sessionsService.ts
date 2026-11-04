@@ -1111,15 +1111,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-			this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._visibility.getWindowSession(session.sessionId, chatUri) ?? session, preserveFocus, intent);
+			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._visibility.getWindowSession(session.sessionId, chatUri) ?? session, preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 				return;
 			}
 
-			// Find the chat and update active chat
+			// Find the chat and update active chat: in the session opened, also once focus moved into another window,
+			// whose session is then active.
 			let chat: IChat | undefined;
-			const activeSession = this._visibility.activeSession.get();
+			const current = this._visibility.activeSession.get();
+			const activeSession = current?.sessionId === session.sessionId ? current : opened;
 			if (activeSession) {
 				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 				if (chat) {
@@ -1887,6 +1889,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void {
 		if (this._visibility.isPassiveWindowSession(session)) {
+			return;
+		}
+		// The session of a window of its own becomes active as focus moves into its window: a passive change, as the main
+		// window's session becomes active again as focus moves back, which leaves what the main window restores, opens and
+		// shows, such as its canvas, as it is.
+		if (this._visibility.isWindowSession(session)) {
+			this._activate(session, preserveFocus);
 			return;
 		}
 		const active = this.activeSession.get();
