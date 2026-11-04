@@ -174,10 +174,12 @@ function sandboxPlaceholderOptions(enabled: boolean): ChatInputFixtureOptions {
 		width: 660,
 		placeholder: 'Chat with Copilot [windows-ca-test-sunday1234]',
 		agentHostSessionConfig: {
-			schema: { type: 'object', properties: {
-				...copilotHarnessSessionConfig.schema.properties,
-				[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
-			} },
+			schema: {
+				type: 'object', properties: {
+					...copilotHarnessSessionConfig.schema.properties,
+					[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+				}
+			},
 			values: { ...copilotHarnessSessionConfig.values, [SessionConfigKey.SandboxEnabled]: enabled ? 'on' : 'off' },
 		},
 	};

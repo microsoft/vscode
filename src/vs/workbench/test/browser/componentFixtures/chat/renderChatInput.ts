@@ -46,7 +46,8 @@ import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceC
 import { IMicCaptureService } from '../../../../contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
-import '../../../../../editor/contrib/placeholderText/browser/placeholderText.contribution.js';
+import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import '../../../../../editor/contrib/placeholderText/browser/placeholderText.css';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -344,6 +345,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	inputPart.render(session, '', mockWidget);
 	if (fixtureOptions.placeholder) {
+		// Keep the placeholder renderer local: registering it globally changes unrelated editor fixtures.
+		if (!PlaceholderTextContribution.get(inputPart.inputEditor)) {
+			container.style.setProperty('--vscode-editor-placeholder-foreground', 'var(--vscode-editorGhostText-foreground)');
+			disposableStore.add(new PlaceholderTextContribution(inputPart.inputEditor));
+		}
 		inputPart.inputEditor.updateOptions({ placeholder: fixtureOptions.placeholder });
 	}
 
