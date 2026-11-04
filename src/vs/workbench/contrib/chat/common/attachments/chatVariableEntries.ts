@@ -626,8 +626,14 @@ export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): 
 
 const sessionContextMetadataKey = 'vscode.agentHost.sessionContext';
 
+/** Scope client-side deduplication to the source host, independently of unscoped chat references. */
 export function withSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
-	return { ...entry, sessionContextSourceAuthority: authority, _meta: { ...entry._meta, [sessionContextMetadataKey]: true } };
+	return {
+		...entry,
+		id: `agent-host-session-context:${JSON.stringify([authority, chatReferenceVariableEntryId(entry.value, entry.endTurn)])}`,
+		sessionContextSourceAuthority: authority,
+		_meta: { ...entry._meta, [sessionContextMetadataKey]: true },
+	};
 }
 
 export function restoreSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {

@@ -19,7 +19,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { createChatReferenceVariableEntry, IChatRequestVariableEntry, withSessionContextSource } from '../../../common/attachments/chatVariableEntries.js';
+import { createChatReferenceVariableEntry, hasIncompatibleSessionContext, IChatRequestVariableEntry, restoreSessionContextSource, withSessionContextSource } from '../../../common/attachments/chatVariableEntries.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { IOpener, IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
@@ -34,6 +34,10 @@ import { ISessionSummaryHoverService } from '../../../browser/agentSessions/sess
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 
 suite('ChatReferenceAttachment', () => {
 
@@ -74,6 +78,57 @@ suite('ChatReferenceAttachment', () => {
 		);
 
 		disposable.dispose();
+	});
+
+	suite('session context identity', () => {
+		function createAttachmentModel(): ChatAttachmentModel {
+			return store.add(new ChatAttachmentModel(
+				new class extends mock<IFileService>() { },
+				new class extends mock<ISharedWebContentExtractorService>() { },
+				new class extends mock<IChatAttachmentResolveService>() { },
+			));
+		}
+
+		test('keeps same-URI context from different hosts and unscoped references independently removable', () => {
+			const attachments = createAttachmentModel();
+			const local = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Local'), 'local');
+			const remote = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Remote'), 'remote');
+			const unscoped = createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Unscoped');
+			attachments.addContext(local);
+			attachments.addContext(remote);
+			attachments.addContext(unscoped);
+			attachments.addContext(withSessionContextSource({ ...remote, name: 'Selected again' }, 'remote'));
+			const before = attachments.attachments.map(entry => entry.name);
+			const blockedBefore = hasIncompatibleSessionContext(attachments.attachments, 'remote');
+
+			attachments.delete(local.id);
+
+			assert.deepStrictEqual({
+				before,
+				blockedBefore,
+				after: attachments.attachments.map(entry => entry.name),
+				blockedAfter: hasIncompatibleSessionContext(attachments.attachments, 'remote'),
+			}, {
+				before: ['Local', 'Remote', 'Unscoped'],
+				blockedBefore: true,
+				after: ['Remote', 'Unscoped'],
+				blockedAfter: false,
+			});
+		});
+
+		test('restored context deduplicates with new picks on its current host while preserving pinned turns', () => {
+			const attachments = createAttachmentModel();
+			const original = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, 'turn-1', 'Original'), 'previous-client');
+			const restored = restoreSessionContextSource(original, 'current-client');
+			const unpinned = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Unpinned'), 'current-client');
+			attachments.addContext(original);
+			attachments.addContext(restored);
+			attachments.addContext(withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, 'turn-1', 'Selected again'), 'current-client'));
+			attachments.addContext(restoreSessionContextSource(restored, 'current-client'));
+			attachments.addContext(unpinned);
+
+			assert.deepStrictEqual(attachments.attachments, [original, restored, unpinned]);
+		});
 	});
 
 	suite('resolveAgentHostChatOwner', () => {
