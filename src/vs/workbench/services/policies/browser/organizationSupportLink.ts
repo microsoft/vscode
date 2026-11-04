@@ -21,9 +21,16 @@ export function appendContactAdministratorLink(container: HTMLElement, className
 	const link = append(container, $(`a.${className}`, { href: supportUrl }));
 	link.textContent = localize('organizationSupport.contactAdministratorForMoreInformation', "Contact your administrator for more information.");
 	store.add(hoverService.setupDelayedHover(link, { content: getOrganizationSupportActionTooltip(supportUrl), style: HoverStyle.Pointer }));
-	store.add(addDisposableListener(link, EventType.CLICK, e => {
+	const open = (e: MouseEvent) => {
 		e.preventDefault();
 		void openOrganizationSupport(openerService, supportUrl);
+	};
+	store.add(addDisposableListener(link, EventType.CLICK, open));
+	// A middle click would otherwise follow the real href natively, skipping link protection.
+	store.add(addDisposableListener(link, EventType.AUXCLICK, e => {
+		if (e.button === 1) {
+			open(e);
+		}
 	}));
 	return store;
 }

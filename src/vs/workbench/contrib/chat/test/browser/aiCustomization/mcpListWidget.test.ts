@@ -27,7 +27,6 @@ import { ContributionEnablementState, EnablementModel } from '../../../common/en
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -1436,6 +1435,8 @@ suite('mcpListWidget', () => {
 		widget.updateAccessState();
 		const linked = capture();
 		widget.disabledMessage.querySelector('a')!.click();
+		const middleClick = new MouseEvent('auxclick', { button: 1, cancelable: true });
+		widget.disabledMessage.querySelector('a')!.dispatchEvent(middleClick);
 		widget.supportUrl = 'javascript:alert(1)';
 		widget.updateAccessState();
 		const invalid = capture();
@@ -1443,11 +1444,12 @@ suite('mcpListWidget', () => {
 		widget.policyAccess = undefined;
 		widget.updateAccessState();
 		const userDisabled = capture();
-		assert.deepStrictEqual({ linked, invalid, userDisabled, opened: widget.opened, hovers: widget.hovers }, {
+		assert.deepStrictEqual({ linked, invalid, userDisabled, middleClickNavigates: !middleClick.defaultPrevented, opened: widget.opened, hovers: widget.hovers }, {
 			linked: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: 'https://example.com/copilot-help' },
 			invalid: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: null },
 			userDisabled: { message: 'MCP servers are disabled in settings. Configure in settings.', link: '#' },
-			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
+			middleClickNavigates: false,
+			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }, { target: 'https://example.com/copilot-help', openExternal: true }],
 			hovers: ['Opens your organization\'s help page (example.com)'],
 		});
 	});

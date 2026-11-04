@@ -151,6 +151,25 @@ suite('Sessions policy update explanation', () => {
 		});
 	});
 
+	test('keys reach a dialog opened from the overlay, such as link protection, but not the blocked workbench', () => {
+		const { root, content } = setup(undefined, false);
+		assert.ok(root.querySelector('.sessions-policy-blocked-overlay'));
+		const dialogButton = append(append(root, $('.monaco-dialog-modal-block')), $('button'));
+		const press = (target: HTMLElement) => {
+			let reachedTarget = false;
+			const listener = () => reachedTarget = true;
+			target.addEventListener('keydown', listener);
+			const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+			target.dispatchEvent(event);
+			target.removeEventListener('keydown', listener);
+			return { reachedTarget, defaultPrevented: event.defaultPrevented };
+		};
+		assert.deepStrictEqual({ dialog: press(dialogButton), workbench: press(content) }, {
+			dialog: { reachedTarget: true, defaultPrevented: false },
+			workbench: { reachedTarget: false, defaultPrevented: true },
+		});
+	});
+
 	test('initially blocked Agents shows versions and a keyboard-focusable update action below the title bar', () => {
 		const { root, content, opened, contribution, layout, layoutEvent } = setup(info);
 		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;

@@ -135,6 +135,10 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			if (card.contains(e.target as Node)) {
 				return;
 			}
+			// Dialogs opened from the card, such as link protection, render outside it.
+			if (isHTMLElement(e.target) && e.target.closest('.monaco-dialog-modal-block')) {
+				return;
+			}
 			e.preventDefault();
 			e.stopPropagation();
 		}, true));

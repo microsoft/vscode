@@ -15,7 +15,7 @@ import { IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettings
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { Severity } from '../../../../../platform/notification/common/notification.js';
+import { NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -385,6 +385,56 @@ suite('AccountPolicyGateContribution', () => {
 			withoutUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
 			invalidUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
 			withUrl: { labels: ['Sign In', 'Contact Admin', 'Learn More'], opened: [{ target: 'https://example.com/copilot-help', openExternal: true }] },
+		});
+	});
+
+	test('refreshes the open notification when the support URL changes, without undoing a dismissal', async () => {
+		const clock = sinon.useFakeTimers();
+		const restricted: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
+		let supportUrl: string | undefined;
+		const managedSettingsChange = disposables.add(new Emitter<void>());
+		const notificationService = new TestNotificationService();
+		const handles: { closed: boolean; dismiss: () => void }[] = [];
+		const prompt = sinon.stub(notificationService, 'prompt').callsFake(() => {
+			const onDidClose = disposables.add(new Emitter<void>());
+			const state = { closed: false, dismiss: () => onDidClose.fire() };
+			handles.push(state);
+			return new class extends NoOpNotification {
+				override readonly onDidClose = onDidClose.event;
+				override close() { state.closed = true; onDidClose.fire(); }
+			}();
+		});
+		disposables.add(new AccountPolicyGateContribution(
+			disposables.add(new TestAccountPolicyGateService(restricted)),
+			new MockContextKeyService(),
+			new TestChatEntitlementService(),
+			disposables.add(new TestDefaultAccountService()),
+			new NullLogService(),
+			notificationService,
+			new TestDialogService(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
+			new class extends NullManagedSettingsService {
+				override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+				override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? supportUrl : undefined; }
+			}(),
+		));
+		await clock.tickAsync(5000);
+		supportUrl = 'https://example.com/copilot-help';
+		managedSettingsChange.fire();
+		managedSettingsChange.fire();
+		handles[1].dismiss();
+		supportUrl = 'https://example.com/other-help';
+		managedSettingsChange.fire();
+		assert.deepStrictEqual({
+			labels: prompt.getCalls().map(call => call.args[2].map(choice => choice.label)),
+			closed: handles.map(handle => handle.closed),
+		}, {
+			labels: [['Sign In', 'Learn More'], ['Sign In', 'Contact Admin', 'Learn More']],
+			closed: [true, true],
 		});
 	});
 

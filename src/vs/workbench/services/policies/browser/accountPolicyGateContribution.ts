@@ -63,6 +63,8 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
+	/** The key and support URL of the notification in `notificationHandle`. */
+	private shownNotification: { readonly key: string; readonly supportUrl: string | undefined } | undefined;
 	private readonly managedSettingsPendingNotificationHandle = this._register(new MutableDisposable());
 	private managedSettingsDialogVisibleKey: string | undefined;
 	private managedSettingsDialogDismissedKey: string | undefined;
@@ -100,6 +102,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
 		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(() => this.updateManagedSettingsCompatibilityState()));
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.refreshNotificationSupportUrl()));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -239,6 +242,18 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		}));
 		handleDisposables.add({ dispose: () => handle.close() });
 		this.notificationHandle.value = handleDisposables;
+		this.shownNotification = { key: notificationKey, supportUrl };
+	}
+
+	/** Shows the open notification again when the organization's support URL changes under it. */
+	private refreshNotificationSupportUrl(): void {
+		const shown = this.shownNotification;
+		if (!this.notificationHandle.value || !shown || getManagedSupportUrl(this.managedSettingsService) === shown.supportUrl) {
+			return;
+		}
+		// Clearing removes the close listener before closing, so the replacement isn't a dismissal.
+		this.notificationHandle.clear();
+		this.maybeShowNotification(this.lastInfo, shown.key);
 	}
 
 	private isGateRestricted(info: IAccountPolicyGateInfo): boolean {
