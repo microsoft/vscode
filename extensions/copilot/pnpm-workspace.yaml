@@ -1,6 +1,11 @@
 # Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
 # Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+packages:
+  - chat-lib
 nodeLinker: hoisted
+# Don't link chat-lib into node_modules: `vsce package` runs `npm list --production`, which fails on
+# a linked package that no dependency requires.
+hoistWorkspacePackages: false
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false

@@ -66,109 +66,109 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 			if (prReviewState.kind !== PRReviewStateKind.Loaded) {
 				return;
 			}
-			this._sync(sessionResource, prReviewState.comments, prReviewState.incompletePullRequests);
+			syncPRReviewFeedback(this._agentFeedbackService, sessionResource, prReviewState.comments, prReviewState.incompletePullRequests);
 		}));
 	}
+}
 
-	private _sync(sessionResource: URI, comments: readonly IPRReviewComment[], incompletePullRequests: readonly Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>[]): void {
-		// Only act once the authoritative feedback set is available; seeding off
-		// a transiently-empty list would create duplicate mirrors on reload.
-		if (!this._agentFeedbackService.hasLoadedFeedback(sessionResource)) {
-			return;
-		}
+export function syncPRReviewFeedback(agentFeedbackService: IAgentFeedbackService, sessionResource: URI, comments: readonly IPRReviewComment[], incompletePullRequests: readonly Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>[]): void {
+	// Only act once the authoritative feedback set is available; seeding off
+	// a transiently-empty list would create duplicate mirrors on reload.
+	if (!agentFeedbackService.hasLoadedFeedback(sessionResource)) {
+		return;
+	}
 
-		const feedback = this._agentFeedbackService.getFeedback(sessionResource);
-		const mirroredSourceIds = new Set<string>();
-		const mirrorBySource = new Map<string, IAgentFeedback>();
-		const createdMirrorBySource = new Map<string, IAgentFeedback>();
-		// Extra created mirrors that share a source with one already seen. These
-		// arise from a benign race (a second seed dispatched before the first
-		// echoed back, or two windows seeding the same session) and are collapsed
-		// to a single mirror below.
-		const duplicateCreatedMirrors: IAgentFeedback[] = [];
-		for (const item of feedback) {
-			if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
-				mirroredSourceIds.add(item.sourcePRReviewCommentId);
-				if (!mirrorBySource.has(item.sourcePRReviewCommentId)) {
-					mirrorBySource.set(item.sourcePRReviewCommentId, item);
-				}
-				if (item.state === AgentFeedbackState.Created) {
-					if (createdMirrorBySource.has(item.sourcePRReviewCommentId)) {
-						duplicateCreatedMirrors.push(item);
-					} else {
-						createdMirrorBySource.set(item.sourcePRReviewCommentId, item);
-					}
+	const feedback = agentFeedbackService.getFeedback(sessionResource);
+	const mirroredSourceIds = new Set<string>();
+	const mirrorBySource = new Map<string, IAgentFeedback>();
+	const createdMirrorBySource = new Map<string, IAgentFeedback>();
+	// Extra created mirrors that share a source with one already seen. These
+	// arise from a benign race (a second seed dispatched before the first
+	// echoed back, or two windows seeding the same session) and are collapsed
+	// to a single mirror below.
+	const duplicateCreatedMirrors: IAgentFeedback[] = [];
+	for (const item of feedback) {
+		if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
+			mirroredSourceIds.add(item.sourcePRReviewCommentId);
+			if (!mirrorBySource.has(item.sourcePRReviewCommentId)) {
+				mirrorBySource.set(item.sourcePRReviewCommentId, item);
+			}
+			if (item.state === AgentFeedbackState.Created) {
+				if (createdMirrorBySource.has(item.sourcePRReviewCommentId)) {
+					duplicateCreatedMirrors.push(item);
+				} else {
+					createdMirrorBySource.set(item.sourcePRReviewCommentId, item);
 				}
 			}
 		}
-		for (const duplicate of duplicateCreatedMirrors) {
-			this._agentFeedbackService.removeFeedback(sessionResource, duplicate.id);
-		}
+	}
+	for (const duplicate of duplicateCreatedMirrors) {
+		agentFeedbackService.removeFeedback(sessionResource, duplicate.id);
+	}
 
-		for (const comment of comments) {
-			const mirror = mirrorBySource.get(comment.id);
-			if (mirror && (!mirror.sourcePullRequest || (!mirror.sourcePRReviewCommentAuthor && comment.author))) {
-				this._agentFeedbackService.updateFeedbackSourcePullRequest(sessionResource, mirror.id, {
+	for (const comment of comments) {
+		const mirror = mirrorBySource.get(comment.id);
+		if (mirror && (!mirror.sourcePullRequest || (!mirror.sourcePRReviewCommentAuthor && comment.author))) {
+			agentFeedbackService.updateFeedbackSourcePullRequest(sessionResource, mirror.id, {
+				owner: comment.pullRequest.owner,
+				repo: comment.pullRequest.repo,
+				number: comment.pullRequest.number,
+			}, comment.author || undefined);
+		}
+		const createdMirror = createdMirrorBySource.get(comment.id);
+		if (createdMirror) {
+			// Keep an existing un-accepted mirror in sync with edits to the
+			// upstream comment body so the agent reads the latest text.
+			if (createdMirror.text !== comment.body) {
+				agentFeedbackService.updateFeedback(sessionResource, createdMirror.id, comment.body);
+			}
+			continue;
+		}
+		// Any existing mirror supersedes the raw PR comment in the editor.
+		if (!mirroredSourceIds.has(comment.id)) {
+			agentFeedbackService.addFeedback(
+				sessionResource,
+				comment.uri,
+				comment.range,
+				comment.body,
+				undefined,
+				undefined,
+				comment.id,
+				AgentFeedbackKind.PRReview,
+				AgentFeedbackState.Created,
+				{
 					owner: comment.pullRequest.owner,
 					repo: comment.pullRequest.repo,
 					number: comment.pullRequest.number,
-				}, comment.author || undefined);
-			}
-			const createdMirror = createdMirrorBySource.get(comment.id);
-			if (createdMirror) {
-				// Keep an existing un-accepted mirror in sync with edits to the
-				// upstream comment body so the agent reads the latest text.
-				if (createdMirror.text !== comment.body) {
-					this._agentFeedbackService.updateFeedback(sessionResource, createdMirror.id, comment.body);
-				}
+				},
+				comment.author || undefined,
+			);
+		}
+	}
+
+	// Drop mirrors whose PR comment is gone (resolved upstream, converted to
+	// a separate accepted item from the editor, or dismissed) while still
+	// un-accepted; accepted/submitted mirrors are kept since the user acted
+	// on them.
+	const incompletePullRequestKeys = new Set(incompletePullRequests.map(pullRequest => pullRequestKey(pullRequest)));
+	const liveSourceIds = new Set(comments.map(comment => comment.id));
+	for (const item of feedback) {
+		if (item.kind === AgentFeedbackKind.PRReview
+			&& item.state === AgentFeedbackState.Created
+			&& item.sourcePRReviewCommentId
+			&& !liveSourceIds.has(item.sourcePRReviewCommentId)
+		) {
+			if (!item.sourcePullRequest
+				? incompletePullRequestKeys.size > 0
+				: incompletePullRequestKeys.has(pullRequestKey(item.sourcePullRequest))
+			) {
 				continue;
 			}
-			// Any existing mirror supersedes the raw PR comment in the editor.
-			if (!mirroredSourceIds.has(comment.id)) {
-				this._agentFeedbackService.addFeedback(
-					sessionResource,
-					comment.uri,
-					comment.range,
-					comment.body,
-					undefined,
-					undefined,
-					comment.id,
-					AgentFeedbackKind.PRReview,
-					AgentFeedbackState.Created,
-					{
-						owner: comment.pullRequest.owner,
-						repo: comment.pullRequest.repo,
-						number: comment.pullRequest.number,
-					},
-					comment.author || undefined,
-				);
-			}
-		}
-
-		// Drop mirrors whose PR comment is gone (resolved upstream, converted to
-		// a separate accepted item from the editor, or dismissed) while still
-		// un-accepted; accepted/submitted mirrors are kept since the user acted
-		// on them.
-		const incompletePullRequestKeys = new Set(incompletePullRequests.map(pullRequest => this._pullRequestKey(pullRequest)));
-		const liveSourceIds = new Set(comments.map(comment => comment.id));
-		for (const item of feedback) {
-			if (item.kind === AgentFeedbackKind.PRReview
-				&& item.state === AgentFeedbackState.Created
-				&& item.sourcePRReviewCommentId
-				&& !liveSourceIds.has(item.sourcePRReviewCommentId)
-			) {
-				if (!item.sourcePullRequest
-					? incompletePullRequestKeys.size > 0
-					: incompletePullRequestKeys.has(this._pullRequestKey(item.sourcePullRequest))
-				) {
-					continue;
-				}
-				this._agentFeedbackService.removeFeedback(sessionResource, item.id);
-			}
+			agentFeedbackService.removeFeedback(sessionResource, item.id);
 		}
 	}
+}
 
-	private _pullRequestKey(pullRequest: Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>): string {
-		return `${pullRequest.owner.toLowerCase()}/${pullRequest.repo.toLowerCase()}#${pullRequest.number}`;
-	}
+function pullRequestKey(pullRequest: Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>): string {
+	return `${pullRequest.owner.toLowerCase()}/${pullRequest.repo.toLowerCase()}#${pullRequest.number}`;
 }

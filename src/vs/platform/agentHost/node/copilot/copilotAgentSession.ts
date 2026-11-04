@@ -10,6 +10,7 @@ import type { AttributedPermissionResult, CopilotClient, CopilotSession, Current
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
 import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
 import { parseCopilotMcpSkillConsentRequest, type ICopilotMcpSkillConsentRequest } from './copilotMcpSkillConsent.js';
+import { createHash } from 'crypto';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -25,8 +26,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { waitForState } from '../../../../base/common/observable.js';
-import { isAbsolute, join } from '../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../../base/common/resources.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
@@ -113,6 +114,8 @@ import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
+import { COPILOT_VIRTUAL_SESSION_STATE_PATH, copilotSdkPathToUri, createCopilotSdkPathMapper, resolveCopilotSdkPath, toCopilotWorkspace, type ICopilotSdkPathMapper } from './copilotWorkspace.js';
+import { toAgentClientUri } from '../../common/agentClientUri.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
@@ -685,6 +688,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
+	readonly pathMapper: ICopilotSdkPathMapper;
 	/** Directory used to resolve workspace-scoped customizations for this session. */
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
@@ -2041,6 +2045,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
 	private _workingDirectory: URI | undefined;
+	private _pathMapper: ICopilotSdkPathMapper;
 	private _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
 	private readonly _mcpSkillCacheWriter: McpSkillCacheWriter;
@@ -2242,7 +2247,7 @@ export class CopilotAgentSession extends Disposable {
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			getAppliedPluginDirectories: () => this._appliedPluginDirectories,
-			getWorkingDirectory: () => this._workingDirectory,
+			getWorkingDirectory: () => this._workingDirectory?.scheme === Schemas.file ? this._workingDirectory : undefined,
 			getAdditionalWorkingDirectories: () => this._appliedAdditionalDirectories,
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
@@ -2268,6 +2273,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
+		this._pathMapper = options.pathMapper;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
 		this._mcpToolRoutingCache = new CopilotMcpToolRoutingCache(storageService, this._logService);
@@ -2322,6 +2328,7 @@ export class CopilotAgentSession extends Disposable {
 			this._storageUri.toString(),
 			() => this._ownerSessionUri.toString(),
 			COPILOT_CLI_AGENT_PROVIDER_ID,
+			{ toUri: path => copilotSdkPathToUri(this._pathMapper, path), toFileServiceUri: path => this._sdkFileServiceUri(path) },
 		));
 		// The edit tool calls wait for the host's changes of their files (see `_handlePreToolUse`),
 		// so the user can undo changes while the agent works, and the agent is told.
@@ -3394,7 +3401,7 @@ export class CopilotAgentSession extends Disposable {
 		return {
 			parameters,
 			meta: this._createToolCallMeta(toolName, parameters),
-			invocationMessage: getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), partialInput, path => this._resolveEditFilePath(path), this._resolveAgentName),
+			invocationMessage: getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), partialInput, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 		};
 	}
 
@@ -3543,7 +3550,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId,
 				...(toolCall.contributor ? { contributor: toolCall.contributor } : {}),
 				...(toolCall.intention !== undefined ? { intention: toolCall.intention } : {}),
-				invocationMessage: getInvocationMessage(toolCall.toolName, toolCall.displayName, toolCall.parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+				invocationMessage: getInvocationMessage(toolCall.toolName, toolCall.displayName, toolCall.parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 				toolInput: getToolInputString(toolCall.toolName, toolCall.parameters, tryStringify(toolCall.parameters)),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
@@ -3875,10 +3882,23 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _resolveEditFilePath(path: string): string {
-		if (isAbsolute(path) || !this._workingDirectory || this._workingDirectory.scheme !== Schemas.file) {
-			return path;
+		return this._workingDirectory ? resolveCopilotSdkPath(this._pathMapper, path) : path;
+	}
+
+	private _resolveDisplayFilePath(path: string): URI {
+		return copilotSdkPathToUri(this._pathMapper, this._resolveEditFilePath(path));
+	}
+
+	private _sdkFileServiceUri(path: string): URI {
+		const uri = copilotSdkPathToUri(this._pathMapper, path);
+		if (uri.scheme === Schemas.file) {
+			return uri;
 		}
-		return join(this._workingDirectory.fsPath, path);
+		const clientId = this._launchPlan.virtualWorkspaceClientId?.();
+		if (!clientId) {
+			throw new Error(localize('copilot.virtualWorkspaceDisconnected', "The window that owns the virtual workspace is not connected."));
+		}
+		return toAgentClientUri(uri, clientId);
 	}
 
 	/**
@@ -4473,7 +4493,7 @@ export class CopilotAgentSession extends Disposable {
 			toolCallId,
 			...(tracked.contributor ? { contributor: tracked.contributor } : {}),
 			...(tracked.intention !== undefined ? { intention: tracked.intention } : {}),
-			invocationMessage: getInvocationMessage(tracked.toolName, tracked.displayName, tracked.parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+			invocationMessage: getInvocationMessage(tracked.toolName, tracked.displayName, tracked.parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 			toolInput: getToolInputString(tracked.toolName, tracked.parameters, tracked.parameters ? tryStringify(tracked.parameters) : undefined),
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			_meta: toToolCallMeta({ ...(tracked.meta ?? {}), toolSearchCandidates: candidates }),
@@ -5988,6 +6008,7 @@ export class CopilotAgentSession extends Disposable {
 					shellAlignmentError = `failed to align the local shell working directory: ${getErrorMessage(error)}`;
 				} finally {
 					this._workingDirectory = workingDirectory;
+					this._pathMapper = createCopilotSdkPathMapper(toCopilotWorkspace(workingDirectory));
 					this._customizationDirectory = workingDirectory;
 					this._requiresRestartAfterWorkingDirectoryChange = true;
 				}
@@ -6006,6 +6027,7 @@ export class CopilotAgentSession extends Disposable {
 				alignmentErrors.push(`failed to align the local shell working directory: ${getErrorMessage(shellError)}`);
 			} finally {
 				this._workingDirectory = actualUri;
+				this._pathMapper = createCopilotSdkPathMapper(toCopilotWorkspace(actualUri));
 				this._customizationDirectory = actualUri;
 				this._requiresRestartAfterWorkingDirectoryChange = true;
 			}
@@ -6153,7 +6175,7 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			const uri = URI.parse(attachment.uri);
-			paths.push(uri.scheme === 'file' ? uri.fsPath : uri.toString());
+			paths.push(this._sdkAttachmentPath(uri));
 		}
 		if (paths.length === 0) {
 			return undefined;
@@ -6777,6 +6799,16 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _sdkAttachmentPath(uri: URI): string {
+		const path = uri.scheme === Schemas.file || uri.scheme === this._workingDirectory?.scheme
+			? this._pathMapper.toSdkPath(uri) : uri.toString();
+		if (this._launchPlan.workspace?.kind !== 'virtual' || uri.scheme !== Schemas.file || path.startsWith(`${COPILOT_VIRTUAL_SESSION_STATE_PATH}/`)) {
+			return path;
+		}
+		const id = createHash('sha256').update(uri.toString()).digest('hex');
+		return `${COPILOT_VIRTUAL_SESSION_STATE_PATH}/files/attachments/${id}/${basename(uri)}`;
+	}
+
 	/**
 	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI SDK's `attachments` payload shape. Resource
 	 * attachments map to the SDK's reference-style `file`/`directory`/`selection` variants (the
@@ -6823,7 +6855,16 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		const uri = URI.parse(attachment.uri);
-		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
+		const path = this._sdkAttachmentPath(uri);
+		if (this._launchPlan.virtualSessionFs && uri.scheme === Schemas.file && path !== this._pathMapper.toSdkPath(uri)) {
+			// Host snapshots must live in the provider's state namespace for the virtual runtime to read them.
+			if ((await this._fileService.stat(uri)).isDirectory) {
+				// Host folders are not copied there, so the virtual runtime cannot list them.
+				this._logService.warn(`[Copilot:${this.sessionId}] Skipping host folder attachment in a virtual workspace: ${uri.toString()}`);
+				return undefined;
+			}
+			await this._launchPlan.virtualSessionFs.writeFileBytes(path, (await this._fileService.readFile(uri)).value.buffer);
+		}
 		const displayName = attachment.label ?? path;
 		// A host-created snapshot (pasted content, unsaved editor, git: diff, …) is shaped like any other
 		// resource here (file or selection). Its read-only signal is carried separately on the prompt — via
@@ -6848,7 +6889,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
-		const content = await this._fileService.readFile(uri);
+		const resource = uri.scheme === this._workingDirectory?.scheme && uri.scheme !== Schemas.file
+			? this._sdkFileServiceUri(this._pathMapper.toSdkPath(uri)) : uri;
+		const content = await this._fileService.readFile(resource);
 		const text = content.value.toString();
 		// AHP carries the resource range; the public SDK can carry the selected text too.
 		// This reads the resource URI, so unsaved editor changes are not included.
@@ -7050,7 +7093,7 @@ export class CopilotAgentSession extends Disposable {
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		return this._withDatabase(async db => {
-			const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, {
+			const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, this._pathMapper, {
 				logService: this._logService,
 				workingDirectory: this._workingDirectory,
 				clientToolNames: this._clientToolNames,
@@ -7992,7 +8035,7 @@ export class CopilotAgentSession extends Disposable {
 							toolCallId,
 							toolName: request.toolName,
 							displayName,
-							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 							toolInput: getToolInputString(request.toolName, parameters, tryStringify(parameters)),
 							riskAssessment: judgeRationale
 								? {
@@ -8162,7 +8205,7 @@ export class CopilotAgentSession extends Disposable {
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
-			const permissionDisplay = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters);
+			const permissionDisplay = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters, path => this._resolveDisplayFilePath(path));
 			// A server tool's confirmation as its group builds it with the host's state (e.g. linking only known sessions).
 			const serverConfirmation = serverToolName && request.kind === 'custom-tool' ? serverToolHost?.getConfirmationDisplay(serverToolName, request.args) : undefined;
 			const { permissionKind, permissionPath, permissionUrl, shellCommand } = permissionDisplay;
@@ -8224,6 +8267,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				permissionResource: permissionPath ? copilotSdkPathToUri(this._pathMapper, permissionPath) : undefined,
 				permissionUrl,
 				managedApprovalRequired,
 				requestSandboxBypass,
@@ -8287,7 +8331,7 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 
-		const permissionUri = normalizePath(URI.file(permissionPath));
+		const permissionUri = normalizePath(copilotSdkPathToUri(this._pathMapper, permissionPath));
 		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
 	}
 
@@ -8495,7 +8539,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _applyAssistedApprovalRepositoryContext(wrapper: CopilotSessionWrapper): Promise<void> {
 		const workingDirectory = this._workingDirectory;
-		if (!workingDirectory) {
+		if (!workingDirectory || workingDirectory.scheme !== Schemas.file) {
 			return;
 		}
 		try {
@@ -8560,7 +8604,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _syncShellInitScript(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+		if (this._launchPlan.workspace?.kind === 'virtual' || this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 			return Promise.resolve();
 		}
 		return measureAgentProviderOperation(recorder, 'shell', () => this._applyEffectiveShellInitScripts(recorder), this._shellInitScriptSequencer);
@@ -8827,12 +8871,12 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 
-		const fileUri = URI.file(filePath);
+		const fileUri = copilotSdkPathToUri(this._pathMapper, this._resolveEditFilePath(filePath));
 		const fileUriStr = fileUri.toString();
 
 		let beforeExists = false;
 		try {
-			beforeExists = await this._fileService.exists(fileUri);
+			beforeExists = await this._fileService.exists(this._sdkFileServiceUri(this._resolveEditFilePath(filePath)));
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to check file for edit preview: ${filePath}`, err);
 		}
@@ -10115,7 +10159,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					...(contributor ? { contributor } : {}),
 					...(intention !== undefined ? { intention } : {}),
-					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 					toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 					_meta: toToolCallMeta(meta),
@@ -10158,7 +10202,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: e.data.toolCallId,
 				...(contributor ? { contributor } : {}),
 				...(intention !== undefined ? { intention } : {}),
-				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
@@ -10366,7 +10410,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					result: {
 						success: e.data.success,
-						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
+						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveDisplayFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
 						content: content.length > 0 ? content : undefined,
 						structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
 						resultMetadata: getSdkMcpResultMeta(e.data.result),
@@ -12023,7 +12067,7 @@ export class CopilotAgentSession extends Disposable {
 				actions,
 				canProvideFeedback: true,
 				answerQuestionId: questionId,
-				...(planPath ? { planUri: URI.file(planPath).toString() } : {}),
+				...(planPath ? { planUri: copilotSdkPathToUri(this._pathMapper, planPath).toString() } : {}),
 			},
 			questions: [{
 				kind: ChatInputQuestionKind.SingleSelect,

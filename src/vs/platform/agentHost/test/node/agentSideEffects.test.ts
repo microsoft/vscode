@@ -3144,6 +3144,25 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(terminalManager.created.length, 0);
 		});
 
+		test('reports an error part instead of running a ! command in a virtual workspace', async () => {
+			setupSession('vscode-vfs://github/microsoft/vscode');
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createBangSideEffects(terminalManager);
+			const action: ChatAction = chatTurnStarted('turn-1', '!echo hi', '2025-01-01T00:00:00.000Z');
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+
+			const turn = stateManager.getSessionState(sessionUri.toString())?.turns.at(-1);
+			assert.deepStrictEqual({
+				state: turn?.state,
+				parts: turn?.responseParts.map(part => part.kind === ResponsePartKind.Error ? part.error.errorType : part.kind),
+				terminals: terminalManager.created.length,
+				agentCalls: agent.sendMessageCalls.length,
+			}, { state: TurnState.Error, parts: ['terminalUnavailable'], terminals: 0, agentCalls: 0 });
+		});
+
 		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
 			setupSession('file:///work');
 			const db = new TestSessionDatabase();

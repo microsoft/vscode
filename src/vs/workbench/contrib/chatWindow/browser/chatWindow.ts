@@ -201,6 +201,12 @@ export interface IChatWindow {
 	readonly terminalPosition: IObservable<ChatWindowTerminalPosition>;
 	/** Fires as it closes, before its parts close: what shows in them, such as terminals, can leave the window first. */
 	readonly onWillClose: Event<void>;
+	/**
+	 * Fires as {@link close} closes it, once nothing keeps it open, right before its main part and chat part close, and
+	 * those it created: what shows there, such as terminals beside the chat, can leave the window rather than close with
+	 * them. Its terminals' part closes later, after {@link onWillClose}.
+	 */
+	readonly onWillCloseParts: Event<void>;
 	readonly onDidClose: Event<void>;
 
 	setLayoutMode(mode: ChatWindowLayoutMode): void;

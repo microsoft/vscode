@@ -471,6 +471,22 @@ suite('SessionsManagementService', () => {
 			return { ...ui, ...services, sessionsChanged };
 		}
 
+		test('opens exact chats of one session in a grid and retains the selected chat on reopening', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const { view } = harness([parent]);
+			const targets = [main, child].map(chat => ({ session: parent, chatResource: chat.resource }));
+			await view.openChatsInGrid(targets);
+			view.setActive(view.visibleSessionPanes.get()[1]);
+			await view.openChatsInGrid([...targets, targets[0]]);
+			assert.deepStrictEqual({
+				chats: view.visibleSessionPanes.get().map(session => session?.activeChat.get().resource.toString()),
+				active: view.activeSession.get()?.activeChat.get().resource.toString(),
+			}, { chats: [main.resource.toString(), child.resource.toString()], active: child.resource.toString() });
+		});
+
 		test('a child tab can be dragged outside its parent into an independent pane beside another session', async () => {
 			const a = created('a');
 			const b = created('b');
@@ -1148,6 +1164,7 @@ suite('SessionsManagementService', () => {
 					}
 				},
 			});
+
 			await view.openSession(b.resource);
 			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
 			const opening = view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
@@ -1162,6 +1179,35 @@ suite('SessionsManagementService', () => {
 				children: visibility.gridSessions.get().filter(session => session?.scopedChatResource).length,
 			}, { active: b.sessionId, panes: 1, children: 0 });
 		});
+
+		for (const survivorKind of ['parent', 'child'] as const) {
+			test(`collapse retains only the exact ${survivorKind} pane when chats share an owner`, async () => {
+				const session = created('parent');
+				const chats = ['attempt', 'judge'].map(id => ({ ...session.mainChat.get(), resource: URI.parse(`test:///parent/${id}`) }));
+				const parent = { ...session, chats: constObservable([session.mainChat.get(), ...chats]) };
+				const { view, part, container } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				for (const chat of chats) {
+					await view.moveChatToGrid(parent.sessionId, chat.resource, visibility.getGridSlots()[0].id, 'right');
+				}
+				await view.openChat(parent, survivorKind === 'child' ? chats[1].resource : parent.mainChat.get().resource);
+				const survivor = view.activeSession.get()!;
+				const pane = part.getFocusedSessionView();
+				view.collapseToSession(survivor);
+				assert.deepStrictEqual({
+					panes: container.querySelectorAll('.session-view').length,
+					resources: view.visibleSessionPanes.get().map(candidate => candidate?.activeChat.get().resource.toString()),
+					retained: part.getFocusedSessionView() === pane,
+					active: view.activeSession.get() === survivor,
+				}, {
+					panes: 1,
+					resources: [(survivorKind === 'child' ? chats[1] : parent.mainChat.get()).resource.toString()],
+					retained: true,
+					active: true,
+				});
+			});
+		}
 
 		test('a hidden-parent child drag is cancelled if its destination closes during provider preparation', async () => {
 			const a = created('a');

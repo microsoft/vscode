@@ -19,6 +19,7 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
 import { toToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
@@ -616,6 +617,35 @@ suite('stateToProgressAdapter', () => {
 				planUri: createAgentHostResourceUriMapper('local').fromAgentHost(URI.file('/session/plan.md')).toString(),
 				data: { rejected: false, actionId: 'autopilot', action: 'Native Label' },
 			});
+		});
+
+		test('restores empty MCP forms as confirmation cards instead of fallback text questions', () => {
+			const responses = [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline, ChatInputResponseKind.Cancel];
+			const turn = createTurn({
+				responseParts: responses.map(response => ({
+					kind: ResponsePartKind.InputRequest as const,
+					request: withChatInputRequestPurpose({
+						id: `empty-form-${response}`,
+						message: '**Proceed** with this operation?',
+						questions: [],
+						...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}),
+					}, ChatInputRequestPurpose.Elicitation),
+					response,
+				})),
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? {
+				kind: part.kind,
+				title: part.title,
+				message: typeof part.message === 'string' ? part.message : part.message.value,
+				state: part.state,
+			} : { kind: part.kind }), responses.map(response => ({
+				kind: 'elicitationSerialized',
+				title: 'Confirmation Required',
+				message: '**Proceed** with this operation?',
+				state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			})));
 		});
 
 		test('restores a Computer Use setup request as a settled card instead of the plugin\'s questions', () => {

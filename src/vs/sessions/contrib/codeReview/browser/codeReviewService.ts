@@ -15,7 +15,7 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { IGitHubPullRequestReview } from '../../github/common/types.js';
+import { IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -109,6 +109,21 @@ export interface ICodeReviewService {
 
 interface IPRSessionReviewData {
 	readonly state: ISettableObservable<IPRReviewState>;
+}
+
+export function getPRReviewComments(pullRequest: IGitHubPullRequestRef, threads: readonly IGitHubPullRequestReviewThread[], workingDirectory: URI): IPRReviewComment[] {
+	return threads.filter(thread => !thread.isResolved).map(thread => {
+		const line = thread.line ?? 1;
+		const firstComment = thread.comments[0];
+		return {
+			id: String(thread.id),
+			pullRequest,
+			uri: URI.joinPath(workingDirectory, thread.path),
+			range: new Range(thread.startLine ?? line, 1, line, 1),
+			body: firstComment?.body ?? '',
+			author: firstComment?.author.login ?? '',
+		};
+	});
 }
 
 interface IPRReviewCommentContext {
@@ -259,30 +274,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					incompletePullRequests.push(pullRequest);
 				}
 				const threads = reviewThreadsModel.reviewThreads.read(reader);
-				for (const thread of threads) {
-					if (thread.isResolved) {
-						continue;
-					}
-					const threadId = String(thread.id);
-					if (converted?.has(threadId)) {
-						continue;
-					}
-					const baseUri = context.workingDirectory;
-					if (!baseUri) {
-						continue;
-					}
-					const fileUri = URI.joinPath(baseUri, thread.path);
-					const line = thread.line ?? 1;
-					const startLine = thread.startLine ?? line;
-					const firstComment = thread.comments[0];
-					comments.push({
-						id: String(thread.id),
-						pullRequest,
-						uri: fileUri,
-						range: new Range(startLine, 1, line, 1),
-						body: firstComment?.body ?? '',
-						author: firstComment?.author.login ?? '',
-					});
+				if (context.workingDirectory) {
+					comments.push(...getPRReviewComments(pullRequest, threads, context.workingDirectory)
+						.filter(comment => !converted?.has(comment.id)));
 				}
 			}
 			if (!initialRefreshCompleted) {

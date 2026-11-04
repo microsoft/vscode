@@ -228,7 +228,7 @@ exchanges:
       stopReason: end_turn
 ```
 
-- **`dialect`** is stored **once** at the top. It determines both the endpoint the turns bucket under (`method`/`path` are derived, always `POST`) and which SSE regenerator to use. It's the one wire fact that can't be recovered from the normalized turn, so it can't be dropped. Fixtures with no model turns (e.g. `listModels`) omit it.
+- **`dialect`** at the top supplies the default endpoint and response encoding. A turn can override it when one conversation uses multiple model protocols, such as an Anthropic assistant and a Responses permission judge. A Responses turn with `stream: false` regenerates JSON rather than SSE; its request remains strictly compared and opaque reasoning is omitted. Fixtures with no model turns (e.g. `listModels`) omit the default.
 - **Each exchange** is just `request` + `response`. Tool-calling replies store `content` as a block list (`text` / `tool_use`); simple replies store a bare string.
 - **New recordings omit token usage.** Exact counts are volatile recording metadata, not model behavior. Older captures may still contain ignored `usage` fields; replay emits stable positive placeholder counts so usage-dependent Agent Host paths remain exercised without fixture churn.
 - **Placeholders** are substituted at record time so fixtures are deterministic and secret-free:

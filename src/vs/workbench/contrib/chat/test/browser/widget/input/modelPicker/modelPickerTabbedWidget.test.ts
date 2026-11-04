@@ -44,6 +44,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../s
 import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
 import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
+import { IModelPickerOrganizationSupport } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
@@ -51,6 +52,11 @@ import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAva
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILocalModelFamilyV1, ILocalModelStatusV1 } from '../../../../../../../../platform/agentHost/common/localModel.js';
+import { markOnboardingTarget } from '../../../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { SpotlightPresentation } from '../../../../../../onboarding/browser/spotlight/spotlightPresentation.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../../onboarding/browser/spotlight/spotlightTypes.js';
+import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
+import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
@@ -169,6 +175,8 @@ suite('TabbedModelPicker', () => {
 		controlManifest?: IModelsControlManifest;
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
+		organizationSupport?: IModelPickerOrganizationSupport;
+		manageSettingsUrl?: string;
 		showManageModels?: boolean;
 		manageModelsDisabledReason?: string;
 		comparisonKeybinding?: number;
@@ -296,7 +304,7 @@ suite('TabbedModelPicker', () => {
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
-			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
+			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: options.manageSettingsUrl, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
@@ -637,6 +645,116 @@ suite('TabbedModelPicker', () => {
 				hint: !!popup.querySelector('.tabbed-action-list-footer'),
 				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-compare'),
 			}, { hint: showHint === true, toggle: true });
+		});
+	}
+
+	test('comparison guidance attaches only outside setup and is disposed on close', () => {
+		let renderedButton: HTMLElement | undefined;
+		let rendered = 0;
+		let disposed = 0;
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			renderToggle: button => {
+				renderedButton = button;
+				rendered++;
+				return toDisposable(() => disposed++);
+			},
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => { }, select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { picker, popup } = createPicker({ comparison, realContextView: true });
+		const attached = renderedButton === element(popup, '[data-id="comparison"]');
+		element(popup, '[data-id="comparison"]').click();
+		const duringSetup = { rendered, disposed };
+		picker.hide();
+		assert.deepStrictEqual({ attached, duringSetup, afterClose: { rendered, disposed } }, {
+			attached: true, duringSetup: { rendered: 1, disposed: 1 }, afterClose: { rendered: 1, disposed: 1 },
+		});
+	});
+
+	for (const dismiss of ['understood', 'escape'] as const) {
+		test(`comparison spotlight preserves the real picker through deferred blur and ${dismiss}`, async () => {
+			const aborted = disposables.add(new Emitter<void>());
+			let guidanceDisposed = 0;
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary: constObservable(undefined), state: constObservable(undefined), label: 'Compare Models',
+				renderToggle: button => {
+					const target = markOnboardingTarget(button, 'test.compareModels');
+					return toDisposable(() => {
+						target.dispose();
+						guidanceDisposed++;
+						aborted.fire();
+					});
+				},
+				start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { picker, popup, anchor, contextKeyService } = createPicker({ comparison, realContextView: true });
+			const toggle = element(popup, '[data-id="comparison"]');
+			toggle.focus();
+			// Hidden Electron test windows do not emit native focus events.
+			toggle.dispatchEvent(new FocusEvent('focus'));
+			const previousFocus = document.activeElement;
+			const layout = new class extends TestLayoutService {
+				override getContainer() { return document.body; }
+			}();
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService));
+			const scenario: IOnboardingScenario<ISpotlightPayload> = {
+				id: 'test.compareModels',
+				trigger: { kind: 'auto' },
+				presentation: {
+					kind: SPOTLIGHT_PRESENTATION_KIND,
+					payload: {
+						steps: [{
+							id: 'compareModels', targetId: 'test.compareModels',
+							title: 'Try more than one approach', description: 'Compare models and optionally judge and synthesize their results.',
+							nextButtonLabel: 'Understood', allowTargetInteraction: true, advanceOnTargetClick: true, hideNext: false,
+						}],
+					},
+				},
+			};
+			const shown = new DeferredPromise<void>();
+			const result = presentation.run(scenario, {
+				targetWindow: dom.getWindow(anchor), onAbort: aborted.event, onDidShow: () => { void shown.complete(); },
+			});
+			await shown.p;
+			const callout = element(document.body, '.spotlight-callout');
+			const next = element(callout, '.monaco-button:not([style*="display: none"])');
+			toggle.dispatchEvent(new FocusEvent('blur'));
+			await timeout(0);
+			const afterBlur = {
+				pickerVisible: picker.isVisible, calloutVisible: callout.isConnected,
+				focusInCallout: callout.contains(document.activeElement), guidanceDisposed,
+			};
+			if (dismiss === 'understood') {
+				next.click();
+			} else {
+				next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+			}
+			const outcome = (await result).outcome;
+			await timeout(0);
+			const afterDismiss = {
+				pickerVisible: picker.isVisible, calloutVisible: callout.isConnected,
+				focusRestored: document.activeElement === previousFocus, guidanceDisposed,
+			};
+			toggle.focus();
+			toggle.dispatchEvent(new FocusEvent('focus'));
+			anchor.focus();
+			toggle.dispatchEvent(new FocusEvent('blur'));
+			await timeout(0);
+			assert.deepStrictEqual({ afterBlur, outcome, afterDismiss, closedOnBlur: !picker.isVisible, guidanceDisposed }, {
+				afterBlur: { pickerVisible: true, calloutVisible: true, focusInCallout: true, guidanceDisposed: 0 },
+				outcome: dismiss === 'understood' ? OnboardingOutcome.Completed : OnboardingOutcome.Skipped,
+				afterDismiss: { pickerVisible: true, calloutVisible: false, focusRestored: true, guidanceDisposed: 0 },
+				closedOnBlur: true, guidanceDisposed: 1,
+			});
 		});
 	}
 
@@ -2090,6 +2208,33 @@ suite('TabbedModelPicker', () => {
 			upgrade: true,
 			selected: ['Auto'],
 			selections: [],
+		});
+	});
+
+	test('an admin-locked model links Contact Admin to the organization help page when one is set, else to GitHub settings', () => {
+		const adminLink = (organizationSupport?: IModelPickerOrganizationSupport, manageSettingsUrl?: string) => {
+			const result = createPicker({
+				entitlement: ChatEntitlement.Business,
+				showUnavailable: true,
+				controlModels: { locked: { label: 'Locked', featured: true, exists: false } },
+				organizationSupport,
+				manageSettingsUrl,
+			});
+			const row = element(result.popup, '.chat-model-picker-unavailable');
+			const link = row.querySelector<HTMLElement>('.description a');
+			const state = { text: row.querySelector('.description')?.textContent, href: link?.dataset.href, title: link?.title };
+			result.picker.hide();
+			return state;
+		};
+		const support = { url: 'https://example.com/help(copilot)?topic=foo\\_bar', tooltip: 'Opens your organization\'s help page (example.com)' };
+		assert.deepStrictEqual({
+			noLink: adminLink(),
+			githubFallback: adminLink(undefined, 'https://github.com/settings/copilot/features'),
+			withSupport: adminLink(support, 'https://github.com/settings/copilot/features'),
+		}, {
+			noLink: { text: 'Contact Admin', href: undefined, title: undefined },
+			githubFallback: { text: 'Contact Admin', href: 'https://github.com/settings/copilot/features', title: 'https://github.com/settings/copilot/features' },
+			withSupport: { text: 'Contact Admin', href: 'https://example.com/help%28copilot%29?topic=foo%5C_bar', title: 'Opens your organization\'s help page (example.com)' },
 		});
 	});
 
