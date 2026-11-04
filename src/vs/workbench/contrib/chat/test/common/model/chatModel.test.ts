@@ -33,7 +33,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, reviveSerializableInputState, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
@@ -42,6 +42,8 @@ import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, 
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1232,6 +1234,20 @@ suite('ChatModel', () => {
 			serviceOwnedKey: true,
 			widgetOwnedKey: 'from-widget',
 		});
+	});
+
+	test('input model serialization preserves chat-local configuration provenance', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		model.inputModel.setState({
+			selectedModel: { identifier: 'test/model', metadata: upcastPartial<ILanguageModelChatMetadata>({ name: 'Test' }) },
+			modelConfiguration: { reasoningEffort: 'low' },
+			modelConfigurationIsTransient: true,
+		});
+		const state = reviveSerializableInputState(JSON.parse(JSON.stringify(model.inputModel.toJSON())));
+		assert.deepStrictEqual({
+			configuration: state.modelConfiguration,
+			transient: state.modelConfigurationIsTransient,
+		}, { configuration: { reasoningEffort: 'low' }, transient: true });
 	});
 
 	test('modeInfo roundtrips through serialization', async () => {

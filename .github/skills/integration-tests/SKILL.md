@@ -15,7 +15,7 @@ Integration tests in VS Code are split into two categories:
 - **macOS / Linux:** `./scripts/test-integration.sh [options]`
 - **Windows:** `.\scripts\test-integration.bat [options]`
 
-When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. They do **not** run the deterministic Agent Host E2E suites: those run with `./scripts/test-agent-host-e2e.sh` (or `.\scripts\test-agent-host-e2e.bat`, or `pnpm run test-agent-host-e2e`), which runs each suite in its own isolated test process, in parallel. GitHub CI runs them in parallel with the integration tests, in the separate `Linux / Agent-Host-E2E` job on Linux and the `Windows / Agent-Host-E2E (shard 1/2)` and `Windows / Agent-Host-E2E (shard 2/2)` jobs on Windows, and as a separate step before `🧪 Run integration tests (Electron)` on macOS; ADO runs them as the `integration-agent-host-e2e` test ID in a separate `Agent Host E2E Tests (Electron)` job, not in the `Integration Tests (Electron)` job (`integration-electron`). See `src/vs/platform/agentHost/test/node/e2e/README.md`. `--run` still accepts a single Agent Host E2E file.
+When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. They do **not** run the deterministic Agent Host E2E suites: those run with `./scripts/test-agent-host-e2e.sh` (or `.\scripts\test-agent-host-e2e.bat`, or `pnpm run test-agent-host-e2e`), which runs each suite in its own isolated test process, in parallel. GitHub CI runs them in parallel with the integration tests, in the separate `Linux / Agent-Host-E2E` job on Linux and the `Windows / Agent-Host-E2E (shard 1/3)` through `Windows / Agent-Host-E2E (shard 3/3)` jobs on Windows, and as a separate step before `🧪 Run integration tests (Electron)` on macOS; ADO runs them as the `integration-agent-host-e2e` test ID in a separate `Agent Host E2E Tests (Electron)` job, not in the `Integration Tests (Electron)` job (`integration-electron`). See `src/vs/platform/agentHost/test/node/e2e/README.md`. `--run` still accepts a single Agent Host E2E file.
 
 When run **with `--run` or `--runGlob`** (without `--suite`), only the node.js integration tests are run and the filter is applied. Extension host tests are skipped since these filters are node.js-specific.
 
@@ -88,6 +88,14 @@ GitHub pull request CI runs the two parts as separate steps. `🧪 Run integrati
 ```bash
 ./scripts/test-integration.sh --only-node-tests --rerun-failed-files 2
 ./scripts/test-integration.sh --only-extension-host-tests
+```
+
+### `INTEGRATION_TEST_PARALLEL=<lanes>` - Run extension host suites in parallel
+
+Most of an extension host suite is starting VS Code, so with this environment variable, `scripts/test-integration.sh` and `scripts/test-remote-integration.sh` (macOS/Linux) run up to `<lanes>` suites at the same time, the longest first, each with its own user data and logs folders. Unless `VSCODE_SKIP_PRELAUNCH` is set, Electron, the compiled sources and the built-in extensions are prepared once before the suites start, instead of at each launch. Each suite's output is printed when it finishes, and the run fails at the end when any suite failed. Without it, the suites run one after another and the first failure stops the run. The Linux and macOS PR jobs set it to 2 (see `scripts/integration-test-suites.sh`). The API tests wait a fixed time for tools to register and for browser pages to respond, and another instance competing for the CPU delays them past that time, so they run first, with no other suite at the same time (`run_group_alone api`).
+
+```bash
+INTEGRATION_TEST_PARALLEL=2 ./scripts/test-integration.sh --only-extension-host-tests
 ```
 
 ### `--help`, `-h` - Show help

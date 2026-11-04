@@ -509,7 +509,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly sessionRepositoryMap = new ResourceMap<string>();
 	private readonly sessionReferencesMap = new ResourceMap<readonly vscode.ChatPromptReference[]>();
 	public chatParticipant = vscode.chat.createChatParticipant(CopilotCloudSessionsProvider.TYPE, async (request, context, stream, token) => {
-		await this.chatParticipantImpl(request, context, stream, token);
+		return this.chatParticipantImpl(request, context, stream, token);
 	});
 	private cachedSessionsSize: number = 0;
 	private cachedSessionItems: vscode.ChatSessionItem[] | undefined;
@@ -2484,8 +2484,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		// Follow up
 		if (context.chatSessionContext && !this.isUntitledChatSession(context) && request.sessionResource.scheme === CopilotCloudSessionsProvider.TYPE) {
-			await this.handleFollowUp(request, context, stream, token);
-			return {};
+			return this.handleFollowUp(request, context, stream, token);
 		}
 
 		// New request
@@ -2520,7 +2519,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}
 
-	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<{}> {
+	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<vscode.ChatResult> {
 		const backend = this._backend;
 		// Sending a message adopts an external task. It stays adopted even if the message fails.
 		if (await this.recordTaskFromVSCode(taskId)) {
@@ -2531,7 +2530,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			stream.progress(vscode.l10n.t('Steering'));
 			const steerResult = await backend.sendFollowUpToTask(taskId, prompt);
 			if (!steerResult) {
-				stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
+				return { errorDetails: { message: vscode.l10n.t('Failed to send follow-up to the task.') } };
 			}
 			return {};
 		}
@@ -2547,8 +2546,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}),
 		]);
 		if (!before) {
-			stream.warning(vscode.l10n.t('Could not find the task for this chat session.'));
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Could not find the task for this chat session.') } };
 		}
 		const priorTurnCount = before.task.sessions?.length ?? 0;
 		const seedEventIds = new Set(priorEvents.map(e => e.id));
@@ -2561,8 +2559,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		stream.progress(vscode.l10n.t('Delegating'));
 		const result = await backend.sendFollowUpToTask(taskId, prompt);
 		if (!result) {
-			stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Failed to send follow-up to the task.') } };
 		}
 
 		// Stay yield-aware (mirrors the CLI provider): steering must cancel only this local streamer,
@@ -2594,17 +2591,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		const { prompt } = request;
 		if (!prompt || prompt.trim().length === 0) {
-			stream.markdown(vscode.l10n.t('Please provide a message for the cloud agent.'));
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Please provide a message for the cloud agent.') } };
 		}
 
 		stream.progress(vscode.l10n.t('Preparing'));
 		const resource = context.chatSessionContext.chatSessionItem.resource;
 		const taskId = SessionIdForTask.parseTaskId(resource);
 		if (!taskId) {
-			stream.warning(vscode.l10n.t('Could not resolve the task for this chat session.'));
 			this.logService.error(`Invalid cloud task resource: ${resource}`);
-			return {};
+			return { errorDetails: { message: vscode.l10n.t('Could not resolve the task for this chat session.') } };
 		}
 		return this.handleTaskFollowUp(taskId, prompt, stream, token, context);
 	}

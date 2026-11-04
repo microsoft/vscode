@@ -32,10 +32,13 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IContextViewService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { Link } from '../../../../../../../platform/opener/browser/link.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../../../common/editor.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
@@ -47,6 +50,7 @@ import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
+import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { createMessageBanner } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
@@ -67,6 +71,7 @@ function isComparisonConfigurationValue(value: unknown): value is string | numbe
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
+	readonly agentModelPreferences?: IAgentModelPreferences;
 	readonly comparison?: IModelPickerComparison;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Models from every harness that can participate in a comparison. */
@@ -179,7 +184,7 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -189,6 +194,7 @@ export class TabbedModelPicker extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -553,9 +559,31 @@ export class TabbedModelPicker extends Disposable {
 					listOptions,
 				};
 			},
-			renderFooter: comparison && (step || comparison.showPickerHint?.get()) ? container => step
-				? this._renderComparisonFooter(container, comparison)
-				: this._renderStartComparisonFooter(container, comparison) : undefined,
+			renderFooter: baseContext.agentModelPreferences?.required || (comparison && (step || comparison.showPickerHint?.get())) ? container => {
+				const store = new DisposableStore();
+				if (baseContext.agentModelPreferences?.required) {
+					const notice = dom.append(container, dom.$('.chat-model-picker-agent-notice'));
+					const source = baseContext.agentModelPreferences.source;
+					if (source) {
+						store.add(this.instantiationService.createInstance(Link, notice, {
+							label: localize('chat.modelPicker.agentModelsSource', "Models defined by {0}", source.name),
+							href: source.uri.toString(),
+						}, {
+							opener: () => {
+								this._widget.hide();
+								this._editorService.openEditor({ resource: source.uri, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }).catch(onUnexpectedError);
+							},
+						}));
+					} else {
+						notice.textContent = localize('chat.modelPicker.agentModels', "Models defined by the current agent");
+					}
+				}
+				if (comparison && (step || comparison.showPickerHint?.get())) {
+					const footer = dom.append(container, dom.$('div'));
+					store.add(step ? this._renderComparisonFooter(footer, comparison) : this._renderStartComparisonFooter(footer, comparison));
+				}
+				return store;
+			} : undefined,
 			renderEmpty: (container, activeTab) => {
 				const destination = destinations.find(candidate => candidate.id === activeTab);
 				if (!destination?.placeholders.length) {
@@ -1307,7 +1335,12 @@ export class TabbedModelPicker extends Disposable {
 			label: rowLabel,
 			description: modelBadge || routingBadge || fusionRecommendedBadge ? undefined : action.description,
 			badge: modelBadge?.text ?? routingBadge ?? fusionRecommendedBadge,
-			additionalBadges: this._getOrganizationDefaultBadges(model, context),
+			additionalBadges: [
+				...(this._getOrganizationDefaultBadges(model, context) ?? []),
+				...(context.agentModelPreferences && resolveAgentModelPreferences(context.agentModelPreferences.models, context.models).some(candidate => candidate.identifier === model.identifier)
+					? [{ label: context.agentModelPreferences.required ? localize('chat.modelPicker.agentRequired', "Agent Required") : localize('chat.modelPicker.agentPreferred', "Agent Preferred") }]
+					: []),
+			],
 			ariaDescription: localDirect
 				? localDirect.ariaDescription
 				: [ariaDescription, configDescription].filter(Boolean).join(', '),

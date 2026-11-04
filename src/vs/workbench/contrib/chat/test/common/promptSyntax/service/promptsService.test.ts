@@ -14,7 +14,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { basename, relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, isEqual, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -1568,6 +1568,7 @@ suite('PromptsService', () => {
 						'description: \'VS Code specialized agent.\'',
 						'target: \'vscode\'',
 						'model: \'gpt-4\'',
+						'reasoning-effort: low',
 						'---',
 						'I am specialized for VS Code editor tasks.',
 					]
@@ -1613,6 +1614,7 @@ suite('PromptsService', () => {
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
 					model: ['gpt-4'],
+					reasoningEffort: 'low',
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
@@ -4564,6 +4566,58 @@ suite('PromptsService', () => {
 			assert.strictEqual(discoveryInfo.files.length, 1);
 			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
 			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+		});
+
+		test('preserves Unicode characters in prompt slash command names', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			// allow-any-unicode-next-line
+			const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+			const promptUri = URI.file(`/workspace/.github/prompts/${name}.prompt.md`);
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+			await mockFiles(fileService, [{ path: promptUri.path, contents: ['Unicode prompt content'] }]);
+
+			const slashCommand = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => isEqual(command.uri, promptUri));
+			const resolved = await service.resolvePromptSlashCommand(name, undefined, CancellationToken.None);
+			const reopened = await service.parseNew(promptUri, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				name: slashCommand?.name,
+				valid: service.isValidSlashCommandName(name),
+				resolvedUri: resolved?.uri.toString(),
+				parsedUri: resolved?.parsedPromptFile?.uri.toString(),
+				reopenedUri: reopened.uri.toString(),
+			}, {
+				name,
+				valid: true,
+				resolvedUri: promptUri.toString(),
+				parsedUri: promptUri.toString(),
+				reopenedUri: promptUri.toString(),
+			});
+		});
+
+		test('sanitizes path separators and whitespace without changing the prompt URI', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+			const promptUri = URI.file('/workspace/.github/prompts/review.prompt.md');
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+			await mockFiles(fileService, [{ path: promptUri.path, contents: ['---', 'name: "review/ security"', '---', 'Review content'] }]);
+
+			const command = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => isEqual(command.uri, promptUri));
+			const resolved = await service.resolvePromptSlashCommand('review-security', undefined, CancellationToken.None);
+			assert.deepStrictEqual({
+				name: command?.name,
+				valid: service.isValidSlashCommandName(command?.name ?? ''),
+				uri: resolved?.parsedPromptFile?.uri.toString(),
+			}, {
+				name: 'review-security',
+				valid: true,
+				uri: promptUri.toString(),
+			});
+		});
+
+		test('validates Unicode prompt names while excluding separators, whitespace and controls', () => {
+			const names = ['review', 'plugin:tool!', '\uFF160', 'cafe\u0301', '\uE234', '', 'review/security', 'review security', 'review\nsecurity', 'review\u0000security'];
+			assert.deepStrictEqual(names.map(name => service.isValidSlashCommandName(name)), [true, true, true, true, true, false, false, false, false, false]);
 		});
 	});
 

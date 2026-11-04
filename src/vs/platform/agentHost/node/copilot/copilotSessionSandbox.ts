@@ -163,7 +163,7 @@ export class CopilotSessionSandbox extends Disposable {
 				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session) {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
-				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
+				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource, context.userFeedback);
 				// The grant changes the runtime's live policy outside `options.update`.
 				this._appliedConfig = undefined;
 				const result = await session.rpc.sandbox.grantPathForRequest({

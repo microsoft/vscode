@@ -27,7 +27,7 @@ import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
-import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 
 interface IGroupEntry {
 	readonly id: number;

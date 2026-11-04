@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { upcast } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -107,6 +109,42 @@ export interface IAutoUpdater extends Event.NodeEventEmitter {
 
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
+/**
+ * Restarts to apply a downloaded update while the screen is locked.
+ */
+export const RESTART_WHEN_IDLE_SETTING = 'update.restartWhenIdle';
+
+/**
+ * Whether a downloaded update can be applied by restarting while the screen is locked. Windows
+ * is not verified yet: restored windows might show on top of the application the user was in.
+ * Linux reports no screen locks and does not install updates on restart.
+ */
+export function isUnattendedRestartSupported(os: OperatingSystem): boolean {
+	return os === OperatingSystem.Macintosh;
+}
+
+export interface IQuitAndInstallOptions {
+
+	/**
+	 * The user did not ask for the restart, so like the checks in the background, the
+	 * check for a newer update before restarting skips metered connections.
+	 */
+	readonly unattended?: boolean;
+
+	/**
+	 * Relaunch without activating the application, so that the restart does not take
+	 * focus. Only macOS activates a relaunched application, the windows restore without
+	 * focus on every platform (see `IWindowsMainService.restoreExactlyOnNextStartup`).
+	 */
+	readonly relaunchInBackground?: boolean;
+
+	/**
+	 * Cancels the restart until the shutdown starts, for example when the user returns
+	 * while checking for a newer update.
+	 */
+	readonly token?: CancellationToken;
+}
+
 export interface IUpdateService {
 	readonly _serviceBrand: undefined;
 
@@ -116,7 +154,7 @@ export interface IUpdateService {
 	checkForUpdates(explicit: boolean): Promise<void>;
 	downloadUpdate(explicit: boolean): Promise<void>;
 	applyUpdate(): Promise<void>;
-	quitAndInstall(): Promise<void>;
+	quitAndInstall(options?: IQuitAndInstallOptions): Promise<void>;
 
 	/**
 	 * @deprecated This method should not be used any more. It will be removed in a future release.

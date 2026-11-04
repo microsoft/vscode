@@ -37,6 +37,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
@@ -51,6 +52,7 @@ import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
+import { TestEditorService } from '../../workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -490,6 +492,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			registration.defineInstance(IEditorService, disposableStore.add(new TestEditorService()));
 			if (options.managedDefaultModel !== undefined) {
 				const configurationService = new class extends TestConfigurationService {
 					override inspect<T>(key: string): IConfigurationValue<T> {
