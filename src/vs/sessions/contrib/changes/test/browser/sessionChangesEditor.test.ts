@@ -8,7 +8,7 @@ import { $, append, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
@@ -47,6 +47,12 @@ import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../browser/media/sessionChangesEditor.css';
 
@@ -361,5 +367,51 @@ suite('SessionChangesEditor disposal', () => {
 		}
 
 		assert.deepStrictEqual(errors, []);
+	});
+});
+
+suite('SessionChangesEditor input', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('lets go of what its input resolved only when no other group shows the input, such as the one its tab moved to, whose diffs would otherwise empty', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		}());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const input = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/session')));
+		const cleared: boolean[] = [];
+		input.clear = () => { cleared.push(true); };
+		const otherGroupShows = { value: true };
+		const groups = [
+			upcastPartial<IEditorGroup>({ id: 1, contains: () => false }),
+			upcastPartial<IEditorGroup>({ id: 2, contains: (editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions) => otherGroupShows.value && editor === input && !!options?.strictEquals }),
+		];
+		Object.defineProperty(instantiationService.get(IEditorGroupsService), 'groups', { get: () => groups });
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		const clearWith = (shownElsewhere: boolean) => {
+			otherGroupShows.value = shownElsewhere;
+			cleared.length = 0;
+			EditorPane.prototype.setInput.call(editor, input, undefined, {}, CancellationToken.None);
+			editor.clearInput();
+			return cleared.length;
+		};
+
+		assert.deepStrictEqual({ movedToAnotherGroup: clearWith(true), closed: clearWith(false) }, { movedToAnotherGroup: 0, closed: 1 });
 	});
 });
