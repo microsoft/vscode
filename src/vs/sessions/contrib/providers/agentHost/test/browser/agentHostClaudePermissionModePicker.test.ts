@@ -26,6 +26,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostClaudePermissionModePicker } from '../../browser/agentHostClaudePermissionModePicker.js';
 import { IAgentHostSessionEnumPickerItem } from '../../browser/agentHostModePicker.js';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -118,7 +119,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IHoverService, { ...NullHoverService });
 
-	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
+	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionChatSourceOf(sessionObs)));
 	const container = document.createElement('div');
 	picker.render(container);
 	const trigger = container.querySelector<HTMLElement>('a.action-label');

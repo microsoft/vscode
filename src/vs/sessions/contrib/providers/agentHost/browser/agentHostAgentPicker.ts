@@ -34,7 +34,7 @@ import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
-import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -282,10 +282,11 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		}));
 
 		const createFactory = (hideWhenMoved: boolean) => (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
-			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+			const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+			const session = host.session;
 			const disposableStore = new DisposableStore();
 			const modePickerModel = disposableStore.add(modePickerModels.acquire(session, scopedInstantiationService));
-			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel.model, session);
+			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel.model, host);
 			const pickerInAttachContext = derived(reader => {
 				configurationChanged.read(reader);
 				return hideWhenMoved && shouldHidePicker(session.read(reader), reader);
@@ -295,7 +296,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 				this._selectMode(mode, session.get(), sessionsProvidersService);
 			}));
 			const item = scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, pickerInAttachContext, disposableStore, () => {
-				const resource = session.get()?.activeChat.get()?.resource;
+				const resource = host.chat.get()?.resource;
 				if (resource) {
 					this.chatWidgetService.getWidgetBySessionResource(resource)?.focusInput();
 				}

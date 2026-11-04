@@ -48,13 +48,27 @@ export function isSessionHostCommandContext(value: unknown): value is ISessionHo
 }
 
 /**
+ * A session and the chat of it that UI acts on: a host, or a session and chat that a host passes down, such as a composer
+ * that binds to another chat than its host shows.
+ */
+export interface ISessionChatSource {
+	readonly session: IObservable<IHostSession | undefined>;
+	readonly chat: IObservable<IChat | undefined>;
+}
+
+/** A source of the selected chat of `session`, for UI given an {@link IActiveSession} rather than a host. */
+export function sessionChatSourceOf(session: IObservable<IActiveSession | undefined>): ISessionChatSource {
+	return { session, chat: derived(reader => session.read(reader)?.activeChat.read(reader)) };
+}
+
+/**
  * The place UI lives in: a window, or a pane, composer or dialog nested in one. A host shows at most one chat at a time,
  * which it owns as its selection, independently of focus. Its session derives from that chat.
  *
  * UI injects the host it is created in: a host provides itself to what it creates through a child instantiation
  * service, and DI resolves the nearest one. Never compute which host UI is in.
  */
-export interface ISessionHost {
+export interface ISessionHost extends ISessionChatSource {
 	readonly _serviceBrand: undefined;
 
 	/** Stable for the life of the host; what its menus pass to commands. */

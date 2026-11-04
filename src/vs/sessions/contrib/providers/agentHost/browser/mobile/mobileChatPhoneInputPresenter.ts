@@ -274,7 +274,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 	private _getSessionContext(request: ChatPhoneInputPresenterRequest): IChatPhoneInputSessionContext | undefined {
 		return request.kind === 'session'
 			? request.getSessionContext()
-			: createChatPhoneInputSessionContext(this._sessionsService.activeSession.get());
+			: createChatPhoneInputSessionContext(this._sessionsService.activeSession.get(), this._sessionsService.activeSession.get()?.activeChat.get());
 	}
 }
 
