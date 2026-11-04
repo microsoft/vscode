@@ -6,7 +6,6 @@ import path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as os from 'os';
-import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 import { isCloudSandbox } from './cloudSandbox.ts';
 import { checkPackageManager, getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 import { installNodeGypHeaders } from './nodeGypHeaders.ts';
@@ -45,13 +44,6 @@ const packageManagerError = checkPackageManager(process.env.npm_config_user_agen
 if (packageManagerError) {
 	console.error(`\x1b[1;31m*** ${packageManagerError} ***\x1b[0;0m`);
 	throw new Error();
-}
-
-// Fast path: if nothing changed since last successful install, skip everything.
-// This makes `pnpm install` near-instant when dependencies haven't changed.
-if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
-	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
-	process.exit(0);
 }
 
 if (process.platform === 'win32') {

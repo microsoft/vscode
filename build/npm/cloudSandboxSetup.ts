@@ -10,8 +10,9 @@ import * as os from 'node:os';
 import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 import { isCloudSandbox, prepareCloudSandbox, prepareCloudSandboxPnpm, raiseCloudSandboxFileLimit } from './cloudSandbox.ts';
-import { root } from './installStateHash.ts';
 import { getPinnedPnpmVersion } from '../lib/pnpm.ts';
+
+const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 
 async function acquireSetupLock(lockFile: string): Promise<() => void> {
 	const deadline = performance.now() + 20 * 60_000;
@@ -111,7 +112,7 @@ if (isCloudSandbox()) {
 			execFileSync(node, [path.join(root, 'build/npm/preinstall.ts')], {
 				cwd: root,
 				stdio: 'inherit',
-				env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}`, VSCODE_FORCE_INSTALL: '1' },
+				env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}` },
 			});
 			fs.mkdirSync(path.dirname(stateFile), { recursive: true });
 			fs.writeFileSync(stateFile, fingerprint);
