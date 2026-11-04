@@ -246,7 +246,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
  * the active group of the main part of its window (the first part created in
  * it), as editors opened from a view go to the editor area.
  */
-function handOffFromSelfTitledEditor(group: IEditorGroup, editorGroupService: IEditorGroupsService): IEditorGroup {
+export function handOffFromSelfTitledEditor(group: IEditorGroup, editorGroupService: Pick<IEditorGroupsService, 'parts' | 'mainPart'>): IEditorGroup {
 	if (group.count !== 1 || !group.activeEditorPane?.providesTitle) {
 		return group;
 	}
