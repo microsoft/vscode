@@ -8,6 +8,7 @@ import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
+import { decideCopilotExtensionConsent } from './copilotExtensionConsent.js';
 import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
 import { parseCopilotMcpSkillConsentRequest, type ICopilotMcpSkillConsentRequest } from './copilotMcpSkillConsent.js';
 import { realpath as fsRealpath } from 'fs';
@@ -7936,6 +7937,9 @@ export class CopilotAgentSession extends Disposable {
 			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
 			if (!toolCallId) {
+				if (request.kind === 'extension-permission-access') {
+					return await this._handleExtensionLoadConsent(request);
+				}
 				// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
 				this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
 				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
@@ -8251,6 +8255,21 @@ export class CopilotAgentSession extends Disposable {
 				void this._syncPermissionModeAfterConfigChange();
 			}
 		}
+	}
+
+	/**
+	 * Answers the consent an extension needs to load with privileged declarations. The runtime asks it
+	 * while the session starts, with no turn or tool call to attach a confirmation to, so the host can only
+	 * answer it from what the user already enabled (https://github.com/microsoft/vscode-internalbacklog/issues/10615).
+	 */
+	private async _handleExtensionLoadConsent(request: Extract<PermissionRequest, { kind: 'extension-permission-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		const decision = await decideCopilotExtensionConsent(request, this._appliedSnapshot.plugins, this._fileService);
+		if (decision.approve) {
+			this._logService.info(`[Copilot:${this.sessionId}] Approving load of extension ${request.extensionName} with [${decision.capabilities.join(', ')}] because its plugin '${decision.pluginName}' is applied to this session`);
+			return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
+		}
+		this._logService.warn(`[Copilot:${this.sessionId}] Rejecting load of extension ${request.extensionName} because ${decision.reason}`);
+		return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 	}
 
 	private async _isReadWithinAppliedPluginDirectory(filePath: string): Promise<boolean> {

@@ -12160,6 +12160,94 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'reject');
 		});
 
+		async function answerConsentDuringLaunch(requests: Record<string, PermissionRequest>, options: Parameters<typeof createAgentSession>[1]) {
+			const results: Record<string, string> = {};
+			const { signals } = await createAgentSession(disposables, {
+				...options,
+				duringLaunch: async runtime => {
+					for (const [name, request] of Object.entries(requests)) {
+						const result = await runtime.handlePermissionRequest(request, { sessionId: 'test-session-1' });
+						results[name] = result.kind === 'attributed' ? result.result.kind : result.kind;
+					}
+				},
+			});
+			return { results, confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length };
+		}
+
+		function extensionConsent(extensionName: string, capabilities: string[], managedApprovalRequired?: boolean): PermissionRequest {
+			return { kind: 'extension-permission-access', extensionName, capabilities, ...(managedApprovalRequired ? { managedApprovalRequired } : {}) };
+		}
+
+		test('approves only hook registration by an applied plugin\'s extension when it loads at startup', async () => {
+			const pluginDir = URI.file('/plugins/agent-plan');
+			const answered = await answerConsentDuringLaunch({
+				applied: extensionConsent('plugin:agent-plan:agent-plan', ['register hooks']),
+				otherPlugin: extensionConsent('plugin:agent-plan-evil:agent-plan', ['register hooks']),
+				projectExtension: extensionConsent('project:agent-plan', ['register hooks']),
+				malformedName: extensionConsent('plugin:agent-plan:nested:agent-plan', ['register hooks']),
+				extraCapability: extensionConsent('plugin:agent-plan:agent-plan', ['register hooks', 'handle permission requests']),
+				otherCapability: extensionConsent('plugin:agent-plan:agent-plan', ['skip tool permission prompts']),
+				noCapabilities: extensionConsent('plugin:agent-plan:agent-plan', []),
+				managed: extensionConsent('plugin:agent-plan:agent-plan', ['register hooks'], true),
+				environmentAccess: { kind: 'extension-env-access', extensionName: 'plugin:agent-plan:agent-plan', environmentVariables: ['GITHUB_TOKEN'] },
+			}, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				fileContents: { [URI.joinPath(pluginDir, '.plugin', 'plugin.json').fsPath]: JSON.stringify({ name: 'agent-plan' }) },
+			});
+
+			assert.deepStrictEqual(answered, {
+				results: {
+					applied: 'approve-once',
+					otherPlugin: 'reject',
+					projectExtension: 'reject',
+					malformedName: 'reject',
+					extraCapability: 'reject',
+					otherCapability: 'reject',
+					noCapabilities: 'reject',
+					managed: 'reject',
+					environmentAccess: 'reject',
+				},
+				confirmations: 0,
+			});
+		});
+
+		test('approves a resumed plugin extension only when every manifest of a delivered plugin directory names its plugin', async () => {
+			const agreeing = URI.file('/plugins/agreeing');
+			const conflicting = URI.file('/plugins/conflicting');
+			const unnamed = URI.file('/plugins/unnamed');
+			const standalone = URI.file('/plugins/standalone');
+			const snapshot = createPluginSnapshot(agreeing, conflicting, unnamed);
+			const answered = await answerConsentDuringLaunch({
+				agreeing: extensionConsent('plugin:agreeing:canvas', ['register hooks']),
+				conflicting: extensionConsent('plugin:conflicting:canvas', ['register hooks']),
+				conflictingAlternative: extensionConsent('plugin:other:canvas', ['register hooks']),
+				unnamed: extensionConsent('plugin:unnamed:canvas', ['register hooks']),
+				standalone: extensionConsent('plugin:standalone:canvas', ['register hooks']),
+			}, {
+				resume: true,
+				clientSnapshot: { ...snapshot, plugins: [...snapshot.plugins, { ...snapshot.plugins[0], pluginDir: undefined, resourceDir: standalone }] },
+				fileContents: {
+					[URI.joinPath(agreeing, 'plugin.json').fsPath]: JSON.stringify({ name: 'agreeing' }),
+					[URI.joinPath(agreeing, '.claude-plugin', 'plugin.json').fsPath]: JSON.stringify({ name: 'agreeing' }),
+					[URI.joinPath(conflicting, '.plugin', 'plugin.json').fsPath]: JSON.stringify({ name: 'conflicting' }),
+					[URI.joinPath(conflicting, 'plugin.json').fsPath]: JSON.stringify({ name: 'other' }),
+					[URI.joinPath(unnamed, '.plugin', 'plugin.json').fsPath]: JSON.stringify({ description: 'Named after its directory by the runtime' }),
+					[URI.joinPath(standalone, '.plugin', 'plugin.json').fsPath]: JSON.stringify({ name: 'standalone' }),
+				},
+			});
+
+			assert.deepStrictEqual(answered, {
+				results: {
+					agreeing: 'approve-once',
+					conflicting: 'reject',
+					conflictingAlternative: 'reject',
+					unnamed: 'reject',
+					standalone: 'reject',
+				},
+				confirmations: 0,
+			});
+		});
+
 		test('rejects with feedback when user denies', async () => {
 			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 			const resultPromise = runtime.handlePermissionRequest({
