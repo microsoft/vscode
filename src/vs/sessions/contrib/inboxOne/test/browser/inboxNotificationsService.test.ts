@@ -486,6 +486,7 @@ suite('InboxNotificationsService', () => {
 		fixture.service.requestPreview(first);
 		await waitForState(fixture.service.isLoading, loading => !loading);
 		chatService.setCompletedResponse(resource, { requestId: 'second', markdown: `${'Earlier progress. '.repeat(200)}Created chocolate.md.` });
+		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(300), undefined);
 		const next = fixture.service.sessionRows.get()[0];
 		fixture.service.requestPreview(next);
 		await waitForState(fixture.service.isLoading, loading => !loading);
@@ -502,6 +503,45 @@ suite('InboxNotificationsService', () => {
 		}, {
 			sameRow: true, newSignature: true, title: 'Update profile', latestInput: true, containsResult: true,
 			bounded: true, requests: 2, old: 'Review profile changes', current: 'Review chocolate.md',
+		});
+	});
+
+	test('keeps completed row content stable when opening and unloading its history', async () => {
+		const session = createSession({ id: 'stable-preview', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		const resource = session.mainChat.get().resource;
+		let requests = 0;
+		chatService.setAcquireOrLoadHandler(async () => {
+			chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+			return { object: chatService.getSession(resource)!, dispose: () => chatService.removeSession(resource) };
+		});
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => {
+				requests++;
+				return request.purpose === 'inboxPreview' ? 'Review chocolate.md' : '{"status":"Created chocolate.md.","decisions":[],"evidence":[]}';
+			},
+		});
+		const before = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(before);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		fixture.service.requestDetailSummary(before);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+		const opened = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(opened);
+		fixture.service.requestDetailSummary(opened);
+		chatService.removeSession(resource);
+		const closed = fixture.service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			signatures: [before, opened, closed].map(row => row.previewSignature),
+			titles: [before, opened, closed].map(row => fixture.service.previews.get().get(row.previewSignature!)),
+			summary: fixture.service.detailSummaries.get().get(opened.id)?.status,
+			requests,
+		}, {
+			signatures: [before.previewSignature, before.previewSignature, before.previewSignature],
+			titles: ['Review chocolate.md', 'Review chocolate.md', 'Review chocolate.md'],
+			summary: 'Created chocolate.md.',
+			requests: 2,
 		});
 	});
 
@@ -528,6 +568,54 @@ suite('InboxNotificationsService', () => {
 			latestInput: requests[0].messages.some(message => message.content.some(part => part.type === 'text' && part.value.includes('Created chocolate.md.'))),
 			preview: fixture.service.previews.get().get(row.previewSignature!),
 		}, { loads: 1, releases: 1, latestInput: true, preview: 'Review chocolate.md' });
+	});
+
+	test('settles empty visibility summaries across history reloads while preserving interaction and invalidation retries', async () => {
+		const modelsChanged = disposables.add(new Emitter<string>());
+		const session = createSession({ id: 'empty-visible-summary', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		let loads = 0;
+		let releases = 0;
+		let available = false;
+		let requests = 0;
+		chatService.setAcquireOrLoadHandler(async resource => {
+			loads++;
+			chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Finished work.' });
+			return { object: chatService.getSession(resource)!, dispose: () => { releases++; chatService.removeSession(resource); } };
+		});
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			selectModels: async () => available ? ['utility-model'] : [],
+			onDidChangeLanguageModels: modelsChanged.event,
+			utilityRequest: async () => {
+				requests++;
+				return '{"status":"Generated summary","decisions":[],"evidence":[]}';
+			},
+		});
+		const request = async (source: 'visibility' | 'interaction') => {
+			fixture.service.requestDetailSummary(fixture.service.sessionRows.get()[0], source);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+		};
+		for (let observation = 0; observation < 3; observation++) {
+			await request('visibility');
+		}
+		const settled = { loads, releases, requests };
+		await request('interaction');
+		const retried = loads;
+		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(300), undefined);
+		await request('visibility');
+		const changed = loads;
+		available = true;
+		modelsChanged.fire('utility-model');
+		await request('visibility');
+		await request('visibility');
+		const item = fixture.service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			settled, retried, changed, loads, releases, requests,
+			summary: fixture.service.detailSummaries.get().get(item.id)?.status,
+		}, {
+			settled: { loads: 1, releases: 1, requests: 0 }, retried: 2, changed: 3,
+			loads: 4, releases: 4, requests: 1, summary: 'Generated summary',
+		});
 	});
 
 	test('completed ids survive chat-model residency, metadata changes, and reading the session', () => {
