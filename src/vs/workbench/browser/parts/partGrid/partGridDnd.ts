@@ -470,12 +470,8 @@ export class PartGridDropTarget extends Disposable {
 		this.reflowEnd.clear();
 		reflow.fill();
 		const timer = setTimeout(() => this.finish(editors, location), PART_GRID_REFLOW_DURATION + 30);
-		this.reflowEnd.value = toDisposable(() => {
-			clearTimeout(timer);
-			if (this.settling) {
-				this.finish(editors, location); // the drop is not lost
-			}
-		});
+		// Disposed meanwhile, such as with its grid, the drop is dropped: no part is created for a grid that goes
+		this.reflowEnd.value = toDisposable(() => clearTimeout(timer));
 	}
 
 	private finish(editors: readonly IEditorIdentifier[], location: PartGridLocation): void {
