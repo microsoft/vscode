@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -15,6 +18,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { getChatMarkdownRenderOptions } from '../../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -57,6 +62,7 @@ suite('ModelEvaluationTools', () => {
 			isQuickChat: constObservable(options.quickChat ?? false),
 		});
 		const type = { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, supportsWorktreeConfiguration: true, authRequirement: SessionTypeAuthRequirement.None };
+		const types = [type];
 		const model = upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 			identifier: 'model',
 			metadata: upcastPartial<ILanguageModelChatMetadata>({ id: 'model', name: 'Model', configurationSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', enum: ['low', 'high'] } } } }),
@@ -66,7 +72,7 @@ suite('ModelEvaluationTools', () => {
 		const provider = upcastPartial<IAgentHostSessionsProvider>({
 			id: caller.providerId, environment: { id: 'local', label: 'Local' },
 			supportsPermissionsForCreation: true, supportsModelConfigurationForCreation: options.supportsModelConfigurationForCreation ?? true, supportsQuickChats: true,
-			sessionTypes: [type], getSessionTypes: () => [type],
+			sessionTypes: types, getSessionTypes: () => types,
 			isSessionConfigResolving: () => constObservable(false),
 			getSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: { isolation: 'worktree' } }),
 			getSessionOwnConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: { isolation: 'worktree' } }),
@@ -100,10 +106,11 @@ suite('ModelEvaluationTools', () => {
 		const providers = store.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
 		store.add(providers.registerProvider(provider));
 		const entitlement = upcastPartial<IChatEntitlementService>({ sentiment: { hidden: false } });
+		const labels = upcastPartial<ILabelService>({ getUriLabel: resource => `/formatted${resource.path}` });
 		return {
-			configuration, provider, providers, sessions, entitlement, comparisons, launches, comparisonService, availableSessions, chat, chatWorkspace, caller, model, permissionChats,
+			configuration, provider, providers, sessions, entitlement, labels, types, comparisons, launches, comparisonService, availableSessions, chat, chatWorkspace, caller, model, permissionChats,
 			setPermission: (id: string) => permissionId = id,
-			tool: (name: ConstructorParameters<typeof ModelEvaluationTool>[0]) => new ModelEvaluationTool(name, comparisonService, sessions, providers, configuration, entitlement),
+			tool: (name: ConstructorParameters<typeof ModelEvaluationTool>[0]) => new ModelEvaluationTool(name, comparisonService, sessions, providers, configuration, entitlement, labels),
 		};
 	}
 
@@ -112,6 +119,13 @@ suite('ModelEvaluationTools', () => {
 			await tool.prepareToolInvocation?.({ parameters, toolCallId: 'call', chatSessionResource: callerResource }, token);
 		}
 		return tool.invoke({ callId: 'call', toolId: 'test', parameters, context: { sessionResource: callerResource } }, async () => 0, progress, token);
+	}
+
+	function renderConfirmation(message: IMarkdownString): HTMLElement {
+		const rendered = store.add(renderMarkdown(message, getChatMarkdownRenderOptions()));
+		mainWindow.document.body.appendChild(rendered.element);
+		store.add(toDisposable(() => rendered.element.remove()));
+		return rendered.element;
 	}
 
 	test('publishes every evaluator tool only after opt-in and while both feature gates are enabled', async () => {
@@ -140,6 +154,7 @@ suite('ModelEvaluationTools', () => {
 		instantiation.stub(ISessionsProvidersService, fixture.providers);
 		instantiation.stub(IConfigurationService, fixture.configuration);
 		instantiation.stub(IChatEntitlementService, fixture.entitlement);
+		instantiation.stub(ILabelService, fixture.labels);
 		store.add(new ModelEvaluationToolContribution(tools, instantiation, fixture.configuration));
 		const states = [{ registered: [...registered], published: [...published] }];
 		for (const [setting, enabled] of [
@@ -212,6 +227,58 @@ suite('ModelEvaluationTools', () => {
 			branch: fixture.launches[0].branch,
 			judge: fixture.launches[0].judgeHarness?.modelId,
 		}, { discoveryError: undefined, creationError: undefined, workspace: project.toString(), branch: 'main', judge: 'model' });
+	});
+
+	test('renders comparison approval with readable workspace, distinct roles and formatted scenario', async () => {
+		const fixture = setup();
+		const prepared = await fixture.tool('createModelComparison').prepareToolInvocation({
+			parameters: { ...launchInput(), prompt: 'Add `hi` at the top of `terminalservice.ts`.', synthesizer: selection },
+			toolCallId: 'call', chatSessionResource: callerResource,
+		}, CancellationToken.None);
+		const message = prepared.confirmationMessages?.message;
+		assert.ok(isMarkdownString(message));
+		const rendered = renderConfirmation(message);
+		assert.deepStrictEqual({
+			paragraphs: [...rendered.querySelectorAll('p')].map(element => element.innerText.replace(/\s+/g, ' ').trim()),
+			participants: [...rendered.querySelectorAll('li')].map(element => element.innerText.replace(/\s+/g, ' ').trim()),
+			code: [...rendered.querySelectorAll('code')].map(element => element.textContent),
+			trusted: !!message.isTrusted,
+			launches: fixture.launches.length,
+		}, {
+			paragraphs: [
+				'Workspace: /formatted/project Base Branch: main',
+				'Permissions: default (inherited from this chat)',
+				'Each attempt runs in a separate worktree.',
+				'Scenario',
+				'Add hi at the top of terminalservice.ts.',
+			],
+			participants: ['Attempt 1: Model (Copilot)', 'Attempt 2: Model (Copilot)', 'Judge: Model (Copilot)', 'Synthesizer (On Request): Model (Copilot)'],
+			code: ['hi', 'terminalservice.ts'],
+			trusted: false,
+			launches: 0,
+		});
+	});
+
+	test('renders folderless approval without worktree claims and preserves different harness permissions', async () => {
+		const fixture = setup();
+		fixture.types.push({ ...fixture.types[0], id: 'other', label: 'Other Harness' });
+		fixture.provider.getComparisonPermissionOptionForSession = (_id, type) => ({
+			id: type, label: type === 'copilotcli' ? 'Manual permissions' : 'Autopilot', description: '',
+		});
+		const prepared = await fixture.tool('createModelComparison').prepareToolInvocation({
+			parameters: { ...launchInput(), workspaceMode: 'folderless', judge: undefined, attempts: [selection, { ...selection, sessionTypeId: 'other' }] },
+			toolCallId: 'call', chatSessionResource: callerResource,
+		}, CancellationToken.None);
+		const message = prepared.confirmationMessages?.message;
+		assert.ok(isMarkdownString(message));
+		const rendered = renderConfirmation(message);
+		assert.deepStrictEqual({
+			paragraphs: [...rendered.querySelectorAll('p')].map(element => element.innerText.replace(/\s+/g, ' ').trim()),
+			participants: [...rendered.querySelectorAll('li')].map(element => element.innerText.replace(/\s+/g, ' ').trim()),
+		}, {
+			paragraphs: ['Workspace: No workspace', 'Permissions are inherited from this chat.', 'Each attempt runs in an independent chat with no workspace.', 'Scenario', 'Implement a scenario'],
+			participants: ['Attempt 1: Model (Copilot) - Manual permissions', 'Attempt 2: Model (Other Harness) - Autopilot'],
+		});
 	});
 
 	test('keeps quick-chat callers without a workspace folderless', async () => {

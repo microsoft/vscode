@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -17,6 +17,7 @@ import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/co
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -100,6 +101,7 @@ export class ModelEvaluationTool implements IToolImpl {
 		@ISessionsProvidersService private readonly providers: ISessionsProvidersService,
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@IChatEntitlementService private readonly entitlement: IChatEntitlementService,
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	getToolData(): IToolData {
@@ -133,9 +135,43 @@ export class ModelEvaluationTool implements IToolImpl {
 		const caller = this.caller(context.chatSessionResource);
 		const options = this.prepareCreation(record(context.parameters), caller);
 		this.preparedCreations.set(context.parameters, { caller: caller.chat.resource, options });
-		const participants = [...options.attempts.map(attempt => attempt.harness), ...(options.judgeHarness ? [options.judgeHarness] : []), ...(options.synthesisHarness ? [options.synthesisHarness] : [])];
+		const participants = [
+			...options.attempts.map((attempt, index) => ({ role: localize('evaluation.confirm.attempt', "Attempt {0}", index + 1), harness: attempt.harness })),
+			...(options.judgeHarness ? [{ role: localize('evaluation.confirm.judge', "Judge"), harness: options.judgeHarness }] : []),
+			...(options.synthesisHarness ? [{ role: localize('evaluation.confirm.synthesizer', "Synthesizer (On Request)"), harness: options.synthesisHarness }] : []),
+		];
+		const sharedPermission = participants.every(participant => participant.harness.permissionLabel === participants[0].harness.permissionLabel)
+			? participants[0].harness.permissionLabel : undefined;
 		const message = new MarkdownString();
-		message.appendText(localize('evaluation.confirm.details', "Run this scenario in {0}? Workspace-backed attempts use isolated worktrees. Permissions are inherited from the calling chat.\n\n{1}\n\n{2}", options.workspace?.toString() ?? localize('evaluation.folderless', "independent folderless chats"), options.prompt, participants.map(harness => `${harness.label}: ${harness.modelLabel} (${harness.permissionLabel})`).join('\n')));
+		const appendDetail = (label: string, value: string) => {
+			message.appendMarkdown('**').appendText(label).appendMarkdown('** ').appendMarkdown(escapeMarkdownSyntaxTokens(value)).appendMarkdown('  \n');
+		};
+		appendDetail(localize('evaluation.confirm.workspace', "Workspace:"), options.workspace
+			? this.labelService.getUriLabel(options.workspace)
+			: localize('evaluation.confirm.noWorkspace', "No workspace"));
+		if (options.branch) {
+			appendDetail(localize('evaluation.confirm.branch', "Base Branch:"), options.branch);
+		}
+		message.appendMarkdown('\n');
+		for (const { role, harness } of participants) {
+			message.appendMarkdown('- **').appendText(role).appendMarkdown(':** ')
+				.appendMarkdown(escapeMarkdownSyntaxTokens(localize('evaluation.confirm.model', "{0} ({1})", harness.modelLabel, harness.label)));
+			if (sharedPermission === undefined && harness.permissionLabel !== undefined) {
+				message.appendMarkdown(escapeMarkdownSyntaxTokens(localize('evaluation.confirm.participantPermission', " - {0}", harness.permissionLabel)));
+			}
+			message.appendMarkdown('\n');
+		}
+		message.appendMarkdown('\n');
+		if (sharedPermission !== undefined) {
+			appendDetail(localize('evaluation.confirm.permissions', "Permissions:"), localize('evaluation.confirm.inheritedPermission', "{0} (inherited from this chat)", sharedPermission));
+		} else {
+			message.appendMarkdown(escapeMarkdownSyntaxTokens(localize('evaluation.confirm.inheritedPermissions', "Permissions are inherited from this chat."))).appendMarkdown('\n');
+		}
+		message.appendMarkdown('\n').appendMarkdown(escapeMarkdownSyntaxTokens(options.workspace
+			? localize('evaluation.confirm.worktrees', "Each attempt runs in a separate worktree.")
+			: localize('evaluation.confirm.folderless', "Each attempt runs in an independent chat with no workspace.")));
+		message.appendMarkdown('\n\n**').appendText(localize('evaluation.confirm.scenario', "Scenario")).appendMarkdown('**\n\n')
+			.appendMarkdown(options.prompt);
 		return {
 			...prepared,
 			confirmationMessages: { title: localize('evaluation.confirm.title', "Create Model Comparison?"), message },
