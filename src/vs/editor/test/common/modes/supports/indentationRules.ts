@@ -17,7 +17,7 @@ export const rubyIndentationRules = {
 };
 
 export const phpIndentationRules = {
-	increaseIndentPattern: /({(?!.*}).*|\(|\[|((else(\s)?)?if|else|for(each)?|while|switch|case).*:)\s*((\/[/*].*|)?$|\?>)/,
+	increaseIndentPattern: /({(?!.*}).*|\(|\[|((else(\s)?)?if|else|for(each)?|while|switch|case|default).*:)\s*((\/[/*].*|)?$|\?>)/,
 	decreaseIndentPattern: /^(.*\*\/)?\s*((\})|(\)+[;,])|(\]\)*[;,])|\b(else:)|\b((end(if|for(each)?|while|switch));))/,
 };
 

@@ -1451,6 +1451,24 @@ suite('Auto Indent On Type - PHP', () => {
 			].join('\n'));
 		});
 	});
+
+	test('issue #345988: should increase indent after default: in switch statement', () => {
+		const model = createTextModel([
+			`switch ($value) {`,
+			`\tdefault:`
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 10, 2, 10));
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				`switch ($value) {`,
+				`\tdefault:`,
+				`\t\t`
+			].join('\n'));
+		});
+	});
 });
 
 suite('Auto Indent On Paste - Go', () => {
