@@ -2875,10 +2875,12 @@ export class ChatPetWidget extends Disposable {
 			const left = side === 'right'
 				? petLeft + this._getDisplaySize() + miniWidth * slot
 				: petLeft - miniWidth * (slot + 1);
+			const overlayBounds = this._overlay.getBoundingClientRect();
+			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, this._getPlatforms(), this.movementBounds.getBoundingClientRect().bottom);
 			element.style.left = `${left}px`;
-			element.style.top = `${this._button.element.offsetTop + this._getDisplaySize() - 48 * miniScale}px`;
+			element.style.top = `${landing.top - overlayBounds.top}px`;
 			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
-			const distance = Math.max(0, this._overlay.getBoundingClientRect().top + this._button.element.offsetTop + this._getDisplaySize() - 48 * miniScale);
+			const distance = Math.max(0, landing.top + miniWidth);
 			element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
 			element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
 			if (!this._motionReduced) {

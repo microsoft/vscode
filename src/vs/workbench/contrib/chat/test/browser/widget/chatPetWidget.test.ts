@@ -2283,9 +2283,12 @@ suite('ChatPetWidget', () => {
 			return tool;
 		};
 		button.style.left = '0px';
+		button.style.top = '-100px';
 		const first = createSubagent('first');
 		const firstMini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
 		assert.ok(firstMini.offsetLeft >= button.offsetLeft + button.offsetWidth);
+		const miniSize = 48 * Number.parseFloat(firstMini.style.getPropertyValue('--chat-pet-subagent-scale'));
+		assert.strictEqual(Number.parseFloat(firstMini.style.top) + miniSize, 0);
 		const [bodyImage, accessoryImage] = firstMini.querySelectorAll<HTMLImageElement>('img');
 		assert.ok(accessoryImage?.src.includes('/accessories/'));
 		await Promise.all([bodyImage.decode(), accessoryImage.decode()]);
@@ -2299,10 +2302,19 @@ suite('ChatPetWidget', () => {
 		const mainPupil = button.querySelector<HTMLElement>('.chat-pet-pupil')!;
 		assert.strictEqual(mainWindow.getComputedStyle(miniPupil).height, mainWindow.getComputedStyle(mainPupil).height);
 		assert.strictEqual(mainWindow.getComputedStyle(miniPupil).height, '8px');
+		widget.setHost({ ...firstHost, transition: undefined, model: modelValue, getPlatforms: () => {
+			const bounds = overlay.getBoundingClientRect();
+			return [
+				{ left: bounds.left, right: bounds.right, top: bounds.top - 60 },
+				{ left: bounds.left, right: bounds.right, top: bounds.top, isDefault: true },
+			];
+		} });
 		button.style.left = '300px';
+		button.style.top = '-140px';
 		createSubagent('second');
 		const minis = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
 		assert.ok(minis[1].offsetLeft < button.offsetLeft);
+		assert.strictEqual(Number.parseFloat(minis[1].style.top) + miniSize, -60);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent.arriving').length, 2);
 		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent').length, 0);
