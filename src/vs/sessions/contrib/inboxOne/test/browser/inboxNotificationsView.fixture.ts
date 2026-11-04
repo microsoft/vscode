@@ -225,6 +225,11 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 				: ['Choose how search results should open', 'Address two review comments', 'Review the keyboard navigation changes'][index] ?? item.title,
 			hasImages: index === 0,
 		})),
+		...(state === 'workflowActions' ? [{
+			...notifications.get()[0], id: 'combined', tab: InboxTab.ReadyForYou,
+			title: 'Fix failing checks and address review comments', sessionTitle: 'Improve workspace search',
+			occurrence: 'combined', notifications: notifications.get().slice(0, 2), hasImages: false,
+		}] : []),
 		...(state === 'empty' || merged ? [] : ([InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done] as const).map((tab): IInboxSessionRow => ({
 			id: tab, tab, title: { working: 'Implementing search results', readyToMerge: 'Merge the search improvements', onHold: 'Resume the accessibility review', done: 'Keyboard navigation reviewed' }[tab],
 			kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later, description: '',

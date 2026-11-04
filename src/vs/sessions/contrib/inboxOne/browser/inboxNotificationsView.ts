@@ -87,6 +87,8 @@ import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MAR
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { buildFixCIPrompt } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { syncPRReviewFeedback } from '../../agentFeedback/browser/agentFeedbackPRReviewSeeder.js';
+import { getPRReviewComments, IPRReviewComment } from '../../codeReview/browser/codeReviewService.js';
 import {
 	IInboxDetailSummary,
 	IInboxNotificationAction,
@@ -931,6 +933,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.listContainer.set(list, undefined);
 		this._register(addDisposableListener(list, EventType.FOCUS_IN, event => this.onListFocusIn(event)));
 		this._register(addDisposableListener(list, EventType.FOCUS_OUT, () => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.focusOutTimeout.value = disposableTimeout(() => {
 				if (this.applyDeferredUpdates(false)) {
 					this.logInboxInteraction('deferredUpdates.autoApply', 'inlineInput');
@@ -938,6 +943,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}, 0);
 		}));
 		this._register(addDisposableListener(this.detailInfoElement, EventType.FOCUS_OUT, () => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.focusOutTimeout.value = disposableTimeout(() => {
 				this.applyDeferredUpdates(false);
 				this.renderDetailIfChanged();
@@ -1332,19 +1340,32 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			visual.appendChild($('span', undefined, localize('inbox.visual', "Visual")));
 		}
 		const inlineActions = metadata.appendChild($('.inbox-notifications-row-inline-actions'));
-		for (const notification of row?.notifications ?? [item]) {
+		const notifications = row?.notifications ?? [item];
+		const combinesFixes = notifications.some(notification => notification.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeFixCI))
+			&& notifications.some(notification => notification.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeAddressReviews));
+		let combinedFixRendered = false;
+		for (const notification of notifications) {
 			for (const action of notification.actions) {
 				if (isInboxPullRequestActionKind(action.kind)) {
-					this.renderActionButton(inlineActions, notification, action, store);
+					if (combinesFixes && action.kind === InboxNotificationActionKind.AgentMergeFixCI) {
+						continue;
+					}
+					if (combinesFixes && action.kind === InboxNotificationActionKind.AgentMergeAddressReviews) {
+						if (combinedFixRendered) {
+							continue;
+						}
+						const label = localize('inboxNotifications.fixCIAndReviews', "Fix CI & Address Reviews");
+						this.renderActionButton(inlineActions, notification, { ...action, label, ariaLabel: label }, store);
+						combinedFixRendered = true;
+					} else {
+						this.renderActionButton(inlineActions, notification, action, store);
+					}
 				}
 			}
 		}
 		if (!inlineActions.childElementCount) {
 			inlineActions.remove();
 		}
-		const state = card.appendChild($('.inbox-notifications-item-kind-label', undefined, kindLabel));
-		state.classList.add(`priority-${item.priority}`);
-		store.add(this.hoverService.setupDelayedHover(state, { content: kindLabel }));
 		const trailing = card.appendChild($('.inbox-notifications-row-trailing'));
 		const timestamp = trailing.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 		store.add(this.hoverService.setupDelayedHover(timestamp, { content: new Date(item.timestamp).toLocaleString() }));
@@ -2206,8 +2227,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const baseOptions = {
 			...(showsSpinnerWhileRunning ? defaultButtonStyles : inboxButtonStyles),
 			...(action.kind === InboxNotificationActionKind.AgentMergeFixCI ? {
-				buttonBackground: asCssVariable(chartsOrange),
-				buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
 				buttonBorder: asCssVariable(chartsOrange),
 			} : {}),
 			secondary: !showsSpinnerWhileRunning && (openSessionIsSecondary || !action.primary),
@@ -2558,36 +2577,53 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 			}
 			if (includeReviews) {
+				const matchesPullRequest = (pullRequest: Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>) => pullRequests.some(pr =>
+					pr.owner.toLowerCase() === pullRequest.owner.toLowerCase()
+					&& pr.repo.toLowerCase() === pullRequest.repo.toLowerCase()
+					&& pr.number === pullRequest.number);
 				const getFeedback = () => this.feedbackService.getFeedback(session.resource).filter(comment =>
 					comment.kind === AgentFeedbackKind.PRReview
 					&& (comment.state === AgentFeedbackState.Created || comment.state === AgentFeedbackState.Accepted)
-					&& (!comment.sourcePullRequest ? pullRequests.length === 1 : pullRequests.some(pr =>
-						pr.owner.toLowerCase() === comment.sourcePullRequest!.owner.toLowerCase()
-						&& pr.repo.toLowerCase() === comment.sourcePullRequest!.repo.toLowerCase()
-						&& pr.number === comment.sourcePullRequest!.number)));
+					&& (!comment.sourcePullRequest ? pullRequests.length === 1 : matchesPullRequest(comment.sourcePullRequest)));
 				let feedback = getFeedback();
 				if (actionKind === InboxNotificationActionKind.AgentMergeAddressReviews) {
 					if (!this.feedbackService.isAgentHostSession(session.resource)) {
 						this.notificationService.info(localize('inboxNotifications.reviews.unsupported', "Review feedback cannot be submitted from the Inbox for this session. Open the session to address the comments."));
 						return 'skipped';
 					}
-					await this.sessionsService.openSession(session.resource, { source: 'inbox' });
 					const cancellation = store.add(new CancellationTokenSource());
 					try {
-						feedback = await raceTimeout(waitForState(
-							observableFromEvent(this, this.feedbackService.onDidChangeFeedback, getFeedback),
-							feedback => this.feedbackService.hasLoadedFeedback(session.resource) && feedback.length > 0,
+						await raceTimeout(waitForState(
+							observableFromEvent(this, this.feedbackService.onDidChangeFeedback, () => this.feedbackService.hasLoadedFeedback(session.resource)),
+							loaded => loaded,
 							undefined, cancellation.token,
-						), 10_000) ?? [];
+						), 10_000);
 					} finally {
 						cancellation.cancel();
+					}
+					feedback = getFeedback();
+					const workingDirectory = session.workspace.get()?.folders[0]?.workingDirectory;
+					if (this.feedbackService.hasLoadedFeedback(session.resource) && !feedback.length && workingDirectory) {
+						const comments: IPRReviewComment[] = [];
+						// This scoped refresh must not remove mirrors belonging to other pull requests.
+						const incomplete = this.feedbackService.getFeedback(session.resource).flatMap(comment =>
+							comment.sourcePullRequest && !matchesPullRequest(comment.sourcePullRequest) ? [comment.sourcePullRequest] : []);
+						for (const pullRequest of pullRequests) {
+							const ref = store.add(this.gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
+							await ref.object.refresh();
+							if (ref.object.hasLoaded.get()) {
+								comments.push(...getPRReviewComments(pullRequest, ref.object.reviewThreads.get(), workingDirectory));
+							} else {
+								incomplete.push(pullRequest);
+							}
+						}
+						syncPRReviewFeedback(this.feedbackService, session.resource, comments, incomplete);
+						feedback = getFeedback();
 					}
 					if (!feedback.length) {
 						this.notificationService.info(localize('inboxNotifications.reviews.unavailable', "No review feedback was ready to send. Open the session to review the comments and try again."));
 						return 'skipped';
 					}
-				} else if (feedback.length) {
-					await this.sessionsService.openSession(session.resource, { source: 'inbox' });
 				}
 				if (feedback.length) {
 					for (const comment of feedback) {
@@ -2598,6 +2634,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 						query: prompts.join('\n\n'),
 						feedbackIds: feedback.map(comment => comment.id),
 						targetChat: chatResource,
+						backgroundSubmit: async (query, attachment) =>
+							await this.submitSessionSlashCommand(session, query, [attachment]) === 'success',
 						onRequestAccepted: () => markFixRequested.forEach(mark => mark()),
 					});
 					return submitted ? 'success' : 'failure';
@@ -2622,14 +2660,14 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	 * UI) and sends the given slash command to it. Mirrors the background submit
 	 * in {@link BlockedSessionsCIFixModel}.
 	 */
-	private async submitSessionSlashCommand(session: ISession, query: string): Promise<InboxInteractionResult> {
+	private async submitSessionSlashCommand(session: ISession, query: string, attachedContext?: IChatSendRequestOptions['attachedContext']): Promise<InboxInteractionResult> {
 		const chatResource = session.mainChat.get().resource;
 		const ref = await this.chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None, 'InboxNotifications');
 		if (!ref) {
 			return 'failure';
 		}
 		try {
-			let result = await this.chatService.sendRequest(chatResource, query, { agentIdSilent: chatResource.scheme });
+			let result = await this.chatService.sendRequest(chatResource, query, { agentIdSilent: chatResource.scheme, attachedContext });
 			if (ChatSendResult.isQueued(result)) {
 				result = await result.deferred;
 			}
@@ -2969,7 +3007,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const partKey = part
 			? `${part.kind}:${part.requestId}:${part.kind === 'questionCarousel' ? part.resolveId ?? '' : part.kind === 'toolConfirmation' ? part.toolCallId : part.kind === 'planReview' ? part.resolveId ?? part.reviewIndex : ''}`
 			: '';
-		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}|${safeStringify([row?.workTitle, row?.sessionTitle, row?.pullRequestStates, row?.notifications])}`;
+		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}|${safeStringify([row?.workTitle, row?.sessionTitle, row?.repositoryLabel, row?.pullRequestStates, row?.notifications])}`;
 	}
 
 	private renderDetail(item: IInboxNotificationItem | undefined): void {
@@ -3026,6 +3064,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.focusSelectedCard();
 			this.clearSelectedItem('closeEvidence');
 		}));
+		if (row?.repositoryLabel && !row.notifications.some(notification => notification.repositoryLabel === row.repositoryLabel)) {
+			body.appendChild($('.inbox-notifications-item-badges')).appendChild(
+				$('.inbox-notifications-item-badge.repository', undefined, row.repositoryLabel));
+		}
 		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed || item.previewSignature || item.pullRequestStates?.length) {
 			this.renderDetailSummary(body, item);
 		}
@@ -3398,10 +3440,12 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 	getDetailAccessibleContent(): string | undefined {
 		const item = this.selectedItem();
-		const sessionTitle = item ? this.getRow(item.id)?.sessionTitle ?? item.title : '';
+		const row = item ? this.getRow(item.id) : undefined;
+		const sessionTitle = item ? row?.sessionTitle ?? item.title : '';
 		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? localize('inboxNotifications.preparing', "Preparing notification…") : sessionTitle;
 		const interpretation = item && this.getDetailInterpretation(item);
 		const content = [
+			row?.repositoryLabel ?? item?.repositoryLabel,
 			...(interpretation ? [
 				localize('inboxNotifications.detail.interpretation', "Agent interpretation"),
 				interpretation.status,
@@ -3409,7 +3453,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				...interpretation.evidence.map(evidence => evidence.artifact.kind === 'session' && !evidence.artifact.uri
 					? evidence.text : `${evidence.text}\n${evidence.artifact.label}${evidence.artifact.uri ? `: ${evidence.artifact.uri.toString(true)}` : ''}`),
 			] : []),
-			...(item ? (this.getRow(item.id)?.notifications ?? [item]).map(notification => [
+			...(item ? (row?.notifications ?? [item]).map(notification => [
 				notification.title !== sessionTitle ? notification.title : '', notification.description,
 				notification.needsInputPart?.kind === 'questionCarousel' ? notification.needsInputPart.questions.map(question => question.title).join('\n') : '',
 				notification.needsInputPart?.kind === 'toolConfirmation' ? [notification.needsInputPart.commandLine, notification.needsInputPart.toolInput].filter(Boolean).join('\n') : '',
