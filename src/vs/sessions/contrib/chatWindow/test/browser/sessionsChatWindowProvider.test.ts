@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -225,10 +226,20 @@ suite('Sessions chat window provider', () => {
 		await provider.moveToMainWindow(main.resource, {});
 		const moved = [...events];
 		await provider.moveToMainWindow(main.resource, {});
+		const again = events.slice(moved.length);
 
-		assert.deepStrictEqual({ moved, again: events.slice(moved.length) }, {
+		// A window that just closes, without moving its chat, forgets them.
+		const reopened = (await provider.resolveContent(main.resource))!;
+		store.add(reopened.bind!(window, windowInstantiationService));
+		reopened.dispose();
+		await timeout(0);
+		const beforeLaterMove = events.length;
+		await provider.moveToMainWindow(main.resource, {});
+
+		assert.deepStrictEqual({ moved, again, laterMove: events.slice(beforeLaterMove) }, {
 			moved: ['show session /main', 'close session', 'open session /main', 'open session /subagent beside /main preserving focus'],
 			again: ['open session /main'],
+			laterMove: ['open session /main'],
 		});
 	});
 

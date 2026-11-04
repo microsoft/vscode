@@ -8989,9 +8989,9 @@ suite('SessionsManagementService', () => {
 				reopenChat: async () => { },
 			});
 			services.sessionsPartService.sessionViews.set(session.sessionId, fakeView('main window'));
-			const showInWindow = () => {
-				const windowSession = services.view.showSessionInWindow(session, { chatResource: main.resource });
-				services.sessionsPartService.windowViews.set(windowSession, fakeView('chat window'));
+			const showInWindow = (chat: IChat = main, name = 'chat window') => {
+				const windowSession = services.view.showSessionInWindow(session, { chatResource: chat.resource });
+				services.sessionsPartService.windowViews.set(windowSession, fakeView(name));
 				return windowSession;
 			};
 			return { ...services, session, opened, showInWindow };
@@ -9012,6 +9012,8 @@ suite('SessionsManagementService', () => {
 				['background activities pill', () => view.openChatToSide(windowSession, subagent.resource, { referenceChatResource: main.resource })],
 				['side chat', () => view.openChatToSide(windowSession, sideChat.resource, { referenceChatResource: main.resource })],
 				['subagent of a chat of the main window', () => view.openChatToSide(session, subagent.resource, { referenceChatResource: peer.resource })],
+				// Named by its parent, a chat of the main window, while the window's session is the one given.
+				['subagent of a chat of the main window from the window', () => view.openChatToSide(windowSession, subagent.resource, { referenceChatResource: peer.resource })],
 			];
 			for (const [, open] of entryPoints) {
 				view.setActive(view.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId));
@@ -9026,9 +9028,48 @@ suite('SessionsManagementService', () => {
 					'chat window: /session/subagent beside /session/main',
 					'main window: /session/side beside /session/main',
 					'main window: /session/subagent beside /session/peer',
+					'main window: /session/subagent beside /session/peer',
 				],
-				actives: [true, true, true, false, false],
+				actives: [true, true, true, false, false, false],
 			});
+		});
+
+		test('side chats opened or closed through a chat window\'s session stay the grid\'s; the window keeps showing its chat', async () => {
+			const { view, session, showInWindow } = setup([main, peer, subagent, sideChat]);
+			await view.openSession(session.resource);
+			const windowSession = showInWindow();
+			const grid = () => view.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId)!;
+			const read = () => ({
+				window: { active: windowSession.activeChat.get().resource.path, tabs: windowSession.visibleChatTabs.get().map(chat => chat.resource.path) },
+				grid: { active: grid().activeChat.get().resource.path, closed: grid().closedChats.get().map(chat => chat.resource.path) },
+			});
+			await view.openChat(windowSession, sideChat.resource);
+			const opened = read();
+			await view.closeChat(windowSession, sideChat);
+
+			assert.deepStrictEqual({ opened, closed: read() }, {
+				opened: { window: { active: '/session/main', tabs: ['/session/main'] }, grid: { active: '/session/side', closed: [] } },
+				closed: { window: { active: '/session/main', tabs: ['/session/main'] }, grid: { active: '/session/peer', closed: ['/session/side'] } },
+			});
+		});
+
+		test('with two chat windows of one session, a subagent opens in the window that shows its parent, also a subagent of a subagent shown there', async () => {
+			const peerSubagent: IChat = { ...stubChat, resource: URI.parse('test:///session/peer-subagent'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.Tool, parentChat: peer.resource } };
+			const nested: IChat = { ...stubChat, resource: URI.parse('test:///session/nested'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.Tool, parentChat: subagent.resource } };
+			const { view, session, opened, showInWindow } = setup([main, peer, subagent, peerSubagent, nested]);
+			const mainWindow = showInWindow(main, 'window of main');
+			showInWindow(peer, 'window of peer');
+			// The window of the main chat shows its subagent beside it.
+			await view.openChat(mainWindow, subagent.resource);
+
+			// Given the session of another window, or the session itself: the parent decides.
+			await view.openChatToSide(mainWindow, peerSubagent.resource, { referenceChatResource: peer.resource });
+			await view.openChatToSide(session, nested.resource, { referenceChatResource: subagent.resource });
+
+			assert.deepStrictEqual(opened, [
+				'window of peer: /session/peer-subagent beside /session/peer',
+				'window of main: /session/nested beside /session/subagent',
+			]);
 		});
 
 		test('a chat window that shows the only chat of its session shows a subagent opened there beside that chat, without the grid; closing the subagent shows the chat again', async () => {

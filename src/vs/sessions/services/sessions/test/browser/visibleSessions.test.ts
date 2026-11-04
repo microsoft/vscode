@@ -1365,6 +1365,20 @@ suite('VisibleSessions', () => {
 			});
 			model.removeFromWindow(replacement!);
 		});
+
+		test('a window session keeps showing the subagent chats beside its chat when its session is replaced', () => {
+			const model = createModel();
+			const subagent: IChat = { ...stubChat, resource: URI.parse('test:///subagent'), origin: { kind: ChatOriginKind.Tool, parentChat: stubChat.resource } };
+			const b = { ...stubSession('b'), chats: constObservable([stubChat, subagent]) };
+			const windowSession = model.showInWindow(b, stubChat);
+			model.openChat(windowSession, subagent);
+			model.updateSession(b, { ...b });
+			const replacement = model.getWindowSession('b', stubChat.resource)!;
+			assert.deepStrictEqual({ replaced: replacement !== windowSession, tabs: replacement.visibleChatTabs.get().map(chat => chat.resource.path) }, {
+				replaced: true, tabs: ['/chat', '/subagent'],
+			});
+			model.removeFromWindow(replacement);
+		});
 	});
 });
 

@@ -459,7 +459,7 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 export class SessionsChatWindowProvider extends Disposable implements IChatWindowProvider {
 
 	private readonly _contents = observableValue<readonly SessionsChatWindowContent[]>(this, []);
-	/** The subagent chats that closed chat windows showed beside their chat, by chat, until the chat moves to the main window. */
+	/** The subagent chats a chat window showed beside its chat, by chat, as it closes, for Move to Main Window. */
 	private readonly _releasedSubagentChats = new ResourceMap<readonly URI[]>();
 
 	readonly restoreEnabled: IObservable<boolean>;
@@ -527,11 +527,17 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const chat = resolved.chat ?? shown?.activeChat.get().resource ?? session.mainChat.get().resource;
 		this._releasedSubagentChats.delete(chat);
 		const content = this._instantiationService.createInstance(SessionsChatWindowContent, session, chat, (window, windowContent, container, instantiationService, overChat) => this._createTitle(window, windowContent, container, instantiationService, overChat), (released, subagentChats) => {
-			if (subagentChats.length) {
-				this._releasedSubagentChats.set(released, subagentChats);
-			} else {
-				this._releasedSubagentChats.delete(released);
+			if (!subagentChats.length) {
+				return;
 			}
+			// Only for Move to Main Window, which reads them as the window closes, in the same turn: a window that just
+			// closes forgets them.
+			this._releasedSubagentChats.set(released, subagentChats);
+			queueMicrotask(() => {
+				if (this._releasedSubagentChats.get(released) === subagentChats) {
+					this._releasedSubagentChats.delete(released);
+				}
+			});
 		});
 		this._contents.set([...this._contents.get(), content], undefined);
 		Event.once(content.onWillDispose)(() => this._contents.set(this._contents.get().filter(candidate => candidate !== content), undefined));

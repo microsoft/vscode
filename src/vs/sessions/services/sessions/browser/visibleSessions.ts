@@ -166,6 +166,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this._setActiveChat(chat, undefined);
 	}
 
+	/** The subagent (tool-origin) chats explicitly shown, by resource. */
+	get shownRelatedChatUris(): ReadonlySet<string> {
+		return this._shownRelatedChatUris.get();
+	}
+
 	private _setActiveChat(chat: IChat, tx: ITransaction | undefined): void {
 		if (this._fallenBack && chat.resource.toString() !== this._fallenBack.to.toString()) {
 			this._fallenBack = undefined;
@@ -497,7 +502,8 @@ export class VisibleSessions extends Disposable {
 			}
 			this._windowSessionsByChat.delete(key);
 			const chat = updatedSession.chats.get().find(candidate => candidate.resource.toString() === key);
-			const replacement = chat ? new VisibleSession(updatedSession, chat, undefined, [key], chat.resource, true) : undefined;
+			// It keeps showing the subagent chats it showed beside its chat.
+			const replacement = chat ? new VisibleSession(updatedSession, chat, undefined, [key, ...wrapper.shownRelatedChatUris], chat.resource, true) : undefined;
 			if (replacement) {
 				this._windowSessionsByChat.set(key, replacement);
 			} else {
@@ -1150,10 +1156,15 @@ export class VisibleSessions extends Disposable {
 			transaction(tx => this._setActiveSession(detached.wrapper, this._activePreserveFocus.get(), tx));
 			return;
 		}
-		// A window session shows its active chat; only the chats it shows beside its own chat stay out of the grid's.
+		// A window session shows its own chat and the subagent chats it shows beside it as active; other chats of its
+		// session, such as side chats, stay the grid's.
 		if (this.isWindowSession(session)) {
-			(session as VisibleSession).setActiveChat(chat);
-			if (this._chatWrapperOf(session, chat) === session) {
+			const windowSession = session as VisibleSession;
+			const shownBeside = this._chatWrapperOf(session, chat) === windowSession;
+			if (shownBeside || windowSession.scopedChatResource!.toString() === chat.resource.toString()) {
+				windowSession.setActiveChat(chat);
+			}
+			if (shownBeside) {
 				return;
 			}
 		}
@@ -1191,12 +1202,12 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
-	 * The wrapper that shows `chat` of `session`: a window session's own for the chats it shows beside its chat, such as
-	 * subagent chats opened from it; else the grid's of its session.
+	 * The wrapper that shows `chat` of `session`: a window session's own for the subagent chats it shows beside its chat;
+	 * else the grid's of its session, such as for side chats and forks.
 	 */
 	private _chatWrapperOf(session: ISession, chat: IChat): VisibleSession | undefined {
 		const windowSession = this.isWindowSession(session) ? session as VisibleSession : undefined;
-		return windowSession && windowSession.scopedChatResource!.toString() !== chat.resource.toString() ? windowSession : this._wrappers.get(session.sessionId);
+		return windowSession && chat.origin?.kind === ChatOriginKind.Tool && windowSession.scopedChatResource!.toString() !== chat.resource.toString() ? windowSession : this._wrappers.get(session.sessionId);
 	}
 
 	/**

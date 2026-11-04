@@ -1139,8 +1139,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
 			}
 			if (chat && intent === 'explicit' && !token.isCancellationRequested) {
-				// The view of the session opened: a window's own, for a chat shown beside the chat of the window.
-				const reopening = this.sessionsPartService.getSessionView(activeSession ?? session.sessionId)?.reopenChat(chat.resource);
+				// The view of a window for its own chat and the subagent chats it shows beside it; else the session's view.
+				const inWindow = this._visibility.isWindowSession(activeSession)
+					&& (chat.origin?.kind === ChatOriginKind.Tool || this.uriIdentityService.extUri.isEqual(chat.resource, activeSession?.scopedChatResource));
+				const reopening = this.sessionsPartService.getSessionView(inWindow ? activeSession : session.sessionId)?.reopenChat(chat.resource);
 				if (reopening) {
 					// A retained grid view can keep loading after this navigation is superseded.
 					await raceCancellation(reopening, token);
@@ -1652,8 +1654,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/**
-	 * The chat window a subagent chat opens to the side in: the window it is opened from, given as the window's session
-	 * or as the chat the window shows. Other chats, such as forks and side chats, open in the main window.
+	 * The chat window a subagent chat opens to the side in: the one that shows the reference chat, beside its own chat or
+	 * as it, such as for a subagent of a subagent; without a reference, the window of the session given. Other chats,
+	 * such as forks and side chats, and subagents of the main window's chats open in the main window.
 	 */
 	private _getSubagentWindowSession(session: ISession, chatResource: URI, referenceChatResource: URI | undefined): IActiveSession | undefined {
 		const extUri = this.uriIdentityService.extUri;
@@ -1661,10 +1664,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (chat?.origin?.kind !== ChatOriginKind.Tool) {
 			return undefined;
 		}
-		if (this._visibility.isWindowSession(session)) {
-			return session as IActiveSession;
+		if (referenceChatResource) {
+			return this._visibility.getWindowSession(session.sessionId, referenceChatResource)
+				?? this._visibility.windowSessions.get().find(candidate => candidate.sessionId === session.sessionId && candidate.visibleChatTabs.get().some(shown => extUri.isEqual(shown.resource, referenceChatResource)));
 		}
-		return referenceChatResource ? this._visibility.getWindowSession(session.sessionId, referenceChatResource) : undefined;
+		return this._visibility.isWindowSession(session) ? session as IActiveSession : undefined;
 	}
 
 	/**
