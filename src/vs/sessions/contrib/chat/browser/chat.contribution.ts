@@ -70,7 +70,7 @@ import { ISessionsChatViewStateService, SessionsChatViewStateService } from './c
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, chatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
@@ -97,7 +97,7 @@ type RecentChatBackgroundTypeItem = IQuickPickItem & {
 };
 
 type ChatBackgroundTypeItem = IQuickPickItem & ({
-	readonly kind: 'none' | 'codicons' | 'image' | 'generate';
+	readonly kind: 'none' | SessionsChatBackgroundPreset | 'image' | 'generate';
 }) | RecentChatBackgroundTypeItem;
 
 const chatBackgroundTypeItems: ChatBackgroundTypeItem[] = [{
@@ -106,8 +106,16 @@ const chatBackgroundTypeItems: ChatBackgroundTypeItem[] = [{
 	detail: localize('chat.agentSessions.backgroundType.none.detail', "Remove the current chat background."),
 }, {
 	kind: 'codicons',
-	label: localize('chat.agentSessions.backgroundType.codicons.label', "Codicons"),
+	label: getChatBackgroundPresetLabel('codicons'),
 	detail: localize('chat.agentSessions.backgroundType.codicons.detail', "Use a theme-aware pattern of built-in VS Code icons."),
+}, {
+	kind: 'koi-light',
+	label: getChatBackgroundPresetLabel('koi-light'),
+	detail: localize('chat.agentSessions.backgroundType.koiLight.detail', "Use an animated ASCII koi pond on a light background."),
+}, {
+	kind: 'koi-dark',
+	label: getChatBackgroundPresetLabel('koi-dark'),
+	detail: localize('chat.agentSessions.backgroundType.koiDark.detail', "Use an animated ASCII koi pond on a dark background."),
 }, {
 	kind: 'image',
 	label: localize('chat.agentSessions.backgroundType.image.label', "Image..."),
@@ -460,7 +468,8 @@ class SetChatBackgroundAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const canGenerate = accessor.get(IContextKeyService).contextMatchesRules(GENERATE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN)
 			&& accessor.get(ISessionsManagementService).isQuickChatTargetAvailable();
-		const backgroundKind = backgroundService.getBackground()?.kind ?? 'none';
+		const configuredBackground = backgroundService.getConfiguredBackground();
+		const backgroundKind = configuredBackground?.kind === 'image' ? configuredBackground.preset ?? 'image' : configuredBackground?.kind ?? 'none';
 		const recentImages = backgroundService.getRecentBackgroundImages();
 		const recentItems: RecentChatBackgroundTypeItem[] = recentImages.map(image => ({
 			kind: 'recentImage',
@@ -494,9 +503,9 @@ class SetChatBackgroundAction extends Action2 {
 			status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
 			return;
 		}
-		if (backgroundType.kind === 'codicons') {
-			await backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'backgroundPicker');
-			status(localize('chat.agentSessions.setBackground.codicons', "Chat background set to Codicons."));
+		if (backgroundType.kind === 'codicons' || backgroundType.kind === 'koi-light' || backgroundType.kind === 'koi-dark') {
+			await backgroundService.setBackground(backgroundType.kind, 'backgroundPicker');
+			status(localize('chat.agentSessions.setBackground.preset', "Chat background set to {0}.", backgroundType.label));
 			return;
 		}
 		if (backgroundType.kind === 'recentImage') {
@@ -526,7 +535,7 @@ class SetChatBackgroundAction extends Action2 {
 				extensions: [...chatBackgroundImageExtensions],
 			}],
 			availableFileSystems: [Schemas.file],
-			defaultUri: backgroundService.getConfiguredBackgroundImage(),
+			defaultUri: configuredBackground?.kind === 'image' && !configuredBackground.preset ? currentImage : undefined,
 		});
 		const image = selected?.[0];
 		if (!image) {
@@ -873,8 +882,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.MACHINE,
-			markdownDescription: localize('chat.agentSessions.preferredDarkBackgroundImage', "Specifies `codicons`, an absolute file path, or a `file` URI for the background displayed behind chat content in the Agents Window when using a dark color theme. The background is hidden in high contrast themes."),
-			examples: ['codicons'],
+			markdownDescription: localize('chat.agentSessions.preferredDarkBackgroundImage', "Specifies a built-in background (`codicons`, `koi-light`, or `koi-dark`), an absolute file path, or a `file` URI for the background displayed behind chat content in the Agents Window when using a dark color theme. The background is hidden in high contrast themes."),
+			examples: [...chatBackgroundPresets],
 			tags: ['experimental'],
 			ignoreSync: true,
 		},
@@ -882,8 +891,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.MACHINE,
-			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImage', "Specifies `codicons`, an absolute file path, or a `file` URI for the background displayed behind chat content in the Agents Window when using a light color theme. The background is hidden in high contrast themes."),
-			examples: ['codicons'],
+			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImage', "Specifies a built-in background (`codicons`, `koi-light`, or `koi-dark`), an absolute file path, or a `file` URI for the background displayed behind chat content in the Agents Window when using a light color theme. The background is hidden in high contrast themes."),
+			examples: [...chatBackgroundPresets],
 			tags: ['experimental'],
 			ignoreSync: true,
 		},

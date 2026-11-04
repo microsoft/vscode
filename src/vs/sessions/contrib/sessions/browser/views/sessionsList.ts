@@ -4896,7 +4896,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
-		const inboxNotificationCount = derived(this, reader => this.inboxNotificationsService.notifications.read(reader).length);
+		const inboxNotificationCount = this.inboxNotificationsService.attentionCount;
 		const inboxOpenKeybindingLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
 			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getLabel() ?? undefined);
 		const inboxOpenKeybindingAriaLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
@@ -6876,7 +6876,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reveals and selects where `move` puts what it moves once the list shows it: the moved chat's row, or the new
+	 * Reveals and focuses where `move` puts what it moves once the list shows it: the moved chat's row, or the new
 	 * session's row for a chat moved into a new session. Call it before the move starts, as the provider reports where
 	 * the chat went while the move runs, then call the returned function with whether the move succeeded. Doesn't move
 	 * focus into the list. Gives up when the row doesn't show within a few updates of the list or a few seconds, and when
@@ -6931,7 +6931,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reveals and selects the row of the session `sessionId`, or of its chat `chat`; whether the list shows it. A find
+	 * Reveals and focuses the row of the session `sessionId`, or of its chat `chat`, selecting it only when it is the open chat; whether the list shows it. A find
 	 * filter that hides the row is cleared, keeping focus where it was.
 	 */
 	private revealMoved(sessionId: string, chat: URI | undefined): boolean {
@@ -6963,7 +6963,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.tree.reveal(element, 0.5);
 		this.tree.setFocus([element]);
-		this.tree.setSelection([element]);
+		const [rowSession, rowChat] = isSessionChatItem(element) ? [element.session, element.chat] : [session, session.mainChat.get()];
+		if (isOpenChat(rowSession, rowChat, this._sessionsService.activeSession, undefined)) {
+			this.tree.setSelection([element]);
+		}
 		return true;
 	}
 

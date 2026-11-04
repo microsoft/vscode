@@ -13,6 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { detectImageMimeType } from '../../../../../../base/common/image.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -1295,6 +1296,12 @@ function markSettledSubagentOpenable(data: IChatSubagentToolInvocationData): voi
 	delete data.hasStarted;
 }
 
+/** The client projection of the attachments of a pending message in the host's state. */
+interface IRemotePendingVariableData {
+	readonly message: Message;
+	readonly variableData: IChatRequestVariableData | undefined;
+}
+
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private static readonly DRAFT_SYNC_DEBOUNCE_MS = 500;
@@ -1308,6 +1315,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _steeringMessageHandoffs = new Map<string, AgentHostSteeringMessageHandoff>();
 	/** Locally retained IDs; true means dispatched but not yet projected by the host. */
 	private readonly _localSteeringSubmissions = new ResourceMap<Map<string, boolean>>();
+	/** Per-session client projections of remote pending messages' attachments, by message ID. */
+	private readonly _remotePendingVariableData = new ResourceMap<ReadonlyMap<string, IRemotePendingVariableData>>();
 	/** Per-session debounced sync from chat input state to AHP draft state. */
 	private readonly _draftSyncSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
@@ -1691,7 +1700,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (completionMeta?.kind === 'skill') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: URI.parse(completionMeta.uri),
+						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
 						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
 						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
@@ -2624,11 +2633,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
+		const previousProjections = this._remotePendingVariableData.get(sessionResource);
+		const projections = new Map<string, IRemotePendingVariableData>();
+		const toVariableData = (pending: PendingMessage): IChatRequestVariableData | undefined => {
+			const previous = previousProjections?.get(pending.id);
+			// A new projection need not equal the rendered one: it can generate IDs, and rendering fills in lazily cached URI state
+			// such as `fsPath`. Reuse the previous one while the message is unchanged, or every host state change (e.g. a streamed
+			// response part) rebuilds the pending request and re-renders its attachments, flickering image previews to their icon.
+			const variableData = previous && previous.message.text === pending.message.text && equals(previous.message.attachments, pending.message.attachments)
+				? previous.variableData
+				: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.resourceUris);
+			projections.set(pending.id, { message: pending.message, variableData });
+			return variableData;
+		};
+
 		const toRemote = (pending: PendingMessage, kind: ChatRequestQueueKind): IRemotePendingRequest => ({
 			id: pending.id,
 			kind,
 			message: pending.message.text,
-			variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.resourceUris),
+			variableData: toVariableData(pending),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
 			agentHostMessageOrigin: pending.message.origin,
@@ -2669,6 +2692,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
 			}
 		}
+		this._remotePendingVariableData.set(sessionResource, projections);
 
 		this._remotePendingMessageProjections.add(sessionResource);
 		try {
@@ -2882,6 +2906,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
+		disposables.add(chatSub.onWillApplyAction(envelope => {
+			const action = envelope.action;
+			if (!envelope.rejectionReason && action.type === ActionType.ChatTurnStarted && action.queuedMessageId) {
+				// Claim the submission before queue reconciliation treats its disappearance as cancellation.
+				this._chatService.consumePendingRequest(sessionResource, action.queuedMessageId, action.turnId);
+			}
+		}));
 		void this._acquireOrWaitForSession(sessionResource, disposables).then(model => {
 			if (!model || disposables.isDisposed) {
 				return;
@@ -3971,7 +4002,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sandboxPathGrantSaved = true;
 			}
 
-			const responseMeta = toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(reason, cancellationToken), sandboxPathGrantSaved });
+			const decisionSource = confirmedReasonToDecisionSource(reason, cancellationToken);
+			// Feedback goes only with a person's answer, and only to a host that offered to take it.
+			const userFeedback = decisionSource === 'human_response' && readToolCallMeta(pendingCall)['vscode.assistedApprovalFeedbackAccepted']
+				? invocation.confirmationFeedback?.trim() || undefined
+				: undefined;
+			invocation.confirmationFeedback = undefined;
+			const responseMeta = toAgentPermissionResponseMeta({ decisionSource, sandboxPathGrantSaved, userFeedback });
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			const target = this._requireChatURI(chatURI, ActionType.ChatToolCallConfirmed);
 			this._resolveToolCall(target, turnId, toolCallId, approved
@@ -7122,6 +7159,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const store = new DisposableStore();
 			this._pendingMessageSubscriptions.set(sessionResource, store);
 			store.add(toDisposable(() => this._localSteeringSubmissions.delete(sessionResource)));
+			store.add(toDisposable(() => this._remotePendingVariableData.delete(sessionResource)));
 			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 			store.add(this._config.connection.onDidAction(envelope => {
 				const action = envelope.action;
@@ -8206,8 +8244,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI, range?: MessageAttachment['range']): MessageAttachment | undefined {
 		const buffer = coerceImageBuffer(v.value);
-		const contentType = v.mimeType ?? 'image/png';
 		if (buffer) {
+			// The bytes are authoritative: attached images often omit `mimeType`, and unresized ones keep their original encoding.
+			const contentType = detectImageMimeType(buffer) ?? v.mimeType ?? 'image/png';
 			const attachment: MessageAttachment = {
 				type: MessageAttachmentKind.EmbeddedResource,
 				label: v.name,

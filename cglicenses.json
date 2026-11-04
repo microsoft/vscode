@@ -33,6 +33,12 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/LICENSE"
 	},
 	{
+		// Reason: @unicode/unicode-15.0.0@2.1.0 declares MIT in its generated README,
+		// but omits LICENSE from its tarball. Use the upstream data generator's MIT license.
+		"name": "@unicode/unicode-15.0.0",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/node-unicode/node-unicode-data/3fc20740869e4d4eb5a74759c824c019de9b0fb4/LICENSE-MIT.txt"
+	},
+	{
 		"name": "tunnel-agent",
 		"prependLicenseText": [
 			"Copyright (c) tunnel-agent authors"

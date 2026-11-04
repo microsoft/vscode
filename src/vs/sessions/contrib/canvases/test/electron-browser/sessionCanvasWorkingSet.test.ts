@@ -155,18 +155,25 @@ suite('Session canvas working sets', () => {
 			assert.ok(content instanceof TestWindowCanvas);
 			content.draft = 'unsent';
 
+			nativeCanvases.deactivateCanvas();
 			await switchTo(sessionB);
 			const afterB = editorService.editors.filter(input => input instanceof WindowCanvasInput);
 			await switchTo(sessionA);
 			const afterA = editorService.editors.filter((input): input is WindowCanvasInput => input instanceof WindowCanvasInput);
+			const sessionEditorRestored = editorService.activeEditor?.typeId !== WindowCanvasInput.ID;
+			const navigationAfterRestore = nativeCanvases.navigationRequest.get();
+			await nativeCanvases.openCanvas('test.inbox', { source: 'history' });
 			assert.deepStrictEqual({
 				afterB: afterB.length, afterA: afterA.length,
 				sameContent: nativeCanvases.getPresentation(afterA[0]).content === content,
 				draft: content.draft,
-				sessionEditorRestored: editorService.activeEditor?.typeId !== WindowCanvasInput.ID,
+				sessionEditorRestored,
+				navigationAfterRestore,
+				historyDestination: nativeCanvases.activeCanvasOpen.get(),
 				maximizeCalls: harness.setEditorMaximizedCalls,
 			}, {
 				afterB: 1, afterA: 1, sameContent: true, draft: 'unsent', sessionEditorRestored: true,
+				navigationAfterRestore: undefined, historyDestination: { id: 'test.inbox', source: 'history' },
 				maximizeCalls: [],
 			});
 

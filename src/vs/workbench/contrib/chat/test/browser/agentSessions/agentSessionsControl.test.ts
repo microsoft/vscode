@@ -13,7 +13,7 @@ import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessio
 import { IAgentSession, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -57,6 +57,41 @@ suite('AgentSessionsControl', () => {
 			reset: () => { },
 		};
 	}
+
+	test('forwards automatic refresh intent without changing explicit Refresh', async () => {
+		const calls: { provider: string | string[] | undefined; reason: ChatSessionRefreshReason | undefined }[] = [];
+		const model: IAgentSessionsModel = {
+			sessions: [], resolved: true,
+			getSession: () => undefined,
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+			resolve: async (provider, _onError, reason) => { calls.push({ provider, reason }); },
+		};
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { });
+		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const control = store.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+			overrideStyles: {}, filter: createFilter(), source: 'test',
+			createNewChat: () => { },
+			getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+		}));
+
+		await control.refresh('automatic');
+		await control.refresh();
+		await control.refresh('manual');
+
+		assert.deepStrictEqual(calls, [
+			{ provider: undefined, reason: 'automatic' },
+			{ provider: undefined, reason: 'manual' },
+			{ provider: undefined, reason: 'manual' },
+		]);
+	});
 
 	test('creates a new chat when double-clicking empty list space', () => {
 		const model: IAgentSessionsModel = {

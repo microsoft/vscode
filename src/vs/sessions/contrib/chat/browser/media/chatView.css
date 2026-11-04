@@ -34,6 +34,12 @@
 	content: none;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.chat-sticky-progress {
+	--vscode-chat-list-background: var(--vscode-editorWidget-background, var(--session-view-background));
+	inset-inline: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
+	padding-inline: var(--vscode-spacing-size120);
+}
+
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response {
 	padding: var(--vscode-spacing-size80) calc(var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) + var(--vscode-spacing-size120));
 	isolation: isolate;

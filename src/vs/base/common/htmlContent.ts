@@ -207,6 +207,19 @@ export function escapeMarkdownLinkLabel(text: string): string {
 }
 
 /**
+ * Escapes plain text for use as the text of a Markdown link, for example the label of
+ * {@link MarkdownString.appendLink}, so that it renders literally. Unlike
+ * {@link escapeMarkdownLinkLabel}, this also prevents autolinks, emphasis, code spans and
+ * character references: every ASCII punctuation character is backslash-escaped. Line breaks
+ * are replaced with spaces, because an empty line would end the paragraph and with it the link.
+ */
+export function escapeMarkdownLinkText(text: string): string {
+	return text
+		.replace(/\r\n|[\r\n]/g, ' ')
+		.replace(/[!-/:-@[-`{-~]/g, '\\$&'); // CodeQL [SM02383] All ASCII punctuation, including the backslash, is escaped
+}
+
+/**
  * @see https://github.com/microsoft/vscode/issues/193746
  */
 export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string) {

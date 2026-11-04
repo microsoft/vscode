@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -44,7 +44,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ActiveSessionContextKeys } from '../common/changes.js';
+import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
@@ -61,7 +61,9 @@ import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorWithFileListWidget } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
+import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
 
 const HEADER_HEIGHT = 35;
@@ -189,6 +191,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	static readonly ID = SessionChangesEditorInput.EDITOR_ID;
 
 	private widget: MultiDiffEditorWidget | undefined;
+	private fileListWidget: MultiDiffEditorWithFileListWidget | undefined;
+	/** Whether the host of this editor enables the changed files list, see {@link SessionChangesEditorFileListContext}. */
+	private fileListAvailable: IObservable<boolean> | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
@@ -234,7 +239,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
@@ -294,15 +299,18 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
-		this.widget = this._register(paneInstantiationService.createInstance(
-			MultiDiffEditorWidget,
-			this.bodyContainer,
+		// The changed files list shows beside the diffs when the host enables it, unless the user hides it with Toggle Files.
+		this.fileListWidget = this._register(this.createFileListWidget(
+			paneInstantiationService,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			{
 				variant: variant.get(),
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));
+		this.widget = this.fileListWidget.multiDiffEditorWidget;
+		const fileListWidget = this.fileListWidget;
+		this._register(autorun(reader => this.bodyContainer?.classList.toggle('file-list-visible', fileListWidget.isFileListVisible.read(reader))));
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
@@ -323,6 +331,35 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this.diffEditorOptionsService.diffEditorWordWrap.read(reader),
 			);
 		}));
+	}
+
+	private createFileListWidget(instantiationService: IInstantiationService, uiElementFactory: IWorkbenchUIElementFactory, widgetOptions: IMultiDiffEditorWidgetOptions): MultiDiffEditorWithFileListWidget {
+		const fileListAvailable = this.fileListAvailable = observableContextKey<boolean>(SessionChangesEditorFileListContext.key, this.contextKeyService).map(this, enabled => !!enabled);
+		const fileListHidden = observableMultiDiffEditorFileListHidden(this, this.storageService, this._store);
+		const fileListVisible = derived(this, reader => fileListAvailable.read(reader) && !fileListHidden.read(reader));
+		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
+		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
+		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, reader => fileListAvailable.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
+		const widget = instantiationService.createInstance(MultiDiffEditorWithFileListWidget, this.bodyContainer!, uiElementFactory, widgetOptions, fileListVisible, fileListViewMode, fileListPosition);
+		this._register(bindContextKey(MultiDiffEditorFileListVisibleContext, this.contextKeyService, reader => widget.isFileListVisible.read(reader)));
+		return widget;
+	}
+
+	/** It offers Toggle Files in the header row above its diffs. */
+	readonly togglesFileListFromEditorHeader = true;
+
+	/** Moves focus into the changed files list, showing it first when hidden. Does nothing unless the host enables the list. */
+	focusFileList(): void {
+		if (!this.fileListAvailable?.get()) {
+			return;
+		}
+		if (!MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
+		this.fileListWidget?.focusFileList();
 	}
 
 	/**
@@ -650,7 +687,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
 		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
-		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
+		this.fileListWidget?.layout(new Dimension(dimension.width, bodyHeight));
 		this.emptyState?.layout();
 	}
 }

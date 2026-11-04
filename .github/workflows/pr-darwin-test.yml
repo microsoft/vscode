@@ -282,6 +282,8 @@ jobs:
         run: ./scripts/test-integration.sh --only-extension-host-tests
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
+          # Runs the suites, which mostly start VS Code, in parallel (see scripts/integration-test-suites.sh).
+          INTEGRATION_TEST_PARALLEL: '2'
 
       # The web and remote tests start the server out of sources, which downloads its Node.js from nodejs.org unless
       # the runner already has that version.
@@ -300,6 +302,8 @@ jobs:
         run: ./scripts/test-remote-integration.sh
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
+          # Runs the suites, which mostly start VS Code, in parallel (see scripts/integration-test-suites.sh).
+          INTEGRATION_TEST_PARALLEL: '2'
 
       - name: Compile smoke tests
         if: ${{ env.SMOKE_TESTS == 'true' }}

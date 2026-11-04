@@ -30,6 +30,7 @@ import { VisibleSession, VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
@@ -37,6 +38,7 @@ import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpen
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -460,11 +462,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
+		@IWindowCanvasService private readonly windowCanvasService: IWindowCanvasService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -514,6 +518,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			},
 			this.activeSession,
 			this.customViewService,
+			this.windowCanvasService,
 			this.sessionsManagementService,
 			this._recencyHistory,
 			this.contextKeyService,
@@ -524,6 +529,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		this._register(autorun(reader => {
 			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				this._openSessionCts.value?.cancel();
+				this.windowCanvasService.deactivateCanvas();
+				this._recordNavigation();
+			}
+		}));
+		this._register(autorun(reader => {
+			if (this.windowCanvasService.navigationRequest.read(reader)) {
 				this._openSessionCts.value?.cancel();
 				this._recordNavigation();
 			}
@@ -577,12 +589,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const visible = this._visibility.gridSessions.read(reader);
 			const active = this._visibility.activeSession.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
+			const canvasNavigation = this.windowCanvasService.navigationRequest.read(reader);
 			const request = this._gridRequest.read(reader);
 			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getRenderedGridSlots(), request);
 
 			if (active !== this._focusedActiveSession) {
 				this._focusedActiveSession = active;
-				if (!preserveFocus) {
+				// Startup restoration may populate the grid underneath an open or opening canvas.
+				if (!preserveFocus && !canvasNavigation) {
 					this.sessionsPartService.focusSession(active);
 				}
 			}
@@ -946,6 +960,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _beginNavigation(intent: SessionNavigationIntent, token: CancellationToken = CancellationToken.None, preserveNavigation = false): void {
 		if (intent !== 'automatic') {
+			this.windowCanvasService.cancelPendingOpen();
 			if (!preserveNavigation) {
 				this._recordNavigation(token);
 			}
@@ -977,14 +992,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
 	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
+		const previousActive = this.activeSession.get();
+		const leavingCanvas = intent !== 'automatic' && !!this.windowCanvasService.activeCanvasOpen.get();
 		let active: IActiveSession | undefined;
 		transaction(tx => {
 			// Dismiss the custom view atomically so its covered session is not recorded as a visit.
 			if (intent !== 'automatic') {
 				this.customViewService.hideCustomView(tx);
+				this.windowCanvasService.deactivateCanvas(tx);
+				this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			}
 			active = this._visibility.setActive(session, preserveFocus);
 		});
+		if (leavingCanvas && !preserveFocus && active === previousActive) {
+			this.sessionsPartService.focusSession(active);
+		}
 		return active;
 	}
 
@@ -1433,6 +1455,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			try {
 				transaction(tx => {
 					this.customViewService.hideCustomView(tx);
+					this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
 					for (const session of ordered) {
 						if (referenceSlotId) {
@@ -1484,6 +1507,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const slots = prepared.map(session => ({ session, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
 		transaction(tx => {
 			this.customViewService.hideCustomView(tx);
+			this.windowCanvasService.deactivateCanvas(tx);
+			this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)), tx);
 			this._gridRequest.set({ type: 'arrange' }, tx);
 		});
@@ -1707,7 +1732,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this._startOpenSession();
 				}
 				if (!options?.preserveCustomView) {
-					this.customViewService.hideCustomView();
+					this._activate(undefined, undefined, intent);
 				}
 			}
 			if (intent === 'explicit' && !options?.preserveNavigation) {
@@ -1751,6 +1776,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 				transaction(tx => {
 					if (intent !== 'automatic') {
 						this.customViewService.hideCustomView(tx);
+						this.windowCanvasService.deactivateCanvas(tx);
+						this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					}
 					if (reference) {
 						this._visibility.insertAtGridSlot(session, reference.id, 'right', true);
@@ -1802,12 +1829,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	setActive(session: IActiveSession | undefined): void {
-		if (session?.sessionId !== this.activeSession.get()?.sessionId) {
+		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== this.activeSession.get()?.sessionId) {
 			this._cancelRestore();
 			this._startOpenSession();
 			this._recordNavigation();
 		}
-		this._activate(session);
+		transaction(tx => {
+			this.windowCanvasService.deactivateCanvas(tx);
+			this._activate(session);
+		});
 	}
 
 	async submitNewSessionInput(): Promise<boolean> {

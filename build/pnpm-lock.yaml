@@ -38,12 +38,6 @@ importers:
       '@malept/cross-spawn-promise':
         specifier: ^2.0.0
         version: 2.0.0
-      '@types/ansi-colors':
-        specifier: ^3.2.0
-        version: 3.2.0
-      '@types/byline':
-        specifier: ^4.2.32
-        version: 4.2.32
       '@types/debounce':
         specifier: ^1.0.0
         version: 1.0.0
@@ -53,9 +47,6 @@ importers:
       '@types/fancy-log':
         specifier: ^1.3.0
         version: 1.3.0
-      '@types/fs-extra':
-        specifier: ^9.0.12
-        version: 9.0.13
       '@types/glob':
         specifier: ^7.1.1
         version: 7.1.1
@@ -143,9 +134,6 @@ importers:
       ansi-colors:
         specifier: ^3.2.3
         version: 3.2.4
-      byline:
-        specifier: ^5.0.0
-        version: 5.0.0
       debug:
         specifier: ^4.3.2
         version: 4.4.3
@@ -229,12 +217,6 @@ importers:
       '@rspack/dev-server':
         specifier: ^2.1.0
         version: 2.1.0(@rspack/core@2.1.2)
-      '@vscode/esm-url-webpack-plugin':
-        specifier: ^1.0.1-3
-        version: 1.0.1-5
-      source-map-loader:
-        specifier: ^5.0.0
-        version: 5.0.0
 
   vite:
     devDependencies:
@@ -989,12 +971,6 @@ packages:
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
-  '@types/ansi-colors@3.2.0':
-    resolution: {integrity: sha512-0caWAhXht9N2lOdMzJLXybsSkYCx1QOdxx6pae48tswI9QV3DFX26AoOpy0JxwhCb+zISTqmd6H8t9Zby9BoZg==}
-
-  '@types/byline@4.2.32':
-    resolution: {integrity: sha512-qtlm/J6XOO9p+Ep/ZB5+mCFEDhzWDDHWU4a1eReN7lkPZXW9rkloq2jcAhvKKmlO5tL2GSvKROb+PTsNVhBiyQ==}
-
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
 
@@ -1015,9 +991,6 @@ packages:
 
   '@types/fancy-log@1.3.0':
     resolution: {integrity: sha512-mQjDxyOM1Cpocd+vm1kZBP7smwKZ4TNokFeds9LV7OZibmPJFEzY3+xZMrKfUdNT71lv8GoCPD6upKwHxubClw==}
-
-  '@types/fs-extra@9.0.13':
-    resolution: {integrity: sha512-nEnwB++1u5lVDM2UI4c1+5R+FYaKfaAzS4OococimjVm3nQw3TuzH5UNsocrcTBbhnerblyHj4A49qXbIiZdpA==}
 
   '@types/glob-stream@6.1.0':
     resolution: {integrity: sha512-RHv6ZQjcTncXo3thYZrsbAVwoy4vSKosSWhuhuQxLOTv74OJuFQxXkmUuZCr3q9uNBEVCvIzmZL/FeRNbHZGUg==}
@@ -1150,11 +1123,6 @@ packages:
 
   '@vscode/component-explorer@0.2.1-161':
     resolution: {integrity: sha512-uu77irXrCz+WB/A8Pt9liKu7VZd+QAICfzeFInAgfOzGN1nFud4J7V9pb1A7uwNmAgIIcL6tX0MNpC4p8KuINg==}
-
-  '@vscode/esm-url-webpack-plugin@1.0.1-5':
-    resolution: {integrity: sha512-XnPSKzCW1Lti9pfc/qAvXwlp7gbFGGJmtXiurzqRrWJS8cm/g87dDoSbh45eioynUSDR6EwCW/kFbKmIR54RhQ==}
-    peerDependencies:
-      webpack: ^5.0.0
 
   '@vscode/iconv-lite-umd@0.7.1':
     resolution: {integrity: sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw==}
@@ -1365,10 +1333,6 @@ packages:
   bundle-name@4.1.0:
     resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
     engines: {node: '>=18'}
-
-  byline@5.0.0:
-    resolution: {integrity: sha512-s6webAy+R4SR8XVuJWt2V2rGvhnrhxN+9S15GNuTK3wKPOXFF6RNc+8ug2XhH+2s4f+uudG4kUVYmYOQWL2g0Q==}
-    engines: {node: '>=0.10.0'}
 
   cacheable-lookup@5.0.4:
     resolution: {integrity: sha512-2/kNscPhpcxrOigMZzbiWF7dz8ilhb/nIHU3EyZiXWXpeq/au8qJ8VhdftMkty3n7Gj6HIGalQG8oiBNB3AJgA==}
@@ -1843,10 +1807,6 @@ packages:
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
-
-  iconv-lite@0.6.3:
-    resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
-    engines: {node: '>=0.10.0'}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -2497,9 +2457,6 @@ packages:
   safe-buffer@5.1.2:
     resolution: {integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==}
 
-  safer-buffer@2.1.2:
-    resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
-
   sax@1.6.1:
     resolution: {integrity: sha512-42tBVwLWnaQvW5zc4HbZrTuWccECCZfBi92FDuwtqxasH+JbPB3/FOKb1m222K42R4WxuxzzMsTswfzgtSu64Q==}
     engines: {node: '>=11.0.0'}
@@ -2581,12 +2538,6 @@ packages:
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
-
-  source-map-loader@5.0.0:
-    resolution: {integrity: sha512-k2Dur7CbSLcAH73sBcIkV5xjPV4SzqO1NJ7+XaQl8if3VODDUj3FNchNGpqgJSKbvUfJuhVdv8K2Eu8/TNl2eA==}
-    engines: {node: '>= 18.12.0'}
-    peerDependencies:
-      webpack: ^5.72.1
 
   source-map@0.6.1:
     resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
@@ -3586,12 +3537,6 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@types/ansi-colors@3.2.0': {}
-
-  '@types/byline@4.2.32':
-    dependencies:
-      '@types/node': 24.12.4
-
   '@types/cacheable-request@6.0.3':
     dependencies:
       '@types/http-cache-semantics': 4.0.4
@@ -3612,10 +3557,6 @@ snapshots:
   '@types/expect@1.20.4': {}
 
   '@types/fancy-log@1.3.0': {}
-
-  '@types/fs-extra@9.0.13':
-    dependencies:
-      '@types/node': 24.12.4
 
   '@types/glob-stream@6.1.0':
     dependencies:
@@ -3791,8 +3732,6 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       zod: 4.4.3
-
-  '@vscode/esm-url-webpack-plugin@1.0.1-5': {}
 
   '@vscode/iconv-lite-umd@0.7.1': {}
 
@@ -4007,8 +3946,6 @@ snapshots:
   bundle-name@4.1.0:
     dependencies:
       run-applescript: 7.1.0
-
-  byline@5.0.0: {}
 
   cacheable-lookup@5.0.4: {}
 
@@ -4583,10 +4520,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-
-  iconv-lite@0.6.3:
-    dependencies:
-      safer-buffer: 2.1.2
 
   ieee754@1.2.1:
     optional: true
@@ -5200,8 +5133,6 @@ snapshots:
 
   safe-buffer@5.1.2: {}
 
-  safer-buffer@2.1.2: {}
-
   sax@1.6.1: {}
 
   scheduler@0.23.2:
@@ -5291,11 +5222,6 @@ snapshots:
       is-fullwidth-code-point: 3.0.0
 
   source-map-js@1.2.2: {}
-
-  source-map-loader@5.0.0:
-    dependencies:
-      iconv-lite: 0.6.3
-      source-map-js: 1.2.2
 
   source-map@0.6.1: {}
 
