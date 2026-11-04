@@ -17,13 +17,14 @@ const mocks = vi.hoisted(() => {
 	return {
 		available: true,
 		useTs7: true,
-		created: 0,
 		listeners,
+		events: [] as string[],
 		onConfigurationChange: vi.fn<(listener: (event: vscode.ConfigurationChangeEvent) => void) => vscode.Disposable>(),
 		register: vi.fn<(selector: vscode.DocumentSelector, provider: vscode.StructuralDiffProvider) => vscode.Disposable>(),
-		unregister: vi.fn(),
-		provide: vi.fn<vscode.StructuralDiffProvider['provideStructuralDiff']>(),
-		dispose: vi.fn(),
+		provide: {
+			TS6: vi.fn<vscode.StructuralDiffProvider['provideStructuralDiff']>(),
+			TS7: vi.fn<vscode.StructuralDiffProvider['provideStructuralDiff']>(),
+		},
 	};
 });
 
@@ -44,11 +45,19 @@ vi.mock('vscode', async importOriginal => {
 	};
 });
 
+vi.mock('../ts6/structuralDiffProvider', () => ({
+	TS6StructuralDiffProvider: class {
+		readonly provideStructuralDiff = mocks.provide.TS6;
+		constructor() { mocks.events.push('create TS6'); }
+		dispose() { mocks.events.push('dispose TS6'); }
+	},
+}));
+
 vi.mock('../ts7/structuralDiffProvider', () => ({
 	TS7StructuralDiffProvider: class {
-		readonly provideStructuralDiff = mocks.provide;
-		readonly dispose = mocks.dispose;
-		constructor() { mocks.created++; }
+		readonly provideStructuralDiff = mocks.provide.TS7;
+		constructor() { mocks.events.push('create TS7'); }
+		dispose() { mocks.events.push('dispose TS7'); }
 	},
 }));
 
@@ -59,13 +68,16 @@ suite('TypeScript structural diff contribution', () => {
 		vi.resetAllMocks();
 		mocks.available = true;
 		mocks.useTs7 = true;
-		mocks.created = 0;
 		mocks.listeners.length = 0;
+		mocks.events.length = 0;
 		mocks.onConfigurationChange.mockImplementation(listener => {
 			mocks.listeners.push(listener);
 			return { dispose: () => { mocks.listeners.splice(mocks.listeners.indexOf(listener), 1); } };
 		});
-		mocks.register.mockImplementation(() => ({ dispose: mocks.unregister }));
+		mocks.register.mockImplementation(() => {
+			mocks.events.push('register');
+			return { dispose: () => mocks.events.push('unregister') };
+		});
 	});
 
 	afterEach(() => store.clear());
@@ -75,61 +87,63 @@ suite('TypeScript structural diff contribution', () => {
 		const contribution = store.add(new StructuralDiffContribution(new TestLogService()));
 		const selectors = mocks.register.mock.calls.map(([selector]) => selector);
 		contribution.dispose();
-		assert.deepStrictEqual({
-			selectors, created: mocks.created, disposed: mocks.dispose.mock.calls.length, unregistered: mocks.unregister.mock.calls.length,
-		}, {
+		assert.deepStrictEqual({ selectors, events: mocks.events }, {
 			selectors: [[
 				{ language: 'typescript', scheme: 'file' },
 				{ language: 'typescriptreact', scheme: 'file' },
 				{ language: 'typescript', scheme: 'git' },
 				{ language: 'typescriptreact', scheme: 'git' },
 			]],
-			created: 1, disposed: 1, unregistered: 1,
+			events: ['create TS7', 'register', 'dispose TS7', 'unregister'],
 		});
 	});
 
-	test('delegates requests only while the TypeScript 7 backend is active', async () => {
-		store.add(new StructuralDiffContribution(new TestLogService()));
-		const provider = mocks.register.mock.calls[0][1];
-		const original = createTextDocumentData(vscode.Uri.parse('git:/file.ts'), '', 'typescript').document;
-		const modified = createTextDocumentData(vscode.Uri.file('file.ts'), '', 'typescript').document;
-		const context = { changes: [] };
-		const range = new vscode.Range(0, 0, 0, 0);
-		const entity = { name: 'file.ts', kind: vscode.SymbolKind.File, range };
-		const expected: vscode.StructuralDiff = {
-			root: { id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [], children: [] },
-			isIncomplete: false,
-		};
-		mocks.provide.mockReturnValue(expected);
-		mocks.useTs7 = false;
-		const ts6Result = await provider.provideStructuralDiff(original, modified, context, CancellationToken.None);
-		mocks.useTs7 = true;
-		const ts7Result = await provider.provideStructuralDiff(original, modified, context, CancellationToken.None);
-		assert.deepStrictEqual({
-			ts6Result, ts7Result, calls: mocks.provide.mock.calls, registrations: mocks.register.mock.calls.length,
-		}, {
-			ts6Result: undefined, ts7Result: expected, calls: [[original, modified, context, CancellationToken.None]], registrations: 1,
+	for (const version of ['TS6', 'TS7'] as const) {
+		test(`delegates requests to the ${version} provider only while ${version} is active`, async () => {
+			mocks.useTs7 = version === 'TS7';
+			store.add(new StructuralDiffContribution(new TestLogService()));
+			const provider = mocks.register.mock.calls[0][1];
+			const original = createTextDocumentData(vscode.Uri.parse('git:/file.ts'), '', 'typescript').document;
+			const modified = createTextDocumentData(vscode.Uri.file('file.ts'), '', 'typescript').document;
+			const context = { changes: [] };
+			const range = new vscode.Range(0, 0, 0, 0);
+			const entity = { name: 'file.ts', kind: vscode.SymbolKind.File, range };
+			const expected: vscode.StructuralDiff = {
+				root: { id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [], children: [] },
+				isIncomplete: false,
+			};
+			mocks.provide[version].mockReturnValue(expected);
+			const active = await provider.provideStructuralDiff(original, modified, context, CancellationToken.None);
+			// The version changed, but the configuration listener has not yet replaced the registration.
+			mocks.useTs7 = !mocks.useTs7;
+			const inactive = await provider.provideStructuralDiff(original, modified, context, CancellationToken.None);
+			assert.deepStrictEqual({
+				active, inactive, TS6: mocks.provide.TS6.mock.calls, TS7: mocks.provide.TS7.mock.calls,
+			}, {
+				active: expected, inactive: undefined,
+				TS6: version === 'TS6' ? [[original, modified, context, CancellationToken.None]] : [],
+				TS7: version === 'TS7' ? [[original, modified, context, CancellationToken.None]] : [],
+			});
 		});
-	});
+	}
 
 	test('does not construct a provider when the host does not support the proposal', () => {
 		mocks.available = false;
 		store.add(new StructuralDiffContribution(new TestLogService()));
-		assert.deepStrictEqual({ registrations: mocks.register.mock.calls.length, created: mocks.created }, { registrations: 0, created: 0 });
+		assert.deepStrictEqual(mocks.events, []);
 	});
 
-	test('updates registry availability when the active TypeScript backend changes', () => {
+	test('replaces the provider when the active TypeScript version changes', () => {
 		mocks.useTs7 = false;
 		store.add(new StructuralDiffContribution(new TestLogService()));
-		const initial = mocks.register.mock.calls.length;
 		mocks.useTs7 = true;
 		mocks.listeners[0]({ affectsConfiguration: () => true });
-		const enabled = mocks.register.mock.calls.length;
 		mocks.useTs7 = false;
 		mocks.listeners[0]({ affectsConfiguration: () => true });
-		assert.deepStrictEqual({
-			initial, enabled, created: mocks.created,
-			disposed: mocks.dispose.mock.calls.length, unregistered: mocks.unregister.mock.calls.length,
-		}, { initial: 0, enabled: 1, created: 1, disposed: 1, unregistered: 1 });
+		assert.deepStrictEqual(mocks.events, [
+			'create TS6', 'register',
+			'dispose TS6', 'unregister', 'create TS7', 'register',
+			'dispose TS7', 'unregister', 'create TS6', 'register',
+		]);
 	});
 });

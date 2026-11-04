@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isAbsolute } from 'node:path';
 import type { API } from '@typescript/native/async';
 import type { SourceFile } from '@typescript/native/ast';
 import type * as vscode from 'vscode';
 import type { ILogService } from '../../../../platform/log/common/logService';
-import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
-import { URI } from '../../../../util/vs/base/common/uri';
+import { StructuralDiffDocuments } from '../structuralDiffDocuments';
 import { computeStructuralDiff } from './structuralDiff';
 import { TypeScript7Api } from './ts7Api';
 
@@ -32,29 +30,12 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 	}
 
 	async provideStructuralDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, context: vscode.StructuralDiffContext, token: vscode.CancellationToken): Promise<vscode.StructuralDiff | undefined> {
-		if ((modifiedDocument.uri.scheme !== 'file' && modifiedDocument.uri.scheme !== 'git')
-			|| (modifiedDocument.languageId !== 'typescript' && modifiedDocument.languageId !== 'typescriptreact')) {
+		const fileUri = StructuralDiffDocuments.getBackingFile(modifiedDocument);
+		if (fileUri === undefined) {
 			return undefined;
 		}
-		const originalVersion = originalDocument.version;
-		const modifiedVersion = modifiedDocument.version;
-		const checkCancellation = () => {
-			if (token.isCancellationRequested || originalDocument.isClosed || modifiedDocument.isClosed
-				|| originalDocument.version !== originalVersion || modifiedDocument.version !== modifiedVersion) {
-				throw new CancellationError();
-			}
-		};
+		const checkCancellation = StructuralDiffDocuments.createCancellationCheck(originalDocument, modifiedDocument, token);
 		checkCancellation();
-		let fileUri = modifiedDocument.uri;
-		if (fileUri.scheme === 'git') {
-			const params: unknown = JSON.parse(fileUri.query);
-			if (typeof params !== 'object' || params === null
-				|| !('path' in params) || typeof params.path !== 'string' || !isAbsolute(params.path)
-				|| !('ref' in params) || typeof params.ref !== 'string') {
-				throw new Error('TypeScript structural diff requires a Git URI with an absolute file path and a string ref');
-			}
-			fileUri = URI.file(params.path);
-		}
 		const originalText = originalDocument.getText();
 		const modifiedText = modifiedDocument.getText();
 		const api = await this.nativeApi.getApi();

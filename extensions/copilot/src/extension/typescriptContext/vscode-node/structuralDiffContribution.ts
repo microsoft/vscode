@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
+import { TS6StructuralDiffProvider } from './ts6/structuralDiffProvider';
 import { TS7StructuralDiffProvider } from './ts7/structuralDiffProvider';
 import { TypeScript } from './tsService';
 
@@ -18,19 +19,17 @@ export class StructuralDiffContribution extends Disposable {
 		const registration = this._register(new MutableDisposable<DisposableStore>());
 		const update = () => {
 			registration.clear();
-			if (!TypeScript.runsVersion7()) {
-				return;
-			}
 			const resources = new DisposableStore();
 			registration.value = resources;
-			const provider = resources.add(new TS7StructuralDiffProvider(logService));
+			const runsVersion7 = TypeScript.runsVersion7();
+			const provider = resources.add(runsVersion7 ? new TS7StructuralDiffProvider(logService) : new TS6StructuralDiffProvider());
 			resources.add(vscode.languages.registerStructuralDiffProvider([
 				{ language: 'typescript', scheme: 'file' },
 				{ language: 'typescriptreact', scheme: 'file' },
 				{ language: 'typescript', scheme: 'git' },
 				{ language: 'typescriptreact', scheme: 'git' },
 			], {
-				provideStructuralDiff: (original, modified, context, token) => TypeScript.runsVersion7()
+				provideStructuralDiff: (original, modified, context, token) => TypeScript.runsVersion7() === runsVersion7
 					? provider.provideStructuralDiff(original, modified, context, token)
 					: undefined,
 			}));
