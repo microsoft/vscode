@@ -2284,8 +2284,14 @@ suite('ChatPetWidget', () => {
 		};
 		button.style.left = '0px';
 		button.style.top = '-100px';
+		const mainPupils = button.querySelectorAll<HTMLElement>('.chat-pet-pupil');
+		for (const pupil of mainPupils) {
+			pupil.style.transform = 'translate(2px, -2px)';
+		}
 		const first = createSubagent('first');
 		const firstMini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		assert.deepStrictEqual([...firstMini.querySelectorAll<HTMLElement>('.chat-pet-pupil')].map(pupil => pupil.style.transform), ['', '']);
+		assert.deepStrictEqual([...mainPupils].map(pupil => pupil.style.transform), ['translate(2px, -2px)', 'translate(2px, -2px)']);
 		assert.ok(firstMini.offsetLeft >= button.offsetLeft + button.offsetWidth);
 		const miniSize = 48 * Number.parseFloat(firstMini.style.getPropertyValue('--chat-pet-subagent-scale'));
 		assert.strictEqual(Number.parseFloat(firstMini.style.top) + miniSize, 0);

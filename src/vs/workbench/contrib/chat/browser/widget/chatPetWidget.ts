@@ -2898,6 +2898,9 @@ export class ChatPetWidget extends Disposable {
 			const eyes = element.appendChild(this._eyes.cloneNode(true)) as HTMLElement;
 			eyes.classList.remove('blink', 'blinking', 'bobbed');
 			eyes.classList.add('tracking');
+			for (const eye of eyes.children) {
+				(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
+			}
 			const disposables = this._subagentEffects.add(new DisposableStore());
 			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
 			const updateBlink = () => blink.setEnabled(this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
