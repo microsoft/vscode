@@ -6,6 +6,8 @@
 import type { MessageAttachment } from '../state/protocol/state.js';
 import { readCopilotAttachmentDetail, withCopilotAttachmentDetail } from './copilotd/copilotdMetadataReader.js';
 
+export { hasSessionContextAttachmentMeta, withSessionContextAttachmentMeta } from './vscode/attachmentMeta.js';
+
 export interface IAttachmentDetail {
 	readonly type: string;
 	readonly raw: Record<string, unknown>;

@@ -15,6 +15,7 @@ import { isLocation, Location, SymbolKind } from '../../../../../editor/common/l
 import { localize } from '../../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
 import type { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { hasSessionContextAttachmentMeta, withSessionContextAttachmentMeta } from '../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -624,20 +625,17 @@ export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): 
 	return entry.kind === 'chatReference';
 }
 
-const sessionContextMetadataKey = 'vscode.agentHost.sessionContext';
-
 /** Scope client-side deduplication to the source host, independently of unscoped chat references. */
 export function withSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
-	return {
+	return withSessionContextAttachmentMeta({
 		...entry,
 		id: `agent-host-session-context:${JSON.stringify([authority, chatReferenceVariableEntryId(entry.value, entry.endTurn)])}`,
 		sessionContextSourceAuthority: authority,
-		_meta: { ...entry._meta, [sessionContextMetadataKey]: true },
-	};
+	});
 }
 
 export function restoreSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
-	return entry._meta?.[sessionContextMetadataKey] === true ? withSessionContextSource(entry, authority) : entry;
+	return hasSessionContextAttachmentMeta(entry) ? withSessionContextSource(entry, authority) : entry;
 }
 
 export function getSessionContextSourceAuthority(entry: IChatRequestVariableEntry): string | undefined {
