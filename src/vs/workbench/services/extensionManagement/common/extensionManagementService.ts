@@ -1143,7 +1143,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		}
 
 		// Check if the extension is allowed by publisher or extension id
-		if (this.allowedExtensionsService.allowedExtensionsConfigValue && this.allowedExtensionsService.isAllowed(extension)) {
+		if (this.allowedExtensionsService.allowedExtensionsConfigValue && this.allowedExtensionsService.isAllowed(extension) === true) {
 			return true;
 		}
 
