@@ -8,7 +8,12 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
+import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -47,6 +52,38 @@ suite('Chat window contribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const chatWindowKeys = { [IsSessionsWindowContext.key]: true, [IsAuxiliaryWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [LayoutModeContext.key]: ChatWindowLayoutMode.SideBySide, [SplitLayoutContext.key]: ChatWindowLayoutMode.SideBySide };
+
+	test('in a chat window, the main window\'s Browser command opens a new pinned browser tab in its main part, as in the main window, and its Search command searches in its main part, by the services of that part, rather than in the part that has focus', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const windowGroup = upcastPartial<IEditorGroup>({ id: 2, count: 1, getEditors: () => [] });
+		const mainPart = upcastPartial<IChatWindow['mainPart']>({ activeGroup: windowGroup, groups: [windowGroup] });
+		const events: unknown[] = [];
+		const window = upcastPartial<IChatWindow>({ windowId: 2, mainPart, showEditor: () => events.push('show editor') });
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: window }));
+		const fresh = upcastPartial<EditorInput>({});
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({ getOrCreateLazy: () => fresh as never }));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			openEditor: async (input: unknown, options?: unknown, group?: unknown) => {
+				events.push({ open: input === fresh ? 'new browser' : 'other', options, group: group === windowGroup ? 'chat window main part' : 'other' });
+				return undefined;
+			},
+		}));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
+			getScopedInstantiationService: part => upcastPartial<IInstantiationService>({
+				invokeFunction: (fn: unknown, ...fnArgs: unknown[]) => events.push({ search: fn === openNewSearchEditor, args: fnArgs, by: part === mainPart ? 'chat window main part' : 'other' }) as never,
+			}),
+		}));
+
+		await instantiationService.invokeFunction(accessor => new NewBrowserTabAction().run(accessor));
+		await instantiationService.invokeFunction(accessor => new NewSearchTabAction().run(accessor));
+
+		assert.deepStrictEqual(events, [
+			'show editor',
+			{ open: 'new browser', options: { pinned: true }, group: 'chat window main part' },
+			'show editor',
+			{ search: true, args: [{ location: 'new' }], by: 'chat window main part' },
+		]);
+	});
 
 	test('registers the commands of chat windows', () => {
 		const commands = [

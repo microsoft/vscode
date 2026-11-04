@@ -189,16 +189,14 @@ export class NewBrowserTabAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const inChatWindow = runInChatWindow(accessor, args, CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID);
-		if (inChatWindow) {
-			await inChatWindow;
-			return;
-		}
+		const chatWindow = resolveInvokingChatWindow(accessor, args);
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		const editorService = accessor.get(IEditorService);
 		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
 
-		await editorService.openEditor(browserInput, { pinned: true });
+		// Always a new tab, also in a chat window, where it opens in its main part, as the window's other tabs do
+		chatWindow?.showEditor();
+		await editorService.openEditor(browserInput, { pinned: true }, chatWindow?.mainPart.activeGroup);
 	}
 }
 
@@ -274,13 +272,11 @@ export class NewSearchTabAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
 		const chatWindow = resolveInvokingChatWindow(accessor, args);
-		if (chatWindow) {
-			// In a chat window, the search opens in its main part, as the window's other tabs do, not beside its chat.
-			chatWindow.showEditor();
-			accessor.get(IEditorGroupsService).activateGroup(chatWindow.mainPart.activeGroup);
-		}
+		// In a chat window, the search opens in its main part, as the window's other tabs do, not in the part that has
+		// focus, such as beside its chat: by the services of the main part, whose active group is its own
+		chatWindow?.showEditor();
+		const instantiationService = chatWindow ? accessor.get(IEditorGroupsService).getScopedInstantiationService(chatWindow.mainPart) : accessor.get(IInstantiationService);
 		await instantiationService.invokeFunction(openNewSearchEditor, { location: 'new' });
 	}
 }
