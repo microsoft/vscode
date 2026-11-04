@@ -23,7 +23,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -76,6 +76,7 @@ import { getChatSessionTelemetryContext } from '../../common/chatService/chatSer
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
+import { IChatMovedConversation, IChatMovedConversationsService, OPEN_MOVED_CONVERSATION_ACTION_ID } from '../agentSessions/agentHost/chatMovedConversations.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
@@ -456,6 +457,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 	private readonly policyRequiresAgentHost: IObservable<boolean>;
 	private policyReadOnly = false;
+	private readonly movedConversationsChanged: IObservable<void>;
+	/** The chat the shown archived chat's conversation continues in, if it was moved. */
+	private movedTo: IChatMovedConversation | undefined;
 
 	private recentlyRestoredCheckpoint: boolean = false;
 	private _requestEditSnapshot: { readonly input: string; readonly attachmentIds: ReadonlySet<string> } | undefined;
@@ -676,8 +680,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ICommandService private readonly commandService: ICommandService,
 		@IAgentHostPolicyContinuationService private readonly policyContinuationService: IAgentHostPolicyContinuationService,
 		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
+		@IChatMovedConversationsService private readonly movedConversations: IChatMovedConversationsService,
 	) {
 		super();
+		this.movedConversationsChanged = observableSignalFromEvent(this, this.movedConversations.onDidChange);
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
 		this.policyRequiresAgentHost = observableFromEvent(this, Event.any(
 			managedSettingsService.onDidChangeManagedSettings,
@@ -2174,10 +2180,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (wasReadOnly) {
 			this.renderChatSuggestNextWidget();
 		}
+		const resource = this.viewModel?.sessionResource;
+		const movedTo = readOnly && !this.policyReadOnly && !historyStatus ? this.movedTo : undefined;
 		this.readOnlyBanner?.setMessage(this.policyReadOnly
 			? localize('chatReadOnlyBanner.managedPolicy', "This chat is read-only because your organization requires the new Copilot experience.")
-			: historyStatus?.message);
-		const resource = this.viewModel?.sessionResource;
+			: movedTo
+				? localize('chatReadOnlyBanner.movedTo', "This chat continues in {0}.", movedTo.destinationName)
+				: historyStatus?.message);
 		const hasRequests = this.viewModel?.model.hasRequests;
 		const canMove = this.policyReadOnly && hasRequests && this._agentHostService.supportsConversationImport;
 		this.readOnlyBanner?.setAction(this.policyReadOnly && resource ? {
@@ -2194,6 +2203,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			run: () => this.commandService.executeCommand<void>(CONTINUE_CHAT_IN_COPILOT_ACTION_ID, {
 				$mid: MarshalledId.ChatViewContext, sessionResource: resource, inputUri: this.input.inputUri,
 			}),
+		} : movedTo ? {
+			label: localize('chatReadOnlyBanner.openMovedTo', "Open in {0}", movedTo.destinationName),
+			run: () => this.commandService.executeCommand<void>(OPEN_MOVED_CONVERSATION_ACTION_ID, movedTo.destination),
 		} : historyStatus?.action);
 		const wasBannerVisible = this.readOnlyBanner?.visible;
 		this.readOnlyBanner?.setVisible(readOnly && (!keepInputVisible || !!historyStatus));
@@ -2242,6 +2254,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
+		this.movedConversationsChanged.read(reader);
+		// An archived chat that was moved points to the chat its conversation continues in.
+		this.movedTo = archived ? this.movedConversations.getMovedTo(model.sessionResource) : undefined;
 		const policyRequired = isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
 		if (policyRequired) {
 			this._agentHostService.initializeResult?.read(reader);

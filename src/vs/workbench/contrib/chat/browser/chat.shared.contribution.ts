@@ -223,6 +223,7 @@ import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInp
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from './agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostPolicyContinuationService, ContinueAgentHostChatInCopilotAction, IAgentHostPolicyContinuationService } from './agentSessions/agentHost/agentHostPolicyContinuation.js';
+import { ChatMovedConversationNotices, ChatMovedConversationsService, IChatMovedConversationsService, OpenMovedConversationAction } from './agentSessions/agentHost/chatMovedConversations.js';
 import { ISessionSummaryHoverService, SessionSummaryHoverService } from './agentSessions/sessionSummaryHoverService.js';
 import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
@@ -3472,6 +3473,9 @@ registerSingleton(IChatImageCarouselService, ChatImageCarouselService, Instantia
 registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
 registerSingleton(IAgentHostPolicyContinuationService, AgentHostPolicyContinuationService, InstantiationType.Delayed);
 registerAction2(ContinueAgentHostChatInCopilotAction);
+registerSingleton(IChatMovedConversationsService, ChatMovedConversationsService, InstantiationType.Delayed);
+registerAction2(OpenMovedConversationAction);
+registerWorkbenchContribution2(ChatMovedConversationNotices.ID, ChatMovedConversationNotices, WorkbenchPhase.AfterRestored);
 registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, InstantiationType.Delayed);
 registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 

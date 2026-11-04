@@ -44,7 +44,7 @@ import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
@@ -52,6 +52,7 @@ import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
+import { IChatMovedConversationsService } from '../agentSessions/agentHost/chatMovedConversations.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
@@ -229,6 +230,7 @@ export class ContinueChatInCopilotAction extends Action2 {
 		const folders = accessor.get(IAgentHostNewSessionFolderService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const languageModelsService = accessor.get(ILanguageModelsService);
+		const movedConversations = accessor.get(IChatMovedConversationsService);
 		const sourceModel = widget.viewModel.model;
 		const ensureSourceVisible = () => {
 			if (!widget.visible || widget.viewModel?.model !== sourceModel) {
@@ -334,6 +336,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 				throw new Error(continueInCopilotHistoryMissingMessage());
 			}
 			destination.inputModel.setState(draft);
+			// Link the two chats before archiving, so the archived source shows where it went.
+			if (sourceTurns.length && getChatSessionType(context.sessionResource) === localChatSessionType) {
+				movedConversations.record(context.sessionResource, opened, openOptions.displayName, sourceModel.title || undefined);
+			}
 			if (turns.length && sourceSession) {
 				provisional.releaseSession(sessionResource);
 				sourceSession.setArchived(true);
@@ -655,6 +661,7 @@ export class CreateRemoteAgentJobAction {
 		const instantiationService = accessor.get(IInstantiationService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const languageModelsService = accessor.get(ILanguageModelsService);
+		const movedConversations = accessor.get(IChatMovedConversationsService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -786,7 +793,7 @@ export class CreateRemoteAgentJobAction {
 						};
 						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
 					} else {
-						await instantiationService.invokeFunction(innerAccessor => openChatSession(
+						const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(
 							innerAccessor,
 							{
 								type: continuationTargetType,
@@ -808,6 +815,9 @@ export class CreateRemoteAgentJobAction {
 								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 							}
 						));
+						if (opened && sourceSessionType === AgentSessionProviders.Local && chatRequests.length) {
+							movedConversations.record(sessionResource, opened, continuationTarget.displayName, chatModel.title || undefined);
+						}
 					}
 					return;
 				}

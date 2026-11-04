@@ -1592,6 +1592,7 @@ suite('ChatWidget', () => {
 			_visible: constObservable(false),
 			_readOnlyContextKey: { set: () => { } },
 			policyRequiresAgentHost: constObservable(false),
+			movedConversationsChanged: constObservable(undefined), movedConversations: { getMovedTo: () => undefined },
 			agentSessionsService: {
 				model: { onDidChangeSessions: sessionChanges.event },
 				getSession: () => ({ isArchived: () => archived }),
@@ -1662,6 +1663,7 @@ suite('ChatWidget', () => {
 			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
 		} = Object.assign(Object.create(ChatWidget.prototype), {
 			policyRequiresAgentHost: constObservable(false),
+			movedConversationsChanged: constObservable(undefined), movedConversations: { getMovedTo: () => undefined },
 			agentSessionsService: {
 				model: { onDidChangeSessions: sessionChanges.event },
 				getSession: (resource: URI) => sessions.get(resource),
@@ -1801,6 +1803,9 @@ suite('ChatWidget', () => {
 			} = Object.assign(Object.create(ChatWidget.prototype), {
 				_readOnly: false, _draftOnly: observableValue('draftOnly', false), _visible: constObservable(false),
 				_readOnlyContextKey: { set: () => { } }, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+				// The policy chat was moved; its link only shows once it is archived.
+				movedConversationsChanged: constObservable(undefined),
+				movedConversations: { getMovedTo: (resource: URI) => resource.toString() === local.sessionResource.toString() ? { destination: copilot.sessionResource, destinationName: 'Copilot' } : undefined },
 				agentSessionsService: {
 					model: { onDidChangeSessions: sessionChanges.event },
 					getSession: () => ({ isArchived: () => selected.get() === local && archivedState }),
@@ -1854,7 +1859,8 @@ suite('ChatWidget', () => {
 				inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				returned: original,
 				// Without import support or on a remote host, an archived chat still offers the manual banner action.
-				archivedUnderPolicy: canMove && !isRemote ? { visible: true, text: 'This chat is read-only', action: '', atTop: true } : original,
+				// Otherwise it was moved, and links to the chat it continues in.
+				archivedUnderPolicy: canMove && !isRemote ? { visible: true, text: 'This chat continues in Copilot.', action: 'Open in Copilot', atTop: true } : original,
 				otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },

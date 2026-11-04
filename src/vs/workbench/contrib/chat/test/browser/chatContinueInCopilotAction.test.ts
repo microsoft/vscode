@@ -38,6 +38,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { IAgentHostUntitledProvisionalSessionService } from '../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
+import { IChatMovedConversationsService } from '../../browser/agentSessions/agentHost/chatMovedConversations.js';
 import { IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -135,6 +136,13 @@ suite('Continue in Copilot policy recovery', () => {
 					}),
 				});
 				services.stub(IAgentHostImportConversationStore, imports);
+				const links: { source: string; destination: string; destinationName: string; title: string | undefined }[] = [];
+				services.stub(IChatMovedConversationsService, {
+					record: (linkSource, destination, destinationName, title) => {
+						preparation.push('link');
+						links.push({ source: linkSource.toString(), destination: destination.toString(), destinationName, title });
+					},
+				});
 				services.stub(ILogService, new NullLogService());
 				services.stub(IChatService, {
 					getSession: () => targetModel,
@@ -283,9 +291,10 @@ suite('Continue in Copilot policy recovery', () => {
 				if (scenario === 'hidden' || scenario === 'switched' || scenario === 'hidden-during-preparation') {
 					await assert.rejects(run, CancellationError);
 					assertTelemetry('cancelled');
-					assert.deepStrictEqual({ target, archived, draft, preparation }, {
+					assert.deepStrictEqual({ target, archived, draft, preparation, links }, {
 						target: undefined, archived: false, draft: undefined,
 						preparation: scenario === 'hidden-during-preparation' ? ['prepare', 'release draft'] : [],
+						links: [],
 					});
 					return;
 				}
@@ -296,16 +305,19 @@ suite('Continue in Copilot policy recovery', () => {
 								: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
 					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
-					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived }, {
+					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived, links }, {
 						target: scenario === 'history-missing' || scenario === 'history-load-error' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
 						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
 							: scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'history-missing' || scenario === 'history-load-error' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
+						// A move that did not complete links nothing.
+						links: [],
 					});
 					return;
 				}
 				await run;
 				const transcriptOnly = scenario === 'unsupported' || scenario === 'archived-unsupported';
 				const newChat = scenario === 'empty' || transcriptOnly;
+				const localSource = scenario !== SessionType.AgentHostClaude && scenario !== SessionType.AgentHostCodex;
 				assert.deepStrictEqual(telemetry.map(entry => entry.data), ['started', 'succeeded'].map(outcome => ({
 					action: scenario === 'empty' ? 'newChat' : transcriptOnly ? 'transcript' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome,
 				})));
@@ -315,6 +327,7 @@ suite('Continue in Copilot policy recovery', () => {
 					history: imported?.turns.map(turn => ({ text: turn.message.text, model: turn.message.model, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
 					draft: draft && { ...draft, attachments: draft.attachments?.map(entry => entry.id.startsWith('chat-delegation-transcript-') ? { transcript: entry.value } : entry) },
 					preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
+					links,
 				}, {
 					target: SessionType.AgentHostCopilot,
 					title: newChat ? undefined : 'Local conversation title',
@@ -325,13 +338,15 @@ suite('Continue in Copilot policy recovery', () => {
 						selections: [],
 						...(scenario === 'custom-agent' ? { mode: { id: agentFile.toString(), kind: ChatModeKind.Agent } } : {}),
 					},
-					preparation: newChat ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'release imported ownership', 'archive'],
+					preparation: scenario === 'empty' ? ['open'] : transcriptOnly ? ['open', ...(localSource ? ['link'] : [])] : ['prepare', 'import', 'release draft', 'open', ...(localSource ? ['link'] : []), 'release imported ownership', 'archive'],
 					// A transcript continuation leaves the source archive state alone.
 					archived: !newChat || scenario === 'archived-unsupported',
 					backendExists: !newChat, listed: !newChat, deleted: [],
 					aliases: newChat ? [] : [real],
 					published: newChat ? [] : [real],
 					modelOverride: expected.sessionModel, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
+					// A Local chat that brought its conversation links to the chat it continues in, before it is archived.
+					links: scenario !== 'empty' && localSource ? [{ source: source.toString(), destination: target!.toString(), destinationName: 'Copilot', title: 'Local conversation title' }] : [],
 				});
 			});
 		}

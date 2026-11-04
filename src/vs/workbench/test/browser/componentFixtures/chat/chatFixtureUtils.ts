@@ -112,6 +112,7 @@ import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/comm
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentHostPolicyContinuationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
+import { IChatMovedConversationsService } from '../../../../contrib/chat/browser/agentSessions/agentHost/chatMovedConversations.js';
 import { IChatSlashCommandService } from '../../../../contrib/chat/common/participants/chatSlashCommands.js';
 import { IChatGoalSummaryService } from '../../../../contrib/chat/browser/chatGoalSummaryService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
@@ -292,6 +293,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatGoalSummaryService, new class extends mock<IChatGoalSummaryService>() { }());
 	reg.defineInstance(IAgentHostPolicyContinuationService, new class extends mock<IAgentHostPolicyContinuationService>() { }());
+	reg.defineInstance(IChatMovedConversationsService, new class extends mock<IChatMovedConversationsService>() {
+		override readonly onDidChange = Event.None;
+		override getMovedTo() { return undefined; }
+	}());
 	reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 		override readonly targetSession = constObservable<URI | undefined>(undefined);
 		override readonly hasDraftTarget = constObservable(false);
