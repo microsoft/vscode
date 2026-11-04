@@ -79,6 +79,25 @@ export function findOverlayAnchorOf(target: Node): HTMLElement | undefined {
 }
 
 /**
+ * The element of `document` that something draws over from outside it, such
+ * as a webview over an editor, at `x`, `y`, or within `tolerance` of it.
+ */
+export function findOverlayAnchorAt(document: Document, x: number, y: number, tolerance = 0): HTMLElement | undefined {
+	for (const [host, registration] of overlayHosts) {
+		const anchor = registration.anchor;
+		if (!host.element || registration.hidden > 0 || anchor.ownerDocument !== document || !anchor.isConnected) {
+			continue;
+		}
+		const rect = anchor.getBoundingClientRect();
+		if (rect.width > 0 && rect.height > 0 && x >= rect.left - tolerance && x <= rect.right + tolerance && y >= rect.top - tolerance && y <= rect.bottom + tolerance) {
+			return anchor;
+		}
+	}
+
+	return undefined;
+}
+
+/**
  * Hides what draws over the elements inside `container`, until disposed.
  */
 export function hideOverlaysIn(container: HTMLElement): IDisposable {

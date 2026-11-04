@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, getWindow, isActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { findOverlayAnchorOf } from '../../../../base/browser/overlayLayoutElement.js';
+import { findOverlayAnchorAt, findOverlayAnchorOf } from '../../../../base/browser/overlayLayoutElement.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -36,6 +36,12 @@ export const PART_GRID_TOP_EDGE_CLASS = 'part-grid-cell-top-edge';
  * grabber to show.
  */
 const PART_GRID_POINTER_OVER_CLASS = 'part-grid-pointer-over';
+
+/**
+ * How far, in pixels, from where the pointer heads as it leaves the window's elements, what draws over an element, such
+ * as a webview, counts as where it went: the window has no event once the pointer is in it.
+ */
+const PART_GRID_OVERLAY_ENTRY_TOLERANCE = 4;
 
 /**
  * The class of an editor group whose title is at the top edge of its grid: a group at the top of a part in a cell at the
@@ -461,11 +467,15 @@ export class PartGrid extends Disposable {
 		// such as a webview, which the card's own hover does not see
 		const targetWindow = getWindow(container);
 		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => this.setPointerOverCell(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined), true));
-		// Into a webview, the window has a pointerout but no pointerover: what is under the pointer then, such as the frame
-		// of the webview, is where it went; nothing there, it left the window
+		// Into the frame of a webview, which takes the pointer from the window, the window has a pointerout to nothing and no
+		// event after it: the pointer went into what draws over an element where it was heading, else out of the window
 		this._register(addDisposableListener(targetWindow.document, 'pointerout', e => {
-			const next = isHTMLElement(e.relatedTarget) ? e.relatedTarget : targetWindow.document.elementFromPoint(e.clientX, e.clientY);
-			this.setPointerOverCell(isHTMLElement(next) ? this.findCellAt(next) : undefined);
+			if (isHTMLElement(e.relatedTarget)) {
+				this.setPointerOverCell(this.findCellAt(e.relatedTarget));
+				return;
+			}
+			const anchor = findOverlayAnchorAt(targetWindow.document, e.clientX + e.movementX, e.clientY + e.movementY, PART_GRID_OVERLAY_ENTRY_TOLERANCE);
+			this.setPointerOverCell(anchor ? this.findCellAt(anchor) : undefined);
 		}, true));
 		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
 		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, () => this.setPointerOverCell(undefined)));

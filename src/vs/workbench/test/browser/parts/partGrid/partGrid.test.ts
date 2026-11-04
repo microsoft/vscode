@@ -582,6 +582,7 @@ suite('Part Grid', () => {
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
 		// A webview draws over the left part from outside the grid
 		const anchor = cellOf('left').querySelector('.part-grid-card')!.appendChild(mainWindow.document.createElement('div'));
+		anchor.style.cssText = 'position: absolute; inset: 0;';
 		const overlay = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		const leftRect = cellOf('left').getBoundingClientRect();
 		overlay.style.cssText = `position: fixed; left: ${leftRect.left}px; top: ${leftRect.top}px; width: ${leftRect.width}px; height: ${leftRect.height}px; z-index: 1;`;
@@ -598,9 +599,11 @@ suite('Part Grid', () => {
 		over(iframe);
 		iframe.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: -10, clientY: -10 }));
 		const outOfTheWindow = showing();
-		// Straight from the other part into the webview, whose frame takes the pointer: the window has only the pointerout
+		// Straight from the other part into the webview, whose frame takes the pointer: the window has only a pointerout to
+		// nothing, at the edge of the part it leaves, and no event after it
 		over(cellOf('right').querySelector('.part-grid-card')!);
-		cellOf('right').querySelector('.part-grid-card')!.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: leftRect.left + leftRect.width / 2, clientY: leftRect.top + leftRect.height / 2 }));
+		const rightRect = cellOf('right').getBoundingClientRect();
+		cellOf('right').querySelector('.part-grid-card')!.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: rightRect.left + 1, clientY: rightRect.top + rightRect.height / 2, movementX: -3 }));
 		const fromOtherPartIntoWebview = showing();
 		// Out of the window from inside the webview's frame, which keeps its pointer events: only the window's mouseleave
 		over(iframe);
