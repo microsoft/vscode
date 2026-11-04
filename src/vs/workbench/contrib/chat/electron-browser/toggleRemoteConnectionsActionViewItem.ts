@@ -71,6 +71,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private _tunnelName: string | undefined;
 	private _namesLoaded = false;
 	private _nameRequest = 0;
+	/** The support URL behind the policy footer of the last opened menu, if it showed that footer. */
+	private _policyFooterSupportUrl: { readonly url: string | undefined } | undefined;
 
 	constructor(
 		action: IAction,
@@ -107,6 +109,12 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		this._register(autorun(reader => {
 			this._missionControlSharingService.environmentName.read(reader);
 			void this._loadNames();
+		}));
+		// The policy footer's link is resolved when the menu opens, so it closes rather than going stale.
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this._policyFooterSupportUrl && getManagedSupportUrl(this._managedSettingsService) !== this._policyFooterSupportUrl.url) {
+				this._dropdown.hide();
+			}
 		}));
 	}
 
@@ -196,6 +204,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private _getListOptions(): IActionListOptions {
 		if (this._configurationService.inspect<boolean>(GitHubEnvironmentsEnabledSettingId).policyValue === false && this._availabilityService.available.get()) {
 			const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+			this._policyFooterSupportUrl = { url: supportUrl };
 			const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View Setting");
 			return {
 				minWidth: 300,
@@ -227,6 +236,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				hideDefaultKeybindingTooltip: true,
 			};
 		}
+		this._policyFooterSupportUrl = undefined;
 		const state = this._primaryAction.getState();
 		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 		const name = usesGitHubEnvironment ? this._environmentName : state.tunnelName ?? this._tunnelName;

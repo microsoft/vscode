@@ -2111,7 +2111,7 @@ suite('TabbedModelPicker', () => {
 			result.picker.hide();
 			return state;
 		};
-		const support = { url: 'https://example.com/help(copilot)', tooltip: 'Opens your organization\'s help page (example.com)' };
+		const support = { url: 'https://example.com/help(copilot)?topic=foo\\_bar', tooltip: 'Opens your organization\'s help page (example.com)' };
 		assert.deepStrictEqual({
 			noLink: adminLink(),
 			githubFallback: adminLink(undefined, 'https://github.com/settings/copilot/features'),
@@ -2119,7 +2119,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			noLink: { text: 'Contact Admin', href: undefined, title: undefined },
 			githubFallback: { text: 'Contact Admin', href: 'https://github.com/settings/copilot/features', title: 'https://github.com/settings/copilot/features' },
-			withSupport: { text: 'Contact Admin', href: 'https://example.com/help%28copilot%29', title: 'Opens your organization\'s help page (example.com)' },
+			withSupport: { text: 'Contact Admin', href: 'https://example.com/help%28copilot%29?topic=foo%5C_bar', title: 'Opens your organization\'s help page (example.com)' },
 		});
 	});
 

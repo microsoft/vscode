@@ -150,6 +150,8 @@ export class ModelPickerWidget extends Disposable {
 	private _minimumWidth = MODEL_PICKER_MINIMUM_NAME_WIDTH;
 	private readonly _tabbedPicker = this._register(new MutableDisposable<TabbedModelPicker>());
 	private readonly _tabbedPickerHideListener = this._register(new MutableDisposable());
+	/** The organization support URL the open picker's Contact Admin links use. */
+	private _shownSupportUrl: string | undefined;
 	/** The on-device rows of this picker, bound to the chat's Agent Host connection, with their refresh listener. */
 	private readonly _localModels = this._register(new MutableDisposable<DisposableStore>());
 	private _localModelsController: ModelPickerLocalModels | undefined;
@@ -230,6 +232,12 @@ export class ModelPickerWidget extends Disposable {
 			// only takes on new models once they can be used.
 			if (this._tabbedPicker.value?.isVisible && this._unavailableReason(models) === undefined) {
 				this._tabbedPicker.value.refresh(models, this._delegate.getComparisonModels?.());
+			}
+		}));
+		// Contact Admin links are resolved when the picker opens, so it closes rather than going stale.
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this._tabbedPicker.value?.isVisible && getManagedSupportUrl(this._managedSettingsService) !== this._shownSupportUrl) {
+				this._tabbedPicker.value.hide();
 			}
 		}));
 
@@ -778,6 +786,7 @@ export class ModelPickerWidget extends Disposable {
 		};
 		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
 		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+		this._shownSupportUrl = supportUrl;
 		const organizationSupport = supportUrl ? { url: supportUrl, tooltip: getOrganizationSupportActionTooltip(supportUrl) } : undefined;
 		const onLinkClick = (uri: URI) => {
 			if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {

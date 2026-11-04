@@ -552,7 +552,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 				value: false, source: 'nativeMdm',
 				contributions: [{ channel: 'nativeMdm', value: false }, { channel: 'server', value: true }],
 			}]]),
-			suppressedTelemetry: new Map([['telemetry.enabled', [{ channel: 'server', value: true }]]]),
+			excludedBlockContributions: new Map([['telemetry.enabled', [{ channel: 'server', value: true }]]]),
 			activeSources: ['nativeMdm'],
 		});
 	});
@@ -578,7 +578,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 		assert.deepStrictEqual({
 			values: pick.values,
 			resolvedKeys: [...pick.resolutions.keys()],
-			suppressed: [...pick.suppressedTelemetry],
+			suppressed: [...pick.excludedBlockContributions],
 			activeSources: pick.activeSources,
 		}, {
 			values: { 'telemetry.capture.prompts': false },
@@ -598,7 +598,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			values: pick.values,
 			projected: projectManagedSettings(pick.values, { [key]: { type: 'boolean' } }),
 			marker: pick.resolutions.get('telemetry'),
-			suppressed: [...pick.suppressedTelemetry],
+			suppressed: [...pick.excludedBlockContributions],
 		}, {
 			values: { telemetry: '{}' },
 			projected: {},
@@ -629,7 +629,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			assert.deepStrictEqual({
 				values: pick.values,
 				resolutionValues: Object.fromEntries([...pick.resolutions].map(([key, resolution]) => [key, resolution.value])),
-				suppressed: [...pick.suppressedTelemetry.keys()].sort(),
+				suppressed: [...pick.excludedBlockContributions.keys()].sort(),
 				activeSources: pick.activeSources,
 				sharedSource: pick.resolutions.get('shared')?.source,
 				sandboxSource: pick.resolutions.get(sandbox)?.source,
@@ -665,6 +665,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			server: pickManagedSettings(undefined, normalizeManagedSettings({ communication: { support: { url: 'https://server.example/help' } } }), file).values,
 			native: pickManagedSettings({ [key]: 'https://mdm.example/help' }, undefined, file).values,
 			emptyBlock: pickManagedSettings(undefined, normalizeManagedSettings({ communication: {} }), file).values,
+			excludedForDiagnostics: [...pickManagedSettings(undefined, normalizeManagedSettings({ communication: {} }), file).excludedBlockContributions],
 			emptySupport: pickManagedSettings(undefined, normalizeManagedSettings({ communication: { support: {} } }), file).values,
 			scalar: normalizeManagedSettings({ communication: 'https://scalar.example' }),
 			withdrawn: pickManagedSettings(undefined, normalizeManagedSettings({}), file).values,
@@ -681,6 +682,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			server: { [key]: 'https://server.example/help' },
 			native: { [key]: 'https://mdm.example/help' },
 			emptyBlock: { communication: '{}' },
+			excludedForDiagnostics: [[key, [{ channel: 'file', value: 'https://file.example/help' }]]],
 			emptySupport: { communication: '{}' },
 			scalar: {},
 			withdrawn: file,
@@ -735,7 +737,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 					{ channel: 'file', value: true },
 				],
 			}]]),
-			suppressedTelemetry: new Map(),
+			excludedBlockContributions: new Map(),
 			activeSources: ['server'],
 		});
 	});
@@ -963,10 +965,10 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 				allEmpty: pickManagedSettings({}, {}, {}),
 			},
 			{
-				partial: { values: { 'b': 'server' }, resolutions: new Map([['b', { value: 'server', source: 'server', contributions: [{ channel: 'server', value: 'server' }] }]]), suppressedTelemetry: new Map(), activeSources: ['server'] },
+				partial: { values: { 'b': 'server' }, resolutions: new Map([['b', { value: 'server', source: 'server', contributions: [{ channel: 'server', value: 'server' }] }]]), excludedBlockContributions: new Map(), activeSources: ['server'] },
 				gap: ['nativeMdm', 'file'],
-				allUndefined: { values: {}, resolutions: new Map(), suppressedTelemetry: new Map(), activeSources: [] },
-				allEmpty: { values: {}, resolutions: new Map(), suppressedTelemetry: new Map(), activeSources: [] },
+				allUndefined: { values: {}, resolutions: new Map(), excludedBlockContributions: new Map(), activeSources: [] },
+				allEmpty: { values: {}, resolutions: new Map(), excludedBlockContributions: new Map(), activeSources: [] },
 			},
 		);
 	});

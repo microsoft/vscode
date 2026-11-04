@@ -11,7 +11,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -1451,6 +1451,25 @@ suite('mcpListWidget', () => {
 			middleClickNavigates: false,
 			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }, { target: 'https://example.com/copilot-help', openExternal: true }],
 			hovers: ['Opens your organization\'s help page (example.com)'],
+		});
+	});
+
+	test('keeps the policy link and its focus when nothing it shows changes, and refocuses the new link when the URL changes', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+		document.body.appendChild(widget.disabledMessage);
+		disposables.add(toDisposable(() => widget.disabledMessage.remove()));
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.updateAccessState();
+		const link = widget.disabledMessage.querySelector('a')!;
+		link.focus();
+		widget.updateAccessState();
+		const unchanged = { sameLink: widget.disabledMessage.querySelector('a') === link, focused: document.activeElement === link };
+		widget.supportUrl = 'https://example.com/other-help';
+		widget.updateAccessState();
+		const replaced = widget.disabledMessage.querySelector('a')!;
+		assert.deepStrictEqual({ unchanged, replaced: { href: replaced.getAttribute('href'), focused: document.activeElement === replaced } }, {
+			unchanged: { sameLink: true, focused: true },
+			replaced: { href: 'https://example.com/other-help', focused: true },
 		});
 	});
 

@@ -151,22 +151,61 @@ suite('Sessions policy update explanation', () => {
 		});
 	});
 
-	test('keys reach a dialog opened from the overlay, such as link protection, but not the blocked workbench', () => {
-		const { root, content } = setup(undefined, false);
-		assert.ok(root.querySelector('.sessions-policy-blocked-overlay'));
+	test('keys reach dialogs and quick picks opened from the overlay, and Tab cycles within the card, but nothing reaches the blocked workbench', () => {
+		const { root, content, setManagedSettings } = setup(undefined, false);
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
 		const dialogButton = append(append(root, $('.monaco-dialog-modal-block')), $('button'));
-		const press = (target: HTMLElement) => {
+		const quickPickInput = append(append(root, $('.quick-input-widget')), $('input'));
+		const press = (target: HTMLElement, key = 'Enter', shiftKey = false) => {
 			let reachedTarget = false;
 			const listener = () => reachedTarget = true;
 			target.addEventListener('keydown', listener);
-			const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
 			target.dispatchEvent(event);
 			target.removeEventListener('keydown', listener);
 			return { reachedTarget, defaultPrevented: event.defaultPrevented };
 		};
-		assert.deepStrictEqual({ dialog: press(dialogButton), workbench: press(content) }, {
+		const focused = () => mainWindow.document.activeElement === overlay ? 'overlay' : mainWindow.document.activeElement?.textContent;
+		const initialFocus = focused();
+		press(overlay, 'Tab');
+		const afterTab = focused();
+		press(mainWindow.document.activeElement as HTMLElement, 'Tab', true);
+		const afterShiftTabFromFirst = focused();
+		press(mainWindow.document.activeElement as HTMLElement, 'Tab');
+		const afterTabFromLast = focused();
+		assert.deepStrictEqual({
+			dialog: press(dialogButton),
+			quickPick: press(quickPickInput, 'Escape'),
+			workbench: press(content),
+			initialFocus, afterTab, afterShiftTabFromFirst, afterTabFromLast,
+		}, {
 			dialog: { reachedTarget: true, defaultPrevented: false },
+			quickPick: { reachedTarget: true, defaultPrevented: false },
 			workbench: { reachedTarget: false, defaultPrevented: true },
+			initialFocus: 'overlay',
+			afterTab: 'Learn more',
+			afterShiftTabFromFirst: 'Open VS Code',
+			afterTabFromLast: 'Learn more',
+		});
+	});
+
+	test('a rerender keeps focus on the same action, falls back to the primary action, and leaves focus in a dialog the overlay opened', () => {
+		const { root, setManagedSettings } = setup(undefined, false);
+		const button = (label: string) => [...root.querySelectorAll<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button')].find(element => element.textContent === label)!;
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		button('Contact Admin').focus();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/other-help' });
+		const keptAction = mainWindow.document.activeElement?.textContent;
+		setManagedSettings({});
+		const fallback = mainWindow.document.activeElement?.textContent;
+		const dialogButton = append(append(root, $('.monaco-dialog-modal-block')), $('button', undefined, 'Open'));
+		dialogButton.focus();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		assert.deepStrictEqual({ keptAction, fallback, dialogKeptFocus: mainWindow.document.activeElement === dialogButton }, {
+			keptAction: 'Contact Admin',
+			fallback: 'Open VS Code',
+			dialogKeptFocus: true,
 		});
 	});
 
@@ -355,13 +394,21 @@ suite('Sessions policy update explanation', () => {
 		}, { noHorizontalOverflow: true, verticalOverflow: true, scrollsToAction: true, actionVisible: true, focusedActionStillVisibleAfterResize: true, focused: true });
 	});
 
-	test('leaves generic blocked-state layout unchanged', () => {
-		const { root } = setup(undefined, false);
+	test('keeps every action of a generic blocking card reachable in a short viewport', async () => {
+		const { root, setManagedSettings } = setup(undefined, false);
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		root.style.height = '160px';
 		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
+		const scrollContent = overlay.querySelector<HTMLElement>('.sessions-policy-blocked-scroll-content')!;
+		const lastAction = overlay.querySelector<HTMLElement>('.monaco-button.secondary')!;
+		lastAction.focus();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const viewport = scrollContent.getBoundingClientRect();
+		const actionBounds = lastAction.getBoundingClientRect();
 		assert.deepStrictEqual({
 			updateStyles: overlay.classList.contains('update-required'),
-			display: mainWindow.getComputedStyle(overlay).display,
-			scrollContainers: overlay.querySelectorAll('.sessions-policy-blocked-scrollable').length,
-		}, { updateStyles: false, display: 'flex', scrollContainers: 0 });
+			verticalOverflow: scrollContent.scrollHeight > scrollContent.clientHeight,
+			actionVisible: actionBounds.top >= viewport.top && actionBounds.bottom <= viewport.bottom,
+		}, { updateStyles: false, verticalOverflow: true, actionVisible: true });
 	});
 });

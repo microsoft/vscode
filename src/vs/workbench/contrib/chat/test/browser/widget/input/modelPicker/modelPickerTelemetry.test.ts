@@ -94,6 +94,7 @@ suite('ModelPickerTelemetry', () => {
 		const eventNames: string[] = [];
 		const openedLinks: string[] = [];
 		const openedExternally: string[] = [];
+		const managedSettingsChange = store.add(new Emitter<void>());
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const savedConfigurations: string[] = [];
 		const pinnedModelIds: string[] = [];
@@ -252,6 +253,7 @@ suite('ModelPickerTelemetry', () => {
 			}
 		});
 		instantiationService.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 			override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? managedSupportUrl : undefined; }
 		}());
 		instantiationService.stub(ITelemetryService, {
@@ -337,6 +339,7 @@ suite('ModelPickerTelemetry', () => {
 		return {
 			events, pickerEvents, eventNames, openedLinks, openedExternally, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
 			get visible() { return visible; },
+			fireManagedSettingsChange: () => managedSettingsChange.fire(),
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
 			get tabBarActionIds() { return tabBarActionIds; },
@@ -847,14 +850,25 @@ suite('ModelPickerTelemetry', () => {
 		});
 
 		test('opens the organization help page externally and reports it as contact-admin', () => {
-			managedSupportUrl = 'https://example.com/copilot-help';
+			managedSupportUrl = 'https://example.com/help?topic=foo\\_bar';
 			const result = createPicker();
 			assert.ok(result.listOptions.linkHandler);
-			result.listOptions.linkHandler(URI.parse(managedSupportUrl), { kind: ActionListItemKind.Action });
+			// The rendered link percent-encodes the backslash, which must still match the managed URL.
+			result.listOptions.linkHandler(URI.parse('https://example.com/help?topic=foo%5C_bar'), { kind: ActionListItemKind.Action });
 			assert.deepStrictEqual({ events: result.events, openedExternally: result.openedExternally }, {
 				events: [{ name: 'chat.modelPickerInteraction', data: { interaction: 'disabledModelContactAdminClicked' } }],
-				openedExternally: ['https://example.com/copilot-help'],
+				openedExternally: ['https://example.com/help?topic=foo\\_bar'],
 			});
+		});
+
+		test('closes when the organization support URL changes, but not for other managed settings', () => {
+			managedSupportUrl = 'https://example.com/copilot-help';
+			const result = createPicker();
+			result.fireManagedSettingsChange();
+			const afterUnrelatedChange = result.visible;
+			managedSupportUrl = 'https://example.com/other-help';
+			result.fireManagedSettingsChange();
+			assert.deepStrictEqual({ afterUnrelatedChange, afterUrlChange: result.visible }, { afterUnrelatedChange: true, afterUrlChange: false });
 		});
 
 		test('reports the open, the change, and the close of one picker session', () => {

@@ -11,12 +11,16 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getOrganizationSupportActionTooltip, openOrganizationSupport } from '../common/organizationSupport.js';
 
+/** A "Contact your administrator" link; dispose it to remove its click handlers and hover. */
+export interface IContactAdministratorLink extends IDisposable {
+	readonly element: HTMLAnchorElement;
+}
+
 /**
  * Appends "Contact your administrator for more information." to `container` as a link to the
- * organization's support page, with a hover naming its host. Dispose the result to remove the
- * click handler and hover.
+ * organization's support page, with a hover naming its host.
  */
-export function appendContactAdministratorLink(container: HTMLElement, className: string, supportUrl: string, openerService: IOpenerService, hoverService: Pick<IHoverService, 'setupDelayedHover'>): IDisposable {
+export function appendContactAdministratorLink(container: HTMLElement, className: string, supportUrl: string, openerService: IOpenerService, hoverService: Pick<IHoverService, 'setupDelayedHover'>): IContactAdministratorLink {
 	const store = new DisposableStore();
 	const link = append(container, $(`a.${className}`, { href: supportUrl }));
 	link.textContent = localize('organizationSupport.contactAdministratorForMoreInformation', "Contact your administrator for more information.");
@@ -32,5 +36,5 @@ export function appendContactAdministratorLink(container: HTMLElement, className
 			open(e);
 		}
 	}));
-	return store;
+	return { element: link as HTMLAnchorElement, dispose: () => store.dispose() };
 }

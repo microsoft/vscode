@@ -190,8 +190,9 @@ export interface IModelPickerOrganizationSupport {
 }
 
 function createOrganizationSupportLink(label: string, { url, tooltip }: IModelPickerOrganizationSupport): MarkdownString {
-	// Parentheses would end the link destination early, and quotes would end its title.
-	const destination = url.replace(/\(/g, '%28').replace(/\)/g, '%29');
+	// Parentheses would end the link destination early, quotes would end its title, and a
+	// backslash would be read as a Markdown escape and dropped from the URL.
+	const destination = url.replace(/\\/g, '%5C').replace(/\(/g, '%28').replace(/\)/g, '%29');
 	const title = tooltip.replace(/["\\]/g, '\\$&');
 	return new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${destination} "${title}")`);
 }

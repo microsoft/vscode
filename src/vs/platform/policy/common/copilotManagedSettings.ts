@@ -271,13 +271,14 @@ const communicationBlockKey = 'communication';
 
 /**
  * Blocks selected in their entirety from the highest-priority channel that supplies them, matching
- * the runtime's composition: omitted leaves never inherit from a weaker managed source.
+ * the runtime's composition: omitted leaves never inherit from a weaker managed source. A block key
+ * itself, with the value `{}`, is a presence marker for an empty block, not a policy setting.
  */
-const wholeBlockKeys = [telemetryBlockKey, communicationBlockKey] as const;
+export const MANAGED_SETTINGS_WHOLE_BLOCK_KEYS: readonly string[] = [telemetryBlockKey, communicationBlockKey];
 
 /** The whole block a canonical bag key belongs to, if any. */
-function getWholeBlockKey(key: string): string | undefined {
-	return wholeBlockKeys.find(block => isManagedSettingInBlock(key, block));
+export function getManagedSettingsWholeBlock(key: string): string | undefined {
+	return MANAGED_SETTINGS_WHOLE_BLOCK_KEYS.find(block => isManagedSettingInBlock(key, block));
 }
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
@@ -632,12 +633,12 @@ export interface IManagedSettingResolution {
 
 /** The result of resolving managed settings across the delivery channels. */
 export interface IManagedSettingsPick {
-	/** The effective bag, excluding telemetry leaves found only in weaker managed sources. */
+	/** The effective bag, excluding whole-block leaves found only in weaker managed sources. */
 	readonly values: ManagedSettingsData;
 	/** Per-key provenance: how each key resolved and which channels were overridden. */
 	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
-	/** Telemetry keys supplied only by weaker blocks, retained for diagnostics but never applied. */
-	readonly suppressedTelemetry: ReadonlyMap<string, readonly IManagedSettingsContribution[]>;
+	/** Whole-block keys supplied only by weaker blocks, retained for diagnostics but never applied. */
+	readonly excludedBlockContributions: ReadonlyMap<string, readonly IManagedSettingsContribution[]>;
 	/** The channels that supplied at least one *winning* key, in precedence order. */
 	readonly activeSources: readonly ManagedSettingsChannel[];
 }
@@ -666,7 +667,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 
 	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
-	const suppressedTelemetry = new Map<string, IManagedSettingsContribution[]>();
+	const excludedBlockContributions = new Map<string, IManagedSettingsContribution[]>();
 	const blockSources = new Map<string, ManagedSettingsChannel>();
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
@@ -681,16 +682,14 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 				continue;
 			}
 			const existing = resolutions.get(key);
-			const block = getWholeBlockKey(key);
+			const block = getManagedSettingsWholeBlock(key);
 			if (block) {
 				const blockSource = blockSources.get(block) ?? channel;
 				blockSources.set(block, blockSource);
 				if (channel !== blockSource && !existing) {
-					if (block === telemetryBlockKey) {
-						const contributions = suppressedTelemetry.get(key) ?? [];
-						contributions.push({ channel, value });
-						suppressedTelemetry.set(key, contributions);
-					}
+					const contributions = excludedBlockContributions.get(key) ?? [];
+					contributions.push({ channel, value });
+					excludedBlockContributions.set(key, contributions);
 					continue;
 				}
 			}
@@ -718,7 +717,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 		// Build via Object.fromEntries (define-property semantics) rather than bracket assignment so
 		// an untrusted `__proto__` key can't corrupt the merged bag's prototype chain.
 		values: Object.fromEntries(entries),
-		suppressedTelemetry,
+		excludedBlockContributions,
 		resolutions,
 		// Preserve precedence order for a stable, readable report.
 		activeSources: MANAGED_SETTINGS_CHANNELS.filter(channel => activeSources.has(channel)),
@@ -928,8 +927,8 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
 	// `telemetry.resourceAttributes`), so removal clones only the touched path.
 	let scalarRest: Record<string, unknown> = { ...parsed };
-	const presentBlocks = wholeBlockKeys.filter(block => Object.hasOwn(parsed, block) && isObject(parsed[block]));
-	for (const block of wholeBlockKeys) {
+	const presentBlocks = MANAGED_SETTINGS_WHOLE_BLOCK_KEYS.filter(block => Object.hasOwn(parsed, block) && isObject(parsed[block]));
+	for (const block of MANAGED_SETTINGS_WHOLE_BLOCK_KEYS) {
 		if (!presentBlocks.includes(block)) {
 			// A scalar named like a block is not a block (nor a serialized presence anchor in raw input).
 			delete scalarRest[block];

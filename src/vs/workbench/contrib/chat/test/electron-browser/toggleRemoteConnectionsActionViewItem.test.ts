@@ -221,7 +221,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 		instantiation.stub(IActionViewItemService, new NullActionViewItemService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		const managedSettings: Record<string, ManagedSettingValue> = {};
+		const managedSettingsChange = store.add(new Emitter<void>());
 		instantiation.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 			override getManagedSettingValue(key: string) { return managedSettings[key]; }
 		}());
 		const opened: { target: string; openExternal: boolean | undefined }[] = [];
@@ -259,7 +261,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened };
+		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
@@ -376,6 +378,18 @@ suite('RemoteConnectionsActionViewItem', () => {
 			openSettings: 0,
 			sharing: [],
 		});
+	});
+
+	test('closes the open policy menu when the organization support URL changes, but not for other managed settings', async () => {
+		const { configuration, openMenu, managedSettings, fireManagedSettingsChange, isMenuOpen } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		openMenu();
+		fireManagedSettingsChange();
+		const afterUnrelatedChange = isMenuOpen();
+		managedSettings[COPILOT_COMMUNICATION_SUPPORT_URL_KEY] = 'https://example.com/copilot-help';
+		fireManagedSettingsChange();
+		assert.deepStrictEqual({ afterUnrelatedChange, afterUrlChange: isMenuOpen() }, { afterUnrelatedChange: true, afterUrlChange: false });
 	});
 
 	test('hard experiment disablement hides GitHub Environments despite user enablement', () => {

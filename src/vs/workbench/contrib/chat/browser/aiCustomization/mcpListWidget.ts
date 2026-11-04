@@ -1990,6 +1990,8 @@ export class McpListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	/** Identifies the message in `disabledMessage`, so unchanged state doesn't rebuild it and drop focus. */
+	private renderedDisabledMessage: string | undefined;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
@@ -2524,6 +2526,9 @@ export class McpListWidget extends Disposable {
 		this.mcpAccessEnabled = !disabled;
 
 		this.element.classList.toggle('access-disabled', disabled);
+		if (!disabled) {
+			this.renderedDisabledMessage = undefined;
+		}
 
 		if (disabled) {
 			this.connectorsCancellation.value?.cancel();
@@ -2539,24 +2544,36 @@ export class McpListWidget extends Disposable {
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
 
-			DOM.clearNode(this.disabledMessage);
-			this.disabledLinkListener.clear();
 			const supportUrl = policyLocked ? getManagedSupportUrl(this.managedSettingsService) : undefined;
-			if (supportUrl) {
-				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledByPolicyPrefix', "Access to MCP servers is disabled by your organization. ")));
-				this.disabledLinkListener.value = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
-			} else if (policyLocked) {
-				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
-			} else {
-				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
-				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
-				link.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
-				link.href = '#';
-				link.setAttribute('role', 'button');
-				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
-					e.preventDefault();
-					this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
-				});
+			const messageKey = `${policyLocked}:${supportUrl ?? ''}`;
+			if (this.renderedDisabledMessage !== messageKey) {
+				this.renderedDisabledMessage = messageKey;
+				const hadFocus = DOM.isAncestorOfActiveElement(this.disabledMessage);
+				DOM.clearNode(this.disabledMessage);
+				this.disabledLinkListener.clear();
+				let link: HTMLElement | undefined;
+				if (supportUrl) {
+					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledByPolicyPrefix', "Access to MCP servers is disabled by your organization. ")));
+					const supportLink = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
+					this.disabledLinkListener.value = supportLink;
+					link = supportLink.element;
+				} else if (policyLocked) {
+					this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
+				} else {
+					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
+					const settingsLink = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+					settingsLink.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
+					settingsLink.href = '#';
+					settingsLink.setAttribute('role', 'button');
+					this.disabledLinkListener.value = DOM.addDisposableListener(settingsLink, 'click', (e) => {
+						e.preventDefault();
+						this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
+					});
+					link = settingsLink;
+				}
+				if (hadFocus) {
+					link?.focus();
+				}
 			}
 		} else if (accessChanged && this.visible) {
 			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {

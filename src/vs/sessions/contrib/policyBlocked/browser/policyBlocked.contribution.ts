@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -108,14 +109,21 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		if (equals(this.currentOptions, options)) {
 			return;
 		}
-		const shouldFocus = options.reason !== SessionsBlockedReason.UpdateRequired || !this.overlayRef.value || this.overlayRef.value.hasFocus();
+		const previous = this.overlayRef.value;
+		const focusAction = previous?.getFocusedAction();
+		// Leave focus in a dialog or quick pick the overlay opened, such as link protection.
+		const activeElement = getActiveElement();
+		const focusInFollowUp = isHTMLElement(activeElement) && !!activeElement.closest('.monaco-dialog-modal-block, .quick-input-widget');
+		const shouldFocus = options.reason === SessionsBlockedReason.UpdateRequired
+			? !previous || previous.hasFocus()
+			: !focusInFollowUp;
 		this.overlayRef.clear();
 		this.currentOptions = options;
 
 		this.overlayRef.value = this.instantiationService.createInstance(
 			SessionsPolicyBlockedOverlay,
 			this.layoutService.mainContainer,
-			{ ...options, shouldFocus },
+			{ ...options, shouldFocus, focusAction },
 		);
 	}
 }
