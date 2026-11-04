@@ -15,7 +15,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { RunAutomaticTasks } from '../../browser/runAutomaticTasks.js';
 import { TaskProblemMonitor } from '../../browser/taskProblemMonitor.js';
 import { ProblemMatcherRegistry } from '../../common/problemMatcher.js';
@@ -145,6 +147,49 @@ suite('Task system readiness', function () {
 		}, { commands: ['linux-command', 'linux-command'], shared: true, cached: true });
 	});
 
+	for (const parsingStarted of [false, true]) {
+		test(`removing a folder releases discovery waiting for its remote host (parsing started: ${parsingStarted})`, async () => {
+			const workspace = testWorkspace(folder);
+			workspace.configuration = folder.with({ path: '/test.code-workspace' });
+			const { taskService, instantiationService, remote, problemMatchersReady } = createRemoteTaskService(workspace);
+			await taskService.whenTaskSystemReady;
+			const entered = new DeferredPromise<void>();
+			const resume = new DeferredPromise<void>();
+			if (parsingStarted) {
+				problemMatchersReady.onFirstCall().callsFake(() => {
+					entered.complete();
+					return resume.p;
+				});
+			} else {
+				remote.dispose();
+			}
+			let result: Map<string, IWorkspaceFolderTaskResult> | undefined;
+			const discovery = taskService.getWorkspaceTasks().then(tasks => result = tasks);
+			if (parsingStarted) {
+				await entered.p;
+				remote.dispose();
+				await resume.complete();
+			}
+			await timeout(0);
+			const context = instantiationService.get(IWorkspaceContextService) as TestContextService;
+			const removed = context.getWorkspace().folders;
+			const currentWorkspace = testWorkspace();
+			currentWorkspace.configuration = workspace.configuration;
+			context.setWorkspace(currentWorkspace);
+			const changes = Reflect.get(context, '_onDidChangeWorkspaceFolders') as Emitter<IWorkspaceFoldersChangeEvent>;
+			changes.fire({ added: [], removed, changed: [] });
+			const current = await taskService.getWorkspaceTasks();
+			await timeout(0);
+			// Release a broken waiter before asserting, so failure also cleans up.
+			const completed = result !== undefined;
+			store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Windows)));
+			await discovery;
+			assert.deepStrictEqual({ completed, current: result === current, removed: result?.has(folder.toString()) }, {
+				completed: true, current: true, removed: false
+			});
+		});
+	}
+
 	test('disposing the task service cancels discovery waiting for a remote replacement', async () => {
 		const { taskService, remote } = createRemoteTaskService();
 		await taskService.whenTaskSystemReady;
@@ -179,6 +224,51 @@ suite('Task system readiness', function () {
 			result: { exitCode: 0 }, resolutionCalls: 1
 		});
 	});
+
+	for (const rerun of [false, true]) {
+		test(`${rerun ? 'rerun' : 'launch'} never calls a registration after its removal`, async () => {
+			const { taskService, instantiationService, remote, folder } = createRemoteTaskService();
+			instantiationService.stubInstance(TaskProblemMonitor, { dispose() { } });
+			const task = (await taskService.getWorkspaceTasks()).get(folder.toString())!.set!.tasks[0];
+			assert.ok(CustomTask.is(task));
+			const system = store.add(taskService.createTerminalTaskSystem());
+			if (rerun) {
+				task.runOptions.reevaluateOnRerun = false;
+				task.command.name = '${variables}';
+				const previous = new VerifiedTask(task, { resolve: async () => undefined }, 'command');
+				previous.workspaceFolder = task.getWorkspaceFolder();
+				previous.systemInfo = taskSystemInfo(Platform.Platform.Windows);
+				previous.resolvedVariables = { variables: new Map() };
+				previous.shellLaunchConfig = {};
+				system.lastTask = previous;
+			}
+			remote.dispose();
+			const execution = (rerun ? system.rerun()! : system.run(task, { resolve: async () => undefined })).promise;
+			await timeout(0);
+			let removed = false;
+			let callsAfterRemoval = 0;
+			const staleResolveVariables = sinon.stub().callsFake(async () => {
+				if (removed) {
+					callsAfterRemoval++;
+				}
+				return undefined;
+			});
+			const replacement = store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, {
+				...taskSystemInfo(Platform.Platform.Windows), resolveVariables: staleResolveVariables
+			}));
+			queueMicrotask(() => {
+				replacement.dispose();
+				removed = true;
+			});
+			await timeout(0);
+			const resolveVariables = sinon.stub().resolves(undefined);
+			store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, { ...taskSystemInfo(Platform.Platform.Windows), resolveVariables }));
+			assert.deepStrictEqual({
+				result: await execution, callsAfterRemoval,
+				resolutionCalls: staleResolveVariables.callCount + resolveVariables.callCount
+			}, { result: { exitCode: 0 }, callsAfterRemoval: 0, resolutionCalls: 1 });
+		});
+	}
 
 	test('disposing the task service cancels task execution waiting for a remote replacement', async () => {
 		const { taskService, instantiationService, remote, folder } = createRemoteTaskService();
