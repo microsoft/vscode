@@ -192,6 +192,9 @@ const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 /** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
 
+/** Maximum pages to read per repository/archive task scope during discovery. */
+const DISCOVERY_TASK_SCAN_MAX_PAGES = 3;
+
 /**
  * Max concurrent task-detail fetches during discovery.
  *
@@ -579,7 +582,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
-	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
+	/** Full scans replace the recent task window; incremental scans preserve absent tasks. */
 	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const stopwatch = StopWatch.create();
 		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
@@ -681,7 +684,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			};
 			const requestedUrls = new Set<string>();
 			let url: string | undefined = `${this._tasksBaseUrl()}/tasks${toQuery({ ...query, page: '1' })}`;
-			for (let page = 1; url; page++) {
+			for (let page = 1; url && page <= DISCOVERY_TASK_SCAN_MAX_PAGES; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}

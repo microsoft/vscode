@@ -2863,9 +2863,8 @@ suite('CloudSandboxApiService repository resolution', () => {
 		});
 	}
 
-	test('scans past the first page and stays complete', async () => {
-		// A full first page means there may be more; a sandbox task on the second must be found.
-		const filler = Array.from({ length: 100 }, (_, i) => task(`filler-${i}`, 'x', undefined, `fs-${i}`, `fe-${i}`));
+	test('discovers sandbox tasks on the third page and stays complete when the scope is exhausted', async () => {
+		const filler = Array.from({ length: 200 }, (_, i) => task(`filler-${i}`, 'x', undefined, `fs-${i}`, `fe-${i}`));
 		const { service, requestedUrls } = createService(store, {
 			tasks: [...filler, task('task-old', 'older sandbox', undefined, 'sess-old', 'env-old')],
 			repositories: new Map(),
@@ -2880,13 +2879,11 @@ suite('CloudSandboxApiService repository resolution', () => {
 		}, {
 			kind: 'complete',
 			found: ['sess-old'],
-			listPages: 5,
+			listPages: 6,
 		});
 	});
 
-	test('follows the Link header past a short page', async () => {
-		// Mission Control can return fewer rows than asked for and still advertise a next page, so
-		// page length must not be used to detect the end.
+	test('follows the Link header after an empty first page within the page limit', async () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [task('task-old', 'older sandbox', undefined, 'sess-old', 'env-old')],
 			repositories: new Map(),
@@ -2908,8 +2905,8 @@ suite('CloudSandboxApiService repository resolution', () => {
 
 	for (const repositoryId of [undefined, 42]) {
 		for (const archived of [false, true]) {
-			test(`discovers sessions past ten pages (repository=${repositoryId}, archived=${archived})`, async () => {
-				const tasks = Array.from({ length: 1000 }, (_, i) => ({
+			test(`bounds discovery in each scope (repository=${repositoryId}, archived=${archived})`, async () => {
+				const tasks = Array.from({ length: 300 }, (_, i) => ({
 					...task(`filler-${i}`, 'Other task', repositoryId, `s-${i}`, `e-${i}`),
 					agent_collaborators: [{ slug: 'other' }],
 					compute: { provider: 'other' },
@@ -2931,35 +2928,35 @@ suite('CloudSandboxApiService repository resolution', () => {
 					listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
 				}, {
 					kind: 'complete',
-					sessions: ['older-session'],
-					listPages: 14,
+					sessions: [],
+					listPages: 6,
 				});
 			});
 		}
 	}
 
-	test('pagination remains cancellable beyond ten pages', async () => {
+	test('cancellation stops paging and the remaining scope requests', async () => {
 		const cancellation = store.add(new CancellationTokenSource());
 		const { service, requestedUrls } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: url => {
-				if (url.searchParams.get('page') === '11') {
+				if (url.searchParams.get('page') === '3') {
 					cancellation.cancel();
+					throw new CancellationError();
 				}
 				return jsonResponse({ tasks: [] }, 200, { link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` });
 			},
 		});
 
 		await assert.rejects(service.listSessions(cancellation.token), isCancellationError);
-		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')),
-			Array.from({ length: 11 }, (_, i) => String(i + 1)));
+		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')), ['1', '2', '3']);
 	});
 });
 
 suite('CloudSandboxApiService pagination', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('follows relative cursor links through empty pages in every discovery scope', async () => {
+	test('limits cursor pagination to three pages in every scope and resolves tasks once', async () => {
 		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
 		const tasks: ITestTask[] = [
 			task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
@@ -2967,21 +2964,18 @@ suite('CloudSandboxApiService pagination', () => {
 			{ ...task('archived-repo', 'Archived repository', 42, 'archived-repo-session', 'archived-repo-environment'), archived_at: date },
 			{ ...task('archived-no-repo', 'Archived without repository', undefined, 'archived-no-repo-session', 'archived-no-repo-environment'), archived_at: date },
 		];
-		const cursors = ['second+/= opaque', 'third'];
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map([[42, { full_name: 'owner/repo' }]]),
 			onRequest: url => {
 				if (url.pathname !== '/agents/tasks') {
 					return undefined;
 				}
-				const page = cursors.indexOf(url.searchParams.get('cursor') ?? '') + 1;
-				if (page === cursors.length) {
-					return jsonResponse({
-						tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
-							&& !!task.archived_at === (url.searchParams.get('is_archived') === 'true')),
-					}, 200, { date, link: '<?page=1>; rel="first"' });
-				}
-				return jsonResponse({ tasks: [] }, 200, { date, link: ['<?page=1>; rel="first"', `<?cursor=${encodeURIComponent(cursors[page])}>; rel="next"`] });
+				const cursor = url.searchParams.get('cursor');
+				const next = cursor === null ? 'second+/= opaque' : cursor === 'second+/= opaque' ? 'third' : 'fourth';
+				return jsonResponse({
+					tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
+						&& !!task.archived_at === (url.searchParams.get('is_archived') === 'true')),
+				}, 200, { date, link: ['<?page=1>; rel="first"', `<?cursor=${encodeURIComponent(next)}>; rel="next"`] });
 			},
 		});
 
@@ -2992,15 +2986,17 @@ suite('CloudSandboxApiService pagination', () => {
 			kind: result.kind,
 			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
 			requests: requests.map(url => [url.origin, url.searchParams.get('with_repo'), url.searchParams.get('is_archived'), url.searchParams.get('page'), url.searchParams.get('cursor')]),
+			details: requestedUrls.map(url => new URL(url).pathname).filter(path => path.startsWith('/agents/tasks/')),
 		}, {
 			kind: 'complete',
 			tasks: tasks.map(task => task.id),
-			requests: [false, true].flatMap(archived => [true, false].flatMap(withRepository => [null, ...cursors].map(cursor =>
+			requests: [false, true].flatMap(archived => [true, false].flatMap(withRepository => [null, 'second+/= opaque', 'third'].map(cursor =>
 				['https://api.githubcopilot.com', String(withRepository), String(archived), cursor ? null : '1', cursor]))),
+			details: tasks.map(task => `/agents/tasks/${task.id}`),
 		});
 	});
 
-	test('keeps the API endpoint and omitted scope filters when following a numbered link', async () => {
+	test('follows numbered next-page links while retaining the API endpoint and scope filters', async () => {
 		const older = task('older', 'Older task', undefined, 'older-session', 'older-environment');
 		const { service, requestedUrls } = createService(store, {
 			tasks: [older], repositories: new Map(),
@@ -3405,7 +3401,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 						if (truncation === 'scope failure' || (truncation === 'page failure' && url.searchParams.get('page') === '2')) {
 							return jsonResponse({}, 503);
 						}
-						return jsonResponse({ tasks: [] }, 200, { link: '<https://api.githubcopilot.com/agents/tasks?page=2>; rel="next"' });
+						return jsonResponse({ tasks: [] }, 200, { link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` });
 					},
 				});
 				await service.listSessions(CancellationToken.None);
@@ -3944,7 +3940,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		}, { kind: 'incremental', since: '2026-09-22T09:57:00.000Z', requests: 4 });
 	});
 
-	test('preserves incremental filters on every page even when pagination links omit them', async () => {
+	test('preserves incremental filters when pagination links omit them', async () => {
 		const tasks: ITestTask[] = [];
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
@@ -4072,30 +4068,66 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		}, { firstKind: 'partial', recovered: ['new'], since: checkpoint });
 	});
 
-	test('does not advance the checkpoint after a later list page fails', async () => {
+	test('advances the checkpoint after refreshing the recent incremental window', async () => {
 		const tasks: ITestTask[] = [];
-		let failSecondPage = false;
 		let date = firstScanDate;
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map(), discoveryDate: () => date,
-			onRequest: url => failSecondPage && url.searchParams.get('page') === '2' ? jsonResponse({}, 500) : undefined,
 		});
 		await service.listSessions(CancellationToken.None);
-		tasks.push(...Array.from({ length: 101 }, (_, i) => updatedTask(`new-${i}`, checkpoint)));
+		tasks.push(...Array.from({ length: 301 }, (_, i) => updatedTask(`new-${i}`, checkpoint)));
 		date = 'Tue, 22 Sep 2026 10:05:00 GMT';
-		failSecondPage = true;
-		const partial = await service.listSessions(CancellationToken.None, { incremental: true });
-		failSecondPage = false;
+		const bounded = await service.listSessions(CancellationToken.None, { incremental: true });
 		requestedUrls.length = 0;
 		const recovered = await service.listSessions(CancellationToken.None, { incremental: true });
 
 		assert.deepStrictEqual({
-			firstKind: partial.kind,
+			firstKind: bounded.kind,
+			firstCount: bounded.kind === 'failed' ? 0 : bounded.sessions.length,
 			recovered: recovered.kind === 'failed' ? 0 : recovered.sessions.length,
 			since: new URL(requestedUrls[0]).searchParams.get('since'),
 			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
-		}, { firstKind: 'partial', recovered: 101, since: checkpoint, details: 1 });
+		}, { firstKind: 'incremental', firstCount: 300, recovered: 0, since: '2026-09-22T10:04:00.000Z', details: 0 });
 	});
+
+	for (const removal of ['deleted', 'outside the window']) {
+		test(`evicts cached tasks ${removal} after a successful capped full refresh and enables incremental reads`, async () => {
+			const cached = updatedTask('cached');
+			const tasks = [cached];
+			let date = firstScanDate;
+			const { service, requestedUrls } = createService(store, {
+				tasks, repositories: new Map(), discoveryDate: () => date,
+			});
+			await service.listSessions(CancellationToken.None);
+			if (removal === 'deleted') {
+				tasks.length = 0;
+			}
+			tasks.unshift(...Array.from({ length: 301 }, (_, i) => ({
+				...updatedTask(`new-${i}`, checkpoint), compute: { provider: 'other' },
+			})));
+			date = 'Tue, 22 Sep 2026 10:05:00 GMT';
+			const bounded = await service.listSessions(CancellationToken.None);
+			requestedUrls.length = 0;
+			await service.listSessions(CancellationToken.None, { incremental: true });
+			const since = new URL(requestedUrls[0]).searchParams.get('since');
+			tasks.splice(0, 301);
+			if (removal === 'deleted') {
+				tasks.push(cached);
+			}
+			requestedUrls.length = 0;
+			const returned = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				bounded,
+				since,
+				returned: returned.kind === 'failed' ? returned : returned.sessions.map(session => session.taskId),
+				details: requestedUrls.filter(url => url.endsWith('/tasks/cached')).length,
+			}, {
+				bounded: { kind: 'complete', sessions: [] },
+				since: '2026-09-22T10:04:00.000Z', returned: ['cached'], details: 1,
+			});
+		});
+	}
 
 	test('retries missing bindings and repository names even if the task falls outside the incremental window', async () => {
 		const tasks = [updatedTask('binding'), updatedTask('repository', undefined, 42)];

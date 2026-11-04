@@ -321,6 +321,8 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly renameTask?: (taskId: string, title: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
+	readonly clearSessionHistory?: (taskId?: string) => void;
+	readonly connections?: IRemoteAgentHostService['connections'];
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
 	readonly earlyPreparation?: boolean;
@@ -436,7 +438,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override readonly onDidChangeAccount = accountChanges.event;
 		override invalidateSessionHistory(): void { }
-		override clearSessionHistory(): void { }
+		override clearSessionHistory(taskId?: string): void { options?.clearSessionHistory?.(taskId); }
 		override async getAccountKey(): Promise<string | undefined> { return accountKey; }
 		override async reserveSession() {
 			return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new', reservationExpiresAt: Date.UTC(2100, 0, 1) };
@@ -486,7 +488,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = Event.None;
-		override readonly connections = [];
+		override readonly connections = options?.connections ?? [];
 		override readonly configuredEntries = [];
 		// No live protocol client is modelled, so activation stops once the connect has been made
 		// rather than going on to wait for the host to advertise its agents.
@@ -2955,6 +2957,50 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 
 		assert.deepStrictEqual(harness.discoveryModes, [false, true, false]);
 	}));
+
+	test('preserves connected task ownership and history outside the recent window until explicitly removed', async () => {
+		const session = discoveredSession();
+		const address = cloudSandboxAddress(session.environmentId);
+		const cleared: (string | undefined)[] = [];
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [session] };
+		const harness = await createContribution(store, [], {
+			listSessions: async () => result,
+			clearSessionHistory: taskId => cleared.push(taskId),
+			connections: [{ address, name: session.name, status: RemoteAgentHostConnectionStatus.connected }],
+		});
+		const provider = harness.contribution.stubProviders.get(address)!;
+		cleared.length = 0;
+		result = { kind: 'complete', sessions: [] };
+		await harness.runDiscovery();
+		await provider.taskRenameHandlers.get(session.sessionId)!('Renamed connected task');
+		await provider.taskArchiveHandlers.get(session.sessionId)!(true);
+		const afterWindowRefresh = {
+			renamed: [...harness.renamedTasks],
+			archived: [...harness.archivedTasks],
+			cleared: [...cleared],
+			disposed: provider.disposed,
+		};
+		result = { kind: 'incremental', sessions: [], removedTaskIds: [session.taskId] };
+		await harness.runDiscovery();
+
+		assert.deepStrictEqual({
+			afterWindowRefresh,
+			afterRemoval: {
+				renameHandlers: provider.taskRenameHandlers.size,
+				archiveHandlers: provider.taskArchiveHandlers.size,
+				cleared,
+				disposed: provider.disposed,
+			},
+		}, {
+			afterWindowRefresh: {
+				renamed: [{ taskId: session.taskId, title: 'Renamed connected task' }],
+				archived: [{ taskId: session.taskId, archived: true }],
+				cleared: [],
+				disposed: false,
+			},
+			afterRemoval: { renameHandlers: 0, archiveHandlers: 0, cleared: [session.taskId], disposed: false },
+		});
+	});
 
 	test('keeps absent sessions but reconciles explicit removals from incremental and partial scans', async () => {
 		let result: ICloudSandboxDiscoveryResult = {

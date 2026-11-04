@@ -517,7 +517,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
 			for (const [rawId, session] of sessions) {
 				if (!presentSessions.has(JSON.stringify([address, rawId]))
-					&& (result.kind === 'complete' || !!session.taskId && (removedTasks.has(session.taskId) || updatedTasks.has(session.taskId)))) {
+					&& (result.kind === 'complete' && !connected || !!session.taskId && (removedTasks.has(session.taskId) || updatedTasks.has(session.taskId)))) {
 					sessions.delete(rawId);
 					this._providerInstances.get(address)?.removeTaskOwnership?.(rawId);
 					if (!connected) {
