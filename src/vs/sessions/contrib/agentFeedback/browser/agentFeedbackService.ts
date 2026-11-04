@@ -34,6 +34,7 @@ import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentF
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -117,9 +118,11 @@ export interface ISubmitFeedbackOptions {
 	/**
 	 * The chat to send the request to, when it differs from the feedback's
 	 * session resource: feedback is read and marked under the session, and the
-	 * request goes to this chat's widget.
+	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
+	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
+	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
 	readonly onRequestAccepted?: () => void;
 }
 
@@ -1008,6 +1011,28 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				return false;
 			}
 			return this._sessionsService.submitNewSessionInput();
+		}
+
+		if (options?.backgroundSubmit) {
+			if (!this.isAgentHostSession(sessionResource)) {
+				this._logService.error('[AgentFeedback] Background submission requires an Agent Host session');
+				return false;
+			}
+			const feedbackIds = options.feedbackIds ? new Set(options.feedbackIds) : undefined;
+			const acceptedItems = this.getFeedback(sessionResource).filter(item =>
+				item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
+			if (!acceptedItems.length) {
+				this._logService.error('[AgentFeedback] No accepted feedback for background submission');
+				return false;
+			}
+			const annotationsResource = this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource);
+			const submitted = await options.backgroundSubmit(options.query ?? '/act-on-feedback',
+				createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
+			if (submitted) {
+				this.markFeedbackSubmitted(sessionResource, options.feedbackIds);
+				options.onRequestAccepted?.();
+			}
+			return submitted;
 		}
 
 		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);

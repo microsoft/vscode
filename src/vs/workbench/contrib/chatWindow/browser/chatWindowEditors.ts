@@ -10,6 +10,7 @@ import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../..
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { GroupsOrder, IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowOpenOptions } from './chatWindow.js';
+import { TERMINAL_EDITOR_TYPE_ID } from './chatWindowGrid.js';
 
 /** An editor of a chat window's main part, serialized with the serializer of its editor type. */
 export interface ISerializedChatWindowEditor {
@@ -18,10 +19,14 @@ export interface ISerializedChatWindowEditor {
 	readonly active?: boolean;
 }
 
-/** Serializes the editors of `group` that can be, in their order, marking the active one. */
+/**
+ * Serializes the editors of `group` that can be, in their order, marking the active one. `onlyThoseThatClose`: those
+ * that close as the window closes, not those that leave it: ones that ask before they close, such as dirty ones, which
+ * move to the main window, and terminals, which go to its panel.
+ */
 export function serializeChatWindowEditors(group: IEditorGroup, options?: { readonly onlyThoseThatClose?: boolean }): ISerializedChatWindowEditor[] {
 	const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-	return group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => !options?.onlyThoseThatClose || !confirmsClose(editor)).flatMap(editor => {
+	return group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => !options?.onlyThoseThatClose || (!confirmsClose(editor) && editor.typeId !== TERMINAL_EDITOR_TYPE_ID)).flatMap(editor => {
 		const serializer = registry.getEditorSerializer(editor);
 		const value = serializer?.canSerialize(editor) ? serializer.serialize(editor) : undefined;
 		return value === undefined ? [] : [{ typeId: editor.typeId, value, active: editor === group.activeEditor }];

@@ -2740,7 +2740,7 @@ suite('Editor cloud sandbox discovery', () => {
 		}, { items: [[resource.toString(), 'Live title']], removed: ['/additional-session'], retainedInPartialList: true });
 	});
 
-	test('seeds newly discovered cloud history while already connected', async () => {
+	test('seeds new cloud history without dropping a connected task outside the discovery window', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -2750,7 +2750,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [{ ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
 		await h.refresh();
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
-		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path).sort(), ['/later-session', '/original-session']);
 	});
 
 	test('retains every discovered task sharing a connected environment when the host omits them', async () => {
@@ -3004,7 +3004,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const other = { ...discovered, environmentId: 'other-environment', sessionId: 'other-session', taskId: 'other-task' };
 		const removed = assert.rejects(h.contribution.connect(discovered), isCancellationError);
 		const retained = h.contribution.connect(other);
-		h.state.result = { kind: 'complete', sessions: [other] };
+		h.state.result = { kind: 'complete', sessions: [other], removedTaskIds: [discovered.taskId] };
 		await h.refresh();
 		await removed;
 		const cancelled = h.calls.connectTokens.map(token => token.isCancellationRequested);

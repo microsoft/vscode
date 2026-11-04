@@ -11,7 +11,8 @@ import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallStatus, 
 import type { IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import type { ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('importedTurnsFromChatModel', () => {
 
@@ -158,6 +159,98 @@ suite('importedTurnsFromChatModel', () => {
 			{ label: 'mislabeled.png', contentType: 'image/png' },
 			{ label: 'unknown', contentType: 'image/png' },
 		]);
+	});
+
+	test('summarizes each run of file edits as links to the edited files, in stream order', () => {
+		const a = URI.file('/repo/a.ts');
+		const b = URI.file('/repo/b.ipynb');
+		const c = URI.file('/repo/c.ts');
+		const textEdits = (uri: URI) => ({ kind: 'textEditGroup', uri, edits: [], done: true }) as unknown as IChatProgressResponseContent;
+		const notebookEdits = (uri: URI) => ({ kind: 'notebookEditGroup', uri, edits: [], done: true }) as unknown as IChatProgressResponseContent;
+		const control = (kind: string) => ({ kind }) as unknown as IChatProgressResponseContent;
+		const turns = importedTurnsFromChatModel(model([request('edit', response([
+			markdown('```ts\ncode\n```'),
+			textEdits(a),
+			control('undoStop'),
+			notebookEdits(b),
+			control('codeblockUri'),
+			textEdits(a),
+			markdown('Then:'),
+			textEdits(c),
+		]))]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
+			'```ts\ncode\n```',
+			// Control markers between the edits do not split the run, and a file is listed once.
+			// Each summary is its own paragraph, so it cannot join a closing code fence when
+			// adjacent markdown is concatenated.
+			`\n\nEdited [a.ts](${a.toString()}), [b.ipynb](${b.toString()})\n\n`,
+			'Then:',
+			`\n\nEdited [c.ts](${c.toString()})\n\n`,
+		]);
+	});
+
+	test('links to edited and referenced files of a remote window resolve back to them, whatever their names', () => {
+		// An SSH window's client resources are `vscode-remote:`; the host sees them as `file:`.
+		const remote = (path: string) => URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+box', path });
+		const resourceUris = {
+			toAgentHost: (uri: URI) => uri.scheme === 'vscode-remote' ? uri.with({ scheme: 'file', authority: '' }) : uri,
+			fromAgentHost: (uri: URI) => uri.scheme === 'file' ? remote(uri.path) : uri,
+		};
+		const edited = remote('/repo/a]b\\c.ts');
+		const referenced = remote('/repo/ref.ts');
+		const turns = importedTurnsFromChatModel(model([request('edit', response([
+			{ kind: 'textEditGroup', uri: edited, edits: [], done: true } as unknown as IChatProgressResponseContent,
+			inlineReference(referenced, 'x]y'),
+		]))]), { resourceUris });
+
+		const links = turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown
+			? [...part.content.matchAll(/\[(?<label>(?:\\.|[^\]\\])*)\]\((?<target>[^)]*)\)/g)].map(match => ({
+				label: match.groups!.label,
+				// How the restored transcript resolves a link target to a client resource.
+				resource: rewriteAgentHostLinkTarget(match.groups!.target, 'box', resourceUris),
+			}))
+			: []);
+		assert.deepStrictEqual(links, [
+			{ label: 'a\\]b\\\\c.ts', resource: edited.toString() },
+			{ label: 'x\\]y', resource: referenced.toString() },
+		]);
+	});
+
+	test('reports what the import summarized or left out', () => {
+		const stats = createImportedConversationStats();
+		const tool = (output: unknown[]) => ({
+			kind: 'toolInvocationSerialized', toolId: 'run', toolCallId: 'call', invocationMessage: 'Running', pastTenseMessage: 'Ran',
+			resultDetails: { input: '{}', output }, toolSpecificData: undefined,
+		}) as unknown as IChatProgressResponseContent;
+		const editA = { kind: 'textEditGroup', uri: URI.file('/repo/a.ts'), edits: [], done: true } as unknown as IChatProgressResponseContent;
+		importedTurnsFromChatModel(model([
+			request('first', response([
+				markdown('A'),
+				editA,
+				{ kind: 'warning', content: new MarkdownString('careful') } as unknown as IChatProgressResponseContent,
+				{ kind: 'progressMessage', content: new MarkdownString('working') } as unknown as IChatProgressResponseContent,
+				tool([{ type: 'embed', isText: true, value: 'text' }, { type: 'embed', mimeType: 'image/png', value: 'AAEC' }, { type: 'ref', uri: URI.file('/repo/out.bin') }]),
+				{
+					kind: 'toolInvocationSerialized', toolId: 'screenshot', toolCallId: 'image', invocationMessage: 'Capturing', pastTenseMessage: 'Captured',
+					resultDetails: { output: { type: 'data', mimeType: 'image/png', base64Data: 'AAEC' } }, toolSpecificData: undefined,
+				} as unknown as IChatProgressResponseContent,
+				editA,
+			]), { variables: [{ kind: 'file', id: 'f', name: 'a.ts', value: URI.file('/repo/a.ts') }, { kind: 'tool', id: 't', name: 'runTests', value: undefined }] }),
+			request('', response([{ kind: 'warning', content: new MarkdownString('again') } as unknown as IChatProgressResponseContent, editA]), { systemInitiated: true }),
+			request('second', response([markdown('B'), editA]), { variables: [{ kind: 'toolset', id: 's', name: 'search', value: [] }] }),
+		]), { stats });
+
+		assert.deepStrictEqual({ ...stats, skippedResponsePartKinds: [...stats.skippedResponsePartKinds].sort(), skippedAttachmentKinds: [...stats.skippedAttachmentKinds].sort() }, {
+			turns: 2,
+			// a.ts edited in three runs of the first turn (one in its continuation) counts once, then once more for the second turn.
+			editedFiles: 2,
+			skippedResponseParts: 3,
+			skippedResponsePartKinds: ['progressMessage', 'warning'],
+			skippedAttachments: 2,
+			skippedAttachmentKinds: ['tool', 'toolset'],
+			droppedToolOutputs: 3,
+		});
 	});
 
 	test('carries latest-call counters and whole-response consumption separately', () => {

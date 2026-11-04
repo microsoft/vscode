@@ -98,6 +98,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
+import { createSessionComparisonHarness } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
 
 // #region --- New Chat Widget ---
 
@@ -1928,17 +1929,7 @@ export class NewChatWidget extends Disposable {
 						modelConfiguration[key] = value;
 					}
 				}
-				return {
-					providerId: session.providerId,
-					sessionTypeId: resolved.sessionType.id,
-					label: resolved.sessionType.label,
-					modelId: resolved.model.identifier,
-					modelLabel: resolved.model.metadata.name,
-					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
-					permissionId: harnessPermission.id,
-					permissionLabel: harnessPermission.label,
-					modeId: harnessPermission.comparisonModeId,
-				};
+				return createSessionComparisonHarness(session.providerId, resolved.sessionType, resolved.model, modelConfiguration, harnessPermission);
 			};
 			const judgeModelId = this._comparisonSelection.judgeModelId.get();
 			const synthesisModelId = this._comparisonSelection.synthesizerModelId.get();
