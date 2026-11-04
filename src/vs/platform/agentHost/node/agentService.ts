@@ -1519,6 +1519,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		// Not on removal: an evicted idle session restores with the same tool list.
 		this._register(this._stateManager.onDidDeleteSession(session => this._startedWorkspacelessSessions.delete(session)));
+		// A subscription can arrive before its chat's state loads, as on reconnect; watch the chat once the state exists.
+		this._register(this._stateManager.onDidResolveChatState(chat => this._watchChatUpdates(URI.parse(chat))));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
 				if (session === removed) {
@@ -11850,13 +11852,21 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._sessionResidency.reconcile();
 	}
 
+	/** Whether the chat or its owning session is archived, as the host state records it. */
+	private _isChatArchived(session: string, chat: string): boolean {
+		const sessionState = this._stateManager.getSessionState(session);
+		const chatStatus = this._stateManager.getChatState(chat)?.status
+			?? sessionState?.chats.find(candidate => candidate.resource === chat)?.status;
+		return isSessionStatusArchived(sessionState?.status) || isSessionStatusArchived(chatStatus);
+	}
+
 	private _watchChatUpdates(chat: URI): void {
 		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatWatches.has(chat)) {
 			return;
 		}
 		const owner = this._chatOwnership.requireChatOwner(chat.toString());
 		const provider = this._providerService.getProviderForChat(URI.parse(owner), chat);
-		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
+		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork || provider?.watchChatCanvases) {
 			const watches = new DisposableStore();
 			this._chatWatches.set(chat, watches);
 			this._chatWatchOwners.set(chat, owner);
@@ -11867,6 +11877,36 @@ export class AgentService extends Disposable implements IAgentService {
 			const backgroundWork = provider.watchChatBackgroundWork?.(chat, () => this._stateManager.getChatState(chat.toString())?.backgroundWork ?? []);
 			if (backgroundWork) {
 				watches.add(backgroundWork);
+			}
+			const canvasStateLoaded = watches.add(new Emitter<void>());
+			watches.add(this._stateManager.onDidResolveChatState(resolved => {
+				if (resolved === chat.toString()) {
+					canvasStateLoaded.fire();
+				}
+			}));
+			const canvases = provider.watchChatCanvases?.(chat, {
+				published: () => this._stateManager.getChatState(chat.toString())?.canvases?.map(canvas => canvas.resource),
+				onDidLoadState: canvasStateLoaded.event,
+				isArchived: () => {
+					const currentOwner = this._chatOwnership.getChatOwner(chat.toString());
+					return currentOwner !== undefined && this._isChatArchived(currentOwner, chat.toString());
+				},
+				resolveContext: async () => {
+					while (true) {
+						const owner = this._chatOwnership.requireChatOwner(chat.toString());
+						const credentials = await this._resolveExecutionCredentials(owner);
+						if (this._chatOwnership.requireChatOwner(chat.toString()) === owner) {
+							const session = URI.parse(owner);
+							return {
+								...this._chatContext(session, chat, this._chatStorageResource(session, chat)),
+								...(credentials ? { credentials } : {}),
+							};
+						}
+					}
+				},
+			});
+			if (canvases) {
+				watches.add(canvases);
 			}
 		}
 	}

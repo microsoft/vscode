@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -1919,6 +1919,61 @@ suite('AgentService (node dispatcher)', () => {
 
 		assert.deepStrictEqual({ hydrated, publishedIds, afterFirst, stops }, {
 			hydrated: [true, true], publishedIds: ['shell:running'], afterFirst: 0, stops: 2,
+		});
+	});
+
+	test('observes canvases after chat hydration and resolves foreground execution context', async () => {
+		const hydrated: boolean[] = [];
+		const hosts: IAgentChatCanvasWatchHost[] = [];
+		let stops = 0;
+		const agent = new class extends MockAgent {
+			watchChatCanvases(chat: URI, host: IAgentChatCanvasWatchHost) {
+				hydrated.push(!!getStateManager(service).getChatState(chat.toString()));
+				hosts.push(host);
+				return toDisposable(() => stops++);
+			}
+		}('canvases');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(service, agent);
+		const session = await service.createSession({ legacyChatUris: true, provider: agent.id });
+		const chat = URI.parse(buildDefaultChatUri(session));
+		await service.subscribe(chat, 'first');
+		getStateManager(service).dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		});
+		const current = hosts[0].published();
+		const context = await hosts[0].resolveContext();
+		const archivedBefore = hosts[0].isArchived();
+		getStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		const archivedAfter = hosts[0].isArchived();
+		let stateLoads = 0;
+		const stateLoadListener = hosts[0].onDidLoadState(() => stateLoads++);
+		(getStateManager(service) as unknown as { _onDidResolveChatState: Emitter<string> })._onDidResolveChatState.fire(chat.toString());
+		stateLoadListener.dispose();
+		await service.subscribe(chat, 'second');
+		service.unsubscribe(chat, 'first');
+		const afterFirst = stops;
+		service.unsubscribe(chat, 'second');
+		await service.subscribe(chat, 'reconnected');
+		service.unsubscribe(chat, 'reconnected');
+
+		assert.deepStrictEqual({
+			hydrated,
+			current,
+			context: { owner: context.owner.get().toString(), resource: context.resource.toString(), credentials: context.credentials },
+			archived: { before: archivedBefore, after: archivedAfter },
+			stateLoads,
+			afterFirst,
+			stops,
+		}, {
+			hydrated: [true, true],
+			current: ['ahp-canvas:/preview'],
+			context: { owner: session.toString(), resource: session.toString(), credentials: undefined },
+			archived: { before: false, after: true },
+			stateLoads: 1,
+			afterFirst: 0,
+			stops: 2,
 		});
 	});
 

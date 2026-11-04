@@ -1826,6 +1826,18 @@ export interface IAgentSessionPlan {
 	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
 }
 
+/** The host's view of one subscribed chat, given to a provider that observes its canvases. */
+export interface IAgentChatCanvasWatchHost {
+	/** The canvas channels the host currently publishes for the chat, or `undefined` while its state is not loaded. */
+	readonly published: () => readonly string[] | undefined;
+	/** Whether the chat or its session is archived; an archived chat's canvases are not restored. */
+	readonly isArchived: () => boolean;
+	/** Fires when the chat's state loads into the host, which drops canvases published while it was not loaded. */
+	readonly onDidLoadState: Event<void>;
+	/** The chat's current operation context, including credentials needed to resume its runtime. */
+	resolveContext(): Promise<IAgentChatContext>;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1871,6 +1883,9 @@ export interface IAgent {
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Observe one subscribed chat's canvases, restoring those persisted for it when its runtime is gone. */
+	watchChatCanvases?(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;

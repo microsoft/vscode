@@ -51,7 +51,7 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, AgentHostCanvasesEnabledConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
@@ -59,7 +59,7 @@ import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI,
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -80,7 +80,8 @@ import { ProtectedResourceMetadata, type AgentCustomization, type AgentSelection
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, hasReportedUsage, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { parseCanvasChatUri } from '../../common/canvasUri.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, hasReportedUsage, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
@@ -435,6 +436,83 @@ interface ICopilotEarlyLaunch extends IDisposable {
  * subscriber; this bounds a draft that stays open but is never sent.
  */
 const COPILOT_EARLY_LAUNCH_TTL_MS = 5 * 60_000;
+
+/** Metadata key, in a chat's storage, of the canvases its runtime last projected, so a later runtime of the chat can restore them. */
+function canvasContinuityMetadataKey(chat: URI): string {
+	return `copilot.canvasContinuity:${chat.toString()}`;
+}
+
+/** A chat's canvases as persisted in its storage: source-less projections plus closes still owed to its runtime. */
+interface IPersistedCanvasContinuity {
+	readonly version: 1;
+	/** The SDK session the canvases belong to; a different backing supersedes them. */
+	readonly sdkSessionId: string;
+	readonly projections: readonly { readonly resource: string; readonly canvas: CanvasState }[];
+	readonly pendingCloseInstanceIds: readonly string[];
+}
+
+/** The handed-over canvases that are not waiting to be closed. */
+function openCanvasProjections(handoff: ICopilotCanvasHandoff): ICopilotCanvasHandoff['projections'] {
+	return handoff.projections.filter(projection => !handoff.pendingCloseInstanceIds?.has(projection.canvas.instanceId));
+}
+
+/** Serializes a chat's canvases for its storage; `undefined` when there is nothing to restore. */
+function serializeCanvasContinuity(sdkSessionId: string, handoff: ICopilotCanvasHandoff): string | undefined {
+	if (handoff.projections.length === 0 && !handoff.pendingCloseInstanceIds?.size) {
+		return undefined;
+	}
+	const record: IPersistedCanvasContinuity = {
+		version: 1,
+		sdkSessionId,
+		projections: handoff.projections.map(({ resource, canvas: { url: _url, ...canvas } }) => ({ resource: resource.toString(), canvas })),
+		pendingCloseInstanceIds: [...handoff.pendingCloseInstanceIds ?? []],
+	};
+	return JSON.stringify(record);
+}
+
+/** Parses a chat's persisted canvases, rejecting records of another format version or with channels outside the chat. */
+function parsePersistedCanvasContinuity(raw: string, chat: URI): { readonly sdkSessionId: string; readonly handoff: ICopilotCanvasHandoff } | undefined {
+	let value: unknown;
+	try {
+		value = JSON.parse(raw);
+	} catch {
+		return undefined;
+	}
+	const record = value as Partial<Record<keyof IPersistedCanvasContinuity, unknown>> | null;
+	if (!record || typeof record !== 'object' || record.version !== 1 || typeof record.sdkSessionId !== 'string' || !record.sdkSessionId
+		|| !Array.isArray(record.projections) || !Array.isArray(record.pendingCloseInstanceIds)) {
+		return undefined;
+	}
+	const projections = new Map<string, ICopilotCanvasHandoff['projections'][number]>();
+	for (const entry of record.projections as unknown[]) {
+		const { resource, canvas } = (entry ?? {}) as { resource?: unknown; canvas?: Partial<Record<keyof CanvasState, unknown>> };
+		if (typeof resource !== 'string' || !canvas || typeof canvas !== 'object'
+			|| typeof canvas.instanceId !== 'string' || !canvas.instanceId || typeof canvas.extensionId !== 'string' || typeof canvas.canvasId !== 'string'
+			|| [canvas.extensionName, canvas.title, canvas.status].some(field => field !== undefined && typeof field !== 'string')) {
+			return undefined;
+		}
+		const channel = URI.parse(resource);
+		if (!isEqual(parseCanvasChatUri(channel), chat) || projections.has(canvas.instanceId)) {
+			return undefined;
+		}
+		projections.set(canvas.instanceId, {
+			resource: channel,
+			canvas: {
+				instanceId: canvas.instanceId,
+				extensionId: canvas.extensionId,
+				...(typeof canvas.extensionName === 'string' ? { extensionName: canvas.extensionName } : {}),
+				canvasId: canvas.canvasId,
+				...(typeof canvas.title === 'string' ? { title: canvas.title } : {}),
+				...(typeof canvas.status === 'string' ? { status: canvas.status } : {}),
+			},
+		});
+	}
+	const pendingCloseInstanceIds = (record.pendingCloseInstanceIds as unknown[]).filter((instanceId): instanceId is string => typeof instanceId === 'string' && !!instanceId);
+	return {
+		sdkSessionId: record.sdkSessionId,
+		handoff: { projections: [...projections.values()], pendingCloseInstanceIds: new Set(pendingCloseInstanceIds) },
+	};
+}
 
 interface IResolvedCopilotChatContext {
 	/** The chat's owner when the operation resolved it; operations re-resolve inside their queue. */
@@ -1262,6 +1340,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _pendingModelSelections = new Map<string, ModelSelection>();
 	/** Canvases a configuration refresh is handing from a chat's previous runtime to its replacement. */
 	private readonly _canvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
+	/** Hosts observing subscribed chats' canvases, by chat. */
+	private readonly _canvasWatches = new ResourceMap<IAgentChatCanvasWatchHost>();
+	/** In-flight restorations of observed cold chats' persisted canvases, by chat. */
+	private readonly _canvasRestores = new ResourceMap<Promise<void>>();
+	/** Persisted canvases a resuming runtime is seeded with until it adopts them, by chat. */
+	private readonly _resumingCanvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
+	/** Serializes reads and writes of each chat's persisted canvas continuity, by chat. */
+	private readonly _canvasContinuityIO = new SequencerByKey<string>();
+	/** The persisted canvas continuity last read or written per chat with a runtime (`''` when none), to skip redundant writes. */
+	private readonly _persistedCanvasContinuities = new Map<string, string>();
 	/**
 	 * Canonical filesystem roots with active project-extension launch admission.
 	 * The value is the number of live admissions for the root, so disposing one
@@ -3172,22 +3260,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
-		// Only a live chat projects canvases, so closing one neither waits for
-		// queued chat work nor resumes a cold chat that has none to close.
-		const liveSession = this._resolveSessionCanvasChatContext(session, chat, operationContext).target;
-		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
-			await liveSession.closeCanvas(request);
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		const liveSession = context.target && isEqual(context.target.ownerSessionUri, session) ? context.target : undefined;
+		if (!liveSession || this._resumingCanvasHandoffs.has(chat)) {
+			// Until a runtime adopts the chat's canvases, record the close for its next runtime instead of resuming one.
+			await this._closePersistedCanvas(context, request.resource);
 		}
+		await liveSession?.closeCanvas(request);
 	}
 
-	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas'): Promise<CopilotAgentSession> {
+	watchChatCanvases(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable {
+		this._canvasWatches.set(chat, host);
+		// The host drops canvases published before the chat's state loads, so republish them once it does.
+		const stateLoaded = host.onDidLoadState(() => {
+			if (this._canvasWatches.get(chat) === host) {
+				this._refreshCanvasWatch(chat);
+			}
+		});
+		this._refreshCanvasWatch(chat);
+		return toDisposable(() => {
+			stateLoaded.dispose();
+			if (this._canvasWatches.get(chat) === host) {
+				this._canvasWatches.delete(chat);
+			}
+		});
+	}
+
+	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases'): Promise<CopilotAgentSession> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 			return current.target ?? this._ensureResolvedChatSession(current);
 		});
 		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
-			throw new Error(`Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
 		}
 		return liveSession;
 	}
@@ -7616,7 +7722,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const ownerSession = resolvedContext.owner.get();
 		this._rememberHostCustomizations(ownerSession, hostCustomizations);
 		const activeClient = this._getOrCreateActiveClient(ownerSession, undefined);
-		this._adoptClientChat(activeClient, client.clientId, chat);
+		const joined = this._adoptClientChat(activeClient, client.clientId, chat);
 		// Anchor the customization directory (best-effort, idempotent) so
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
@@ -7631,14 +7737,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 				() => { /* best-effort anchoring */ },
 			);
 		}
-		return activeClient.getOrCreateHandle(client.clientId, client.displayName);
+		const handle = activeClient.getOrCreateHandle(client.clientId, client.displayName);
+		if (joined && !this._findChatByUri(chat)) {
+			// The caller publishes the client's customizations next; a restoration reads them only after its first await.
+			this._refreshCanvasWatch(chat);
+		}
+		return handle;
 	}
 
-	/** Adds `chat` to the host-published membership for `clientId`. */
-	private _adoptClientChat(activeClient: ActiveClient, clientId: string, chat: URI): void {
+	/** Adds `chat` to the host-published membership for `clientId`, reporting whether membership grew. */
+	private _adoptClientChat(activeClient: ActiveClient, clientId: string, chat: URI): boolean {
 		if (activeClient.addClientChat(clientId, chat)) {
 			this._logService.info(`[Copilot] Active client ${clientId} now contributes to chat ${chat.toString()}`);
+			return true;
 		}
+		return false;
 	}
 
 	/** Removes `clientId` from one exact chat, dropping the client only when no chats remain. */
@@ -7862,6 +7975,207 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._canvasHandoffs.delete(chat);
 		if (!replacement?.adoptCanvasHandoff(handoff)) {
 			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } });
+		}
+	}
+
+	private _canvasesEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+	}
+
+	private _refreshCanvasWatch(chat: URI): void {
+		const host = this._canvasWatches.get(chat);
+		if (!host) {
+			return;
+		}
+		const live = this._findChatByUri(chat);
+		if (live) {
+			live.republishCanvasProjection(host.published());
+		} else if (!host.isArchived()) {
+			this._restorePersistedCanvases(chat, host);
+		}
+	}
+
+	/**
+	 * Shows an observed cold chat's persisted canvases as unavailable and, once a client contributes to the chat so
+	 * its runtime launches with that client's current customizations, resumes the runtime without a model turn. The
+	 * runtime rehydrates the canvases, and the resumed session republishes them on their original channels.
+	 */
+	private _restorePersistedCanvases(chat: URI, host: IAgentChatCanvasWatchHost): void {
+		if (this._canvasRestores.has(chat) || !this._canvasesEnabled()) {
+			return;
+		}
+		const isObserved = () => this._canvasWatches.get(chat) === host && !this._findChatByUri(chat);
+		let resolved: IResolvedCopilotChatContext | undefined;
+		let awaitingClient = false;
+		const restore = (async () => {
+			const operationContext = await host.resolveContext();
+			if (!isObserved()) {
+				return;
+			}
+			const context = resolved = this._resolveChatContext(chat, operationContext);
+			const sdkSessionId = context.sdkSessionId;
+			const handoff = sdkSessionId ? await this._canvasContinuityIO.queue(context.chatKey, () => this._readCanvasContinuity(chat, context.resource, sdkSessionId)) : undefined;
+			if (!handoff || !isObserved()) {
+				return;
+			}
+			this._publishCanvasHandoff(chat, handoff, host.published());
+			if (openCanvasProjections(handoff).length === 0) {
+				return;
+			}
+			if (!this._hasCanvasContributors(context)) {
+				awaitingClient = true;
+				return;
+			}
+			await this._resolveSessionCanvasChat(context.ownerSession, chat, operationContext, 'restoreCanvases');
+			if (!this._canvasWatches.has(chat)) {
+				// Nobody observes the chat anymore, and residency may have released its session while it resumed.
+				await this._releaseChat(chat, operationContext);
+			}
+		})().catch(error => {
+			if (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND && resolved) {
+				this._forgetPersistedCanvases(chat, resolved.resource);
+			}
+			this._logService.warn(`[Copilot] Failed to restore canvases for ${chat.toString()}: ${getErrorMessage(error)}`);
+		}).finally(() => {
+			if (this._canvasRestores.get(chat) === restore) {
+				this._canvasRestores.delete(chat);
+			}
+			// Another watch may have replaced this one, or a client may have joined, while the restoration ran.
+			const current = this._canvasWatches.get(chat);
+			if (current && (current !== host || (awaitingClient && resolved && this._hasCanvasContributors(resolved)))) {
+				this._refreshCanvasWatch(chat);
+			}
+		});
+		this._canvasRestores.set(chat, restore);
+	}
+
+	/** Whether a client publishes contributions for the chat, so a resume launches with that client's current customizations. */
+	private _hasCanvasContributors(context: IResolvedCopilotChatContext): boolean {
+		return this._activeClients.get(context.ownerSession)?.hasContributors(context.chatKey) === true;
+	}
+
+	/** Publishes a chat's persisted canvases without sources, then their membership, so the chat shows them as unavailable. */
+	private _publishCanvasHandoff(chat: URI, handoff: ICopilotCanvasHandoff, published: readonly string[] | undefined): void {
+		for (const projection of openCanvasProjections(handoff)) {
+			this._onDidChatProgress.fire({ kind: 'canvas', chat, resource: projection.resource, state: projection.canvas });
+		}
+		this._publishCanvasHandoffMembership(chat, handoff, published);
+	}
+
+	private _publishCanvasHandoffMembership(chat: URI, handoff: ICopilotCanvasHandoff, published: readonly string[] | undefined): void {
+		const resources = openCanvasProjections(handoff).map(projection => projection.resource.toString());
+		if (published === undefined || !arrayEquals(resources, published)) {
+			this._onDidChatProgress.fire({
+				kind: 'action',
+				resource: chat,
+				action: { type: ActionType.ChatCanvasesChanged, canvases: resources.length > 0 ? resources.map(resource => ({ resource })) : undefined },
+			});
+		}
+	}
+
+	/** Records a close of a canvas that no runtime projects yet, for the chat's next runtime to apply, and drops it from membership. */
+	private async _closePersistedCanvas(context: IResolvedCopilotChatContext, resource: URI): Promise<void> {
+		const { chat, chatKey, sdkSessionId } = context;
+		if (!sdkSessionId) {
+			return;
+		}
+		await this._canvasContinuityIO.queue(chatKey, async () => {
+			// A resuming runtime applies the close when it adopts its canvases; the record keeps it if the resume fails.
+			const handoff = this._resumingCanvasHandoffs.get(chat) ?? await this._readCanvasContinuity(chat, context.resource, sdkSessionId);
+			const projection = handoff?.projections.find(candidate => isEqual(candidate.resource, resource));
+			if (!handoff || !projection) {
+				return;
+			}
+			(handoff.pendingCloseInstanceIds ??= new Set()).add(projection.canvas.instanceId);
+			await this._writeCanvasContinuity(chat, context.resource, serializeCanvasContinuity(sdkSessionId, handoff));
+			this._publishCanvasHandoffMembership(chat, handoff, this._canvasWatches.get(chat)?.published());
+		});
+	}
+
+	/** Seeds the chat's resuming runtime with the canvases persisted for its SDK session. */
+	private async _claimPersistedCanvases(chat: URI, storage: URI, sdkSessionId: string): Promise<void> {
+		if (!this._canvasesEnabled() || this._canvasHandoffs.has(chat)) {
+			return;
+		}
+		try {
+			await this._canvasContinuityIO.queue(chat.toString(), async () => {
+				const handoff = await this._readCanvasContinuity(chat, storage, sdkSessionId);
+				if (handoff) {
+					this._resumingCanvasHandoffs.set(chat, handoff);
+				}
+			});
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to read persisted canvases for ${chat.toString()}: ${getErrorMessage(error)}`);
+		}
+	}
+
+	/** Hands the persisted canvases to the runtime that resumed with them; if none did, the record stays for the next resume. */
+	private _adoptPersistedCanvases(chat: URI, replacement: CopilotAgentSession | undefined): void {
+		const handoff = this._resumingCanvasHandoffs.get(chat);
+		if (handoff) {
+			this._resumingCanvasHandoffs.delete(chat);
+			replacement?.adoptCanvasHandoff(handoff);
+		}
+	}
+
+	/** Persists the canvases the chat's registered live runtime reports; a runtime that is no longer registered never overwrites them. */
+	private _persistReportedCanvases(session: CopilotAgentSession, snapshot: ICopilotCanvasHandoff | undefined): void {
+		const chat = session.chatChannelUri;
+		const value = snapshot && serializeCanvasContinuity(session.sessionId, snapshot);
+		void this._canvasContinuityIO.queue(chat.toString(), async () => {
+			if (!this._isShuttingDown && this._findChatByUri(chat) === session) {
+				await this._writeCanvasContinuity(chat, session.resourceUri, value);
+			}
+		}).catch(error => this._logService.warn(`[Copilot] Failed to persist canvases for ${chat.toString()}: ${getErrorMessage(error)}`));
+	}
+
+	/** Deletes the canvases persisted for a chat that can no longer resume, and removes them from its membership. */
+	private _forgetPersistedCanvases(chat: URI, storage: URI): void {
+		void this._canvasContinuityIO.queue(chat.toString(), () => this._writeCanvasContinuity(chat, storage, undefined)).then(
+			() => this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }),
+			error => this._logService.warn(`[Copilot] Failed to forget canvases for ${chat.toString()}: ${getErrorMessage(error)}`),
+		);
+	}
+
+	/**
+	 * Reads a chat's canvases persisted for the SDK session that backs it. A record that cannot be read, or that an
+	 * earlier backing of the chat left, is deleted. Callers serialize on {@link _canvasContinuityIO}.
+	 */
+	private async _readCanvasContinuity(chat: URI, storage: URI, sdkSessionId: string): Promise<ICopilotCanvasHandoff | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(storage);
+		let raw: string | undefined;
+		try {
+			raw = await ref?.object.getMetadata(canvasContinuityMetadataKey(chat));
+		} finally {
+			ref?.dispose();
+		}
+		const record = raw ? parsePersistedCanvasContinuity(raw, chat) : undefined;
+		if (raw && record?.sdkSessionId !== sdkSessionId) {
+			await this._writeCanvasContinuity(chat, storage, undefined);
+			return undefined;
+		}
+		return record?.handoff;
+	}
+
+	/** Writes, or deletes when `value` is `undefined`, a chat's persisted canvases. Callers serialize on {@link _canvasContinuityIO}. */
+	private async _writeCanvasContinuity(chat: URI, storage: URI, value: string | undefined): Promise<void> {
+		const chatKey = chat.toString();
+		if (this._persistedCanvasContinuities.get(chatKey) === (value ?? '')) {
+			return;
+		}
+		const ref = value ? this._sessionDataService.openDatabase(storage) : await this._sessionDataService.tryOpenDatabase(storage);
+		try {
+			if (value) {
+				await ref?.object.setMetadata(canvasContinuityMetadataKey(chat), value);
+			} else {
+				await ref?.object.deleteMetadata([canvasContinuityMetadataKey(chat)]);
+			}
+		} finally {
+			ref?.dispose();
+		}
+		// Only a live runtime's writes repeat; the cache goes with the runtime in `_destroyLiveSession`.
+		if (this._findChatByUri(chat)) {
+			this._persistedCanvasContinuities.set(chatKey, value ?? '');
 		}
 	}
 
@@ -8960,11 +9274,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const canvasHandoff = this._canvasHandoffs.get(chat);
 			let replacement: CopilotAgentSession | undefined;
 			try {
+				if (!canvasHandoff && context.sdkSessionId) {
+					await this._claimPersistedCanvases(chat, context.resource, context.sdkSessionId);
+				}
 				replacement = await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder, token), chat);
 				return replacement;
 			} finally {
 				if (canvasHandoff) {
 					this._settleCanvasHandoff(chat, canvasHandoff, replacement);
+				} else {
+					this._adoptPersistedCanvases(chat, replacement);
 				}
 				lease.dispose();
 			}
@@ -9642,7 +9961,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				telemetryContext: () => this.getTelemetryContext(),
 				restrictedTelemetryEnabled: () => this._restrictedTelemetryEnabled,
-				canvasHandoff: this._canvasHandoffs.get(chatChannelUri),
+				canvasHandoff: this._canvasHandoffs.get(chatChannelUri) ?? this._resumingCanvasHandoffs.get(chatChannelUri),
+				onDidChangeCanvasContinuity: snapshot => this._persistReportedCanvases(agentSession, snapshot),
 			},
 		);
 		return agentSession;
@@ -9791,6 +10111,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._chatBackings.delete(chatChannelUri.toString());
 		}
 		this._chatEntriesBySdkId.deleteAndDispose(chatSession.sessionId);
+		if (chatChannelUri) {
+			this._persistedCanvasContinuities.delete(chatChannelUri.toString());
+		}
 	}
 
 	private _allLiveSessions(): CopilotAgentSession[] {
@@ -9859,17 +10182,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private _doResumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None, surface?: CopilotChatSurface): Promise<CopilotAgentSession> {
+	private async _doResumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None, surface?: CopilotChatSurface): Promise<CopilotAgentSession> {
 		const canvasHandoff = this._canvasHandoffs.get(chatChannelUri);
 		let replacement: CopilotAgentSession | undefined;
-		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, workspaceless, acquireClient, workingDirectories, stageRecorder, token, surface), chatChannelUri).then(session => {
-			replacement = session;
-			return session;
-		}).finally(() => {
+		try {
+			if (!canvasHandoff) {
+				// The default chat stores in its session's database unless the host recorded another storage scope.
+				await this._claimPersistedCanvases(chatChannelUri, this._chatStorageScopes.get(chatChannelUri.toString()) ?? AgentSession.uri(this.id, sessionId), sessionId);
+			}
+			replacement = await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, workspaceless, acquireClient, workingDirectories, stageRecorder, token, surface), chatChannelUri);
+			return replacement;
+		} finally {
 			if (canvasHandoff) {
 				this._settleCanvasHandoff(chatChannelUri, canvasHandoff, replacement);
+			} else {
+				this._adoptPersistedCanvases(chatChannelUri, replacement);
 			}
-		});
+		}
 	}
 
 	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None, surface?: CopilotChatSurface): Promise<CopilotAgentSession> {
@@ -11862,6 +12191,11 @@ class ActiveClient extends Disposable {
 	/** Unknown chats are temporarily in scope for every client until the host publishes exact membership. */
 	contributesTo(clientId: string, chatKey: string): boolean {
 		return !this._knownChats.has(chatKey) || this._chatsByClient.get(clientId)?.has(chatKey) === true;
+	}
+
+	/** Whether any client currently publishes contributions for `chatKey`. */
+	hasContributors(chatKey: string): boolean {
+		return this._knownChats.has(chatKey);
 	}
 
 	/** Selects client tools for subsequent launches of this chat, without changing an in-flight snapshot. */
