@@ -352,6 +352,120 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
 	});
 
+	test('[B6] carries a draft\'s remembered panel view when replaced by another draft', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const draft1 = makeSession(URI.parse('session:draft1'), { status: SessionStatus.Untitled, isCreated: false });
+		const draft2 = makeSession(URI.parse('session:draft2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(draft1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.activeSessionObs.set(draft2, undefined);
+		harness.openPaneCompositeCalls = [];
+		harness.onDidReplaceNewDraftSession.fire({ from: draft1, to: draft2 });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B2] replaces an active new draft session without wiping working set or open editors', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const draft1 = makeSession(URI.parse('session:draft1'), { status: SessionStatus.Untitled, isCreated: false });
+		const draft2 = makeSession(URI.parse('session:draft2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(draft1, undefined);
+		await timeout(0);
+
+		harness.applyWorkingSetCalls = [];
+		harness.onDidReplaceNewDraftSession.fire({ from: draft1, to: draft2 });
+		harness.activeSessionObs.set(draft2, undefined);
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.applyWorkingSetCalls.filter(call => call === 'empty').length,
+			0,
+			'replacing an active draft with a new draft must not apply an empty working set'
+		);
+	});
+
+	test('[B2] switching away discards an empty untitled editor bound to a file path instead of saving it into the working set', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources.map(r => r.toString()), [untitled.toString()]);
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`]);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
+	});
+
+	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: 'hello' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [untitled.toString(), regular.toString()]);
+	});
+
+	test('[B2] a state flush keeps an empty untitled editor bound to a file path open in the active session', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true }))];
+		harness.visibleEditorsList = [{}];
+
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
+	});
+
 	test('[B6] a same-resource draft promotion does not block the committed session\'s next outgoing working-set save', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });

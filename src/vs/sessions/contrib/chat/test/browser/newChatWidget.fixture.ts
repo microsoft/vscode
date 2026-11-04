@@ -621,6 +621,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onDidChangeRecentWorkspaces = Event.None;
 				override readonly historyLoadState = constObservable('loaded' as const);
 				override getRecentWorkspaces(): IRecentWorkspace[] { return activeSession ? [{ workspace, providerId: provider.id, checked: true, source: 'agents' }] : []; }
+				override getWorkspaceCatalog(): IRecentWorkspace[] { return this.getRecentWorkspaces(); }
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
@@ -2004,6 +2005,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly modelId = constObservable<string | undefined>(undefined);
 		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
+		override readonly mode = constObservable(undefined);
 		override readonly changesets = constObservable(undefined);
 	}();
 	return new class extends mock<IActiveSession>() {

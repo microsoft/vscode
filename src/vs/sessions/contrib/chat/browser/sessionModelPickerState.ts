@@ -5,7 +5,7 @@
 
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IPendingModelSelection } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { ISessionModelPickerOptions } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../services/sessions/common/sessionsProvider.js';
 
 /**
  * What the picker shows, as opposed to what the conversation runs on. A model it is meant to run on
@@ -23,6 +23,8 @@ const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
 };
 
 export interface ISessionModelSelectionState {
+	readonly agentModelPreferences?: ISessionModelsSnapshot['agentModelPreferences'];
+	readonly agentModelPolicyError?: string;
 	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly pendingSelection: IPendingModelSelection | undefined;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
@@ -46,7 +48,7 @@ export function hasSelectableModel(
 }
 
 export function hasSendableModelSelection(state: ISessionModelSelectionState): boolean {
-	return state.hasSelectableModel && (!state.pendingSelection || state.options.showAutoModel);
+	return !state.agentModelPolicyError && state.hasSelectableModel && (!state.pendingSelection || state.options.showAutoModel);
 }
 
 export const EMPTY_MODEL_SELECTION_STATE: ISessionModelSelectionState = {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../common/buffer.js';
-import { readImageDimensions } from '../../common/image.js';
+import { detectImageMimeType, readImageDimensions } from '../../common/image.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function buf(...bytes: number[]): VSBuffer {
@@ -134,5 +134,24 @@ suite('readImageDimensions', () => {
 		);
 
 		assert.deepStrictEqual(actual, expected);
+	});
+});
+
+suite('detectImageMimeType', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('detects supported formats from their signature and rejects others', () => {
+		assert.deepStrictEqual({
+			jpeg: detectImageMimeType(makeJpeg(640, 480).buffer),
+			png: detectImageMimeType(makePng(1920, 1080).buffer),
+			gif: detectImageMimeType(makeGif(50, 25).buffer),
+			webp: detectImageMimeType(makeWebPVp8(300, 200).buffer),
+			empty: detectImageMimeType(new Uint8Array()),
+			truncatedPng: detectImageMimeType(new Uint8Array([0x89, 0x50, 0x4E, 0x47])),
+			unknown: detectImageMimeType(new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B])),
+		}, {
+			jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+			empty: undefined, truncatedPng: undefined, unknown: undefined,
+		});
 	});
 });

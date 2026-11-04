@@ -20,6 +20,29 @@ suite('CapiReplayProxy', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('serves the same model catalog through models and meta without replay traffic', async () => {
+		const proxy = new CapiReplayProxy({ fixturePath: fileURLToPath(new URL('./e2e/captures/empty.yaml', import.meta.url)), mode: 'replay' });
+		try {
+			const url = await proxy.start();
+			const models = await (await fetch(`${url}/models`)).json();
+			const meta = await (await fetch(`${url}/meta`)).json();
+			assert.deepStrictEqual(meta, {
+				models,
+				auto: {
+					default_tier: 'balance',
+					tiers: [
+						{ id: 'balance', tier_level: 'standard', display_name: 'Standard', description: '', type: 'auto', status: { enabled: true } },
+						{ id: 'intelligence', tier_level: 'high', display_name: 'High', description: '', type: 'auto', status: { enabled: true } },
+						{ id: 'efficiency', display_name: 'Efficiency', description: '', type: 'auto', status: { enabled: true } },
+					],
+				},
+			});
+			proxy.assertNoReplayMismatches();
+		} finally {
+			await proxy.stop();
+		}
+	});
+
 	test('rejects debugger discovery probes without recording them or counting them as replay traffic', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-debugger-'));
 		const fixturePath = join(directory, 'capture.yaml');
@@ -46,6 +69,7 @@ suite('CapiReplayProxy', () => {
 	for (const request of [
 		{ method: 'GET', path: '/unexpected-api' },
 		{ method: 'POST', path: '/json/version' },
+		{ method: 'POST', path: '/meta' },
 		{ method: 'POST', path: '/v1/messages' },
 		{ method: 'POST', path: '/responses' },
 	]) {

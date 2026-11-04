@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
+import { exec, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import { glob } from 'glob';
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import { promisify } from 'util';
+import * as yaml from 'yaml';
+import { copyLockedDependencies, DependencyKind, PnpmLockfile } from './chatLibLockfile';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const CHAT_LIB_DIR = path.join(REPO_ROOT, 'chat-lib');
@@ -737,8 +739,6 @@ class ChatLibExtractor {
 
 		const rootPackageJsonPath = path.join(REPO_ROOT, 'package.json');
 		const chatLibPackageJsonPath = path.join(CHAT_LIB_DIR, 'package.json');
-		const rootPackageLockPath = path.join(REPO_ROOT, 'package-lock.json');
-		const chatLibPackageLockPath = path.join(CHAT_LIB_DIR, 'package-lock.json');
 
 		// Read both package.json files
 		const rootPackageJson = JSON.parse(await fs.promises.readFile(rootPackageJsonPath, 'utf-8'));
@@ -753,10 +753,11 @@ class ChatLibExtractor {
 		let updatedCount = 0;
 		let removedCount = 0;
 		const changes: string[] = [];
-		const updatedPackages = new Set<string>();
+		const updatedPackages = new Map<string, DependencyKind>();
+		const removedPackages = new Set<string>();
 
 		// Update existing dependencies in chat-lib with versions from root
-		for (const depType of ['dependencies', 'devDependencies']) {
+		for (const depType of ['dependencies', 'devDependencies'] as const) {
 			if (chatLibPackageJson[depType]) {
 				const dependencyNames = Object.keys(chatLibPackageJson[depType]);
 
@@ -770,13 +771,14 @@ class ChatLibExtractor {
 							chatLibPackageJson[depType][depName] = newVersion;
 							changes.push(`  Updated ${depName}: ${oldVersion} → ${newVersion}`);
 							updatedCount++;
-							updatedPackages.add(depName);
+							updatedPackages.set(depName, depType);
 						}
 					} else {
 						// Remove dependency if it no longer exists in root
 						delete chatLibPackageJson[depType][depName];
 						changes.push(`  Removed ${depName} (no longer in root package.json)`);
 						removedCount++;
+						removedPackages.add(depName);
 					}
 				}
 
@@ -799,91 +801,39 @@ class ChatLibExtractor {
 			changes.forEach(change => console.log(change));
 		}
 
-		// Update package-lock.json for changed dependencies and their transitive dependencies
-		if (updatedPackages.size > 0 && fs.existsSync(rootPackageLockPath) && fs.existsSync(chatLibPackageLockPath)) {
-			console.log('Updating chat-lib package-lock.json for changed dependencies...');
-
-			const rootPackageLock = JSON.parse(await fs.promises.readFile(rootPackageLockPath, 'utf-8'));
-			const chatLibPackageLock = JSON.parse(await fs.promises.readFile(chatLibPackageLockPath, 'utf-8'));
-
-			// Update the root package entry with new dependencies
-			if (chatLibPackageLock.packages && chatLibPackageLock.packages['']) {
-				chatLibPackageLock.packages[''].dependencies = chatLibPackageJson.dependencies || {};
-				chatLibPackageLock.packages[''].devDependencies = chatLibPackageJson.devDependencies || {};
-			}
-
-			// Collect all packages to update (direct dependencies + their transitive dependencies)
-			const packagesToUpdate = new Set<string>();
-			const queue: string[] = [];
-
-			// Start with updated packages
-			for (const pkgName of updatedPackages) {
-				const pkgPath = `node_modules/${pkgName}`;
-				queue.push(pkgPath);
-				packagesToUpdate.add(pkgPath);
-			}
-
-			// Traverse dependency tree from root package-lock to find all transitive dependencies
-			while (queue.length > 0) {
-				const pkgPath = queue.shift()!;
-				const pkgInfo = rootPackageLock.packages?.[pkgPath];
-
-				if (pkgInfo) {
-					// Collect all dependency types
-					const deps = {
-						...pkgInfo.dependencies,
-						...pkgInfo.optionalDependencies,
-						...pkgInfo.devDependencies
-					};
-
-					for (const depName of Object.keys(deps)) {
-						// Handle nested dependencies
-						const nestedDepPath = `${pkgPath}/node_modules/${depName}`;
-						const topLevelDepPath = `node_modules/${depName}`;
-
-						let actualDepPath: string | null = null;
-						if (rootPackageLock.packages[nestedDepPath]) {
-							actualDepPath = nestedDepPath;
-						} else if (rootPackageLock.packages[topLevelDepPath]) {
-							actualDepPath = topLevelDepPath;
-						} else {
-							// Walk up the parent chain
-							const pathParts = pkgPath.split('/node_modules/');
-							for (let i = pathParts.length - 1; i >= 0; i--) {
-								const parentPath = pathParts.slice(0, i).join('/node_modules/');
-								const candidatePath = parentPath ? `${parentPath}/node_modules/${depName}` : `node_modules/${depName}`;
-								if (rootPackageLock.packages[candidatePath]) {
-									actualDepPath = candidatePath;
-									break;
-								}
-							}
-						}
-
-						if (actualDepPath && !packagesToUpdate.has(actualDepPath)) {
-							packagesToUpdate.add(actualDepPath);
-							queue.push(actualDepPath);
-						}
-					}
-				}
-			}
-
-			// Update package entries in chat-lib lock file (add new entries if not present)
-			let lockUpdatedCount = 0;
-			for (const pkgPath of packagesToUpdate) {
-				if (rootPackageLock.packages[pkgPath]) {
-					chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
-					lockUpdatedCount++;
-				}
-			}
-
-			// Write the updated chat-lib package-lock.json
-			await fs.promises.writeFile(
-				chatLibPackageLockPath,
-				JSON.stringify(chatLibPackageLock, null, '\t') + '\n'
-			);
-
-			console.log(`Chat-lib package-lock.json updated: ${lockUpdatedCount} package entries updated`);
+		// Keep chat-lib's pnpm-lock.yaml in sync with the package.json written above
+		if (updatedPackages.size > 0 || removedPackages.size > 0) {
+			this.updateChatLibLockfile(updatedPackages, removedPackages);
 		}
+	}
+
+	/**
+	 * Updates chat-lib's `pnpm-lock.yaml` after its `package.json` dependencies changed, using the
+	 * versions that Copilot's `pnpm-lock.yaml` locks (see `copyLockedDependencies`). Nothing is
+	 * resolved, also not in the pipelines that publish chat-lib: `pnpm install --frozen-lockfile
+	 * --lockfile-only` only checks the result against chat-lib's `package.json` (and pnpm's
+	 * supply-chain policies), and writes it in pnpm's format.
+	 */
+	private updateChatLibLockfile(updatedPackages: ReadonlyMap<string, DependencyKind>, removedPackages: ReadonlySet<string>): void {
+		const copilotLockfilePath = path.join(REPO_ROOT, 'pnpm-lock.yaml');
+		const chatLibLockfilePath = path.join(CHAT_LIB_DIR, 'pnpm-lock.yaml');
+		if (!fs.existsSync(copilotLockfilePath) || !fs.existsSync(chatLibLockfilePath)) {
+			throw new Error(`Cannot update ${chatLibLockfilePath}: ${copilotLockfilePath} and ${chatLibLockfilePath} must exist.`);
+		}
+
+		console.log('Updating chat-lib pnpm-lock.yaml for changed dependencies...');
+		const copilotLockfile = yaml.parse(fs.readFileSync(copilotLockfilePath, 'utf-8')) as PnpmLockfile;
+		const chatLibLockfile = yaml.parse(fs.readFileSync(chatLibLockfilePath, 'utf-8')) as PnpmLockfile;
+		const copied = copyLockedDependencies(copilotLockfile, chatLibLockfile, updatedPackages, removedPackages);
+		fs.writeFileSync(chatLibLockfilePath, yaml.stringify(chatLibLockfile));
+		console.log(`Copied ${copied} lockfile entries from Copilot's pnpm-lock.yaml`);
+
+		const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+		const result = spawnSync(pnpm, ['install', '--lockfile-only', '--ignore-scripts', '--frozen-lockfile'], { cwd: CHAT_LIB_DIR, stdio: 'inherit', shell: process.platform === 'win32' });
+		if (result.error || result.status !== 0) {
+			throw new Error(`pnpm install --frozen-lockfile --lockfile-only failed in ${CHAT_LIB_DIR} (${result.error?.message ?? `exit code ${result.status}`}; see its output above). If pnpm reports that the lockfile is not up to date, the pnpm-lock.yaml of ${REPO_ROOT} or ${CHAT_LIB_DIR} doesn't match its package.json: run \`pnpm install\` in that folder, then extract again.`);
+		}
+		console.log('Chat-lib pnpm-lock.yaml updated');
 	}
 
 	private async compileTypeScript(): Promise<void> {

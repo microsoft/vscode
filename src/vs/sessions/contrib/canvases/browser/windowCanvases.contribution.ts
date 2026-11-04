@@ -23,6 +23,7 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
+import { CanvasActivityBarToggledContext } from './canvasActivityBar.js';
 import { WindowCanvasEditor } from './windowCanvasEditor.js';
 
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
@@ -71,6 +72,7 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 				group: activityBar ? SessionActivityBarGroup.SidePanel : 'navigation',
 				order: 4,
 				when: activityBar ? when : ContextKeyExpr.and(when, IsTopRightEditorGroupContext),
+				toggled: activityBar ? CanvasActivityBarToggledContext : undefined,
 			}));
 		}
 	}

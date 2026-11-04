@@ -21,6 +21,8 @@ export interface WorkspaceTrustRequestButton {
 export interface ResourceTrustRequestOptions {
 	readonly uri: URI;
 	readonly message?: string;
+	/** Label of the remote agent environment hosting the resource, when it is not on this computer. */
+	readonly remoteHostLabel?: string;
 }
 
 export interface WorkspaceTrustRequestOptions {
