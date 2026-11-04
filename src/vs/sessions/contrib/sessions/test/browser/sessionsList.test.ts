@@ -11679,11 +11679,17 @@ suite('Sessions - SessionsList', () => {
 				isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
 				sessionPayload: dataTransfer.getData(SessionsDataTransfers.SESSION),
 				chatPayload: getSessionChatDragData(dragStart),
+				// Unlike a chat tab's drag, a row's drag offers its URI as text to other apps,
+				// so dropping it on the desktop creates a text clipping rather than a chat window.
+				externalTypes: [...dataTransfer.types].filter(type => !type.startsWith('application/vnd.code.')),
+				text: dataTransfer.getData('text/plain'),
 			}, {
 				isChatDrag: true,
 				isSameSessionDrag: true,
 				sessionPayload: '',
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
+				externalTypes: ['text/plain'],
+				text: peer.resource.toString(),
 			});
 		});
 
