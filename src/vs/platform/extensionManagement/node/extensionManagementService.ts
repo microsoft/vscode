@@ -1034,7 +1034,7 @@ export class ExtensionsScanner extends Disposable {
 
 }
 
-class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
+export class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
 
 	private _operation = InstallOperation.Install;
 	get operation() { return this.options.operation ?? this._operation; }
@@ -1132,7 +1132,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 				? this.options.preRelease
 				: this.options.installPreReleaseVersion || this.source.properties.isPreReleaseVersion || existingExtension?.preRelease;
 
-			if (existingExtension && existingExtension.type !== ExtensionType.System && existingExtension.manifest.version === this.source.version) {
+			if (existingExtension && existingExtension.type !== ExtensionType.System && ExtensionKey.create(existingExtension).equals(this.extensionKey)) {
 				return this.extensionsScanner.updateMetadata(existingExtension, metadata, this.options.profileLocation);
 			}
 
