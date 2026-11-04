@@ -170,14 +170,23 @@
 	pointer-events: none;
 }
 
+.chat-pet-subagent-layer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.chat-pet-subagent-layer.hidden {
+	display: none;
+}
+
 .chat-pet-subagent,
 .chat-pet-subagent-despawning {
 	position: absolute;
-	bottom: 0;
 	width: 48px;
 	height: 48px;
-	transform: scale(0.5);
-	transform-origin: bottom left;
+	transform: scale(var(--chat-pet-subagent-scale));
+	transform-origin: top left;
 	pointer-events: none;
 }
 
@@ -186,8 +195,8 @@
 }
 
 @keyframes chat-pet-subagent-fall {
-	from { transform: translateY(calc(-1 * var(--chat-pet-subagent-fall-distance))) scale(0.5); }
-	to { transform: translateY(0) scale(0.5); }
+	from { transform: translateY(calc(-1 * var(--chat-pet-subagent-fall-distance))) scale(var(--chat-pet-subagent-scale)); }
+	to { transform: translateY(0) scale(var(--chat-pet-subagent-scale)); }
 }
 
 .monaco-workbench.monaco-reduce-motion .chat-pet-subagent.arriving {
@@ -198,6 +207,10 @@
 	width: 48px;
 	height: 48px;
 	image-rendering: pixelated;
+}
+
+.chat-pet-subagent .chat-pet-eye {
+	height: 12px;
 }
 
 .chat-pet-sprite {
