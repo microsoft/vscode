@@ -14,7 +14,6 @@ import { ColorPickerModel } from '../colorPickerModel.js';
 import { ColorPickerWidget } from '../colorPickerWidget.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../hover/browser/hoverTypes.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import * as nls from '../../../../../nls.js';
 import { BaseColor, ColorPickerWidgetType, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
@@ -149,7 +148,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	}
 
 	public getAccessibleContent(hoverPart: ColorHover): string {
-		return nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.');
+		return hoverPart.model.presentation?.label ?? Color.Format.CSS.format(hoverPart.model.color);
 	}
 
 	public handleResize(): void {
