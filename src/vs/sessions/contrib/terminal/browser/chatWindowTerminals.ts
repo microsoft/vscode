@@ -27,6 +27,8 @@ export interface IChatWindowTerminalsSource {
 	 * in its working directory, created at `location`.
 	 */
 	getChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined>;
+	/** A new terminal of `session`, in its working directory, with its profile, created at `location`. */
+	createChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined>;
 	/** Leaves `instance` to the chat window that shows it, out of the terminal panel, or gives it back to the panel. */
 	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void;
 }
@@ -67,8 +69,11 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _terminals = new Map<IChatWindow, Set<ITerminalInstance>>();
-	/** Bumped as the terminals of a window hide, so that a show that waited for a terminal does not show it after all. */
-	private readonly _generations = new Map<IChatWindow, number>();
+	/**
+	 * Bumped as the terminals of a window hide or the window closes, so that a show that waited for a terminal does not
+	 * show it after all. Kept for a window that closed, whose shows still wait.
+	 */
+	private readonly _generations = new WeakMap<IChatWindow, number>();
 	private readonly _partListeners = this._register(new DisposableMap<IChatWindow>());
 	private readonly _windows = this._register(new DisposableMap<IChatWindow>());
 
@@ -127,7 +132,6 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}
 		const generation = this._generations.get(window) ?? 0;
 		const part = window.getOrCreateTerminalsPart();
-		const group = part.activeGroup;
 		const terminals = this._getTerminals(window);
 		for (const instance of [...terminals]) {
 			if (instance.isDisposed) {
@@ -136,13 +140,19 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		}
 		if (!terminals.size) {
 			// Created in the window's part, rather than in the panel of the main window and moved.
-			const instance = await this._source.getChatWindowTerminal(session, { viewColumn: editorGroupToColumn(this._editorGroupsService, group) });
-			// Hidden meanwhile, or the terminal could not start.
-			if (!instance || instance.isDisposed || (this._generations.get(window) ?? 0) !== generation) {
+			const instance = await this._source.getChatWindowTerminal(session, { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) });
+			if (!instance || instance.isDisposed) {
+				return false;
+			}
+			// Hidden meanwhile, or the window closed: the terminal stays with its session, in the panel.
+			if (!this._isCurrent(window, generation)) {
+				this._source.setShownInChatWindow(instance, false);
 				return false;
 			}
 			terminals.add(instance);
 		}
+		// The group of the part now, which may have changed while the terminal was created.
+		const group = part.activeGroup;
 		this._trackPart(window, part);
 		let first = true;
 		for (const instance of [...terminals]) {
@@ -186,11 +196,27 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			await this.show(window, true);
 			return;
 		}
-		const instance = await this._terminalService.createTerminal({ location: { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) } });
-		if (!instance.isDisposed) {
-			this._getTerminals(window).add(instance);
-			this._source.setShownInChatWindow(instance, true);
+		const session = this._sessionOf(window);
+		if (!session) {
+			return;
 		}
+		const generation = this._generations.get(window) ?? 0;
+		// A terminal of the window's session, in its working directory, with its profile, rather than of the main window's.
+		const instance = await this._source.createChatWindowTerminal(session, { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) });
+		if (!instance || instance.isDisposed) {
+			return;
+		}
+		if (!this._isCurrent(window, generation)) {
+			this._source.setShownInChatWindow(instance, false);
+			return;
+		}
+		this._getTerminals(window).add(instance);
+		this._source.setShownInChatWindow(instance, true);
+	}
+
+	/** Whether the terminals of `window` neither hid nor went away, as the window closed, since `generation`. */
+	private _isCurrent(window: IChatWindow, generation: number): boolean {
+		return this._windows.has(window) && this._terminals.has(window) && (this._generations.get(window) ?? 0) === generation;
 	}
 
 	/**
@@ -221,7 +247,6 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	release(window: IChatWindow): void {
 		this._hide(window, false);
 		this._terminals.delete(window);
-		this._generations.delete(window);
 	}
 
 	/** Moves a terminal of the window to `group`, out of the panel or an editor elsewhere. */

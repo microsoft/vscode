@@ -936,12 +936,28 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const instances = await this._ensureTerminal(cwd, false, session, undefined, true, location);
 		const free = instances.find(instance => !this._chatWindowTerminalIds.has(instance.instanceId));
 		if (free || !instances.length) {
-			return free ?? instances[0];
+			const terminal = free ?? instances[0];
+			// Taken at once, so that a chat window that asks meanwhile does not take it too.
+			if (terminal) {
+				this.setShownInChatWindow(terminal, true);
+			}
+			return terminal;
 		}
 		// Each chat window of the session has terminals of its own: the session's terminals are all in other windows.
+		return this._createChatWindowTerminal(session, cwd, location);
+	}
+
+	/** A new terminal of `session`, in its working directory, with its profile, created at `location`, in a chat window. */
+	async createChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
+		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
+		return this._createChatWindowTerminal(session, cwd, location);
+	}
+
+	private async _createChatWindowTerminal(session: IActiveSession, cwd: URI, location: ITerminalLocationOptions | undefined): Promise<ITerminalInstance | undefined> {
 		const created = this._getAvailableTerminal(await this._createTerminalForSession(cwd, session, location), `chat window terminal for ${cwd.fsPath}`);
 		if (created) {
 			this._trackTerminalsForSession(session.sessionId, [created], { sessionId: session.sessionId, key: cwd.fsPath.toLowerCase(), agentHostAddress: this._getSessionAgentHostAddress(session) });
+			this.setShownInChatWindow(created, true);
 		}
 		return created;
 	}

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -85,6 +85,8 @@ suite('Chat window terminals', () => {
 		readonly restoredWithTerminals?: boolean;
 		/** Groups before the terminals' group, as the order of all groups, for its view column. */
 		readonly groupsBefore?: number;
+		/** The terminal of the session, once it is created: the window waits for it. */
+		readonly pendingTerminal?: Promise<ITerminalInstance | undefined>;
 	}
 
 	function createEnvironment(options: IEnvironmentOptions = {}) {
@@ -160,7 +162,11 @@ suite('Chat window terminals', () => {
 		const source: IChatWindowTerminalsSource = {
 			getChatWindowTerminal: async (forSession: IActiveSession, location?: ITerminalLocationOptions) => {
 				calls.push(`terminalOf:${forSession.sessionId}:${JSON.stringify(location)}`);
-				return options.terminal;
+				return options.pendingTerminal ? options.pendingTerminal : options.terminal;
+			},
+			createChatWindowTerminal: async (forSession: IActiveSession, location?: ITerminalLocationOptions) => {
+				calls.push(`newOf:${forSession.sessionId}:${JSON.stringify(location)}`);
+				return terminal(100);
 			},
 			setShownInChatWindow: (instance, shown) => shownInChatWindow.push(`${instance.instanceId}:${shown}`),
 		};
@@ -294,6 +300,20 @@ suite('Chat window terminals', () => {
 		await terminals.addTerminal(window);
 		await terminals.addTerminal(window);
 
-		assert.deepStrictEqual(calls, ['createPart', 'terminalOf:session-1:{"viewColumn":0}', 'fromBackground', 'toEditor:7', 'new:{"viewColumn":0}']);
+		assert.deepStrictEqual(calls, ['createPart', 'terminalOf:session-1:{"viewColumn":0}', 'fromBackground', 'toEditor:7', 'newOf:session-1:{"viewColumn":0}']);
+	});
+
+	test('a window that closes while its first terminal is created does not take it: nothing moves into the window, the terminal stays with its session', async () => {
+		const pending = new DeferredPromise<ITerminalInstance | undefined>();
+		const { terminals, window, calls, shownInChatWindow, terminalsGroup, onWillClose } = createEnvironment({ pendingTerminal: pending.p });
+
+		const showing = terminals.show(window, true);
+		await timeout(0);
+		onWillClose.fire();
+		pending.complete(terminal(5));
+		const shown = await showing;
+
+		// Nor does it listen to the part that holds its terminals, for terminals to take as its own.
+		assert.deepStrictEqual({ shown, calls, shownInChatWindow, listens: terminalsGroup.onModelChange.hasListeners() }, { shown: false, calls: ['createPart', 'terminalOf:session-1:{"viewColumn":0}'], shownInChatWindow: ['5:false'], listens: false });
 	});
 });
