@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
@@ -62,10 +62,10 @@ suite('McpElicitationService', () => {
 			chatService,
 			upcastPartial<IOpenerService>({}),
 		);
-		server = upcastDeepPartial<IMcpServer>({
-			definition: { id: 'server', label: 'Server' },
-			collection: { id: 'collection', label: 'Collection', order: 0 },
-			serverMetadata: constObservable(undefined),
+		server = upcastPartial<IMcpServer>({
+			definition: upcastPartial<IMcpServer['definition']>({ id: 'server', label: 'Server' }),
+			collection: upcastPartial<IMcpServer['collection']>({ id: 'collection', label: 'Collection', order: 0 }),
+			serverMetadata: constObservable<ReturnType<IMcpServer['serverMetadata']['get']>>(undefined),
 		});
 	});
 
