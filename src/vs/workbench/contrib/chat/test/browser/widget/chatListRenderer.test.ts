@@ -6540,6 +6540,51 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const restored of [false, true]) {
+		test(`informative tool-search headers retain the standard input/output disclosure (restored=${restored})`, async () => {
+			const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const input = '{"query":"GitHub pull requests and reviews"}';
+			const output = '["search_pull_requests","pull_request_read"]';
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Searching tools for GitHub pull requests and reviews' },
+				{ id: 'tool_search_tool', displayName: 'Search Tools', modelDescription: 'Search tools', source: ToolDataSource.Internal },
+				'search', undefined, {},
+			);
+			if (!restored) {
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+			}
+			await tool.didExecuteTool({
+				content: [{ kind: 'text', value: output }],
+				toolResultMessage: new MarkdownString('Found 2 tools for `GitHub pull requests and reviews`'),
+			});
+			tool.toolSpecificData = { kind: 'simpleToolInvocation', input, output };
+			tool.notifyToolSpecificDataChanged();
+			if (restored) {
+				model.acceptResponseProgress(request, tool.toJSON());
+			}
+			renderer.renderElement(node, 0, template);
+			const header = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			assert.ok(header);
+			const initiallyCollapsed = header.getAttribute('aria-expanded') === 'false';
+			header.click();
+			const expanded = header.getAttribute('aria-expanded');
+			const editorContents = instantiationService.get(ICodeEditorService).listCodeEditors().map(editor => editor.getModel()?.getValue()).filter(Boolean);
+			header.focus();
+			header.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			assert.deepStrictEqual({
+				title: header.textContent?.replace(/\u00a0/g, ' ').trim(),
+				initiallyCollapsed, expanded, editorContents,
+				collapsedWithEnter: header.getAttribute('aria-expanded'),
+			}, {
+				title: 'Found 2 tools for GitHub pull requests and reviews',
+				initiallyCollapsed: true, expanded: 'true', editorContents: [input, output],
+				collapsedWithEnter: 'false',
+			});
+			request.response?.complete();
+		});
+	}
+
+	for (const restored of [false, true]) {
 		for (const error of ['Could not read the question input.', true]) {
 			test(`persistent progress reveals question-tool errors without result details (restored=${restored}, error=${error})`, async () => {
 				const { model, request, renderer, template, node } = createPersistentProgressRenderer();

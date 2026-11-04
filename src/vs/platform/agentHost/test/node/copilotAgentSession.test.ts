@@ -18585,7 +18585,39 @@ Use the attached image as context.
 					customizationId: 'mcp-top-level:copilotcli:test-session-1:docs',
 				},
 				intention: 'Find the metadata contract',
-				invocationMessage: 'Look up documentation',
+				invocationMessage: { markdown: 'Look&nbsp;up&nbsp;documentation: `Find the metadata contract`' },
+			});
+		});
+
+		test('generic tool headers retain SDK intention from streaming through completion', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-custom-intent');
+			mockSession.fire('assistant.message', {
+				messageId: 'message-custom-intent',
+				content: '',
+				toolRequests: [
+					{ toolCallId: 'tc-custom-intent', name: 'custom_tool', intentionSummary: '  Inspect\nproject state  ' },
+				],
+			});
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-custom-intent', toolName: 'custom_tool', inputDelta: '{"query":"state"}',
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-custom-intent', toolName: 'custom_tool', arguments: { query: 'state' },
+			});
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-custom-intent', success: true, result: { content: 'Result unchanged' },
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+			const actions = getActions(signals);
+			assert.deepStrictEqual({
+				streaming: actions.find(action => action.type === ActionType.ChatToolCallDelta)?.invocationMessage,
+				running: actions.find(action => action.type === ActionType.ChatToolCallReady)?.invocationMessage,
+				completed: actions.find(action => action.type === ActionType.ChatToolCallComplete)?.result.pastTenseMessage,
+			}, {
+				streaming: { markdown: 'custom\\_tool: `Inspect project state`' },
+				running: { markdown: 'custom\\_tool: `Inspect project state`' },
+				completed: { markdown: 'custom\\_tool: `Inspect project state`' },
 			});
 		});
 

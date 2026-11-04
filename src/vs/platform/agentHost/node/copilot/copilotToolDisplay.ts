@@ -17,6 +17,7 @@ import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/ag
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
+import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -621,6 +622,14 @@ function truncate(text: string, maxLength: number): string {
 	return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
 }
 
+function withToolIntention(label: string, intention: string | undefined): StringOrMarkdown {
+	const subject = intention?.replace(/\s+/g, ' ').trim();
+	if (!subject || subject === label) {
+		return label;
+	}
+	return md(localize('tool.withIntention', "{0}: {1}", new MarkdownString().appendText(label).value, appendEscapedMarkdownInlineCode(truncate(subject, 80))));
+}
+
 const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-(?:[a-z0-9]{6}|\d+-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})|copilot-tool-output-\d{10,}-[a-z0-9]+)\.txt$/i;
 
 /**
@@ -720,12 +729,13 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 		case CopilotToolName.WriteAgent: return localize('toolName.writeAgent', "Write to Agent");
 		case CopilotToolName.McpReload: return localize('toolName.mcpReload', "Reload MCP Config");
 		case CopilotToolName.McpValidate: return localize('toolName.mcpValidate', "Validate MCP Config");
+		case RUNTIME_TOOL_SEARCH_TOOL_NAME:
 		case CopilotToolName.ToolSearchToolRegex: return localize('toolName.toolSearchToolRegex', "Search Tools");
 		default: return metadata?.toolTitle?.trim() || metadata?.mcpToolName?.trim() || toolName;
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, intention?: string): StringOrMarkdown {
 	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -907,14 +917,14 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			return localize('toolInvoke.writeAgentGeneric', "Write to agent");
 		}
 		default:
-			return displayName;
+			return withToolIntention(displayName, intention);
 	}
 }
 
 /**
  * Returns the progressively refined message shown while Copilot generates tool input.
  */
-export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, intention?: string): StringOrMarkdown {
 	const objectParameters = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
 		? parameters as Record<string, unknown>
 		: undefined;
@@ -955,7 +965,7 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 			return getStreamingPatchMessage(getEditFilePaths(parameters), streamingToolTextLineCount(patch), resolvePath);
 		}
 		default:
-			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName);
+			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName, intention);
 	}
 }
 
@@ -975,7 +985,7 @@ export function getSdkImageGenerationMetadata(data: unknown, toolUsage?: unknown
 	return parseImageGenerationToolMetadata({ requestedModel, usage: toolUsage });
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata, intention?: string): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -1020,7 +1030,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Task:
 			return localize('toolComplete.task', "Delegated task");
 		default:
-			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName);
+			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName, intention);
 	}
 }
 

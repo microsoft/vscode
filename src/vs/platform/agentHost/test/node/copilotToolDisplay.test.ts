@@ -102,6 +102,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['mcp_reload', 'Reload MCP Config'],
 			['mcp_validate', 'Validate MCP Config'],
 			['tool_search_tool_regex', 'Search Tools'],
+			['tool_search_tool', 'Search Tools'],
 			['parallel_validation', 'Validate Changes'],
 			['codeql_checker', 'CodeQL Security Scan'],
 			['addComment', 'Add Comment'],
@@ -119,6 +120,54 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+
+	test('uses per-call intention for generic headers without changing rendering kind or input', () => {
+		for (const toolName of ['tool_search_tool', 'tool_search_tool_regex', 'mcp_custom_tool', 'custom_tool']) {
+			const args = { query: 'GitHub\npull requests' };
+			const displayName = getToolDisplayName(toolName, { toolTitle: 'Custom tool' });
+			const intention = '  Find GitHub\npull requests  ';
+			const message = { markdown: `${displayName.replace(/ /g, '&nbsp;')}: \`Find GitHub pull requests\`` };
+			assert.deepStrictEqual({
+				streaming: getStreamingInvocationMessage(toolName, displayName, args, undefined, undefined, intention),
+				running: getInvocationMessage(toolName, displayName, args, undefined, undefined, intention),
+				completed: getPastTenseMessage(toolName, displayName, args, true, '["search_issues","get_issue"]', undefined, undefined, undefined, intention),
+				empty: getPastTenseMessage(toolName, displayName, args, true, '[]', undefined, undefined, undefined, intention),
+				unknown: getPastTenseMessage(toolName, displayName, args, true, 'Native search output', undefined, undefined, undefined, intention),
+				failed: getPastTenseMessage(toolName, displayName, args, false, '[]'),
+				kind: getToolKind(toolName),
+				input: getToolInputString(toolName, args, undefined),
+			}, {
+				streaming: message,
+				running: message,
+				completed: message,
+				empty: message,
+				unknown: message,
+				failed: `"${displayName}" failed`,
+				kind: undefined,
+				input: JSON.stringify(args, null, 2),
+			});
+		}
+	});
+
+	test('bounds and escapes intention headers and omits absent or redundant intention', () => {
+		assert.deepStrictEqual({
+			long: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, 'x'.repeat(1000)),
+			escaped: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, '`[unsafe](command:run)`'),
+			escapedLabel: getInvocationMessage('custom_tool', '[Lookup](command:run)', undefined, undefined, undefined, 'query'),
+			pending: getStreamingInvocationMessage('tool_search_tool', 'Search Tools', undefined),
+			blank: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, ' \n '),
+			duplicate: getInvocationMessage('custom_tool', 'Custom tool', undefined, undefined, undefined, '  Custom\n tool  '),
+			knownTool: getInvocationMessage('web_search', 'Web Search', { query: 'query' }, undefined, undefined, 'Intention'),
+		}, {
+			long: { markdown: `Custom&nbsp;tool: \`${'x'.repeat(77)}...\`` },
+			escaped: { markdown: 'Custom&nbsp;tool: `` `[unsafe](command:run)` ``' },
+			escapedLabel: { markdown: '\\[Lookup\\]\\(command:run\\): `query`' },
+			pending: 'Search Tools',
+			blank: 'Custom tool',
+			duplicate: 'Custom tool',
+			knownTool: { markdown: 'Searching the web for `query`' },
+		});
 	});
 
 	test('uses requested image identity rather than the conversation model', () => {

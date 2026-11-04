@@ -46,7 +46,7 @@ suite('Copilot app tool presentation compatibility', () => {
 		{ names: ['web_search'], kind: undefined, completed: 'Searched the web' },
 		{ names: ['web_fetch'], kind: undefined, completed: 'Fetched webpage' },
 		{ names: ['sql', 'session_store_sql'], kind: undefined, completed: 'Ran SQL' },
-		{ names: ['tool_search_tool_regex'], kind: undefined, completed: 'Searched tools' },
+		{ names: ['tool_search_tool', 'tool_search_tool_regex'], kind: undefined, completed: 'Searched tools' },
 		{ names: ['update_todo', 'todowrite'], kind: undefined, completed: 'Updated todo list' },
 		{ names: ['update_profile'], kind: undefined, completed: 'Updated profile' },
 		{ names: ['store_memory'], kind: undefined, completed: 'Saved memory' },
@@ -126,6 +126,21 @@ suite('Copilot app tool presentation compatibility', () => {
 		});
 	});
 
+	test('tool search only replaces generic titles', () => {
+		const completed = call('tool_search_tool', { toolInput: '{"query":"GitHub"}' });
+		const streaming = readToolCallPresentation({ toolCallId: 'search', toolName: 'tool_search_tool', displayName: 'tool_search_tool', status: ToolCallStatus.Streaming, partialInput: '{"query":"GitHub' });
+		assert.deepStrictEqual({
+			streaming: streaming.invocationMessage,
+			completed: readToolCallPresentation(completed),
+		}, {
+			streaming: { markdown: 'Searching tools `GitHub`' },
+			completed: {
+				toolKind: undefined,
+				invocationMessage: { markdown: 'Searching tools `GitHub`' },
+				pastTenseMessage: { markdown: 'Searched tools `GitHub`' },
+			},
+		});
+	});
 	test('explicit VS Code metadata, permissions, contributors and MCP Apps never acquire a name fallback', () => {
 		const external = [
 			call('grep', { _meta: { toolKind: 'read' } }),

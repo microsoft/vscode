@@ -8,7 +8,9 @@ import * as l10n from '@vscode/l10n';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
-import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
+import { ExtendedLanguageModelToolResult, LanguageModelTextPart, MarkdownString } from '../../../vscodeTypes';
+import { appendEscapedMarkdownInlineCode } from '../../../util/vs/base/common/htmlContent';
+import { truncate } from '../../../util/vs/base/common/strings';
 import { ICopilotModelSpecificTool, ToolRegistry } from '../common/toolsRegistry';
 import { IToolsService } from '../common/toolsService';
 import { IToolEmbeddingsComputer } from '../common/virtualTools/toolEmbeddingsComputer';
@@ -27,6 +29,14 @@ export interface IToolSearchCandidate {
 
 const DEFAULT_SEARCH_LIMIT = 5;
 
+function formatToolSearchMessage(message: string, query: string): MarkdownString {
+	const text = typeof query === 'string' ? query.replace(/\s+/g, ' ').trim() : '';
+	const preview = text.length > 80 ? truncate(text, 77, '...') : text;
+	return preview
+		? new MarkdownString(l10n.t('{0} for {1}', message, appendEscapedMarkdownInlineCode(preview)))
+		: new MarkdownString(message);
+}
+
 export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchParams> {
 	constructor(
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
@@ -35,13 +45,22 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<IToolSearchParams>): vscode.PreparedToolInvocation {
+		return {
+			invocationMessage: formatToolSearchMessage(l10n.t('Searching tools'), options.input.query),
+			pastTenseMessage: formatToolSearchMessage(l10n.t('Searched tools'), options.input.query),
+		};
+	}
+
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IToolSearchParams>, token: vscode.CancellationToken) {
 		const { query, limit, candidateTools } = options.input;
 
 		if (!query) {
-			return new LanguageModelToolResult([
+			const result = new ExtendedLanguageModelToolResult([
 				new LanguageModelTextPart('Error: query parameter is required'),
 			]);
+			result.toolResultMessage = new MarkdownString(l10n.t('Tool search failed'));
+			return result;
 		}
 
 		const availableTools: readonly vscode.LanguageModelToolInformation[] = candidateTools !== undefined
@@ -67,9 +86,14 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 		// Return matched tool names as a JSON array. messagesApi.ts identifies results
 		// from this tool via the toolCallId→name map and converts them into
 		// tool_reference content blocks for the Anthropic API.
-		return new LanguageModelToolResult([
+		const result = new ExtendedLanguageModelToolResult([
 			new LanguageModelTextPart(JSON.stringify(matchedToolNames)),
 		]);
+		const message = matchedToolNames.length === 0 ? l10n.t('No matching tools found')
+			: matchedToolNames.length === 1 ? l10n.t('Found 1 tool')
+				: l10n.t('Found {0} tools', matchedToolNames.length);
+		result.toolResultMessage = formatToolSearchMessage(message, query);
+		return result;
 	}
 }
 
