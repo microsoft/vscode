@@ -28,7 +28,7 @@ import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorI
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
-import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
@@ -69,7 +69,10 @@ class TestView implements IViewEditorView {
 
 	focus(): void { }
 
+	disposed = false;
+
 	dispose(): void {
+		this.disposed = true;
 		this._onDidChange.dispose();
 	}
 }
@@ -324,6 +327,33 @@ suite('View Editors', () => {
 			onMove: ['create view1', 'save view1', 'create view2'],
 			onClear: ['save view2']
 		});
+	});
+
+	test('an editor of a view that moves around, between groups and parts, leaves one live view: the one that shows it', async () => {
+		const { parts, part } = await createServices();
+		const other = createPart(parts);
+		const input = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(input, { pinned: true });
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+
+		const live = () => views.filter(view => !view.disposed).length;
+		const afterEach: number[] = [];
+		for (let i = 0; i < 5; i++) {
+			// Into a group split off its own, then into another part, then back
+			const source = part.groups.find(group => group.contains(input))!;
+			const split = part.addGroup(source, GroupDirection.RIGHT);
+			source.moveEditor(input, split);
+			await timeout(0);
+			afterEach.push(live());
+			split.moveEditor(input, other.activeGroup);
+			await timeout(0);
+			afterEach.push(live());
+			other.activeGroup.moveEditor(input, part.activeGroup);
+			await timeout(0);
+			afterEach.push(live());
+		}
+
+		assert.deepStrictEqual(afterEach, Array.from({ length: 15 }, () => 1));
 	});
 
 	function createPart(parts: TestEditorParts): IContentPart {
