@@ -94,6 +94,8 @@ export interface IOpenedMainWindow extends IOpenedWindow {
 	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
 	readonly iconPath?: URI;
+	/** When the window last had focus, in milliseconds since the epoch. */
+	readonly lastFocusTime?: number;
 }
 
 export interface IOpenedAuxiliaryWindow extends IOpenedWindow {

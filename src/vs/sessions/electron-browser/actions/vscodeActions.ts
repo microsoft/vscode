@@ -31,10 +31,19 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
-import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { IFolderToOpen, IOpenedMainWindow, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { logExperimentTrigger } from '../../../platform/telemetry/common/experimentTrigger.js';
+import { isRecentFolder, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { isEqual } from '../../../base/common/resources.js';
+
+/** ExP treatment that makes Open in Editor reveal a recent editor window for a folderless chat, instead of opening an empty window. */
+export const FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT = 'sessions.folderlessOpenInEditorRevealsRecentWindow';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -70,10 +79,23 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const labelService = accessor.get(ILabelService);
+	const telemetryService = accessor.get(ITelemetryService);
+	const assignmentService = accessor.get(IWorkbenchAssignmentService);
+	const workspacesService = accessor.get(IWorkspacesService);
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
 
 	const folders = session?.activeChat.get().workspace.get()?.folders;
 	if (!session || !folders?.length) {
-		return nativeHostService.openWindow();
+		// A folderless chat has no folder to open. The experiment reveals a recent editor window instead of an empty one.
+		logExperimentTrigger(telemetryService, FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT);
+		let revealRecentWindow = false;
+		try {
+			revealRecentWindow = await assignmentService.getTreatment<boolean>(FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT) === true;
+		} catch (error) {
+			logService.warn('[openSessionInVSCode] Failed to resolve the folderless Open in Editor treatment; opening an empty window.', error);
+		}
+		return revealRecentWindow ? revealRecentEditorWindow(nativeHostService, workspacesService, environmentService.agentSessionsWorkspace) : nativeHostService.openWindow();
 	}
 
 	const foldersToOpen: IFolderToOpen[] = [];
@@ -90,6 +112,32 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
 	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
+}
+
+/**
+ * Brings forward the editor window that had focus most recently. When no other window is open, opens the most
+ * recently opened folder or workspace instead, and only opens an empty window when nothing was opened recently.
+ */
+async function revealRecentEditorWindow(nativeHostService: INativeHostService, workspacesService: IWorkspacesService, agentSessionsWorkspace: URI): Promise<void> {
+	const currentWindowId = getWindowId(mainWindow);
+	const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+	const recentWindow = windows
+		.filter(window => window.id !== currentWindowId)
+		.sort((a, b) => (b.lastFocusTime ?? 0) - (a.lastFocusTime ?? 0))
+		.at(0);
+	if (recentWindow) {
+		return nativeHostService.focusWindow({ targetWindowId: recentWindow.id });
+	}
+
+	// Recents can list the Agents window's own workspace, which is already open here.
+	const recent = (await workspacesService.getRecentlyOpened()).workspaces.find(recent => isRecentFolder(recent) || !isEqual(recent.workspace.configPath, agentSessionsWorkspace));
+	if (recent) {
+		const toOpen: IWindowOpenable = isRecentFolder(recent) ? { folderUri: recent.folderUri, label: recent.label } : { workspaceUri: recent.workspace.configPath, label: recent.label };
+		// Like Open Recent, reconnect to the entry's remote, since its URI may not encode it.
+		return nativeHostService.openWindow([toOpen], { forceNewWindow: true, remoteAuthority: recent.remoteAuthority || null });
+	}
+
+	return nativeHostService.openWindow();
 }
 
 /**
