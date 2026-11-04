@@ -327,6 +327,9 @@ export class ReleaseNotesManager extends Disposable {
 				&& bounds.top < targetWindow.innerHeight && bounds.left < targetWindow.innerWidth;
 			const active = this._editorService.activeEditor === input
 				&& (input.webview.isFocused || input.webview.container.contains(targetWindow.document.activeElement));
+			if (visible && !wasVisible) {
+				telemetry.waitForPresentation();
+			}
 			telemetry.setVisibility(visible, active);
 			if (visible && !wasVisible) {
 				void input.webview.postMessage({ type: 'releaseNotesTelemetryMeasure', documentId: this._currentDocument.value?.documentId });
