@@ -168,6 +168,13 @@ export interface IStartSessionComparisonOptions {
 	readonly branch?: string;
 }
 
+export class SessionComparisonLaunchError extends Error {
+	constructor(message: string, readonly participants: readonly ISessionComparisonParticipant[]) {
+		super(message);
+		this.name = 'SessionComparisonLaunchError';
+	}
+}
+
 export interface ISessionComparisonService {
 	readonly _serviceBrand: undefined;
 	readonly comparisons: IObservable<readonly ISessionComparison[]>;

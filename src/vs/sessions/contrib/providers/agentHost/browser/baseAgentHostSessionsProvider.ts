@@ -4479,10 +4479,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly supportsPermissionsForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
 
-	getPermissionOptionForSession(sessionId: string): ISessionPermissionOption | undefined {
+	getPermissionOptionForSession(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined {
 		const newSession = this._getNewSession(sessionId);
-		const sessionType = newSession?.agentProvider;
-		const config = newSession?.getConfig();
+		const key = this._sessionKeyFromChatId(sessionId);
+		const cached = key ? this._sessionCache.get(key) : undefined;
+		const sessionType = newSession?.agentProvider ?? (chatResource && cached?.getChatAgentProvider(chatResource));
+		const config = newSession?.getConfig() ?? (chatResource ? this.getSessionConfig(sessionId, chatResource) : undefined);
+		if (chatResource && this.isSessionConfigResolving(sessionId, chatResource).get()) {
+			return undefined;
+		}
 		if (!sessionType || !config) {
 			return undefined;
 		}
@@ -4493,11 +4498,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
 	}
 
-	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined {
+	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string, chatResource?: URI): ISessionPermissionOption | undefined {
 		const sourceSession = this._getNewSession(sessionId);
-		const sourceSessionType = sourceSession?.agentProvider;
-		const sourceOption = this.getPermissionOptionForSession(sessionId);
-		if (!sourceSessionType || !sourceOption) {
+		const key = this._sessionKeyFromChatId(sessionId);
+		const cached = key ? this._sessionCache.get(key) : undefined;
+		const sourceSessionType = sourceSession?.agentProvider ?? (chatResource && cached?.getChatAgentProvider(chatResource));
+		const sourceOption = this.getPermissionOptionForSession(sessionId, chatResource);
+		if (!sourceSessionType || !sourceOption || sourceOption.locked) {
 			return undefined;
 		}
 		if (sourceSessionType === sessionTypeId) {
@@ -4505,7 +4512,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const options = getAgentHostSessionPermissionOptions(
 			sessionTypeId,
-			isAutoApprovePolicyRestricted(this._baseConfigurationService, sourceSession.getConfig()?.schema),
+			isAutoApprovePolicyRestricted(this._baseConfigurationService, (sourceSession?.getConfig() ?? (chatResource ? this.getSessionConfig(sessionId, chatResource) : undefined))?.schema),
 			true,
 		);
 		return sourceOption.isAllowAll

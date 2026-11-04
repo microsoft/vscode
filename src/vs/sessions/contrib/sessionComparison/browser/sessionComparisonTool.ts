@@ -18,7 +18,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
@@ -100,13 +100,16 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		}
 		const invokingSession = invokingParticipant?.sessionResource
 			? this.sessionsManagementService.getSession(invokingParticipant.sessionResource) : undefined;
+		return toolResult(JSON.stringify(this.getManifest(comparison, invokingSession)));
+	}
 
+	getManifest(comparison: ISessionComparison, invokingSession: ISession | undefined, evaluator = false) {
 		const allAttemptParticipants = comparison.participants
 			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 		const attemptNumbers = new Map(allAttemptParticipants.map((participant, index) => [participant.id, index + 1]));
-		const attemptParticipants = allAttemptParticipants.filter(participant => participant.sessionResource);
+		const attemptParticipants = evaluator ? allAttemptParticipants : allAttemptParticipants.filter(participant => participant.sessionResource);
 		const attempts = attemptParticipants.map(participant => {
-			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
+			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
 			const chat = getSessionComparisonChat(participant, session);
 			const changes = chat?.changes.get() ?? [];
 			const changedFiles = changes.slice(0, 200).map(change => ({
@@ -145,9 +148,10 @@ export class ReadSessionComparisonTool implements IToolImpl {
 				},
 				status: getManifestSessionStatus(participant.chatResource ? chat?.status.get() : session?.status.get()),
 				launchError: participant.launchError,
+				...(evaluator ? { completion: participant.completion } : {}),
 				sessionContextTarget,
-				sessionContextUnavailableReason: session && !sessionContextTarget
-					? 'Transcript follow-up is unavailable from this Judge host; use the manifest and worktree evidence.'
+				sessionContextUnavailableReason: !sessionContextTarget && (session || evaluator)
+					? evaluator ? 'This chat is unavailable or its host does not support transcript access from the caller.' : 'Transcript follow-up is unavailable from this Judge host; use the manifest and worktree evidence.'
 					: undefined,
 				worktree: workspace ? {
 					workingDirectory: workspace.folders[0]?.workingDirectory.fsPath,
@@ -162,15 +166,15 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		const synthesisPlan = comparison.synthesisPlan ? {
 			instructions: comparison.synthesisPlan.instructions,
 		} : undefined;
-		return toolResult(JSON.stringify({
+		return {
 			comparisonId: comparison.id,
 			originalTask: comparison.prompt,
 			baseBranch: comparison.branch,
 			attempts,
-			verdict: comparison.verdict ? toManifestVerdict(comparison.verdict, attemptNumbers) : undefined,
+			verdict: comparison.verdict ? toManifestVerdict(comparison.verdict, attemptNumbers, evaluator) : undefined,
 			synthesisPlan,
-			next: 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget to identify validation the attempt already completed and for rationale or other non-code evidence; never recover implementation code or paths from a transcript. Do not rerun a validation category with a clear reported result. Run only missing targeted validation when needed. If required dependencies or build artifacts are unavailable, record validation as unavailable without installing or building dependencies or substituting another validation category. Record each validation category as a consistent state and source pair. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. During synthesis, resolve every reported conflict and treat synthesisPlan instructions as explicit user requirements. Resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
-		}));
+			next: evaluator ? undefined : 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget to identify validation the attempt already completed and for rationale or other non-code evidence; never recover implementation code or paths from a transcript. Do not rerun a validation category with a clear reported result. Run only missing targeted validation when needed. If required dependencies or build artifacts are unavailable, record validation as unavailable without installing or building dependencies or substituting another validation category. Record each validation category as a consistent state and source pair. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. During synthesis, resolve every reported conflict and treat synthesisPlan instructions as explicit user requirements. Resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
+		};
 	}
 }
 
@@ -460,7 +464,7 @@ function rationalePointSchema(description: string): IJSONSchema {
 	};
 }
 
-function getManifestSessionStatus(status: SessionStatus | undefined): 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error' | 'unavailable' {
+export function getManifestSessionStatus(status: SessionStatus | undefined): 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error' | 'unavailable' {
 	switch (status) {
 		case SessionStatus.Untitled:
 			return 'untitled';
@@ -538,15 +542,30 @@ function isValidationEvidence(value: unknown): value is SessionComparisonValidat
 	}
 }
 
-function toManifestVerdict(verdict: ISessionComparisonVerdict, attemptNumbers: ReadonlyMap<string, number>) {
+function toManifestVerdict(verdict: ISessionComparisonVerdict, attemptNumbers: ReadonlyMap<string, number>, evaluator = false) {
 	const recommendedAttemptNumber = attemptNumbers.get(verdict.recommendedParticipantId);
 	if (!recommendedAttemptNumber) {
 		return undefined;
 	}
+	const rationale = evaluator && verdict.rationale ? {
+		comparison: getBoundedSessionComparisonManifestText(verdict.rationale.comparison),
+		validation: getBoundedSessionComparisonManifestText(verdict.rationale.validation),
+		codeQuality: getBoundedSessionComparisonManifestText(verdict.rationale.codeQuality),
+		solution: getBoundedSessionComparisonManifestText(verdict.rationale.solution),
+	} : verdict.rationale;
+	const texts = evaluator ? [
+		verdict.explanation, ...Object.values(verdict.rationale ?? {}), ...verdict.conflicts,
+		...verdict.attempts.flatMap(attempt => [attempt.summary, ...attempt.unresolvedIssues, ...attempt.notableDifferences]),
+	] : [];
+	const lists = [verdict.conflicts, verdict.attempts, ...verdict.attempts.flatMap(attempt => [attempt.unresolvedIssues, attempt.notableDifferences])];
 	return {
+		...(evaluator ? {
+			truncated: texts.some(text => getBoundedSessionComparisonManifestText(text) !== text)
+				|| lists.some(list => list.length > SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS),
+		} : {}),
 		recommendedAttemptNumber,
 		explanation: getBoundedSessionComparisonManifestText(verdict.explanation),
-		rationale: verdict.rationale,
+		rationale,
 		conflicts: getBoundedSessionComparisonManifestList(verdict.conflicts),
 		attempts: verdict.attempts.slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).flatMap(attempt => {
 			const attemptNumber = attemptNumbers.get(attempt.participantId);
