@@ -449,7 +449,15 @@ export class PartGrid extends Disposable {
 	private getReflowCells(): IPartGridReflowCell[] {
 		return Array.from(this.cells.values())
 			.filter(cell => this.grid?.isViewVisible(cell) && this.isCellVisible(cell.id))
-			.map(cell => ({ id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, describeOverlay: anchor => describeEditorAt(cell.part, anchor), layoutPreview: preview => cell.layoutPreview(preview) }));
+			.map(cell => ({
+				id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, describeOverlay: anchor => describeEditorAt(cell.part, anchor),
+				// A part that does not lay out in previews only shows clipped, laid out once the grid lays it out
+				layoutPreview: preview => {
+					if (!cell.part || this.previewLayoutAllowed(cell.id, cell.part)) {
+						cell.layoutPreview(preview);
+					}
+				}
+			}));
 	}
 
 	/**
@@ -494,6 +502,19 @@ export class PartGrid extends Disposable {
 	}
 
 	private mergeAllowed: (id: string, targetId: string) => boolean = () => true;
+	private previewLayoutAllowed: (id: string, part: IContentPart) => boolean = () => true;
+
+	/**
+	 * Whether a part lays out at the sizes its card takes while cards make
+	 * way, such as for a dragged card, so that what it shows fills the card.
+	 * By default it does; a window can say which parts do not, such as those
+	 * whose editors are costly to lay out, like terminals, whose processes
+	 * resize: their cards only show clipped until the grid lays them out,
+	 * such as once a drop moved them.
+	 */
+	setPreviewLayoutAllowed(allowed: (id: string, part: IContentPart) => boolean): void {
+		this.previewLayoutAllowed = allowed;
+	}
 
 	/**
 	 * Whether a part dropped on the center of another part merges into it,

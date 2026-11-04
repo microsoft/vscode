@@ -1204,7 +1204,7 @@ suite('Part Grid', () => {
 			mainMoved: !!container.querySelector<HTMLElement>('[data-part-grid-cell="main"]')!.style.translate
 		});
 
-		return { grid, container, card, over, feedback, created: () => created, renew: () => editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: side.activeGroup.id })], DraggedEditorIdentifier.prototype) };
+		return { grid, container, side, main, card, over, feedback, created: () => created, renew: () => editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: side.activeGroup.id })], DraggedEditorIdentifier.prototype) };
 	}
 
 	test('without motion, editors dragged between two cards or on the rim of a card go into a new part beside it, shown as its slot; further in, the part\'s own drop overlay takes them', async () => {
@@ -1287,6 +1287,33 @@ suite('Part Grid', () => {
 			afterLeave: { slot: true, partOverlay: false, mainMoved: true },
 			afterEnd: { slot: false, partOverlay: false, mainMoved: false },
 			layers: 0
+		});
+	});
+
+	test('a part that does not lay out in previews, such as one showing terminals, is not laid out as the cards make way or go back, only clipped', async () => {
+		const { grid, main, card, over, feedback } = await createEditorDragGrid(true);
+		grid.setPreviewLayoutAllowed(id => id !== 'main');
+		const layouts: string[] = [];
+		const layout = main.layout.bind(main);
+		main.layout = (width, height, top, left) => {
+			layouts.push(`${width}x${height}`);
+			layout(width, height, top, left);
+		};
+		const rect = card('main');
+		const y = rect.top + rect.height / 2;
+
+		// On the rim of main: the slot takes room beside it, and main makes way
+		over('dragover', rect.left + 6, y);
+		const whileShown = { mainMoved: feedback().mainMoved, layouts: [...layouts] };
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		const afterSlide = [...layouts];
+		over('dragleave', 2000, y);
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ whileShown, afterSlide, afterCancel: layouts }, {
+			whileShown: { mainMoved: true, layouts: [] },
+			afterSlide: [],
+			afterCancel: []
 		});
 	});
 
