@@ -594,12 +594,27 @@ suite('Part Grid', () => {
 		const outsideTheGrid = over(mainWindow.document.body);
 		over(iframe);
 		iframe.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null }));
+		const outOfTheWindow = showing();
+		// Out of the window from inside the webview's frame, which keeps its pointer events: only the window's mouseleave
+		over(iframe);
+		mainWindow.document.documentElement.dispatchEvent(new MouseEvent('mouseleave'));
+		const outFromTheWebview = showing();
+		over(iframe);
+		mainWindow.dispatchEvent(new FocusEvent('blur'));
+		const windowBlurred = showing();
+		over(iframe);
+		const card = cellOf('left').querySelector('.part-grid-card')!;
+		grid.removeCell('left');
+		const partLeft = card.classList.contains('part-grid-pointer-over');
 
-		assert.deepStrictEqual({ overWebview, overOtherPart, outsideTheGrid, outOfTheWindow: showing() }, {
+		assert.deepStrictEqual({ overWebview, overOtherPart, outsideTheGrid, outOfTheWindow, outFromTheWebview, windowBlurred, partLeft }, {
 			overWebview: ['left'],
 			overOtherPart: ['right'],
 			outsideTheGrid: [],
-			outOfTheWindow: []
+			outOfTheWindow: [],
+			outFromTheWebview: [],
+			windowBlurred: [],
+			partLeft: false
 		});
 	});
 

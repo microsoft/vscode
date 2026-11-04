@@ -466,6 +466,9 @@ export class PartGrid extends Disposable {
 				this.setPointerOverCell(undefined); // out of the window
 			}
 		}, true));
+		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
+		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, () => this.setPointerOverCell(undefined)));
+		this._register(addDisposableListener(targetWindow, EventType.BLUR, () => this.setPointerOverCell(undefined)));
 	}
 
 	private pointerOverCard: HTMLElement | undefined;
@@ -1083,6 +1086,10 @@ export class PartGrid extends Disposable {
 			return;
 		}
 
+		if (cell.cardElement === this.pointerOverCard) {
+			this.setPointerOverCell(undefined);
+		}
+
 		if (this.grid && this.cells.size > 1) {
 			this.grid.removeView(cell);
 		} else {
@@ -1444,6 +1451,7 @@ export class PartGrid extends Disposable {
 	}
 
 	override dispose(): void {
+		this.setPointerOverCell(undefined);
 		this.cells.clear();
 
 		super.dispose();
