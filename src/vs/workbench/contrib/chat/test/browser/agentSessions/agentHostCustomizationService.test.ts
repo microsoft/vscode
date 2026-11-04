@@ -243,6 +243,38 @@ suite('AbstractAgentHostCustomizationService', () => {
 		return store.add(new TestAgentHostCustomizationService(instantiationService, logService, notificationService));
 	}
 
+	test('publishes MCP skill bundle identities and counts only for effective containers', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const skill = { type: CustomizationType.Skill as const, id: 'skill', uri: 'urn:peer:skill', name: 'review', enabled: true };
+		const disabled: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Session, enabled: false }];
+		const target = new FakeTarget([
+			mcpServer('no-skills', 'no-skills'),
+			{ ...mcpServer('empty', 'empty'), children: [] },
+			{ ...mcpServer('opaque/server', 'test-skills'), children: [skill] },
+			{ ...mcpServer('disabled', 'disabled'), children: [skill], enablement: disabled },
+			{
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'urn:peer:plugin', name: 'Plugin', children: [
+					{ ...mcpServer('nested', 'nested'), children: [skill, { ...skill, id: 'second', enabled: false }] },
+				]
+			},
+			{
+				type: CustomizationType.Plugin, id: 'disabled-plugin', uri: 'urn:peer:disabled-plugin', name: 'Disabled Plugin', enablement: disabled, children: [
+					{ ...mcpServer('disabled-nested', 'disabled-nested'), children: [skill] },
+				]
+			},
+		]);
+		sut.setTarget(session, target);
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({ name: server.name, bundle: server.skillBundle })), [
+			{ name: 'no-skills', bundle: undefined },
+			{ name: 'empty', bundle: undefined },
+			{ name: 'test-skills', bundle: { id: 'opaque/server', count: 1 } },
+			{ name: 'disabled', bundle: undefined },
+			{ name: 'nested', bundle: { id: 'nested', count: 2 } },
+			{ name: 'disabled-nested', bundle: undefined },
+		]);
+	});
+
 	test('backgrounds blocking servers through the required target operation', async () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');

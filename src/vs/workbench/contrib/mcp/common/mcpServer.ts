@@ -1349,25 +1349,25 @@ export class McpTool implements IMcpTool {
 		this.visibility = _definition.visibility ?? (McpToolVisibility.Model | McpToolVisibility.App);
 	}
 
-	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken, requestMeta?: MCP.RequestMetaObject): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await this._callWithProgress(params, undefined, context, token);
+			return await this._callWithProgress(params, undefined, context, requestMeta, token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken, requestMeta?: MCP.RequestMetaObject): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await this._callWithProgress(params, progress, context, token);
+			return await this._callWithProgress(params, progress, context, requestMeta, token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress | undefined, context?: IMcpToolCallContext, token = CancellationToken.None, allowRetry = true): Promise<MCP.CallToolResult> {
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress | undefined, context: IMcpToolCallContext | undefined, requestMeta: MCP.RequestMetaObject | undefined, token = CancellationToken.None, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = progress ? generateUuid() : undefined;
@@ -1385,7 +1385,10 @@ export class McpTool implements IMcpTool {
 				}));
 			}
 
-			const meta: Record<string, unknown> = { progressToken };
+			const meta: MCP.RequestMetaObject = { ...requestMeta };
+			if (progressToken) {
+				meta.progressToken = progressToken;
+			}
 			if (context?.chatSessionResource) {
 				meta['vscode.conversationId'] = chatSessionResourceToId(context.chatSessionResource);
 			}
@@ -1421,12 +1424,12 @@ export class McpTool implements IMcpTool {
 				// Handle URL elicitation required error
 				if (err instanceof MpcResponseError && err.code === MCP.URL_ELICITATION_REQUIRED && allowRetry) {
 					await this._handleElicitationErr(err, context, token);
-					return this._callWithProgress(params, progress, context, token, false);
+					return this._callWithProgress(params, progress, context, requestMeta, token, false);
 				}
 
 				const state = this._server.connectionState.get();
 				if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
-					return this._callWithProgress(params, progress, context, token, false);
+					return this._callWithProgress(params, progress, context, requestMeta, token, false);
 				} else {
 					throw err;
 				}

@@ -287,6 +287,7 @@ interface ISendHarness {
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		readonly selectionSnapshot?: IWorkspaceSelectionSnapshot;
+		validateSelectedWorkspace(): Promise<boolean>;
 		clearAttachedContext(): void;
 		showPicker(): void;
 	};
@@ -3617,6 +3618,7 @@ suite('NewChatWidget', () => {
 			_workspacePicker: {
 				selectedFolderUri: primaryFolder,
 				selectionSnapshot,
+				validateSelectedWorkspace: async () => true,
 				clearAttachedContext: () => clearAttachedContextCount++,
 				showPicker: () => { },
 			},
@@ -3686,6 +3688,7 @@ suite('NewChatWidget', () => {
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
 				selectedFolderUri: undefined,
+				validateSelectedWorkspace: async () => true,
 				clearAttachedContext: () => { },
 				showPicker: () => pickerOpenCount++,
 			},
@@ -3709,6 +3712,49 @@ suite('NewChatWidget', () => {
 			sendCount: 0,
 		});
 	});
+
+	for (const outcome of ['missing', 'error', 'changed'] as const) {
+		test(`does not send or consume the draft when workspace validation is ${outcome}`, async () => {
+			const session = upcastPartial<ISession>({ sessionId: 'draft' });
+			const activeSession = observableValue<ISession | undefined>('session', session);
+			const calls: string[] = [];
+			const result = await send.call({
+				_session: activeSession,
+				_workspacePicker: {
+					selectedFolderUri: URI.file('/project.worktrees/deleted'),
+					validateSelectedWorkspace: async () => {
+						calls.push('validate');
+						if (outcome === 'error') {
+							throw new Error('Cannot check workspace');
+						}
+						if (outcome === 'changed') {
+							activeSession.set(undefined, undefined);
+							return true;
+						}
+						return false;
+					},
+					clearAttachedContext: () => calls.push('clearContext'),
+					showPicker: () => calls.push('showPicker'),
+				},
+				_comparisonSelection: { enabled: constObservable(true) },
+				_isQuickChatComposer: constObservable(false),
+				_feedbackItems: constObservable([]),
+				notificationService: { error: () => calls.push('error') },
+				logService: { error: () => calls.push('log') },
+				_pendingBackgroundSends: { set: () => calls.push('track'), deleteAndDispose: () => { } },
+				recentWorkspacesService: { restoreDismissedWorkspace: () => calls.push('restore') },
+				agentFeedbackService: { removeFeedback: () => calls.push('clearFeedback') },
+				newSessionComposerService: { notifyWillSendRequest: () => calls.push('prepare') },
+				sessionsManagementService: {
+					onDidSendRequest: Event.None,
+					sendNewChatRequest: async () => { calls.push('send'); },
+				},
+				_getWorkspaceRoots: () => [],
+			}, 'keep this prompt');
+
+			assert.deepStrictEqual({ result, calls }, { result: false, calls: outcome === 'error' ? ['validate', 'log', 'error'] : ['validate'] });
+		});
+	}
 
 	test('clearing a workspace starts the same harness without a project when supported and preserves legacy fallback', async () => {
 		const results: string[][] = [];
@@ -3814,7 +3860,7 @@ suite('NewChatWidget', () => {
 				_session: constObservable(session),
 				_feedbackItems: constObservable([]),
 				_comparisonSelection: { enabled: constObservable(false) },
-				_workspacePicker: { selectedFolderUri: URI.file('/dismissed'), clearAttachedContext: () => cleared++, showPicker: () => { } },
+				_workspacePicker: { selectedFolderUri: URI.file('/dismissed'), validateSelectedWorkspace: async () => true, clearAttachedContext: () => cleared++, showPicker: () => { } },
 				_isQuickChatComposer: constObservable(false),
 				agentFeedbackService: { removeFeedback: () => { } },
 				newSessionComposerService: { notifyWillSendRequest: () => { } },
@@ -3843,7 +3889,7 @@ suite('NewChatWidget', () => {
 		const restored: URI[] = [];
 		const session = upcastPartial<ISession>({ sessionId: 'draft' });
 		let sentOptions: ISendRequestOptions | undefined;
-		const picker = { selectedFolderUri: folderUri, clearAttachedContext: () => { }, showPicker: () => { } };
+		const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
 		const harness: ISendHarness = {
 			_backgroundSend: true,
 			_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
@@ -3897,7 +3943,7 @@ suite('NewChatWidget', () => {
 				_session: constObservable(upcastPartial<ISession>({ sessionId: 'draft' })),
 				_feedbackItems: constObservable([]),
 				_comparisonSelection: { enabled: constObservable(false) },
-				_workspacePicker: { selectedFolderUri: URI.file('/workspace'), clearAttachedContext: () => { }, showPicker: () => { } },
+				_workspacePicker: { selectedFolderUri: URI.file('/workspace'), validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } },
 				_isQuickChatComposer: constObservable(false),
 				agentFeedbackService: { removeFeedback: () => { } },
 				sessionsManagementService: {

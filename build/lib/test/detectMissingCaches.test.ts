@@ -186,36 +186,44 @@ suite('Detect missing caches', () => {
 			.flatMap(job => getCaches(job, readRepositoryFile))
 			.filter(cache => cache.key !== missing.key)
 			.map(cache => cache.key === incompatible.key ? { ...cache, version: 'other' } : cache);
+		// Listing by key prefix also returns longer keys.
+		const list = (caches: readonly { key: string; version: string }[], key: string) => caches.filter(cache => cache.key.startsWith(key)).concat({ key: `${key}-other`, version: 'other' });
 
-		const detect = async (listCaches: (key: string) => { key: string; version: string }[]) => {
+		const detect = async (ref: string, listCaches: (key: string, ref: string) => { key: string; version: string }[]) => {
 			const outputs: Record<string, string> = {};
+			const listedRefs = new Set<string>();
 			await detectMissingCaches({
 				rest: {
 					actions: {
 						getActionsCacheList: async parameters => {
-							assert.deepStrictEqual([parameters.ref, parameters.per_page], ['refs/heads/main', 100]);
-							return { data: { actions_caches: listCaches(parameters.key) } };
+							assert.equal(parameters.per_page, 100);
+							listedRefs.add(parameters.ref);
+							return { data: { actions_caches: listCaches(parameters.key, parameters.ref) } };
 						},
 					},
 				},
 			}, {
 				repo: { owner: 'microsoft', repo: 'vscode' },
-				ref: 'refs/heads/main',
+				ref,
+				payload: { repository: { default_branch: 'main' } },
 			}, {
 				info: () => { },
 				warning: () => { },
 				setOutput: (name, value) => outputs[name] = value,
 			}, { lf: readRepositoryFile, crlf: readRepositoryFile });
-			return outputs;
+			return { listedRefs: [...listedRefs], outputs };
 		};
 
+		const missingOrIncompatible = { 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
 		assert.deepStrictEqual(await Promise.all([
-			// Listing by key prefix also returns longer keys.
-			detect(key => existing.filter(cache => cache.key.startsWith(key)).concat({ key: `${key}-other`, version: 'other' })),
-			detect(() => { throw new Error('Not available'); }),
+			detect('refs/heads/main', (key, ref) => ref === 'refs/heads/main' ? list(existing, key) : []),
+			// A release branch also restores the caches of main, without saving a copy.
+			detect('refs/heads/release/1.200', (key, ref) => list(existing.filter((_cache, index) => (index % 2 === 0) === (ref === 'refs/heads/main')), key)),
+			detect('refs/heads/main', () => { throw new Error('Not available'); }),
 		]), [
-			{ 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' },
-			{ 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' },
+			{ listedRefs: ['refs/heads/main'], outputs: missingOrIncompatible },
+			{ listedRefs: ['refs/heads/release/1.200', 'refs/heads/main'], outputs: missingOrIncompatible },
+			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
 		]);
 	});
 });

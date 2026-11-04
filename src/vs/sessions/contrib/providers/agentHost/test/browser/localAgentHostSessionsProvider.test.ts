@@ -3886,6 +3886,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activeClientAgents: constObservable(agents), languageModelIds: models, languageModelChanges: changed.event,
 			lookupLanguageModel: () => ({ ...createTestLanguageModel('sonnet'), targetChatSessionType: 'agent-host-copilotcli' }),
 		});
+
 		const waiting = provider.createNewSession(URI.parse('file:///home/user/first'), provider.sessionTypes[0].id);
 		const chosen = provider.createNewSession(URI.parse('file:///home/user/second'), provider.sessionTypes[0].id);
 		for (const session of [waiting, chosen]) {
@@ -3896,6 +3897,67 @@ suite('LocalAgentHostSessionsProvider', () => {
 		changed.fire(modelId);
 		await timeout(0);
 		assert.deepStrictEqual([waiting.modelId.get(), chosen.modelId.get()], [modelId, 'unpublished-choice']);
+	});
+
+	test('required agent models filter the picker and reject stale selections and sends until available', async () => {
+		const ids = ['agent-host-copilotcli:other'];
+		const changed = disposables.add(new Emitter<string>());
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent, id: 'required', uri: 'other-host:/required', name: 'Required',
+			model: 'sonnet', _meta: { 'vscode.models': ['sonnet', 'opus'], 'vscode.modelPolicy': 'required' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: constObservable([agent]),
+			languageModelIds: ids,
+			languageModelChanges: changed.event,
+			lookupLanguageModel: id => ({ ...createTestLanguageModel(id.split(':')[1]), targetChatSessionType: 'agent-host-copilotcli' }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/required'), provider.sessionTypes[0].id);
+		provider.setModel(session.sessionId, session.resource, ids[0], ChatModelSource.Chosen);
+		provider.setAgent(session.sessionId, { uri: agent.uri, name: agent.name });
+		const unavailable = provider.getModelsSnapshot(session.sessionId);
+		assert.throws(() => provider.setModel(session.sessionId, session.resource, ids[0], ChatModelSource.Chosen), /No model required/);
+		await assert.rejects(() => provider.sendRequest(session.sessionId, session.resource, { query: 'Do not send' }), /No model required/);
+		ids.push('agent-host-copilotcli:sonnet', 'agent-host-copilotcli:opus');
+		changed.fire(ids[1]);
+		await timeout(0);
+		provider.setModel(session.sessionId, session.resource, ids[2], ChatModelSource.Chosen);
+		assert.throws(() => provider.setModel(session.sessionId, session.resource, ids[0], ChatModelSource.Chosen), /Select one of the models required/);
+		const available = provider.getModelsSnapshot(session.sessionId, ids[2]);
+		provider.setAgent(session.sessionId, undefined);
+		assert.deepStrictEqual({
+			unavailable: unavailable.models.map(model => model.identifier),
+			source: available.agentModelPreferences?.source,
+			available: available.models.map(model => model.identifier),
+			current: session.modelId.get(),
+			cleared: provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier),
+		}, { unavailable: [], source: { name: agent.name, uri: URI.parse(agent.uri) }, available: ids.slice(1), current: ids[2], cleared: ids });
+	});
+
+	test('agent metadata changes refresh model availability without changing the selected agent', async () => {
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent, id: 'required', uri: 'other-host:/required', name: 'Required',
+			model: 'sonnet', _meta: { 'vscode.modelPolicy': 'required' },
+		};
+		const agents = observableValue<readonly AgentCustomization[]>('agents', [agent]);
+		const modelId = 'agent-host-copilotcli:other';
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: agents,
+			languageModelIds: [modelId],
+			lookupLanguageModel: () => ({ ...createTestLanguageModel('other'), targetChatSessionType: 'agent-host-copilotcli' }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/required'), provider.sessionTypes[0].id);
+		provider.setAgent(session.sessionId, { uri: agent.uri, name: agent.name });
+		await timeout(0);
+		const before = provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier);
+		const changes: { required: boolean | undefined; models: string[] }[] = [];
+		disposables.add(provider.onDidChangeModels(() => {
+			const snapshot = provider.getModelsSnapshot(session.sessionId);
+			changes.push({ required: snapshot.agentModelPreferences?.required, models: snapshot.models.map(model => model.identifier) });
+		}));
+		agents.set([{ ...agent, _meta: { 'vscode.modelPolicy': 'preferred' } }], undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ before, changes }, { before: [], changes: [{ required: false, models: [modelId] }] });
 	});
 
 	test('agent model and effort are sent on first, follow-up, and running-session agent changes', async () => {
@@ -4012,17 +4074,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 				provider: 'copilotcli', title: 'Remote State', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
 				workingDirectories: ['file:///workspace/updated'], defaultChat,
 				chats: [{ resource: defaultChat, title: 'Remote State', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: ['file:///workspace/updated'] }],
+				customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///workspace', name: 'Workspace',
+					load: { kind: CustomizationLoadStatus.Loaded },
+					children: [{
+						type: CustomizationType.Agent, id: 'ask', uri: 'file:///workspace/ask.agent.md', name: 'Ask',
+						model: 'sonnet', _meta: { 'vscode.modelPolicy': 'required' },
+					}],
+				}],
 			});
 			agentHost.setChatState(defaultChat, {
 				resource: defaultChat, title: 'Remote State', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [],
 				draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'file:///workspace/ask.agent.md' } },
 			});
 			provider.setCustomizationEnablement(session.sessionId, 'server', [{ kind: CustomizationEnablementKind.Workspace, uri: kind.toClient(URI.file('/workspace')).toString(), enabled: false }]);
-			assert.deepStrictEqual({ initial, toggle: agentHost.dispatchedActions.at(-1)?.action, updated: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()), mode: session.mode.get(), diff: provider.mapDiff(URI.file('/workspace/file.ts')).toString() }, {
+			assert.deepStrictEqual({ initial, toggle: agentHost.dispatchedActions.at(-1)?.action, updated: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()), mode: session.mode.get(), agentSource: provider.getModelsSnapshot(session.sessionId).agentModelPreferences?.source?.uri.toString(), diff: provider.mapDiff(URI.file('/workspace/file.ts')).toString() }, {
 				initial: [kind.toClient(URI.file('/workspace')).toString()],
 				toggle: { type: ActionType.SessionCustomizationToggled, id: 'server', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] },
 				updated: [kind.toClient(URI.file('/workspace/updated')).toString()],
 				mode: { id: kind.toClient(URI.file('/workspace/ask.agent.md')).toString(), kind: 'agent' },
+				agentSource: kind.toClient(URI.file('/workspace/ask.agent.md')).toString(),
 				diff: kind.toClient(URI.file('/workspace/file.ts')).toString(),
 			});
 		});
@@ -5559,7 +5630,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
-	test('getMcpServers returns MCP servers from a draft session', async () => {
+	test('getMcpServers returns MCP servers and their skill bundles from a draft session', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.onCreateSession = uri => {
 			agentHost.setSessionState(AgentSession.id(uri), AgentSession.provider(uri)!, {
@@ -5580,6 +5651,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 						uri: 'vscode://synced-data/docs-server',
 						name: 'Docs Server',
 						state: { kind: McpServerStatus.Ready },
+						children: [
+							{ type: CustomizationType.Skill, id: 'docs-server#skill=a', uri: 'skill://docs/a/SKILL.md', name: 'Docs Server:a' },
+							{ type: CustomizationType.Skill, id: 'docs-server#skill=b', uri: 'skill://docs/b/SKILL.md', name: 'Docs Server:b', enabled: false },
+						],
 					}],
 				}],
 			});
@@ -5594,12 +5669,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			enabled: server.enabled,
 			status: server.status,
 			state: server.state,
+			skillBundle: server.skillBundle,
 		})), [{
 			id: `${AgentSession.uri(provider.sessionTypes[0].id, session.resource.path.substring(1)).authority}/docs-server`,
 			name: 'Docs Server',
 			enabled: true,
 			status: McpServerStatus.Ready,
 			state: { kind: McpServerStatus.Ready },
+			skillBundle: { id: 'docs-server', count: 2 },
 		}]);
 	});
 

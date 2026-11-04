@@ -32,6 +32,7 @@ import { ServiceCollection } from '../../platform/instantiation/common/serviceCo
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
 import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
 import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../../workbench/services/lifecycle/common/lifecycle.js';
+import { IAuxiliaryWindowService } from '../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../workbench/services/host/browser/host.js';
@@ -277,6 +278,16 @@ export interface IDockedEditorLayout {
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
 
 export const CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID = 'sessions.closeMobileSidebarDrawer';
+
+/**
+ * Fires `onDidAddContainer` with the container of each auxiliary window that opens, until the window closes, as the
+ * standard workbench's layout does.
+ */
+export function addAuxiliaryWindowContainers(auxiliaryWindowService: Pick<IAuxiliaryWindowService, 'onDidOpenAuxiliaryWindow'>, onDidAddContainer: Emitter<{ container: HTMLElement; disposables: DisposableStore }>): IDisposable {
+	return auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
+		onDidAddContainer.fire({ container: window.container, disposables: disposables.add(new DisposableStore()) });
+	});
+}
 
 export abstract class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
 
@@ -1274,6 +1285,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.storageService = accessor.get(IStorageService);
 		this._panelAlignment = this._loadPanelAlignment(this.storageService);
 		accessor.get(ITitleService);
+
+		// Auxiliary windows add their containers, as in the standard workbench's layout, so that what tracks every
+		// container, such as the idle receding of sash grippers, tracks them too.
+		this._register(addAuxiliaryWindowContainers(accessor.get(IAuxiliaryWindowService), this._onDidAddContainer));
 
 		// Resolve the desktop layout mode once (reload to toggle).
 		this.layoutPolicy.setDesktop(this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop);

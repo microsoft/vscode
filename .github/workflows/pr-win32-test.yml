@@ -6,7 +6,7 @@ on:
         type: boolean
         default: true
       electron_affected:
-        description: Whether the pull request can affect the Electron job, which is skipped when false
+        description: Whether the pull request can affect the Electron (extension host) job, which is skipped when false
         type: boolean
         default: true
       agent_host_e2e_affected:
@@ -22,7 +22,7 @@ on:
         type: boolean
         default: true
       browser_affected:
-        description: Whether the pull request can affect the Browser job, which is skipped when false
+        description: Whether the pull request can affect the Browser jobs, which are skipped when false
         type: boolean
         default: true
       remote_affected:
@@ -30,7 +30,7 @@ on:
         type: boolean
         default: true
       node_integration_tests:
-        description: Whether the Electron job runs the node.js integration tests
+        description: Whether the plan selects node.js integration tests for the Electron (node.js) job, which is skipped when false
         type: boolean
         default: true
       agent_host_test_profile:
@@ -53,14 +53,15 @@ env:
 # run (a flag is on when it is 'true'):
 # - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
 # - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
-# - NODE_INTEGRATION_TESTS: whether INTEGRATION_TESTS includes the node.js integration tests
+# - INTEGRATION_TEST_SUITE: the integration tests of an Electron job, 'node' for the node.js integration
+#   tests or 'extension-host' for the extension host tests, or both when unset
 # - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
 #   the Detect Changes job of pr.yml uploaded one, instead of every test of the kinds that it plans
 #   (unit.txt for the unit tests, integration.txt for the node.js integration tests and Agent Host E2E)
 # - AGENT_HOST_E2E_SHARD_INDEX and AGENT_HOST_E2E_SHARD_TOTAL: the 1-based index of the Agent Host E2E
 #   shard to run, and the number of shards
-# - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
-#   and the number of shards
+# - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron or remote smoke test
+#   shard to run, and the number of shards
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
   electron-unit:
@@ -339,7 +340,7 @@ jobs:
       # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
         id: node-integration-tests
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.NODE_INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'extension-host' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
         shell: pwsh
         run: .\scripts\test-integration.bat --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
@@ -351,7 +352,7 @@ jobs:
       # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
       # The extension host suites are not rerun.
       - name: 🧪 Run extension host integration tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
         timeout-minutes: 15
         shell: pwsh
         run: .\scripts\test-integration.bat --only-extension-host-tests
@@ -445,7 +446,7 @@ jobs:
         if: ${{ env.REMOTE_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
-        run: pnpm run smoketest-no-compile --remote --tracing
+        run: pnpm run smoketest-no-compile --remote --tracing${{ env.SMOKE_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.SMOKE_SHARD_INDEX, env.SMOKE_SHARD_TOTAL) || '' }}
 
       - name: Diagnostics after smoke test run
         if: ${{ env.SMOKE_TESTS == 'true' && always() }}
@@ -482,25 +483,39 @@ jobs:
           path: .build/logs
           if-no-files-found: ignore
 
-  electron:
-    name: Electron
-    if: ${{ inputs.electron_affected }}
+  # The node.js integration tests (up to about 6.5 minutes when the plan selects many) and the extension
+  # host tests (about 4 minutes) in one job could be the slowest job of the workflow, so they run on
+  # separate machines, as on Linux. The node.js job runs only the tests that the plan selects, and is
+  # skipped when it selects none.
+  electron-node:
+    name: Electron (node.js)
+    if: ${{ inputs.node_integration_tests }}
     runs-on: vscode-large-runners-windows-8-core
     env:
-      ARTIFACT_NAME: electron
+      ARTIFACT_NAME: electron-node
       ELECTRON_TESTS: 'true'
       INTEGRATION_TESTS: 'true'
-      NODE_INTEGRATION_TESTS: ${{ inputs.node_integration_tests }}
-      # Runs only the node.js integration tests that the plan selects.
+      INTEGRATION_TEST_SUITE: node
       TEST_SELECTION: 'true'
     steps: *steps
 
-  # Agent Host E2E is the slowest part of the Electron job on Windows, so it runs in parallel with the
-  # integration tests on other machines. It runs only the suites that the plan selects. The six suites
-  # take twice as long on one 8-core larger runner as on the 1ES runners, so the selected suites run in
-  # two shards.
+  electron-extension-host:
+    name: Electron (extension host)
+    if: ${{ inputs.electron_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron-extension-host
+      ELECTRON_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      INTEGRATION_TEST_SUITE: extension-host
+    steps: *steps
+
+  # Agent Host E2E is slower than the integration tests on Windows, so it runs in parallel with them on
+  # other machines. It runs only the suites that the plan selects. The six suites take twice as long on
+  # one 8-core larger runner as on the 1ES runners, and two shards still made it the slowest job of the
+  # workflow, so the selected suites run in three shards.
   agent-host-e2e-1:
-    name: Agent-Host-E2E (shard 1/2)
+    name: Agent-Host-E2E (shard 1/3)
     if: ${{ inputs.agent_host_e2e_affected }}
     runs-on: vscode-large-runners-windows-8-core
     env:
@@ -508,12 +523,12 @@ jobs:
       ELECTRON_TESTS: 'true'
       AGENT_HOST_E2E_TESTS: 'true'
       AGENT_HOST_E2E_SHARD_INDEX: '1'
-      AGENT_HOST_E2E_SHARD_TOTAL: '2'
+      AGENT_HOST_E2E_SHARD_TOTAL: '3'
       TEST_SELECTION: 'true'
     steps: *steps
 
   agent-host-e2e-2:
-    name: Agent-Host-E2E (shard 2/2)
+    name: Agent-Host-E2E (shard 2/3)
     if: ${{ inputs.agent_host_e2e_affected }}
     runs-on: vscode-large-runners-windows-8-core
     env:
@@ -521,7 +536,20 @@ jobs:
       ELECTRON_TESTS: 'true'
       AGENT_HOST_E2E_TESTS: 'true'
       AGENT_HOST_E2E_SHARD_INDEX: '2'
-      AGENT_HOST_E2E_SHARD_TOTAL: '2'
+      AGENT_HOST_E2E_SHARD_TOTAL: '3'
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  agent-host-e2e-3:
+    name: Agent-Host-E2E (shard 3/3)
+    if: ${{ inputs.agent_host_e2e_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron-agent-host-e2e-3
+      ELECTRON_TESTS: 'true'
+      AGENT_HOST_E2E_TESTS: 'true'
+      AGENT_HOST_E2E_SHARD_INDEX: '3'
+      AGENT_HOST_E2E_SHARD_TOTAL: '3'
       TEST_SELECTION: 'true'
     steps: *steps
 
@@ -581,19 +609,31 @@ jobs:
       TEST_SELECTION: 'true'
     steps: *steps
 
-  browser:
-    name: Browser
+  # The browser integration tests and the browser smoke tests take about 3 and 3.5 minutes. In one job
+  # they would be one of the slowest jobs of the workflow, so they run on separate machines.
+  browser-integration:
+    name: Browser (integration)
     if: ${{ inputs.browser_affected }}
     runs-on: vscode-large-runners-windows-8-core
     env:
       ARTIFACT_NAME: browser
       BROWSER_TESTS: 'true'
       INTEGRATION_TESTS: 'true'
+    steps: *steps
+
+  browser-smoke:
+    name: Browser (smoke)
+    if: ${{ inputs.browser_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: browser-smoke
+      BROWSER_TESTS: 'true'
       SMOKE_TESTS: 'true'
     steps: *steps
 
   # The remote integration tests and the remote smoke tests in one job could be the slowest job of the
-  # workflow, so they run on separate machines.
+  # workflow, so they run on separate machines. The remote smoke tests alone take about 6 minutes, so
+  # they run in two shards (see test/smoke/src/shard.ts).
   remote-integration:
     name: Remote (integration)
     if: ${{ inputs.remote_affected }}
@@ -604,12 +644,26 @@ jobs:
       INTEGRATION_TESTS: 'true'
     steps: *steps
 
-  remote-smoke:
-    name: Remote (smoke)
+  remote-smoke-1:
+    name: Remote (smoke, shard 1/2)
     if: ${{ inputs.remote_affected }}
     runs-on: vscode-large-runners-windows-8-core
     env:
-      ARTIFACT_NAME: remote-smoke
+      ARTIFACT_NAME: remote-smoke-shard1
       REMOTE_TESTS: 'true'
       SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '1'
+      SMOKE_SHARD_TOTAL: '2'
+    steps: *steps
+
+  remote-smoke-2:
+    name: Remote (smoke, shard 2/2)
+    if: ${{ inputs.remote_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: remote-smoke-shard2
+      REMOTE_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '2'
+      SMOKE_SHARD_TOTAL: '2'
     steps: *steps

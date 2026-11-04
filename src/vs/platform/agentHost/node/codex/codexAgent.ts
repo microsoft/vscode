@@ -8743,6 +8743,8 @@ export class CodexAgent extends Disposable implements IAgent {
 					server: serverName,
 					tool,
 					arguments: (params ? params['arguments'] : undefined) as JsonValue,
+					// eslint-disable-next-line local/code-no-untyped-meta-access -- Forward opaque MCP request metadata without interpreting it.
+					_meta: params?.['_meta'] as JsonValue | undefined,
 				});
 			}
 			case 'resources/read': {

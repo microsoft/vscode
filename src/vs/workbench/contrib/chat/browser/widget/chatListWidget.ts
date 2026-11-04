@@ -19,9 +19,11 @@ import { Mimes } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { compare } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -30,10 +32,13 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { extractSelection } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, editorWidgetBackground, editorWidgetBorder, iconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -515,6 +520,7 @@ export class ChatListWidget extends Disposable {
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 
@@ -944,7 +950,25 @@ export class ChatListWidget extends Disposable {
 
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
-		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		let linkUri: URI | undefined;
+		if (linkTarget) {
+			try {
+				linkUri = URI.parse(linkTarget);
+			} catch (error) {
+				this.logService.debug('Unable to parse chat context menu link', error);
+			}
+		}
+		const hasAvailableEditors = !!linkUri && shouldShowChatLinkOpenWith(linkUri, this.fileService, this.editorResolverService);
+		let fileResource = linkUri
+			&& linkUri.scheme !== Schemas.http && linkUri.scheme !== Schemas.https
+			&& this.fileService.hasProvider(linkUri) ? extractSelection(linkUri).uri : undefined;
+		if (fileResource?.query) {
+			const params = new URLSearchParams(fileResource.query);
+			if (params.has('vscodeLinkType')) {
+				params.delete('vscodeLinkType');
+				fileResource = fileResource.with({ query: params.toString() });
+			}
+		}
 		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
 		const responseSelection = selection?.response === selected ? selection : undefined;
 
@@ -956,6 +980,10 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
 			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
 			[ChatContextKeys.contextMenuHasResponseSelection.key, !!responseSelection],
+			[ResourceContextKey.Scheme.key, fileResource?.scheme],
+			[ResourceContextKey.HasResource.key, !!fileResource],
+			[ResourceContextKey.IsFileSystemResource.key, !!fileResource],
+			[ExplorerFolderContext.key, !!fileResource?.path.endsWith('/')],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,
@@ -964,11 +992,19 @@ export class ChatListWidget extends Disposable {
 			responseSelection,
 		};
 		this.contextMenuService.showContextMenu({
-			menuId: MenuId.ChatContext,
-			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: scopedContextKeyService,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => actionContext,
+			getActions: () => {
+				const groups = new Map(this.menuService.getMenuActions(MenuId.ChatContext, scopedContextKeyService, { shouldForwardArgs: true }));
+				if (fileResource) {
+					for (const [group, actions] of this.menuService.getMenuActions(MenuId.ChatInlineResourceAnchorContext, scopedContextKeyService, { arg: fileResource })) {
+						groups.set(group, [...(groups.get(group) ?? []), ...actions]);
+					}
+				}
+				const sortedGroups = [...groups].sort(([a], [b]) => a === b ? 0 : a === 'navigation' ? -1 : b === 'navigation' ? 1 : compare(a, b));
+				return getFlatContextMenuActions(sortedGroups);
+			},
 		});
 	}
 

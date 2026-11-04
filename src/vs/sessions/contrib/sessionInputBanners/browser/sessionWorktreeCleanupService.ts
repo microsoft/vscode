@@ -85,6 +85,12 @@ export type SessionWorktreeCleanupProgress =
 	| { readonly state: 'scheduled'; readonly candidate: ISessionWorktreeCleanupCandidate }
 	| { readonly state: 'failed'; readonly candidate: ISessionWorktreeCleanupCandidate; readonly message: string };
 
+export interface ISessionWorktreeCleanupOperation {
+	readonly candidate: ISessionWorktreeCleanupCandidate;
+	readonly state: 'queued' | 'pending' | 'failed';
+	readonly message?: string;
+}
+
 export interface ISessionWorktreeCleanupSuggestion {
 	readonly description: string;
 	manage(): Promise<void>;
@@ -120,6 +126,8 @@ export const ISessionWorktreeCleanupService = createDecorator<ISessionWorktreeCl
 export interface ISessionWorktreeCleanupService {
 	readonly _serviceBrand: undefined;
 	readonly suggestion: IObservable<ISessionWorktreeCleanupSuggestion | undefined>;
+	readonly cleanupOperations: IObservable<readonly ISessionWorktreeCleanupOperation[]>;
+	readonly isSchedulingCleanup: IObservable<boolean>;
 	activate(): Promise<void>;
 	refresh(): Promise<void>;
 	suppressForWindow(): void;
@@ -162,6 +170,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _availableDiskSpace: number | undefined;
 	private readonly _suggestion = observableValue<ISessionWorktreeCleanupSuggestion | undefined>(this, undefined);
 	readonly suggestion: IObservable<ISessionWorktreeCleanupSuggestion | undefined> = this._suggestion;
+	private readonly _cleanupOperations = observableValue<readonly ISessionWorktreeCleanupOperation[]>(this, []);
+	readonly cleanupOperations = this._cleanupOperations;
+	private readonly _isSchedulingCleanup = observableValue(this, false);
+	readonly isSchedulingCleanup = this._isSchedulingCleanup;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -190,6 +202,12 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidArchiveSession(() => {
+			this._updateSuggestion();
+		}));
+		this._register(this.sessionsManagementService.onDidUnarchiveSession(session => {
+			this._cleanupOperations.set(this._cleanupOperations.get().filter(operation => operation.candidate.session?.sessionId !== session.sessionId), undefined);
+			this._lastMeasuredWorktrees = undefined;
+			this._lastScanAt = -Infinity;
 			this._updateSuggestion();
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
@@ -445,7 +463,25 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _withUnlinkedWorktrees(worktrees: readonly ISessionWorktree[]): readonly ISessionWorktree[] {
-		return [...worktrees, ...this._unlinkedWorktrees].filter(isWorktreeCleanupBranchSupported);
+		const combined = [...worktrees, ...this._unlinkedWorktrees].filter(isWorktreeCleanupBranchSupported);
+		if (!this._isSchedulingCleanup.get()) {
+			const byId = new Map(combined.map(worktree => [getWorktreeCleanupId(worktree), worktree]));
+			const operations = this._cleanupOperations.get();
+			const next = operations.flatMap(operation => {
+				const worktree = byId.get(getWorktreeCleanupId(operation.candidate));
+				if (worktree?.worktreeExists === false) {
+					return [];
+				}
+				if (operation.state === 'pending' && (worktree?.cleanupStatus?.state === 'failed' || worktree?.cleanupStatus?.state === 'skipped' || worktree?.cleanupStatus?.state === 'inUse')) {
+					return [{ ...operation, state: 'failed' as const, message: undefined }];
+				}
+				return [operation];
+			});
+			if (next.length !== operations.length || next.some((operation, index) => operation !== operations[index])) {
+				this._cleanupOperations.set(next, undefined);
+			}
+		}
+		return combined;
 	}
 
 	/** Counts the distinct worktree checkouts a session owns so the threshold measures worktrees, not sessions. */
@@ -701,14 +737,27 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void, force = false): Promise<boolean> {
-		if (selected.length === 0) {
+		if (selected.length === 0 || this._isSchedulingCleanup.get()) {
 			return false;
 		}
+		this._isSchedulingCleanup.set(true, undefined);
+		try {
+			return await this._cleanupWorktrees(selected, onProgress, force);
+		} finally {
+			this._isSchedulingCleanup.set(false, undefined);
+		}
+	}
+
+	private async _cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[], onProgress: ((progress: SessionWorktreeCleanupProgress) => void) | undefined, force: boolean): Promise<boolean> {
 		if (selected.some(candidate => !isWorktreeCleanupBranchSupported(candidate))) {
 			throw new Error(localize('worktreeCleanup.branchUnavailable', "Only worktrees on agent-managed branches can be cleaned up."));
 		}
 		if (selected.some(candidate => candidate.isListedByHost === false)) {
 			throw new Error(localize('worktreeCleanup.notListed', "This worktree is no longer listed by its host. Refresh the worktree inventory before cleanup."));
+		}
+		const pending = new Set(this._cleanupOperations.get().filter(operation => operation.state !== 'failed').map(operation => getWorktreeCleanupId(operation.candidate)));
+		if (selected.some(candidate => pending.has(getWorktreeCleanupId(candidate)))) {
+			throw new Error(localize('worktreeCleanup.alreadyScheduled', "Cleanup is already scheduled for a selected worktree. Refresh its status before trying again."));
 		}
 
 		const selectedBytes = getWorktreeCleanupDiskUsage(selected);
@@ -734,6 +783,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return false;
 		}
 
+		const selectedIds = new Set(selected.map(getWorktreeCleanupId));
+		this._cleanupOperations.set([
+			...this._cleanupOperations.get().filter(operation => !selectedIds.has(getWorktreeCleanupId(operation.candidate))),
+			...selected.map(candidate => ({ candidate, state: 'queued' as const })),
+		], undefined);
 		onProgress?.({ state: 'started' });
 		const failures: string[] = [];
 		let failedWorktrees = 0;
@@ -745,6 +799,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}, async progress => {
 			let completedWorktrees = 0;
 			for (const candidate of selected) {
+				const id = getWorktreeCleanupId(candidate);
+				const isCancelled = () => !this._cleanupOperations.get().some(operation => getWorktreeCleanupId(operation.candidate) === id);
+				if (isCancelled()) {
+					continue;
+				}
 				try {
 					if (force && candidate.session && !candidate.session.isArchived.get()) {
 						throw new Error(localize('worktreeCleanup.forceNotArchived', "Only sessions marked as done can have their worktrees forcibly removed."));
@@ -771,11 +830,19 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				} catch (error) {
 					const message = getErrorMessage(error);
 					this.logService.warn('[SessionWorktreeCleanupService] Failed to schedule worktree cleanup', error);
+					if (isCancelled()) {
+						continue;
+					}
 					failures.push(localize('worktreeCleanup.sessionFailure', "{0}: {1}", getWorktreeCleanupTitle(candidate), message));
 					failedWorktrees += candidate.worktreeCount;
+					this._updateCleanupOperation(candidate, 'failed', message);
 					onProgress?.({ state: 'failed', candidate, message });
 					continue;
 				}
+				if (isCancelled()) {
+					continue;
+				}
+				this._updateCleanupOperation(candidate, 'pending');
 				onProgress?.({ state: 'scheduled', candidate });
 				completedWorktrees += candidate.worktreeCount;
 				progress.report({
@@ -795,6 +862,12 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			status(message);
 		}
 		return true;
+	}
+
+	private _updateCleanupOperation(candidate: ISessionWorktreeCleanupCandidate, state: ISessionWorktreeCleanupOperation['state'], message?: string): void {
+		const id = getWorktreeCleanupId(candidate);
+		this._cleanupOperations.set(this._cleanupOperations.get().map(operation => getWorktreeCleanupId(operation.candidate) === id
+			? { candidate, state, message } : operation), undefined);
 	}
 
 	private _isEnabled(): boolean {

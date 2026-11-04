@@ -53,7 +53,8 @@ class RunSessionCodeReviewAction extends Action2 {
 			icon: Codicon.codeReview,
 			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
 			menu: {
-				id: Menus.SessionsEditorTitle,
+				// First in the header row of the Changes editor, before the More Actions menu of its diff actions.
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'navigation',
 				order: 10,
 				when: desktopCodeReviewWhen,
