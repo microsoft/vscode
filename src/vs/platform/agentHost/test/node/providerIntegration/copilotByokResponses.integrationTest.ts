@@ -239,7 +239,12 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				}),
 			],
 			availableTools: ['custom:echo'],
-		});
+		}, () => captured.length === 0
+			? [
+				{ kind: 'reasoning', id: 'rs_provider', delta: 'Calling echo', newSummaryPart: true, encryptedContent: 'opaque' },
+				{ kind: 'toolCall', callId: 'call_1', name: 'echo', isCustom: false, value: '{}' },
+			]
+			: [{ kind: 'text', delta: 'final response' }]);
 	});
 
 	test('bundled SDK surfaces an empty BYOK response as a descriptive error without retrying', async function () {

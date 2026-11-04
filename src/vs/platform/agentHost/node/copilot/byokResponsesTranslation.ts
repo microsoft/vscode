@@ -376,9 +376,21 @@ export function hasVisibleDelta(delta: IByokLmStreamDeltaBody): boolean {
 
 let responseCounter = 0;
 
+const MINTED_RESPONSE_ID_PREFIX = 'resp_byok_';
+
 function nextId(prefix: string): string {
 	responseCounter = (responseCounter + 1) % Number.MAX_SAFE_INTEGER;
 	return `${prefix}_byok_${Date.now().toString(36)}_${responseCounter.toString(36)}`;
+}
+
+/**
+ * Whether `id` is a top-level response id this proxy minted (see
+ * {@link createResponsesSseEmitter}), as opposed to one a provider issued. A
+ * client can only have learned a minted id from this proxy's own SSE frames,
+ * so an unrecognized one is never a provider id worth forwarding.
+ */
+export function isMintedResponseId(id: string): boolean {
+	return id.startsWith(MINTED_RESPONSE_ID_PREFIX);
 }
 
 function sseEvent(eventName: string, data: unknown): string {

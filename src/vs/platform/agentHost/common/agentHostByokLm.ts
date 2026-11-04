@@ -172,7 +172,7 @@ export type IByokLmStreamDeltaBody =
 		readonly id?: string;
 		readonly delta: string;
 		readonly newSummaryPart: boolean;
-		/** Provider state for the item, the first time the source part carries it. */
+		/** Provider state for the item, whenever the source part carries it; later values replace earlier ones. */
 		readonly encryptedContent?: string;
 	}
 	/** A complete tool call, which always starts a new output item. */

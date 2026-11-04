@@ -26,6 +26,7 @@ import {
 	hasVisibleBridgeOutput,
 	hasVisibleDelta,
 	IResponsesRequest,
+	isMintedResponseId,
 	responsesErrorBody,
 	responsesRequestToBridge,
 	ResponsesTranslationError,
@@ -286,12 +287,17 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			: undefined;
 		const consumed = recovered?.pending ?? explicit;
 		// Hand the provider the state id it issued rather than whatever id the
-		// client echoed, which may be the wire id this proxy advertised.
+		// client echoed, which may be the wire id this proxy advertised. A client
+		// can only have learned a minted id from this proxy, so one that is no
+		// longer mapped (evicted, or from before a rebind) is dropped rather than
+		// forwarded, which would hand the provider an id it never issued.
 		const bridgeBody = consumed
 			? { ...body, ...(recovered ? { input: recovered.input } : {}), previous_response_id: consumed.responseId }
-			: (mappedProviderResponseId !== undefined
+			: mappedProviderResponseId !== undefined
 				? { ...body, previous_response_id: mappedProviderResponseId }
-				: body);
+				: (explicitResponseId !== undefined && isMintedResponseId(explicitResponseId)
+					? { ...body, previous_response_id: undefined }
+					: body);
 
 		let bridgeRequest;
 		try {

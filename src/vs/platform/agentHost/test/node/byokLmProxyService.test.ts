@@ -1092,6 +1092,34 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('drops an unmapped proxy-minted response id instead of forwarding it to the provider', async () => {
+		const captured: IByokLmChatRequest[] = [];
+
+		// A `resp_byok_*` id this proxy instance never advertised: evicted from
+		// the capped map, left over from a previous rebind, or guessed. A client
+		// could only have learned it from this proxy's own SSE, so the provider
+		// must never see it as if it issued it.
+		await withProxy(
+			async request => { captured.push(request); return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] }; },
+			async handle => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({
+						model: 'm',
+						stream: true,
+						input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }],
+						previous_response_id: 'resp_byok_stale_0',
+					}),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			},
+		);
+
+		assert.strictEqual(captured[0]?.previousResponseId, undefined);
+	});
+
 	test('returns a 502 when the bridge reports an error', async () => {
 		await withProxy(
 			async () => ({ output: [], error: 'model unavailable' }),
