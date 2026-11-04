@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, EventHelper, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -482,8 +483,11 @@ class CardDragSession extends Disposable {
 		const lifted = this.dragged;
 		if (!this.motion || !reflow || !lifted) {
 			this.cleanUp();
-			this.host.drop(id, drop);
-			this.onDidEnd();
+			try {
+				this.host.drop(id, drop);
+			} finally {
+				this.onDidEnd();
+			}
 			return;
 		}
 
@@ -527,18 +531,22 @@ class CardDragSession extends Disposable {
 	private finish(): void {
 		const drop = this.pendingDrop;
 		this.pendingDrop = undefined;
-		if (drop && hasKey(drop, { merge: true })) {
-			// The cards are as they were: the merge, once they show so, glides them to where it puts them
-			this.cleanUp();
-			this.host.drop(this.draggedCell.id, drop);
-		} else {
-			// The move lays out the cards where they show; what it does not lay out, the clean up does
-			if (drop) {
+		// A drop that fails still ends the drag: nothing of it stays over the window, and another can start
+		try {
+			if (drop && hasKey(drop, { merge: true })) {
+				// The cards are as they were: the merge, once they show so, glides them to where it puts them
+				this.cleanUp();
+				this.host.drop(this.draggedCell.id, drop);
+			} else if (drop) {
+				// The move lays out the cards where they show; what it does not lay out, the clean up does
 				this.host.drop(this.draggedCell.id, drop);
 			}
+		} catch (error) {
+			onUnexpectedError(error); // it settles from a timer, where nothing else would report it
+		} finally {
 			this.cleanUp();
+			this.onDidEnd();
 		}
-		this.onDidEnd();
 	}
 
 	/**

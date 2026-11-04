@@ -8,6 +8,7 @@ import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { $, append, registerWindow } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -1138,6 +1139,27 @@ suite('Part Grid', () => {
 			dragging: { placeholders: ['a'], names: ['Editor testEditorInputForPartGrid'], tabsShown: true, hidden: [true] },
 			after: { placeholders: [], names: [], tabsShown: true, hidden: [true, false] }
 		});
+	});
+
+	test('a drop that fails as the card settles still ends the drag: no layer over the window, the cards as the grid lays them out, and another drag can start', async () => {
+		const { grid, container, start } = await createRowOfThree(true);
+		const errors: unknown[] = [];
+		const handler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		disposables.add(toDisposable(() => errorHandler.setUnexpectedErrorHandler(handler)));
+
+		// c dropped beside a, which goes before the drop is done: the drop fails
+		dragCard(container, 'c', [[start.a.left + start.a.width * 0.2, 60]], { hold: true });
+		pointer(mainWindow.document.body, 'pointerup', start.a.left + start.a.width * 0.2, 60);
+		grid.removeCell('a');
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		const after = { errors: errors.length, layers: container.querySelectorAll('.part-grid-drag-cursor, .part-grid-motion-layer, .part-grid-frame-layer').length, dragging: container.classList.contains('part-grid-card-dragging') };
+
+		const handle = container.querySelector<HTMLElement>('[data-part-grid-cell="b"] .part-grid-drag-handle')!;
+		const startsAgain = grid.startPartDrag('b', new PointerEvent('pointerdown', { button: 0, clientX: handle.getBoundingClientRect().left, clientY: 2 }));
+		pointer(mainWindow.document.body, 'pointerup', 0, 0);
+
+		assert.deepStrictEqual({ after, startsAgain }, { after: { errors: 1, layers: 0, dragging: false }, startsAgain: true });
 	});
 
 	test('Escape puts the dragged card and the others back, and moves nothing', async () => {
