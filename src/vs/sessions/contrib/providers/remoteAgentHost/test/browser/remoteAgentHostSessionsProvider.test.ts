@@ -7601,9 +7601,9 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		const afterFirstOmission = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		// The protection is bounded so a session the host will never list cannot become a
-		// permanent row that only a reload clears.
+		// permanent row that only a reload clears, even when nothing else lists the host.
 		await timeout(CloudSandboxSessionsProvider.PROVISIONAL_GRACE_MS + 1);
-		await provider.refresh();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			afterFirstOmission,
