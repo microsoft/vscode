@@ -113,7 +113,7 @@ suite('Sessions - Session Activity Bar', () => {
 							const group = entry.group ?? 'navigation';
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
-									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
+									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)), entry.checked)
 								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
@@ -579,6 +579,24 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual({ before, ran }, {
 			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
 			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
+		});
+	});
+
+	test('shows a checked Canvas submenu as pressed', () => {
+		const createCanvas = (checked: boolean): ITestEntry => ({
+			...canvas,
+			checked,
+		});
+		const inactive = createActivityBar(store, [createCanvas(false)]);
+		const active = createActivityBar(store, [createCanvas(true)]);
+		const state = (entry: ReturnType<typeof createActivityBar>) => {
+			const element = entry.label('Canvas');
+			return { checked: element.classList.contains('checked'), pressed: element.getAttribute('aria-pressed') };
+		};
+
+		assert.deepStrictEqual({ inactive: state(inactive), active: state(active) }, {
+			inactive: { checked: false, pressed: 'false' },
+			active: { checked: true, pressed: 'true' },
 		});
 	});
 

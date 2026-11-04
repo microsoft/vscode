@@ -5,10 +5,6 @@
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
@@ -18,10 +14,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChatMoveEnd, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import type { SessionsListNotification } from './sessionsListNotification.js';
+import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 
 /**
  * Whether dragging chats and sessions to move them is on: the Move Chats setting is enabled and AI features are not
@@ -225,7 +218,7 @@ export interface ISessionsListSessionDropTarget {
 	readonly session: ISession;
 	readonly chat: IChat | undefined;
 	readonly quarter: ListViewTargetSector;
-	/** Whether `session` is in a section the user orders by hand: Pinned or a custom group. */
+	/** Whether `session` is in a section the user orders by hand: Pinned, a custom group, or a workspace, repository or environment section. */
 	isManuallyOrdered(): boolean;
 	/** Whether the row is the last one its section shows: its last session's row, or that session's last chat row. */
 	isLastInSection(): boolean;
@@ -248,7 +241,8 @@ export type SessionsListSessionDrop =
  * - anywhere on a session's row: under that session, at its end;
  * - on the top or bottom half of a session's nested chat row: under that session, before or after that row, anchored
  *   in the order of the session's chats.
- * In Pinned and custom groups, whose sessions the user orders by hand, the top quarter of a session's row places it
+ * In Pinned, custom groups and workspace, repository or environment sections, whose sessions the user orders by hand,
+ * the top quarter of a session's row places it
  * before that session, and the bottom quarter of the section's last row places it after the section's last session,
  * where the list accepts that placement; otherwise these quarters nest too.
  * When the list doesn't show the session's chats in that order (`positionsShown` false), a nested chat row is the
@@ -288,9 +282,8 @@ function isReorder(move: SessionsListMove): boolean {
 	return move.kind === 'chat' && move.destination.kind === 'session' && move.destination.session.sessionId === move.session.sessionId;
 }
 
-/** What the sessions list says while a move runs, once it moved, and when it was refused or failed. */
+/** What screen readers hear once a move moved, and what the error notification says when it was refused or failed. */
 interface ISessionsListMoveMessages {
-	readonly progress: string;
 	readonly success: string;
 	/** Why it was refused (`reason`), or that it failed unexpectedly (`reason` undefined): the details of an unexpected failure (e.g. a host's stack trace) aren't meant for the user. */
 	failure(reason: string | undefined): string;
@@ -303,7 +296,6 @@ function getSessionsListMoveMessages(move: SessionsListMove): ISessionsListMoveM
 		const title = move.session.title.get();
 		const target = move.destination.title.get();
 		return {
-			progress: localize('sessionsMove.movingSession', "Moving session '{0}' into '{1}'...", title, target),
 			success: localize('sessionsMove.movedSession', "Moved session '{0}' into '{1}'", title, target),
 			failure: reason => reason === undefined
 				? localize('sessionsMove.sessionFailedUnexpectedly', "Could not move session '{0}'.", title)
@@ -318,7 +310,6 @@ function getSessionsListMoveMessages(move: SessionsListMove): ISessionsListMoveM
 	const log = 'Moving a chat failed';
 	if (move.destination.kind === 'newSession') {
 		return {
-			progress: localize('sessionsMove.movingToNewSession', "Moving '{0}' to a new session...", title),
 			success: localize('sessionsMove.movedToNewSession', "Moved '{0}' to a new session", title),
 			failure,
 			log,
@@ -326,7 +317,6 @@ function getSessionsListMoveMessages(move: SessionsListMove): ISessionsListMoveM
 	}
 	if (isReorder(move)) {
 		return {
-			progress: localize('sessionsMove.reordering', "Moving '{0}'...", title),
 			success: move.destination.after
 				? localize('sessionsMove.reorderedAfter', "Moved '{0}' after '{1}'", title, move.destination.after.title.get())
 				: localize('sessionsMove.reorderedFirst', "Moved '{0}' to the start", title),
@@ -336,258 +326,34 @@ function getSessionsListMoveMessages(move: SessionsListMove): ISessionsListMoveM
 	}
 	const target = move.destination.session.title.get();
 	return {
-		progress: localize('sessionsMove.moving', "Moving '{0}' into '{1}'...", title, target),
 		success: localize('sessionsMove.moved', "Moved '{0}' into '{1}'", title, target),
 		failure,
 		log,
 	};
 }
 
-/**
- * What the sessions list says while undoing a move of `title` runs: moving it back within its session, back into
- * session `target`, or back to a session of its own (`target` undefined after a move into another session).
- */
-function getSessionsListUndoMessages(title: string, back: { readonly kind: 'reorder' } | { readonly kind: 'session'; readonly target: string } | { readonly kind: 'ownSession' }): ISessionsListMoveMessages {
-	const failure = (reason: string | undefined) => reason === undefined
-		? localize('sessionsMove.undoFailedUnexpectedly', "Could not undo moving '{0}'.", title)
-		: localize('sessionsMove.undoFailed', "Could not undo moving '{0}'. {1}", title, reason);
-	const log = 'Undoing a move failed';
-	switch (back.kind) {
-		case 'reorder':
-			return {
-				progress: localize('sessionsMove.movingBack', "Moving '{0}' back...", title),
-				success: localize('sessionsMove.movedBack', "Moved '{0}' back", title),
-				failure,
-				log,
-			};
-		case 'session':
-			return {
-				progress: localize('sessionsMove.movingBackInto', "Moving '{0}' back into '{1}'...", title, back.target),
-				success: localize('sessionsMove.movedBackInto', "Moved '{0}' back into '{1}'", title, back.target),
-				failure,
-				log,
-			};
-		case 'ownSession':
-			return {
-				progress: localize('sessionsMove.movingBackToOwnSession', "Moving '{0}' back to its own session...", title),
-				success: localize('sessionsMove.movedBackToOwnSession', "Moved '{0}' back to its own session", title),
-				failure,
-				log,
-			};
-	}
-}
-
-/** How to undo a move: the move back, once the moved chat is found where it went, and what the list says about it. */
-interface ISessionsListMoveUndo extends IDisposable {
-	readonly messages: ISessionsListMoveMessages;
-	/** The move back, or `undefined` when the moved chat or its session can't be found anymore. */
-	getMoveBack(): Promise<SessionsListMove | undefined>;
-	/** Called when the move back has finished: a move back that did not move stops waiting for the move's report, one that moved waits for it. */
-	finishMoveBack(moved: boolean): void;
-}
-
-/** The services that hold where a session shows in the sessions list: whether it is pinned and its custom group. */
-export interface ISessionsListPlacementServices {
-	readonly sessionsListModelService: ISessionsListModelService;
-	readonly sessionGroupsService: ISessionGroupsService;
-}
-
-/**
- * Prepares undoing `move` before it starts: remembers where the moved chat is and follows it to where it goes, which
- * the provider reports while it moves, until disposed. Its position is restored after the chat that was
- * before it (first when none), and a chat moved out of a session goes back into it, or to its own session for a
- * session moved under another one.
- */
-function prepareSessionsListMoveUndo(move: SessionsListMove, sessionsManagementService: ISessionsManagementService, placementServices: ISessionsListPlacementServices): ISessionsListMoveUndo {
-	const current = (session: ISession) => sessionsManagementService.getSession(session.resource) ?? session;
-	const findChat = (session: ISession, resource: URI) => session.chats.get().find(candidate => isEqual(candidate.resource, resource));
-	if (move.kind === 'chat' && isReorder(move)) {
-		const before = getChatMoveAnchorBefore(move.session, move.chat);
-		return {
-			messages: getSessionsListUndoMessages(move.chat.title.get(), { kind: 'reorder' }),
-			getMoveBack: async () => {
-				const session = current(move.session);
-				const chat = findChat(session, move.chat.resource);
-				// An anchor that is gone is still passed, for the provider to refuse the move with its reason.
-				const after = before && (findChat(session, before.resource) ?? before);
-				return chat && { kind: 'chat', session, chat, destination: { kind: 'session', session, after } };
-			},
-			finishMoveBack: () => { },
-			dispose: () => { },
-		};
-	}
-
-	const movedChat = move.kind === 'chat' ? move.chat.resource : move.session.mainChat.get().resource;
-	const landed = new DeferredPromise<IChatMoveEnd>();
-	const store = new DisposableStore();
-	store.add(sessionsManagementService.onDidMoveChat(({ from, to }) => {
-		if (from.session.sessionId === move.session.sessionId && isEqual(from.chat, movedChat)) {
-			landed.complete(to);
-			store.dispose();
-		}
-	}));
-	// The provider reports the move right after it, so stop following it after a while in case it never does.
-	store.add(disposableTimeout(() => store.dispose(), 60_000));
-	const findLanded = async () => {
-		const to = landed.isSettled ? landed.value : await raceTimeout(landed.p, 5_000);
-		const session = to && current(to.session);
-		const chat = session && to && findChat(session, to.chat);
-		return session && chat ? { session, chat } : undefined;
-	};
-
-	if (move.kind === 'session') {
-		const placement = getSessionPlacement(move.session, placementServices);
-		let restoring: IDisposable | undefined;
-		const stopRestoring = () => {
-			restoring?.dispose();
-			restoring = undefined;
-		};
-		return {
-			messages: getSessionsListUndoMessages(move.session.title.get(), { kind: 'ownSession' }),
-			getMoveBack: async () => {
-				const found = await findLanded();
-				if (found) {
-					restoring = restorePlacementOfPromotedChat(found, placement, placementServices, sessionsManagementService);
-				}
-				return found && { kind: 'chat', session: found.session, chat: found.chat, destination: { kind: 'newSession' } };
-			},
-			finishMoveBack: moved => {
-				if (!moved) {
-					stopRestoring();
-				}
-			},
-			dispose: () => {
-				stopRestoring();
-				store.dispose();
-			},
-		};
-	}
-	const origin = move.session;
-	const before = getChatMoveAnchorBefore(origin, move.chat);
-	const toNewSession = move.destination.kind === 'newSession';
-	return {
-		messages: getSessionsListUndoMessages(move.chat.title.get(), { kind: 'session', target: origin.title.get() }),
-		getMoveBack: async () => {
-			const found = await findLanded();
-			if (!found) {
-				return undefined;
-			}
-			const session = current(origin);
-			const after = before && (findChat(session, before.resource) ?? before);
-			// A promoted chat is the main chat of its new session: that session moves back under its origin.
-			return toNewSession
-				? { kind: 'session', session: found.session, destination: session, after }
-				: { kind: 'chat', session: found.session, chat: found.chat, destination: { kind: 'session', session, after } };
-		},
-		finishMoveBack: () => { },
-		dispose: () => store.dispose(),
-	};
-}
-
-/** Where a session shows in the sessions list besides its section: pinned, and its custom group, if any. */
-interface ISessionPlacement {
-	readonly pinned: boolean;
-	readonly groupId: string | undefined;
-}
-
-function getSessionPlacement(session: ISession, { sessionsListModelService, sessionGroupsService }: ISessionsListPlacementServices): ISessionPlacement {
-	return { pinned: sessionsListModelService.isSessionPinned(session), groupId: sessionGroupsService.getGroupOfSession(session.sessionId) };
-}
-
-/**
- * Gives the new session a chat is promoted to, when `landed` is moved out of its session, the placement its session had
- * before it was moved under another one. It applies the placement while the provider reports the promotion, right after
- * the session groups service gave the new session the group of the session it came from, so that the list never shows
- * the new session anywhere else. A group that was deleted since leaves the new session ungrouped.
- */
-function restorePlacementOfPromotedChat(landed: { readonly session: ISession; readonly chat: IChat }, placement: ISessionPlacement, { sessionsListModelService, sessionGroupsService }: ISessionsListPlacementServices, sessionsManagementService: ISessionsManagementService): IDisposable {
-	const store = new DisposableStore();
-	store.add(sessionsManagementService.onDidMoveChat(({ from, to }) => {
-		if (from.session.sessionId !== landed.session.sessionId || !isEqual(from.chat, landed.chat.resource)
-			|| to.session.sessionId === from.session.sessionId || !isEqual(to.chat, to.session.mainChat.get().resource)) {
-			return;
-		}
-		store.dispose();
-		if (placement.pinned) {
-			sessionsListModelService.pinSession(to.session);
-		}
-		if (placement.groupId !== undefined && sessionGroupsService.getGroup(placement.groupId)) {
-			sessionGroupsService.addToGroup(to.session.sessionId, placement.groupId);
-		} else {
-			sessionGroupsService.removeFromGroup(to.session.sessionId);
-		}
-	}));
-	store.add(disposableTimeout(() => store.dispose(), 60_000));
-	return store;
-}
-
-/** The notice at the bottom of the sessions list that shows moves and their results. */
-export type SessionsListMoveNotice = Pick<SessionsListNotification, 'show' | 'showProgress'>;
-
-/** How the sessions list reports a move it runs. */
+/** How the sessions list runs a move. */
 export interface ISessionsListMoveOptions {
-	/**
-	 * The notice at the bottom of the sessions list, when the list shows: it then shows the move in progress, its result
-	 * with Undo, or why it was refused.
-	 */
-	readonly notice?: SessionsListMoveNotice;
-	/**
-	 * Called right before a move, or the move undoing it, starts, e.g. to reveal what it moves; the function it returns
-	 * is called with whether it moved.
-	 */
+	/** Called right before the move starts, e.g. to reveal what it moves; the function it returns is called with whether it moved. */
 	readonly watch?: (move: SessionsListMove) => (moved: boolean) => void;
-	/** Where sessions are pinned and grouped: undoing a session moved under another one restores both. Every caller must pass it. */
-	readonly placementServices: ISessionsListPlacementServices;
-}
-
-interface ISessionsListMoveRunner {
-	readonly sessionsManagementService: ISessionsManagementService;
-	readonly notificationService: INotificationService;
-	readonly logService: ILogService;
-	readonly options: ISessionsListMoveOptions;
 }
 
 /**
- * Runs a move started in the sessions list, without asking first, as a reorder does. With the list's notice, it shows
- * the move in progress, then its result with Undo, or why it was refused (an unexpected failure says only that it
- * failed and logs the details). Without the notice, a refusal or failure is a notification and a success is only
- * announced to screen readers. Resolves whether it moved.
+ * Runs a move started in the sessions list, without asking first, as a reorder does. A success is only announced to
+ * screen readers. A refusal or failure is an error notification saying why it was refused (an unexpected failure says
+ * only that it failed and logs the details). Resolves whether it moved.
  */
 export async function runSessionsListMove(
 	move: SessionsListMove,
 	sessionsManagementService: ISessionsManagementService,
 	notificationService: INotificationService,
 	logService: ILogService,
-	options: ISessionsListMoveOptions,
+	options?: ISessionsListMoveOptions,
 ): Promise<boolean> {
-	const runner: ISessionsListMoveRunner = { sessionsManagementService, notificationService, logService, options };
-	// Undo is offered by the notice only.
-	const undo = options.notice ? prepareSessionsListMoveUndo(move, sessionsManagementService, options.placementServices) : undefined;
-	const moved = await executeSessionsListMove(async () => move, getSessionsListMoveMessages(move), undo && (async () => {
-		let movedBack = false;
-		try {
-			movedBack = await executeSessionsListMove(() => undo.getMoveBack(), undo.messages, undefined, runner);
-		} finally {
-			undo.finishMoveBack(movedBack);
-		}
-	}), runner);
-	if (!moved) {
-		undo?.dispose();
-	}
-	return moved;
-}
-
-async function executeSessionsListMove(getMove: () => Promise<SessionsListMove | undefined>, messages: ISessionsListMoveMessages, undo: (() => Promise<void>) | undefined, runner: ISessionsListMoveRunner): Promise<boolean> {
-	const { sessionsManagementService, notificationService, logService, options: { notice, watch } } = runner;
-	notice?.showProgress({ message: messages.progress, help: localize('sessionsMove.progressHelp', "This notice shows a chat or session being moved in the sessions list.") });
+	const messages = getSessionsListMoveMessages(move);
+	const watched = options?.watch?.(move);
 	let moved = false;
-	let watched: ((moved: boolean) => void) | undefined;
 	try {
-		const move = await getMove();
-		if (!move) {
-			throw new Error('The moved chat or its session is no longer available');
-		}
-		watched = watch?.(move);
 		if (move.kind === 'session') {
 			await sessionsManagementService.moveSessionUnder(move.session, move.destination, move.after);
 		} else {
@@ -599,24 +365,12 @@ async function executeSessionsListMove(getMove: () => Promise<SessionsListMove |
 		if (reason === undefined) {
 			logService.error(`[sessionsList] ${messages.log}`, error);
 		}
-		const message = messages.failure(reason);
-		if (notice) {
-			notice.show({ message, help: localize('sessionsMove.failedHelp', "This notice says why a chat or session could not be moved in the sessions list."), warning: true });
-		} else {
-			notificationService.warn(message);
-		}
+		notificationService.error(messages.failure(reason));
 	} finally {
 		watched?.(moved);
 	}
-	if (!moved) {
-		return false;
-	}
-	if (notice) {
-		notice.show(undo
-			? { message: messages.success, help: localize('sessionsMove.undoHelp', "This notice appears after moving a chat or session in the sessions list. Undo moves it back where it was."), undo }
-			: { message: messages.success, help: localize('sessionsMove.resultHelp', "This notice reports a chat or session moved in the sessions list.") });
-	} else {
+	if (moved) {
 		status(messages.success);
 	}
-	return true;
+	return moved;
 }

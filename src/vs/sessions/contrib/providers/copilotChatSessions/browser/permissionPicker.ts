@@ -13,7 +13,7 @@ import { autorun, IObservable, observableSignal } from '../../../../../base/comm
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, preserveAgentHostSandboxToggleSelection } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -29,6 +29,8 @@ import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '.
 import { getOrganizationDefaultApprovalLevel } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { equalsUnavailablePermissionLevels, getOfferedPermissionLevels, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IPermissionLevelUnavailablePresentation, IUnavailablePermissionLevel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+
+const devContainerSandboxDocumentationUrl = 'https://aka.ms/vscode-sandboxing-devcontainers';
 
 /**
  * Strategy for the per-provider parts of {@link PermissionPicker}: how to read
@@ -350,6 +352,7 @@ export class PermissionPicker extends Disposable {
 		const sandboxToggle = this._getSandboxStandaloneToggle();
 		if (sandboxToggle) {
 			const disabled = sandboxToggle.disabled === true;
+			const hover = this._getSandboxToggleHover(sandboxToggle);
 			items.push({
 				kind: ActionListItemKind.Separator,
 				label: '',
@@ -366,7 +369,7 @@ export class PermissionPicker extends Disposable {
 				},
 				label: sandboxToggle.label,
 				standaloneToggle: sandboxToggle,
-				...(disabled || this._delegate.sandboxDevContainer?.get() ? { hover: { content: sandboxToggle.title } } : {}),
+				...(hover ? { hover } : {}),
 				disabled,
 			});
 		}
@@ -492,7 +495,7 @@ export class PermissionPicker extends Disposable {
 				item: item.item && standaloneToggle ? { ...item.item, label: standaloneToggle.label } : item.item,
 				standaloneToggle,
 				disabled,
-				hover: standaloneToggle && (disabled || this._delegate.sandboxDevContainer?.read(reader)) ? { content: standaloneToggle.title } : undefined,
+				hover: standaloneToggle && this._getSandboxToggleHover(standaloneToggle),
 			} : item));
 		}));
 		return disposables;
@@ -593,6 +596,27 @@ export class PermissionPicker extends Disposable {
 			return undefined;
 		}
 		return createAgentHostSandboxToggle(() => this._readSandboxToggleState(), checked => this._delegate.setSandboxEnabled?.(checked));
+	}
+
+	/**
+	 * Explains Dev Container sandboxing, which relaxes the container's isolation, and links to its
+	 * documentation from a footer action that keyboard users reach with Tab.
+	 */
+	private _getSandboxToggleHover(toggle: IActionListItemInlineToggle): IActionListItemHover | undefined {
+		if (this._delegate.sandboxDevContainer?.get() === true || this._delegate.sandboxDevContainerSupported?.get() === false) {
+			return {
+				content: toggle.title,
+				expandable: true,
+				showIndicator: false,
+				tabThroughPanel: true,
+				actions: [{
+					commandId: 'vscode.open',
+					label: localize('permissionPicker.devContainerSandboxLearnMore', "Learn More"),
+					run: () => { void this.openerService.open(URI.parse(devContainerSandboxDocumentationUrl)); },
+				}],
+			};
+		}
+		return toggle.disabled ? { content: toggle.title } : undefined;
 	}
 
 	private _isSandboxToggleAvailable(): boolean {

@@ -9,14 +9,16 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { CompletionItem, CompletionItemKind } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, MessageAttachmentKind } from '../../../common/state/sessionState.js';
+import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { AgentHostSkillCompletionProvider } from '../../../node/agentHostSkillCompletionProvider.js';
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { buildDiscoveredCustomizations } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { scanClaudeDiskCustomizations } from '../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
 import { MockAgent } from '../mockAgent.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from './claudeCustomizationTestUtils.js';
 import { createTestAgentChatContext } from '../agentChatContextTestUtils.js';
 
 /**
@@ -58,7 +60,12 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 		const agent = disposables.add(new MockAgent('mock'));
 		agent.getSessionCustomizations = async () => customizations;
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent, async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(
+			() => agent,
+			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
+			undefined,
+			createSessionDataService(disposables.add(new TestSessionDatabase())),
+		));
 
 		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, { chat: undefined }, CancellationToken.None);
 	}

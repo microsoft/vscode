@@ -353,6 +353,13 @@ export interface ISessionsManagementService {
 	resolveWorkspace(workspaceUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
+	 * The label of the remote agent environment hosting `workspace`, for
+	 * identifying it in trust prompts. `undefined` when the workspace is not
+	 * hosted on a remote agent environment.
+	 */
+	getRemoteHostLabel(workspace: ISessionWorkspace, providerId: string): string | undefined;
+
+	/**
 	 * Fires when available session types change (providers added/removed).
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;
@@ -401,7 +408,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
-	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * sending, or {@link sendRequest} sends into an existing session in the foreground (which
 	 * discards any pending draft first). Sending the draft itself via
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
@@ -578,6 +585,9 @@ export interface ISessionsManagementService {
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 
+	/** Sends without navigating or discarding composer drafts, awaiting provider submission and propagating errors. */
+	sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
 	// -- Session Actions --
 
 	/** Cancel the current request in a session's main chat. */
@@ -596,9 +606,10 @@ export interface ISessionsManagementService {
 	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
-	sessionWorktreeCleanup?(session: ISession, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	canForceWorktreeCleanup?(owner: ISession | IManagedSessionWorktree): boolean;
+	sessionWorktreeCleanup?(session: ISession, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	listManagedWorktrees?(knownWorktrees?: readonly IManagedSessionWorktree[]): Promise<IManagedSessionWorktree[]>;
-	cleanupManagedWorktree?(worktree: IManagedSessionWorktree): Promise<void>;
+	cleanupManagedWorktree?(worktree: IManagedSessionWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IManagedSessionWorktree): Promise<boolean | undefined>;
 
 	/** Unarchive a session. */
@@ -685,6 +696,32 @@ export interface ISessionsManagementService {
 
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;
+
+	/** Fires after {@link closeCanvas} closed a canvas. */
+	readonly onDidCloseCanvas: Event<ISessionCanvasClosedEvent>;
+
+	/**
+	 * Observe one live canvas of a chat through its owning provider, whether or not its
+	 * session is active. Holding the reference keeps the canvas live, which may keep its
+	 * session resident. `undefined` when the provider cannot observe canvases.
+	 */
+	observeCanvas(session: ISession, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> | undefined;
+
+	/**
+	 * Observe the live canvases of a chat through its owning provider, whether or not its
+	 * session is active. Holding the reference may keep the session resident. `undefined`
+	 * when the provider cannot observe the chat's canvases.
+	 */
+	observeChatCanvases(session: ISession, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
+}
+
+/**
+ * Payload for {@link ISessionsManagementService.onDidCloseCanvas}.
+ */
+export interface ISessionCanvasClosedEvent {
+	readonly session: ISession;
+	readonly chatResource: URI;
+	readonly canvasResource: URI;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

@@ -930,6 +930,8 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		for (const outcome of outcomes) {
 			if (outcome.status === 'failed') {
 				this._logService.warn(`[AgentHostCatalogReconciliation] ${outcome.session} failed: ${outcome.reason}${outcome.error ? ` (${outcome.error})` : ''}`);
+			} else if (outcome.status === 'retry' && (outcome.reason === 'providerUnavailable' || outcome.reason === 'sourceUnresolvable')) {
+				this._logService.trace(`[AgentHostCatalogReconciliation] ${outcome.session} parked: ${outcome.reason}`);
 			} else if (outcome.status === 'pending' || outcome.status === 'retry') {
 				this._logService.info(`[AgentHostCatalogReconciliation] ${outcome.session} will be retried: ${outcome.reason}`);
 			}

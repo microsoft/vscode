@@ -30,6 +30,7 @@ import { VisibleSession, VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
@@ -37,6 +38,7 @@ import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpen
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -83,6 +85,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly cancelRestore?: boolean;
 	/** Keep the current navigation intent when the composer creates or updates its own draft. */
 	readonly preserveNavigation?: boolean;
+	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
+	readonly preserveCustomView?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -304,7 +308,7 @@ export interface ISessionsService {
 	 * active session. Returns the activated session, or `undefined` when no
 	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -458,11 +462,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
+		@IWindowCanvasService private readonly windowCanvasService: IWindowCanvasService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -512,6 +518,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			},
 			this.activeSession,
 			this.customViewService,
+			this.windowCanvasService,
 			this.sessionsManagementService,
 			this._recencyHistory,
 			this.contextKeyService,
@@ -522,6 +529,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		this._register(autorun(reader => {
 			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				this._openSessionCts.value?.cancel();
+				this.windowCanvasService.deactivateCanvas();
+				this._recordNavigation();
+			}
+		}));
+		this._register(autorun(reader => {
+			if (this.windowCanvasService.navigationRequest.read(reader)) {
 				this._openSessionCts.value?.cancel();
 				this._recordNavigation();
 			}
@@ -575,12 +589,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const visible = this._visibility.gridSessions.read(reader);
 			const active = this._visibility.activeSession.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
+			const canvasNavigation = this.windowCanvasService.navigationRequest.read(reader);
 			const request = this._gridRequest.read(reader);
 			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getRenderedGridSlots(), request);
 
 			if (active !== this._focusedActiveSession) {
 				this._focusedActiveSession = active;
-				if (!preserveFocus) {
+				// Startup restoration may populate the grid underneath an open or opening canvas.
+				if (!preserveFocus && !canvasNavigation) {
 					this.sessionsPartService.focusSession(active);
 				}
 			}
@@ -944,6 +960,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _beginNavigation(intent: SessionNavigationIntent, token: CancellationToken = CancellationToken.None, preserveNavigation = false): void {
 		if (intent !== 'automatic') {
+			this.windowCanvasService.cancelPendingOpen();
 			if (!preserveNavigation) {
 				this._recordNavigation(token);
 			}
@@ -975,14 +992,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
 	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
+		const previousActive = this.activeSession.get();
+		const leavingCanvas = intent !== 'automatic' && !!this.windowCanvasService.activeCanvasOpen.get();
 		let active: IActiveSession | undefined;
 		transaction(tx => {
 			// Dismiss the custom view atomically so its covered session is not recorded as a visit.
 			if (intent !== 'automatic') {
 				this.customViewService.hideCustomView(tx);
+				this.windowCanvasService.deactivateCanvas(tx);
+				this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			}
 			active = this._visibility.setActive(session, preserveFocus);
 		});
+		if (leavingCanvas && !preserveFocus && active === previousActive) {
+			this.sessionsPartService.focusSession(active);
+		}
 		return active;
 	}
 
@@ -1295,6 +1319,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 				uri: folder,
 				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+				remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(workspace, session.providerId),
 			});
 			if (!trusted) {
 				return false;
@@ -1430,6 +1455,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			try {
 				transaction(tx => {
 					this.customViewService.hideCustomView(tx);
+					this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
 					for (const session of ordered) {
 						if (referenceSlotId) {
@@ -1481,6 +1507,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const slots = prepared.map(session => ({ session, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
 		transaction(tx => {
 			this.customViewService.hideCustomView(tx);
+			this.windowCanvasService.deactivateCanvas(tx);
+			this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)), tx);
 			this._gridRequest.set({ type: 'arrange' }, tx);
 		});
@@ -1621,6 +1649,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		if (options?.preserveCustomView) {
+			intent = 'automatic';
+		}
 		if (options?.cancelRestore) {
 			this._cancelRestore();
 		}
@@ -1638,6 +1669,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 					uri: folderUri,
 					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+					remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 				});
 				if (token.isCancellationRequested) {
 					return { session: undefined, trustDeclined: false };
@@ -1650,8 +1682,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			this._beginNavigation(intent, token, options?.preserveNavigation);
-			this._startOpenSession();
+			if (!options?.preserveCustomView) {
+				this._beginNavigation(intent, token, options?.preserveNavigation);
+				this._startOpenSession();
+			}
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				if (options?.requireDevContainer) {
@@ -1667,7 +1701,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide, intent);
+				if (!options?.preserveCustomView) {
+					this._activateOrInsert(session, options?.toSide, intent);
+				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordOpened({ kind: 'newSession' });
 				}
@@ -1678,6 +1714,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				// through to the folder-less composer view.
 				this.logService.trace(`[SessionsView] openNewSession: createNewSession failed for folder ${folderUri.toString()}, falling back to composer view`);
 			}
+		}
+
+		if (options?.preserveCustomView) {
+			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
 		}
 
 		// Without a folder (or when folder resolution failed above): switch to
@@ -1691,7 +1731,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (!folderUri && !options?.preserveNavigation) {
 					this._startOpenSession();
 				}
-				this.customViewService.hideCustomView();
+				if (!options?.preserveCustomView) {
+					this._activate(undefined, undefined, intent);
+				}
 			}
 			if (intent === 'explicit' && !options?.preserveNavigation) {
 				this._navigation.recordOpened({ kind: 'newSession' });
@@ -1711,7 +1753,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide, intent);
+		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
 			this._navigation.recordOpened({ kind: 'newSession' });
 		}
@@ -1719,7 +1761,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
-	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent): void {
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): void {
 		const activeSession = this._visibility.activeSession.get();
 		const activeSessionId = activeSession?.sessionId;
 		const sessionId = session?.sessionId;
@@ -1734,6 +1776,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 				transaction(tx => {
 					if (intent !== 'automatic') {
 						this.customViewService.hideCustomView(tx);
+						this.windowCanvasService.deactivateCanvas(tx);
+						this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					}
 					if (reference) {
 						this._visibility.insertAtGridSlot(session, reference.id, 'right', true);
@@ -1744,19 +1788,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 		}
-		this._activate(session, undefined, intent);
+		this._activate(session, preserveFocus, intent);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
-		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): IActiveSession | undefined {
+		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit', preserveFocus);
 	}
 
-	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
+	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): IActiveSession | undefined {
 		this._beginNavigation(intent);
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session, undefined, intent);
+			return this._activate(session, preserveFocus, intent);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.
@@ -1785,12 +1829,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	setActive(session: IActiveSession | undefined): void {
-		if (session?.sessionId !== this.activeSession.get()?.sessionId) {
+		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== this.activeSession.get()?.sessionId) {
 			this._cancelRestore();
 			this._startOpenSession();
 			this._recordNavigation();
 		}
-		this._activate(session);
+		transaction(tx => {
+			this.windowCanvasService.deactivateCanvas(tx);
+			this._activate(session);
+		});
 	}
 
 	async submitNewSessionInput(): Promise<boolean> {

@@ -155,6 +155,11 @@ export interface IAgentHostMcpServer {
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
 	readonly logOutputChannelId?: string;
+	/**
+	 * Skills this server serves in the session while it is effectively enabled. `id` is the server
+	 * customization's raw id, which identifies the server's skill bundle in the Skills list.
+	 */
+	readonly skillBundle?: { readonly id: string; readonly count: number };
 	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */
@@ -349,6 +354,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getRootConfig(): RootConfigState | undefined;
 	getRootState(): RootState | undefined;
 	mapAgentHostResource(uri: URI): URI;
+	/** This window's client identity on the provider's connection. */
+	getClientId?(): string | undefined;
 	/**
 	 * Sets one root configuration property.
 	 *
@@ -383,6 +390,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * advertised.
 	 */
 	getCustomAgents(sessionId: string): readonly AgentCustomization[];
+
+	/** Resolves a draft source or advertised URI to its current published agent, when known. */
+	resolveCustomAgent?(sessionId: string, uri: string): AgentCustomization | undefined;
 
 	readonly onDidChangeCustomizations: Event<void>;
 

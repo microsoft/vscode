@@ -29,7 +29,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
-import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
+import { IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
@@ -1189,35 +1189,6 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		this._onWillClose.fire();
 
 		return true;
-	}
-
-	private mergeGroupsToMainPart(): boolean {
-		if (!this.groups.some(group => group.count > 0)) {
-			return true; // skip if we have no editors opened
-		}
-
-		// Find the most recent group that is not locked
-		let targetGroup: IEditorGroupView | undefined = undefined;
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (!group.isLocked) {
-				targetGroup = group;
-				break;
-			}
-		}
-
-		if (!targetGroup) {
-			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
-		}
-
-		const result = this.mergeAllGroups(targetGroup, {
-			// Try to reduce the impact of closing the modal
-			// as much as possible by not changing existing editors
-			// in the main window.
-			preserveExistingIndex: true
-		});
-		targetGroup.focus();
-
-		return result;
 	}
 
 	override dispose(): void {

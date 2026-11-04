@@ -266,6 +266,8 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
+	/** Structured metadata for a standalone file block synthesized by the annotation renderer. */
+	codeblockUri?: IChatResponseCodeblockUriPart;
 }
 
 export interface IChatTreeData {
@@ -437,6 +439,8 @@ export interface IChatResponseCodeblockUriPart {
 	isEdit?: boolean;
 	undoStopId?: string;
 	subAgentInvocationId?: string;
+	/** A file reference with no surrounding streamed Markdown code fence. */
+	isStandalone?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -656,6 +660,8 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+	/** Provider-owned timing must not be inferred from client observation or replay, even when no duration is supplied. */
+	reasoningTimingSource?: 'provider';
 	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
 	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
@@ -770,8 +776,6 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
@@ -927,6 +931,12 @@ export interface IChatToolInvocation {
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
+	/**
+	 * What the user typed into the optional feedback field of a confirmation that offers one
+	 * (see {@link IToolConfirmationMessages.feedback}). Active-only: it is sent with the decision
+	 * and omitted when the invocation is serialized.
+	 */
+	confirmationFeedback?: string;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -2239,6 +2249,8 @@ export interface IChatService {
 	 * Removes a pending request from the session's queue.
 	 */
 	removePendingRequest(sessionResource: URI, requestId: string): void;
+	/** Correlates a remotely consumed queue entry with its actual request, without canceling its submission. */
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void;
 	/**
 	 * Sets the pending requests for a session, allowing for deletions/reordering.
 	 * Adding new requests should go through sendRequest with the queue option.

@@ -34,13 +34,14 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
 		let restoredReferences: unknown;
 		let inputEnabled = true;
 		let focusRestored = false;
+		const inputTransitions: { enabled: boolean; preserveFocus: boolean }[] = [];
 		let draftModelState: object | undefined;
 		const requests: { query: string; attachments: string[]; background: boolean }[] = [];
 		const commands: { command: string; prompt: string }[] = [];
@@ -77,7 +78,7 @@ suite('SharedChatInputComposer', () => {
 				attachmentModel,
 				currentModeKind: ChatModeKind.Agent,
 				selectedToolsModel: { entriesMap: { get: () => new Map() } },
-				setInputEnabled: (enabled: boolean) => { inputEnabled = enabled; },
+				setInputEnabled: (enabled: boolean, preserveFocus = false) => { inputEnabled = enabled; inputTransitions.push({ enabled, preserveFocus }); },
 				hasFocus: () => options.focused ?? false,
 				focus: () => { focusRestored = true; },
 				getAttachedContext: () => ({ asArray: () => [...attachments] }),
@@ -98,6 +99,7 @@ suite('SharedChatInputComposer', () => {
 			options: {
 				session: constObservable(undefined),
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
+				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					requests.push({ query: request.query, attachments: request.attachments?.map(entry => entry.range ? `${entry.id}@${entry.range.start}-${entry.range.endExclusive}` : entry.id) ?? [], background: !!request.background });
 					if (options.disposeDuringSend) {
@@ -115,7 +117,24 @@ suite('SharedChatInputComposer', () => {
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, inputTransitions, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+	}
+
+	for (const preserveInputFocusOnSend of [undefined, true]) {
+		test(`retains editor focus during confirmation and sending only when opted in (${preserveInputFocusOnSend})`, async () => {
+			const confirmation = new DeferredPromise<boolean>();
+			const { composer, inputTransitions } = createComposer({ confirmSend: confirmation, focused: true, preserveInputFocusOnSend });
+			const sending = composer.submit(true);
+			await timeout(0);
+			confirmation.complete(true);
+			await sending;
+			assert.deepStrictEqual(inputTransitions, [
+				{ enabled: false, preserveFocus: !!preserveInputFocusOnSend },
+				{ enabled: true, preserveFocus: false },
+				{ enabled: false, preserveFocus: !!preserveInputFocusOnSend },
+				{ enabled: true, preserveFocus: false },
+			]);
+		});
 	}
 
 	test('hands the prompt to the host and clears the input and the draft chat the session adopts', async () => {
@@ -249,6 +268,7 @@ suite('SharedChatInputComposer', () => {
 				viewModel: {},
 				supportsFileReferences: true,
 				input: { attachmentModel },
+				inputEditor: { getValue: () => input },
 				attachmentModel,
 				getContrib: () => dynamicVariables,
 				getInput: () => input,
@@ -278,6 +298,8 @@ suite('SharedChatInputComposer', () => {
 			_modelRef: modelRef,
 			_modelBinding: 0,
 			_widget: {
+				input: {},
+				inputEditor: { getValue: () => '' },
 				getInput: () => '',
 				getContrib: () => undefined,
 				setModel: (model: { id: string }) => bound.push(model.id),

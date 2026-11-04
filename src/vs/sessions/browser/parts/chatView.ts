@@ -7,11 +7,12 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
@@ -26,12 +27,33 @@ import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/ch
  */
 export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 
+export interface IChatViewRequestOutcome {
+	readonly error?: string;
+	readonly canceled?: boolean;
+}
+
+export interface IChatViewRequestSubmission {
+	readonly sessionResource: URI;
+	readonly completion: Promise<IChatViewRequestOutcome>;
+}
+
 /**
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
+	readonly showEmptyStateIcon?: boolean;
+	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	/** Keep the custom view hosting this composer visible while preparing its draft. */
+	readonly preserveCustomView?: boolean;
+	/** Send new-session requests without navigating away from the hosting view. */
+	readonly backgroundSend?: boolean;
+	readonly renderChatPet?: boolean;
+	readonly renderAquarium?: boolean;
+	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
+	readonly inputOnly?: boolean;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -70,6 +92,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
+
+	/** A user request accepted for sending or queuing from this view, identified by its originating chat. */
+	readonly onDidSubmitRequest: Event<IChatViewRequestSubmission> = Event.None;
 
 	/**
 	 * Lazily-created progress indicator scoped to this leaf. Mirrors how each
@@ -120,6 +145,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	openModelComparison(): void { }
+
+	/**
+	 * Intrinsic composer content for input-only hosts to measure and observe.
+	 * Includes new-session pickers where present; ownership stays with the view.
+	 */
+	get inputContentElement(): HTMLElement | undefined {
+		return undefined;
+	}
 
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote

@@ -42,7 +42,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    ```powershell
    $env:VSCODE_MARKDOWN_EDITOR_PATH = 'D:\src\vscode-packages\vscode-team-tools\packages\markdown-editor'
-   npm run watch-markdown-editor
+   pnpm run watch-markdown-editor
    ```
 
    This overrides esbuild resolution for the package and all its exported subpaths, including CSS. Command contribution generation uses the same package selection. The watcher follows the selected package directory, including built output and source assets, but excludes its `node_modules` and `.git` directories. The build prints the selected real directory as `Markdown editor package override: ...`; `node_modules` still contains the installed dependency. No symlink, dependency-manifest edit, or lockfile edit is needed. Relative paths resolve against the build process's working directory. Invalid overrides fail explicitly instead of falling back to the installed package. Unset the variable to use the installed dependency (`Remove-Item Env:VSCODE_MARKDOWN_EDITOR_PATH` in PowerShell).
@@ -51,49 +51,43 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Run the override regression tests with `node --test ./scripts/markdownEditorPackage.test.mts` from this extension directory.
 
-   **B. Use a `file:` dependency for a durable local setup**
+   **B. Use a `link:` dependency for a durable local setup**
 
    Set the dependency in `extensions/markdown-language-features/package.json` to:
 
    ```json
-   "@vscode/markdown-editor": "file:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
+   "@vscode/markdown-editor": "link:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
    ```
 
-   Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
+   Then run `pnpm install`. This updates `package.json` and `pnpm-lock.yaml`, creates a symlink to the local package, and survives later `pnpm install` runs. Use `link:` rather than `file:`: pnpm installs a `file:` directory as a copy, so later package builds would not reach VS Code. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
 
-   **C. Use `npm link` for a temporary setup**
-
-   In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
-
-   ```bash
-   npm link
-   ```
+   **C. Use `pnpm link` for a temporary setup**
 
    In `vscode\extensions\markdown-language-features`, run:
 
    ```bash
-   npm link @vscode/markdown-editor
+   pnpm link ../../../vscode-packages/vscode-team-tools/packages/markdown-editor
    ```
 
-   This leaves `package.json` and `package-lock.json` unchanged, but any later `npm install` in the extension replaces the link. If that happens, run `npm link @vscode/markdown-editor` again.
+   This leaves `package.json` unchanged, but adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`. Don't commit those changes; run `pnpm unlink @vscode/markdown-editor` to remove the link again.
 
    Verify the resolved package from `extensions/markdown-language-features`:
 
    ```bash
-   node -e "console.log(require('node:fs').realpathSync('node_modules/@vscode/markdown-editor'))"
+   pnpm list @vscode/markdown-editor
    ```
 
-   The output should be the local `vscode-packages/vscode-team-tools/packages/markdown-editor` directory.
+   The output should show a `link:` to the local `vscode-packages/vscode-team-tools/packages/markdown-editor` directory.
 
 4. **Rebuild and run VS Code**
 
-   Source-built VS Code does not load `@vscode/markdown-editor` dynamically from `node_modules`. `esbuild.markdownEditor.mts` bundles it into `markdown-editor-out`, so keep both the package `pnpm dev` watcher and VS Code's **Ext - Build** task running. For a one-time build, run `npm run build-markdown-editor` in `extensions/markdown-language-features` after the package build completes.
+   Source-built VS Code does not load `@vscode/markdown-editor` dynamically from `node_modules`. `esbuild.markdownEditor.mts` bundles it into `markdown-editor-out`, so keep both the package `pnpm dev` watcher and VS Code's **Ext - Build** task running. For a one-time build, run `pnpm run build-markdown-editor` in `extensions/markdown-language-features` after the package build completes.
 
    Launch VS Code with the **Run VS Code** task. After the Markdown editor bundle is rebuilt, reload the development window or close and reopen the Markdown custom editor.
 
 5. **Update editor commands**
 
-   Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
+   Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `pnpm run build-markdown-editor` and `pnpm run watch-markdown-editor` regenerate them while preserving manual entries. Run `pnpm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
 ### Embedded code-block editor presentation
 
@@ -181,15 +175,15 @@ This extension depends on `vscode-markdown-languageserver` and connects to it fr
    npm install vscode-markdown-languageservice@latest
    ```
 
-2. Bump the server dependency in this extension to the newly published version:
+2. Bump the server dependency in this extension (`extensions/markdown-language-features`) to the newly published version:
 
    ```bash
-   npm install vscode-markdown-languageserver@latest
+   pnpm add vscode-markdown-languageserver@latest
    ```
 
 ### Testing unpublished versions locally
 
-You can use `npm link` to test local changes to the language service/server without publishing:
+You can link local checkouts to test changes to the language service/server without publishing. The two upstream repositories use npm:
 
 ```bash
 # First, in your vscode-markdown-languageservice checkout
@@ -202,9 +196,10 @@ npm link vscode-markdown-languageservice
 npm run compile
 
 
-# And finally in vscode, link in the service
+# And finally in vscode, link in the server (this adds a `link:` override to
+# pnpm-workspace.yaml; undo it with `pnpm unlink vscode-markdown-languageserver`)
 cd extensions/markdown-language-features
-npm link vscode-markdown-languageserver
+pnpm link <path to your vscode-markdown-languageserver checkout>
 ```
 
 ## Related Code

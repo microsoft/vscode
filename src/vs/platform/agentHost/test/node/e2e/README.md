@@ -14,7 +14,7 @@ They do this by recording the model traffic once (against real CAPI) into commit
 
 ```bash
 # Run the complete deterministic suite in parallel (same as ./scripts/test-agent-host-e2e.sh).
-npm run test-agent-host-e2e
+pnpm run test-agent-host-e2e
 
 # Replay (default): deterministic, tokenless. This is what CI runs.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
@@ -108,10 +108,10 @@ Execution priority is independent of conformance/parity. `AGENT_HOST_TEST_PROFIL
 
 ```bash
 # Full deterministic E2E coverage (default).
-npm run test-agent-host-e2e
+pnpm run test-agent-host-e2e
 
 # PR-profile E2E coverage.
-AGENT_HOST_TEST_PROFILE=pr npm run test-agent-host-e2e
+AGENT_HOST_TEST_PROFILE=pr pnpm run test-agent-host-e2e
 
 # The same profile also applies to neighboring provider integration tests.
 AGENT_HOST_TEST_PROFILE=pr ./scripts/test-integration.sh --run \
@@ -186,6 +186,8 @@ Live client-tool coverage updates a materialized Copilot session over AHP and ch
 Terminal resilience assertions compare filesystem identity rather than Windows short/long path spelling, render VT scrollback through a headless terminal rather than counting ConPTY repaint bytes, and send Unicode to an already-running child rather than relying on a shell editor's locale. Claude history-edit fixtures perform the required `Read` before `Edit`, including after cold resume; replayed success text cannot substitute for that tool prerequisite.
 
 The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
+
+Claude's provider-context fork scenarios are enabled with the bundled SDK `0.3.304`: client-assigned turn IDs resolve to the requested provider boundary in live recording and strict replay. Coverage includes first- and middle-turn boundaries, completed tools, a restored peer as the source, independent branch continuation after restart, and unknown-turn forks retaining no source context. The bounded side-chat scenario also enforces request comparison without a stale-capture exception. These checks cover the previously gated behavior tracked in [#328104](https://github.com/microsoft/vscode/issues/328104), without substituting seeded AHP history for the actual model request.
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
@@ -282,13 +284,13 @@ Replay is the default — no setup, no token:
 
 ```bash
 # Refresh client output when running from local sources without an existing build task.
-npm run build-fast -- --client-only
+pnpm run build-fast --client-only
 
 # Run conformance and all provider suites in parallel.
-npm run test-agent-host-e2e
+pnpm run test-agent-host-e2e
 
 # Limit parallelism when machine resources are constrained.
-npm run test-agent-host-e2e -- --jobs 2
+pnpm run test-agent-host-e2e --jobs 2
 
 # Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
@@ -298,7 +300,7 @@ The complete-suite runner reuses Electron when its installed version matches the
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
-The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--shard`, `--grep`, `--build`, `--tfs`) and are what CI calls. `npm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step. On Windows, where it is the slowest part of the Electron job, it runs in two shards, the `Windows / Agent-Host-E2E (shard 1/2)` and `Windows / Agent-Host-E2E (shard 2/2)` jobs, which each run every other suite of those the test plan selects (`--shard <index>/<total>`), in parallel with the `Windows / Electron` integration tests job, and PR Gate fails when any of them fails. When the changes cannot affect these tests, the jobs are skipped and still show under those names. On Linux it runs in the `Linux / Agent-Host-E2E` job on its own machine, in parallel with the `Linux / Electron` integration tests job. On macOS it runs in the `macOS / Electron` job, before `🧪 Run integration tests (Electron)` and `🧪 Run extension host integration tests (Electron)`, which also run after an Agent Host E2E failure. In Azure DevOps it is the `integration-agent-host-e2e` test ID, which runs in its own `Agent Host E2E Tests (Electron)` job on each platform, in parallel with the `Integration Tests (Electron)` job that runs `integration-electron`. Each passed ADO test ID is checkpointed, so a rerun of a job skips the tests that already passed.
+The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--shard`, `--grep`, `--build`, `--tfs`) and are what CI calls. The runner runs each suite in its own process, except that the Copilot, Conformance, Claude and Codex suites, which take much longer than the others, each run in two processes that split their tests (`--testShard` of the test runner). `pnpm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step. On Windows, where it is slower than the integration tests, it runs in three shards, the `Windows / Agent-Host-E2E (shard 1/3)` through `Windows / Agent-Host-E2E (shard 3/3)` jobs, which each run every third process of the suites the test plan selects (`--shard <index>/<total>`), in parallel with the `Windows / Electron (node.js)` and `Windows / Electron (extension host)` integration tests jobs, and PR Gate fails when any of them fails. When the changes cannot affect these tests, the jobs are skipped and still show under those names. On Linux it runs in the `Linux / Agent-Host-E2E` job on its own machine, in parallel with the `Linux / Electron` integration tests job. On macOS it runs in the `macOS / Electron` job, before `🧪 Run integration tests (Electron)` and `🧪 Run extension host integration tests (Electron)`, which also run after an Agent Host E2E failure. In Azure DevOps it is the `integration-agent-host-e2e` test ID, which runs in its own `Agent Host E2E Tests (Electron)` job on each platform, in parallel with the `Integration Tests (Electron)` job that runs `integration-electron`. Each passed ADO test ID is checkpointed, so a rerun of a job skips the tests that already passed.
 
 Pull requests run the Agent Host E2E jobs only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The `Detect Changes` job in `.github/workflows/pr.yml` classifies the changes once, before any test machine is allocated, and passes the selected profile to the Agent Host E2E and Electron integration test jobs. When no relevant files changed, the Linux and Windows Agent Host E2E jobs and the macOS Agent Host E2E step are skipped, and `PR Gate` still passes. Locally, setting `VSCODE_SKIP_AGENT_HOST_E2E=1` makes `test-agent-host-e2e.sh` / `.bat` skip the suite.
 
@@ -377,7 +379,7 @@ Remove test workspaces only after disposing the shared server lease in suite tea
 ## Collecting coverage
 
 ```bash
-npm run test-agent-host-e2e-coverage
+pnpm run test-agent-host-e2e-coverage
 ```
 
 Two complementary signals are checked in. Neither is a gate; both are for deciding where to look next.
@@ -415,7 +417,7 @@ Per-provider reports are deferred until there is a concrete need. Per-test attri
 
 Coverage is a discovery tool, not the goal by itself. A coverage expansion round should add tests for meaningful full-stack contracts, not manufacture line hits or add equivalent prompt variants.
 
-1. **Measure before selecting work.** Save a fresh baseline from `npm run test-agent-host-e2e-coverage`, rank loaded files by uncovered executable lines/functions, cross-reference the protocol-surface `uncovered` lists, then inspect the exact LCOV ranges and existing lower-layer tests. Compare the final result against that same run, not an older checked-in baseline.
+1. **Measure before selecting work.** Save a fresh baseline from `pnpm run test-agent-host-e2e-coverage`, rank loaded files by uncovered executable lines/functions, cross-reference the protocol-surface `uncovered` lists, then inspect the exact LCOV ranges and existing lower-layer tests. Compare the final result against that same run, not an older checked-in baseline.
 2. **Choose behavior that belongs at this boundary.** Prefer behavior whose value comes from the real server, provider SDK/CLI, AHP transport, persistence, or local tools working together. Pure reducer rules and provider-independent validation usually belong in unit tests instead.
 3. **Prioritize useful breadth.** Favor underrepresented host-owned behavior and cross-provider contracts over more variants of an already-covered prompt. Count declarations per tier: a conformance declaration executes once, a parity declaration executes once per enabled provider.
 4. **Choose the model boundary explicitly.** Cross it only when realistic model behavior is what drives the scenario.
@@ -640,6 +642,7 @@ Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input 
 - `GET /copilot_internal/managed_settings` — empty by default. Managed-telemetry tests set a mutable local response in both record and replay, invalidate only their isolated policy cache, and verify that the runtime fetches the new response. Policy bodies and collector URLs never enter model fixtures; resetting the proxy between tests restores the empty response and request count.
 - `GET /copilot/mcp_registry` — enterprise MCP registry policy. The Copilot CLI fetches this only when the developer has local MCP servers configured (`~/.copilot/mcp-config.json`) on an org/enterprise plan, so whether it's called varies per machine. Served as an empty registry (`{ mcp_registries: [] }`) so a developer's local MCP config never breaks replay (issue #325248).
 - `POST /mcp`, `POST /mcp/readonly`, and the subsequent GitHub MCP OAuth metadata probes — built-in GitHub MCP bootstrap. These suites do not exercise GitHub MCP tools, so replay returns `404` instead of recording ancillary traffic or changing the fixture's model-visible tool inventory.
+- `GET /meta` — the same synthetic model catalog as `/models`, wrapped with deterministic Auto tier metadata. Both the replay proxy and the standalone mock LLM server serve this bootstrap surface; custom catalog tests retain their image and reasoning capabilities in either envelope.
 - `/telemetry`, `/agents*` — empty bodies.
 
 Everything else — i.e. the model endpoints `/v1/messages` and `/responses` — is recorded/replayed as turns.

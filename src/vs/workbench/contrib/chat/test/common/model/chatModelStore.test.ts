@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { IReference, MutableDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -56,6 +57,34 @@ suite('ChatModelStore', () => {
 		await testObject.waitForModelDisposals();
 		assert.strictEqual(testObject.get(uri), undefined);
 	});
+
+	for (const acquireExisting of [false, true]) {
+		test(`disposes an unparented ${acquireExisting ? 'existing' : 'new'} reference without leaving a tracked wrapper`, async () => {
+			const uri = URI.parse('test://session');
+			const initial = testObject.acquireOrCreate({ sessionResource: uri, location: ChatAgentLocation.Chat, canUseTools: true });
+			const reference = acquireExisting ? testObject.acquireExisting(uri) : initial;
+			assert.ok(reference);
+			if (acquireExisting) {
+				initial.dispose();
+			}
+			const holder = store.add(new MutableDisposable<IReference<ChatModel>>());
+			holder.value = reference;
+			const detached = holder.clearAndLeak();
+			assert.ok(detached);
+			// The GC tracker starts tracking plain references when their parent is removed.
+			trackDisposable(detached);
+			detached.dispose();
+			detached.dispose();
+			willDisposePromises[0].complete();
+			await testObject.waitForModelDisposals();
+			assert.deepStrictEqual({
+				modelRetained: testObject.has(uri),
+				referenceCount: testObject.getReferenceDebugSnapshot().totalReferences,
+				referencedObject: detached.object,
+				disposalCalls: willDisposePromises.length,
+			}, { modelRetained: false, referenceCount: 0, referencedObject: null, disposalCalls: 1 });
+		});
+	}
 
 	test('resurrection', async () => {
 		const uri = URI.parse('test://session');
