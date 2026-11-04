@@ -167,12 +167,11 @@ export function getMarketplaceExtensionAriaLabel(extension: IExtension, installB
 }
 
 /**
- * Reports each run of an install action with the extension it installs, which a recycled row can't tell once the run finishes.
+ * Reports each finished run of an install action with the extension it installed, which a recycled row can't tell once the run finishes.
  */
 class MarketplaceInstallActionRunner extends ActionRunner {
 
 	constructor(
-		private readonly onWillInstall: (extension: IExtension) => void,
 		private readonly onDidInstall: (extension: IExtension) => void,
 	) {
 		super();
@@ -181,15 +180,9 @@ class MarketplaceInstallActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 		// The Install button, or a version from its menu.
 		const extension = action instanceof ExtensionAction ? action.extension : null;
+		await super.runAction(action, context);
 		if (extension) {
-			this.onWillInstall(extension);
-		}
-		try {
-			await super.runAction(action, context);
-		} finally {
-			if (extension) {
-				this.onDidInstall(extension);
-			}
+			this.onDidInstall(extension);
 		}
 	}
 }
@@ -203,6 +196,8 @@ interface IMarketplaceRowTemplateData {
 	readonly extensionContainers: ExtensionContainers;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	/** The key of the rendered extension. */
+	key: string | undefined;
 }
 
 /**
@@ -218,7 +213,6 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 
 	constructor(
 		private readonly getInstallBlocker: (extension: IExtension) => IMarkdownString | undefined,
-		private readonly onWillInstall: (extension: IExtension) => void,
 		private readonly onDidInstall: (extension: IExtension) => void,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -243,7 +237,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		const description = DOM.append(details, $('span.agents-window-extension-description'));
 
 		const actionsContainer = DOM.append(container, $('.agents-window-extension-marketplace-actions'));
-		const actionRunner = templateDisposables.add(new MarketplaceInstallActionRunner(this.onWillInstall, this.onDidInstall));
+		const actionRunner = templateDisposables.add(new MarketplaceInstallActionRunner(this.onDidInstall));
 		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
 			actionRunner,
 			// Renders the Install button like the Extensions view does, with a menu of the other versions it can install.
@@ -275,17 +269,29 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		const installAction = templateDisposables.add(this.instantiationService.createInstance(InstallDropdownAction));
 		// The Agents window has no Extensions editor, so the extension stays in the Extensions section of Agent Customizations.
 		installAction.opensExtensionEditor = false;
+		// Users install extensions here to use them here, and extensions that don't support the Agents window are disabled
+		// there by default. The extensions service enables them as it installs them, even if the section closes meanwhile.
+		installAction.enablesExtension = true;
 		const installingAction = templateDisposables.add(this.instantiationService.createInstance(InstallingLabelAction));
 		actionBar.push([installAction, installingAction], { icon: true, label: true });
 
 		const extensionContainers = templateDisposables.add(this.instantiationService.createInstance(ExtensionContainers, [installAction, installingAction, icon, publisher, installCount, ratings]));
 
-		return { name, warning, description, actionBar, installAction, extensionContainers, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
+		const templateData: IMarketplaceRowTemplateData = { name, warning, description, actionBar, installAction, extensionContainers, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), key: undefined };
+		// Only enabled actions can be in the tab order, and the Install action is enabled once the extension is known to be installable.
+		templateDisposables.add(installAction.onDidChange(e => {
+			if (e.enabled !== undefined) {
+				this.updateFocusable(templateData);
+			}
+		}));
+		return templateData;
 	}
 
 	renderElement(entry: IAgentsWindowMarketplaceEntry, _index: number, templateData: IMarketplaceRowTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { extension } = entry;
+		const key = ExtensionIdentifier.toKey(extension.identifier.id);
+		templateData.key = key;
 		templateData.extensionContainers.extension = extension;
 		templateData.name.textContent = extension.displayName;
 		templateData.description.textContent = extension.description;
@@ -298,8 +304,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		}
 		templateData.warning.style.display = installBlocker ? '' : 'none';
 
-		const key = ExtensionIdentifier.toKey(extension.identifier.id);
-		templateData.actionBar.setFocusable(key === this.focusedKey);
+		this.updateFocusable(templateData);
 		this.renderedTemplates.set(key, templateData);
 	}
 
@@ -309,6 +314,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		if (this.renderedTemplates.get(key) === templateData) {
 			this.renderedTemplates.delete(key);
 		}
+		templateData.key = undefined;
 	}
 
 	disposeTemplate(templateData: IMarketplaceRowTemplateData): void {
@@ -320,8 +326,8 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 	 */
 	setFocused(extension: IExtension | undefined): void {
 		this.focusedKey = extension && ExtensionIdentifier.toKey(extension.identifier.id);
-		for (const [key, templateData] of this.renderedTemplates) {
-			templateData.actionBar.setFocusable(key === this.focusedKey);
+		for (const templateData of this.renderedTemplates.values()) {
+			this.updateFocusable(templateData);
 		}
 	}
 
@@ -332,6 +338,14 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		const templateData = this.renderedTemplates.get(ExtensionIdentifier.toKey(extension.identifier.id));
 		if (templateData?.installAction.enabled) {
 			templateData.actionBar.actionRunner.run(templateData.installAction);
+		}
+	}
+
+	private updateFocusable(templateData: IMarketplaceRowTemplateData): void {
+		// Takes actions that were disabled meanwhile out of the tab order, as the action bar only adds enabled ones.
+		templateData.actionBar.setFocusable(false);
+		if (templateData.key !== undefined && templateData.key === this.focusedKey) {
+			templateData.actionBar.setFocusable(true);
 		}
 	}
 }
