@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../nls.js';
 import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -50,10 +50,10 @@ export class NotificationsAlerts extends Disposable {
 			return;
 		}
 
-		// Trigger the alert again whenever the message changes
+		// Announce recurring progress without interrupting screen-reader speech.
 		const listener = notification.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
-				this.doTriggerAriaAlert(notification);
+				this.doTriggerAriaAlert(notification, true);
 			}
 		});
 
@@ -62,7 +62,7 @@ export class NotificationsAlerts extends Disposable {
 		this.doTriggerAriaAlert(notification);
 	}
 
-	private doTriggerAriaAlert(notification: INotificationViewItem): void {
+	private doTriggerAriaAlert(notification: INotificationViewItem, isUpdate = false): void {
 		let alertText: string;
 		if (notification.severity === Severity.Error) {
 			alertText = localize('alertErrorMessage', "Error: {0}", notification.message.linkedText.toString());
@@ -72,6 +72,10 @@ export class NotificationsAlerts extends Disposable {
 			alertText = localize('alertInfoMessage', "Info: {0}", notification.message.linkedText.toString());
 		}
 
-		alert(alertText);
+		if (isUpdate && notification.severity === Severity.Info && notification.hasActiveProgress) {
+			status(alertText);
+		} else {
+			alert(alertText);
+		}
 	}
 }
