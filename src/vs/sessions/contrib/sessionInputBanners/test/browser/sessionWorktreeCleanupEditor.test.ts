@@ -763,12 +763,14 @@ suite('SessionWorktreeCleanupEditor', () => {
 		sort.value = 'size';
 		sort.dispatchEvent(new mainWindow.Event('change'));
 		states.push(rows());
-		assert.deepStrictEqual({ defaultSort, states }, { defaultSort: 'status', states: [
-			[{ title: 'agents/unknown-age', checked: 'true' }, { title: 'older-large', checked: 'true' }, { title: 'newer-small', checked: 'true' }],
-			[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
-			[{ title: 'newer-small', checked: 'true' }, { title: 'older-large', checked: 'false' }, { title: 'agents/unknown-age', checked: 'true' }],
-			[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
-		] });
+		assert.deepStrictEqual({ defaultSort, states }, {
+			defaultSort: 'status', states: [
+				[{ title: 'agents/unknown-age', checked: 'true' }, { title: 'older-large', checked: 'true' }, { title: 'newer-small', checked: 'true' }],
+				[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
+				[{ title: 'newer-small', checked: 'true' }, { title: 'older-large', checked: 'false' }, { title: 'agents/unknown-age', checked: 'true' }],
+				[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
+			]
+		});
 	});
 
 	test('sorts by status with removed worktrees last without rescanning', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
