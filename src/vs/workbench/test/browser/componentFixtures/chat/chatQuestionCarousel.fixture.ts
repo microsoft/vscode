@@ -243,6 +243,25 @@ function createDeploymentCarousel(optionCount: number, description: string | und
 	}], true);
 }
 
+function createLongQuestionsCarousel(currentIndex = 0): ChatQuestionCarouselData {
+	const carousel = createDeploymentCarousel(12, '');
+	carousel.questions.unshift({
+		id: 'owner',
+		type: 'text',
+		title: 'Release owner',
+		detailedMessage: 'Release owner',
+	});
+	carousel.questions[1].detailedMessage = new MarkdownString(`${deploymentDescription}\n\nRead the [release checklist](https://example.com/checklist) before selecting an option.`);
+	carousel.questions.push(
+		{ id: 'email', type: 'text', title: 'Contact email', required: true, validation: { format: 'email' } },
+		{ id: 'date', type: 'text', title: 'Release date' },
+		{ ...multiSelectQuestion, id: 'checks' },
+	);
+	carousel.message = new MarkdownString(`${deploymentDescription}\n\n${deploymentDescription}`);
+	carousel.draftCurrentIndex = currentIndex;
+	return carousel;
+}
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -270,6 +289,46 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			singleSelectQuestion,
 			multiSelectQuestion,
 		])),
+	}),
+
+	LongQuestionContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The first of six questions leads with Release owner, followed by scrollable context. The answer area contains only the text field; the title is not repeated. The footer remains visible.'],
+		render: context => renderLayoutCarousel(context, createLongQuestionsCarousel(), (header, input) =>
+			header.scrollHeight > header.clientHeight && input.scrollHeight === input.clientHeight),
+	}),
+
+	LongQuestionDetailsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['At a narrow width, the second question groups its distinct Markdown explanation with the title. The twelve answers have their own bounded area, separate from the explanation, and the footer remains visible.'],
+		render: context => renderLayoutCarousel(context, createLongQuestionsCarousel(1), hasEqualScrollableSections, () => {
+			context.container.style.width = '280px';
+		}),
+	}),
+
+	WideQuestionContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A narrow question card retains a wide Markdown table in the details viewport, with horizontal scrolling for the full identifiers and a separate text input and footer.'],
+		render: context => {
+			const carousel = createCarousel([{ id: 'identifiers', type: 'text', title: 'Release identifiers' }]);
+			carousel.message = new MarkdownString([
+				'Read the [release checklist](https://example.com/checklist).',
+				'',
+				'| Release | Identifier |',
+				'| --- | --- |',
+				...Array.from({ length: 20 }, (_, index) => `| ${index + 1} | ${'W'.repeat(80)} |`),
+			].join('\n'));
+			return renderLayoutCarousel(context, carousel, (header, input) =>
+				header.scrollWidth > header.clientWidth && header.scrollHeight > header.clientHeight &&
+				input.scrollHeight === input.clientHeight, () => {
+					context.container.style.width = '280px';
+				});
+		},
 	}),
 
 	EqualHeightOverflow: defineComponentFixture({

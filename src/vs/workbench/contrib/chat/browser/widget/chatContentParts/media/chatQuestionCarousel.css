@@ -108,7 +108,9 @@
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
 	.chat-question-carousel-content {
+		.chat-question-carousel-message,
 		.chat-question-description,
+		.chat-question-detailed-message,
 		.chat-question-input-scrollable,
 		.chat-question-validation-message {
 			display: none;
@@ -323,11 +325,12 @@
 	}
 }
 
-.interactive-session .chat-question-carousel-container .chat-question-input-container > * {
+.interactive-session .chat-question-carousel-container .chat-question-input-container > *,
+.interactive-session .chat-question-carousel-container .chat-question-header-row > * {
 	flex-shrink: 0;
 }
 
-.interactive-session .chat-question-carousel-container .chat-question-header-row,
+.interactive-session .chat-question-carousel-container .chat-question-header-scrollable,
 .interactive-session .chat-question-carousel-container .chat-question-input-scrollable {
 	flex: 0 1 auto;
 	min-height: 0;
@@ -335,13 +338,24 @@
 }
 
 .interactive-session .chat-question-carousel-container .chat-question-header-row,
+.interactive-session .chat-question-carousel-container .chat-question-header-scrollable,
 .interactive-session .chat-question-carousel-container .chat-question-input-scrollable,
 .interactive-session .chat-question-carousel-container .chat-question-input-container {
 	box-sizing: border-box;
 }
 
 .interactive-session .chat-question-carousel-container .chat-question-header-row {
-	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: none;
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-header-row::-webkit-scrollbar {
+	display: none;
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-header-row:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* footer with nav arrows, step indicator, and submit */
@@ -403,17 +417,22 @@
 	-webkit-user-select: text;
 }
 
-/* carousel-level message (e.g. from MCP elicitation) */
-.interactive-session .chat-question-carousel-container .chat-question-carousel-message {
-	padding: 8px 16px 0;
+/* question context, separated from the answer controls */
+.interactive-session .chat-question-carousel-container .chat-question-carousel-message,
+.interactive-session .chat-question-carousel-container .chat-question-detailed-message {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
 	user-select: text;
 	-webkit-user-select: text;
 
-	.rendered-markdown p {
-		margin: 0;
+	.rendered-markdown > :first-child {
+		margin-top: 0;
+	}
+
+	.rendered-markdown > :last-child {
+		margin-bottom: 0;
 	}
 }
 

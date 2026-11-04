@@ -137,10 +137,33 @@ suite('ChatQuestionCarouselPart', () => {
 						headings: widget.domNode.querySelectorAll('.chat-question-title').length,
 						detail: widget.domNode.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
 						inputs: widget.domNode.querySelectorAll('.chat-question-input-container input').length,
-					}, { headings: 1, detail: hideDuplicateDetailedMessage ? expectedDetail : originalDetail, inputs: 1 });
+					}, { headings: 1, detail: hideDuplicateDetailedMessage !== false ? expectedDetail : originalDetail, inputs: 1 });
 				});
 			}
 		}
+
+		test('groups question context below the title and keeps it out of the answer area', () => {
+			const carousel = createMockCarousel([{
+				id: 'q1',
+				type: 'text',
+				title: 'Release owner',
+				description: 'Name the person responsible for this release.',
+				detailedMessage: new MarkdownString('Read the [release checklist](https://example.com/checklist).'),
+			}]);
+			carousel.message = new MarkdownString('Shared **release context**.');
+			createWidget(carousel);
+
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+			assert.deepStrictEqual({
+				sections: [...header.children].map(element => element.classList[0]),
+				detailLink: header.querySelector('.chat-question-detailed-message a')?.getAttribute('data-href'),
+				answerText: widget.domNode.querySelector('.chat-question-input-container')?.textContent,
+			}, {
+				sections: ['chat-question-title-row', 'chat-question-carousel-message', 'chat-question-description', 'chat-question-detailed-message'],
+				detailLink: 'https://example.com/checklist',
+				answerText: '',
+			});
+		});
 
 		test('uses workbench hovers for markdown links', () => {
 			const carousel = createMockCarousel([{
@@ -169,8 +192,8 @@ suite('ChatQuestionCarouselPart', () => {
 			}, {
 				nativeTitles: ['', '', ''],
 				hoverContents: [
-					'https://example.com/carousel',
 					'https://example.com/question',
+					'https://example.com/carousel',
 					'https://example.com/detailed',
 				],
 			});
@@ -453,7 +476,7 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel, undefined, container);
 		}
 
-		for (const longContent of ['carousel message', 'question message', 'description']) {
+		for (const longContent of ['carousel message', 'question message', 'description', 'detailed message']) {
 			test(`shares the maximum height equally with a long ${longContent}`, async () => {
 				const longText = 'Review the deployment requirements before choosing an option. '.repeat(80);
 				const carousel = createMockCarousel([{
@@ -462,6 +485,7 @@ suite('ChatQuestionCarouselPart', () => {
 					title: 'Choose a deployment strategy',
 					message: longContent === 'question message' ? longText : undefined,
 					description: longContent === 'description' ? longText : undefined,
+					detailedMessage: longContent === 'detailed message' ? new MarkdownString(longText) : undefined,
 					options: Array.from({ length: 20 }, (_, index) => ({
 						id: `option-${index}`,
 						label: `Deployment option ${index}`,
@@ -605,6 +629,101 @@ suite('ChatQuestionCarouselPart', () => {
 			await settleLayout();
 
 			assert.deepStrictEqual({ headerBorrowsSpace, limitWrites }, { headerBorrowsSpace: true, limitWrites: 0 });
+		});
+
+		test('scrolls question context with the keyboard and collapses to the title', async () => {
+			const carousel = createMockCarousel([{
+				id: 'q1', type: 'text', title: 'Release owner',
+				detailedMessage: new MarkdownString('Review the release checklist. '.repeat(100)),
+			}, {
+				id: 'q2', type: 'text', title: 'Release date',
+			}]);
+			carousel.message = new MarkdownString('Shared deployment context. '.repeat(100));
+			createLayoutWidget(carousel);
+			await settleLayout();
+
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+			const footer = widget.domNode.querySelector<HTMLElement>('.chat-question-footer-row')!;
+			const scroll = (key: string, keyCode: number) => header.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+			header.focus();
+			scroll('PageDown', 34);
+			const pagedDown = header.scrollTop > 0;
+			scroll('End', 35);
+			const reachedEnd = header.scrollTop + header.clientHeight >= header.scrollHeight - 1;
+			scroll('Home', 36);
+			const returnedToTitle = header.scrollTop === 0;
+			const footerVisible = footer.getBoundingClientRect().bottom <= widget.domNode.getBoundingClientRect().bottom;
+
+			widget.domNode.querySelector<HTMLElement>('.chat-question-collapse-toggle')!.click();
+			await settleLayout();
+			assert.deepStrictEqual({
+				managedScrollers: widget.domNode.querySelectorAll('.monaco-scrollable-element').length,
+				pagedDown, reachedEnd, returnedToTitle, footerVisible,
+				collapsedContextHeight: [...header.querySelectorAll<HTMLElement>('.chat-question-carousel-message, .chat-question-detailed-message')].map(element => element.offsetHeight),
+				titleVisible: widget.domNode.querySelector<HTMLElement>('.chat-question-title')!.offsetHeight > 0,
+			}, {
+				managedScrollers: 2,
+				pagedDown: true, reachedEnd: true, returnedToTitle: true, footerVisible: true,
+				collapsedContextHeight: [0, 0],
+				titleVisible: true,
+			});
+		});
+
+		test('reveals keyboard-selected answers without scrolling the question context', async () => {
+			createLayoutWidget(createMockCarousel([{
+				id: 'q1', type: 'singleSelect', title: 'Release strategy',
+				detailedMessage: new MarkdownString('Review the release checklist. '.repeat(100)),
+				options: Array.from({ length: 20 }, (_, index) => ({ id: `${index}`, label: `Option ${index}`, value: `${index}` })),
+			}]));
+			await settleLayout();
+
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+			const input = widget.domNode.querySelector<HTMLElement>('.chat-question-input-container')!;
+			const list = widget.domNode.querySelector<HTMLElement>('.chat-question-list')!;
+			const lastOption = list.lastElementChild!;
+			list.focus();
+			for (let index = 0; index < 20; index++) {
+				list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+			}
+			const optionBounds = lastOption.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
+			assert.deepStrictEqual({
+				lastOptionVisible: optionBounds.top >= inputBounds.top - 1 && optionBounds.bottom <= inputBounds.bottom + 1,
+				activeOption: list.getAttribute('aria-activedescendant'),
+				listFocused: mainWindow.document.activeElement === list,
+				contextScrollTop: header.scrollTop,
+			}, {
+				lastOptionVisible: true,
+				activeOption: lastOption.id,
+				listFocused: true,
+				contextScrollTop: 0,
+			});
+		});
+
+		test('keeps wide question context reachable with horizontal keyboard scrolling', async () => {
+			const carousel = createMockCarousel([{ id: 'q1', type: 'text', title: 'Release identifiers' }]);
+			carousel.message = new MarkdownString(`| Release | Identifier |\n| --- | --- |\n| Canary | ${'W'.repeat(80)} |`);
+			createLayoutWidget(carousel);
+			await settleLayout();
+
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+			header.focus();
+			header.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+			const scrolledRight = header.scrollLeft > 0;
+			header.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+			assert.deepStrictEqual({
+				overflowsOnlyHorizontally: header.scrollWidth > header.clientWidth && header.scrollHeight === header.clientHeight,
+				focusable: header.tabIndex === 0,
+				scrolledRight,
+				returnedToStart: header.scrollLeft === 0,
+				fullIdentifier: header.querySelector('tbody td:last-child')?.textContent,
+			}, {
+				overflowsOnlyHorizontally: true,
+				focusable: true,
+				scrolledRight: true,
+				returnedToStart: true,
+				fullIdentifier: 'W'.repeat(80),
+			});
 		});
 	});
 
