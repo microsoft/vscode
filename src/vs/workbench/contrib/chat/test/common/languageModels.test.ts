@@ -914,39 +914,44 @@ suite('LanguageModels', function () {
 		languageModels.dispose();
 		const storageService = store.add(new TestStorageService());
 		// Pinned in the editor's local picker, where extensions provide the models.
-		storageService.store('chatModelPinned', ['copilot/gpt-5', 'openai/gpt-5'], StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('chatModelPinned', ['copilot/gpt-5', 'openai/gpt-5', 'copilot/gpt-5.6-sol'], StorageScope.PROFILE, StorageTarget.USER);
 		const service = store.add(createLanguageModelsService(storageService));
-		const vendor = 'agent-host-copilotcli';
-		const model = (id: string, modelGroupId: string, byokModelIdentifier?: string): ILanguageModelChatMetadataAndIdentifier => ({
-			identifier: `${vendor}:${id}`,
-			metadata: { extension: nullExtensionDescription.identifier, name: id, vendor, family: id, version: '1.0', id, maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}, modelGroup: { id: modelGroupId }, byokModelIdentifier },
-		});
-		service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: 'Copilot CLI', configuration: undefined, managementCommand: undefined, when: undefined }], []);
-		store.add(service.registerLanguageModelProvider(vendor, {
-			onDidChange: Event.None,
-			provideLanguageModelChatInfo: async () => [model('gpt-5', 'copilot'), model('claude', 'copilot'), model('auto', 'copilot'), model('openai/gpt-5', 'openai', 'openai/gpt-5')],
-			sendChatRequest: async () => { throw new Error(); },
-			provideTokenCount: async () => { throw new Error(); },
-		}));
-		await service.selectLanguageModels({ vendor });
+		// Agent-host copies, as [id, model group, original identifier of a model the user brought].
+		const copies: Record<string, [string, string, string?][]> = {
+			'agent-host-copilotcli': [['gpt-5', 'copilot'], ['claude', 'copilot'], ['auto', 'copilot'], ['openai/gpt-5', 'openai', 'openai/gpt-5']],
+			// Codex and Claude qualify ids with the provider; only their Copilot transports serve Copilot's models.
+			'codex': [['@provider=vscode-proxy:gpt-5.6-sol', 'copilot'], ['@provider=openai:gpt-5.6-sol', 'chatgpt']],
+			'claude': [['@provider=copilot:claude-opus-4.6', 'copilot'], ['@provider=anthropic:claude-opus-4.6', 'anthropic']],
+		};
+		for (const [vendor, models] of Object.entries(copies)) {
+			service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined }], []);
+			store.add(service.registerLanguageModelProvider(vendor, {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => models.map(([id, modelGroupId, byokModelIdentifier]) => ({
+					identifier: `${vendor}:${id}`,
+					metadata: { extension: nullExtensionDescription.identifier, name: id, vendor, family: id, version: '1.0', id, maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}, modelGroup: { id: modelGroupId }, byokModelIdentifier },
+				})),
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => { throw new Error(); },
+			}));
+			await service.selectLanguageModels({ vendor });
+		}
 
 		const pinnedFromEditor = service.getPinnedModelIds();
-		service.pinModel(`${vendor}:claude`);
-		service.pinModel(`${vendor}:auto`);
-		const pinned = service.getPinnedModelIds();
-		service.unpinModel(`${vendor}:gpt-5`);
+		service.pinModel('agent-host-copilotcli:claude');
+		service.pinModel('claude:@provider=copilot:claude-opus-4.6');
+		service.pinModel('agent-host-copilotcli:auto');
+		service.unpinModel('agent-host-copilotcli:gpt-5');
 
 		assert.deepStrictEqual({
 			pinnedFromEditor,
-			pinned,
-			afterUnpin: service.getPinnedModelIds(),
+			pinned: service.getPinnedModelIds(),
+			// Stored under the extension's identifiers, so the editor's picker matches them too.
 			stored: storageService.getObject('chatModelPinned', StorageScope.PROFILE),
 		}, {
-			pinnedFromEditor: [`${vendor}:gpt-5`, `${vendor}:openai/gpt-5`],
-			pinned: [`${vendor}:gpt-5`, `${vendor}:openai/gpt-5`, `${vendor}:claude`, `${vendor}:auto`],
-			afterUnpin: [`${vendor}:openai/gpt-5`, `${vendor}:claude`, `${vendor}:auto`],
-			// Copies are stored under the extension's identifier so the editor's picker matches them too.
-			stored: ['openai/gpt-5', 'copilot/claude', `${vendor}:auto`],
+			pinnedFromEditor: ['agent-host-copilotcli:gpt-5', 'agent-host-copilotcli:openai/gpt-5', 'codex:@provider=vscode-proxy:gpt-5.6-sol'],
+			pinned: ['agent-host-copilotcli:openai/gpt-5', 'codex:@provider=vscode-proxy:gpt-5.6-sol', 'agent-host-copilotcli:claude', 'claude:@provider=copilot:claude-opus-4.6', 'agent-host-copilotcli:auto'],
+			stored: ['openai/gpt-5', 'copilot/gpt-5.6-sol', 'copilot/claude', 'copilot/claude-opus-4.6', 'agent-host-copilotcli:auto'],
 		});
 	});
 });

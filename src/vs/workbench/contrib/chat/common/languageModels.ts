@@ -25,6 +25,7 @@ import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js'
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -2735,9 +2736,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	 * The identity a pin is stored and matched under, so a pin applies to every copy of a
 	 * model. The built-in provider's models reach the picker under several vendors (the
 	 * extension, the CLI harness and agent-host copies), so they share the extension's
-	 * identifier. An agent-host copy of an extension-provided model the user brought shares
-	 * the original model's identifier. Auto routes differently per harness, so it keeps its
-	 * own identifier, like every other model.
+	 * identifier. Harnesses that reach a model through several providers qualify its id
+	 * with the provider, so that is decoded first; their other providers' copies group
+	 * elsewhere and keep their own identifiers. An agent-host copy of an extension-provided
+	 * model the user brought shares the original model's identifier. Auto routes differently
+	 * per harness, so it keeps its own identifier, like every other model.
 	 */
 	private _getPinIdentity(modelIdentifier: string): string {
 		const metadata = this._modelCache.get(modelIdentifier);
@@ -2748,10 +2751,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (byokModelIdentifier !== undefined) {
 			return byokModelIdentifier;
 		}
-		if (metadata.id === AUTO_RAW_MODEL_ID || !BUILT_IN_GROUP_IDS.has(metadata.modelGroup?.id ?? metadata.vendor)) {
+		if (!BUILT_IN_GROUP_IDS.has(metadata.modelGroup?.id ?? metadata.vendor)) {
 			return modelIdentifier;
 		}
-		return `${COPILOT_VENDOR_ID}/${metadata.id}`;
+		const modelId = parseProviderQualifiedModelId(metadata.id)?.modelId ?? metadata.id;
+		return modelId === AUTO_RAW_MODEL_ID ? modelIdentifier : `${COPILOT_VENDOR_ID}/${modelId}`;
 	}
 
 	getPinnedModelIds(): string[] {
