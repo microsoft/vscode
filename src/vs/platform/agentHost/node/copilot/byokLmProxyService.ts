@@ -418,7 +418,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			}
 			if (failure) {
 				if (committed) {
-					write(emitter.fail(failure));
+					// Visible output already reached the client; closing the stream as a
+					// failure here would have the runtime retry and resend it, duplicating
+					// what the client already has. The failure is logged, not shown in-stream.
+					this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} failed after streaming visible output (${failure}); closing the response instead of retrying to avoid duplicating the partial output`);
+					write(emitter.fail());
 					res.end();
 				} else {
 					this._writeJsonError(res, result.error ? 502 : EMPTY_RESPONSE_STATUS, failure, 'api_error');
@@ -447,7 +451,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			}
 			const message = err instanceof Error ? err.message : String(err);
 			if (committed) {
-				write(emitter.fail(message));
+				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} threw after streaming visible output (${message}); closing the response instead of retrying to avoid duplicating the partial output`);
+				write(emitter.fail());
 				try { res.end(); } catch { /* ignore */ }
 			} else {
 				this._writeJsonError(res, 502, message, 'api_error');

@@ -969,7 +969,13 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
-	test('reports a failure that follows streamed output in-stream', async () => {
+	test('closes a failure that follows streamed output as a completion instead of retrying it', async () => {
+		// A runtime that sees `response.failed` after visible output has streamed
+		// retries the whole turn, resending the already-shown text alongside the
+		// retry's own output. Closing as `response.completed` with the output that
+		// was already streamed keeps that duplication from happening; the failure
+		// itself is only logged server-side (see byokLmProxyService.ts), not shown
+		// in-stream.
 		const models = store.add(new Emitter<IByokLmModelInfo[]>({ onDidAddFirstListener: () => models.fire([]) }));
 		const deltas = store.add(new Emitter<IByokLmStreamDelta>());
 
@@ -993,11 +999,13 @@ suite('ByokLmProxyService', () => {
 				failed: text.includes('event: response.failed'),
 				message: text.includes('upstream exploded'),
 				completed: text.includes('event: response.completed'),
+				outputText: text.includes('"output_text":"partial"'),
 			}, {
 				status: 200,
-				failed: true,
-				message: true,
-				completed: false,
+				failed: false,
+				message: false,
+				completed: true,
+				outputText: true,
 			});
 		});
 	});
