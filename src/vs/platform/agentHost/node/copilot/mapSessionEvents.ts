@@ -1272,6 +1272,16 @@ function sdkAttachmentToProtocol(
 ): MessageAttachment | undefined {
 	switch (attachment.type) {
 		case 'file': {
+			if (attachment.lineRange) {
+				// Whole lines: from the start of the first line to the start of the line after the last.
+				return {
+					type: MessageAttachmentKind.Resource,
+					uri: URI.file(attachment.path).toString(),
+					label: attachment.displayName || basename(attachment.path),
+					displayKind: 'selection',
+					selection: { range: { start: { line: attachment.lineRange.start - 1, character: 0 }, end: { line: attachment.lineRange.end, character: 0 } } },
+				};
+			}
 			return {
 				type: MessageAttachmentKind.Resource,
 				uri: URI.file(attachment.path).toString(),

@@ -8355,6 +8355,32 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(getStateManager(svc).getSessionState(imported.toString())?.title, 'The original first question');
 		});
 
+		test('starts the imported default chat on the imported session model, live and after a restart', async () => {
+			const { svc } = await setupTitleGeneration(new TestCopilotApiService());
+			const turn = (text: string, model: string): Turn => ({ id: text, message: { text, origin: { kind: MessageKind.User }, model: { id: model } }, responseParts: [], state: TurnState.Complete, usage: undefined });
+			const withModel = await svc.createSession({
+				legacyChatUris: true, provider: 'copilot',
+				importConversation: { turns: [turn('first', 'claude-haiku-5.5'), turn('last', 'claude-opus-5.5')], model: { id: 'gpt-5.3-codex' } },
+			});
+			const withoutModel = await svc.createSession({
+				legacyChatUris: true, provider: 'copilot',
+				importConversation: { turns: [turn('only', 'claude-opus-5.5')] },
+			});
+			const stateManager = getStateManager(svc);
+			const drafts = async (session: URI) => ({
+				live: stateManager.getDefaultChatState(session.toString())?.draft,
+				persisted: await getTestSessionStateStore(svc).chatRows.getDraft(session, URI.parse(stateManager.getDefaultChat(session.toString())!)),
+			});
+
+			assert.deepStrictEqual({ withModel: await drafts(withModel), withoutModel: await drafts(withoutModel) }, {
+				withModel: {
+					live: { text: '', origin: { kind: MessageKind.User }, model: { id: 'gpt-5.3-codex' } },
+					persisted: { text: '', origin: { kind: MessageKind.User }, model: { id: 'gpt-5.3-codex' } },
+				},
+				withoutModel: { live: undefined, persisted: undefined },
+			});
+		});
+
 	});
 
 	// ---- attachment rewriting ------------------------------------------

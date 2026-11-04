@@ -15754,6 +15754,33 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('image variable without a MIME type is labeled by its bytes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const jpegBytes = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'describe this photo',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'image', id: 'photo', name: 'photo.jpg', value: jpegBytes }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{
+					type: MessageAttachmentKind.EmbeddedResource,
+					label: 'photo.jpg',
+					displayKind: 'image',
+					data: encodeBase64(VSBuffer.wrap(jpegBytes)),
+					contentType: 'image/jpeg',
+				},
+			]);
+		}));
+
 		test('browser view variable becomes a model-readable browser attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/page-1' });

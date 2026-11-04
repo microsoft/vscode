@@ -13,6 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { detectImageMimeType } from '../../../../../../base/common/image.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -8243,8 +8244,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI, range?: MessageAttachment['range']): MessageAttachment | undefined {
 		const buffer = coerceImageBuffer(v.value);
-		const contentType = v.mimeType ?? 'image/png';
 		if (buffer) {
+			// The bytes are authoritative: attached images often omit `mimeType`, and unresized ones keep their original encoding.
+			const contentType = detectImageMimeType(buffer) ?? v.mimeType ?? 'image/png';
 			const attachment: MessageAttachment = {
 				type: MessageAttachmentKind.EmbeddedResource,
 				label: v.name,
