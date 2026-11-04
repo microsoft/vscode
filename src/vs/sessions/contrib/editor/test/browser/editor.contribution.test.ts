@@ -18,6 +18,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -141,6 +142,11 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The actions run in the main window: no chat window has focus. */
+	function stubNoChatWindow(instantiationService: TestInstantiationService): void {
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+	}
 
 	function createFileSearch(instantiationService: TestInstantiationService): EmptyFileEditorSearch {
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
@@ -580,6 +586,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1380,6 +1387,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewBrowserTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1431,6 +1439,7 @@ suite('Sessions - Editor Contribution', () => {
 				}
 			});
 
+			stubNoChatWindow(instantiationService);
 			await new OpenBrowserAction().run(instantiationService);
 			return calls;
 		};
@@ -1764,6 +1773,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewSearchTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(invoked, [openNewSearchEditor]);
@@ -1788,6 +1798,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
@@ -1812,6 +1823,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 2 }]);
@@ -1832,6 +1844,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
@@ -1873,6 +1886,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 

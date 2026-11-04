@@ -31,6 +31,7 @@ import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { decodeTextBlobAttachmentData, normalizeBase64AttachmentData, readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { IMPORTED_TURN_DURATIONS_DB_KEY, parseImportedTurnDurations, withImportedTurnDurations } from './buildSessionEvents.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
@@ -485,6 +486,7 @@ export async function mapSessionEvents(
 	let currentModel = options?.model;
 	let currentAgent = options?.agent;
 	const recordedResponses = await db?.getAssistantResponseParts();
+	const importedTurnDurations = parseImportedTurnDurations(await db?.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY));
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -1168,7 +1170,7 @@ export async function mapSessionEvents(
 		flushSubagent(parentToolCallId);
 	}
 
-	return { turns: linkFusionPhaseChats(turns, subagentTurns, sessionUriStr), subagentTurnsByToolCallId: subagentTurns };
+	return { turns: linkFusionPhaseChats(withImportedTurnDurations(turns, importedTurnDurations), subagentTurns, sessionUriStr), subagentTurnsByToolCallId: subagentTurns };
 
 	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined): void {
 		for (const request of toolRequests) {

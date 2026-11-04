@@ -75,6 +75,8 @@ export interface IRemoteChatSessionRestoreResult {
 	readonly lastRequest: ChatRequestModel | undefined;
 	/** When the last response completed, as recorded in the history. */
 	readonly lastResponseCompletedAt: number | undefined;
+	/** Whether the history records the last response as cancelled. */
+	readonly lastResponseCanceled: boolean;
 }
 
 /**
@@ -146,6 +148,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 	/** The request that history responses are applied to. */
 	private _lastRequest: ChatRequestModel | undefined;
 	private _lastResponseCompletedAt: number | undefined;
+	private _lastResponseCanceled = false;
 
 	private _serverRequestHandler: IRemoteChatServerRequestHandler | undefined;
 	private readonly _serverRequestsBeforeHandler: IChatSessionServerRequest[] = [];
@@ -222,6 +225,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		try {
 			this._lastRequest = this._model.getRequests().at(-1);
 			this._lastResponseCompletedAt = undefined;
+			this._lastResponseCanceled = false;
 			if (liveHistory) {
 				const [liveRequest] = runToCompletion(this._applyHistorySteps(liveHistory));
 				const lastTurn = this._restoredTurns.at(-1);
@@ -246,7 +250,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			reference.dispose();
 			throw error;
 		}
-		return { reference, lastRequest: this._lastRequest, lastResponseCompletedAt: this._lastResponseCompletedAt };
+		return { reference, lastRequest: this._lastRequest, lastResponseCompletedAt: this._lastResponseCompletedAt, lastResponseCanceled: this._lastResponseCanceled };
 	}
 
 	/**
@@ -423,6 +427,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 		this._lastRequest = undefined;
 		this._lastResponseCompletedAt = undefined;
+		this._lastResponseCanceled = false;
 		const requestsById = new Map(this._model.getRequests().map(request => [request.id, request]));
 		// The user may remove requests while the refresh waits for a slice. A request
 		// removed that way is treated as if it had been removed before the refresh.
@@ -569,6 +574,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			response.setElapsedMs(item.elapsedMs);
 		}
 		this._lastResponseCompletedAt = item.completedAt;
+		this._lastResponseCanceled = !!item.isCanceled;
 	}
 
 	private *_completeLastResponseSteps(): Generator<void, void> {
@@ -579,16 +585,25 @@ export class RemoteChatSessionRestorer extends Disposable {
 	}
 
 	/**
-	 * Completes the last applied response at the time the history recorded, or
-	 * without a timestamp when the history has none.
+	 * Completes (or, for a cancelled turn, cancels) the last applied response at
+	 * the time the history recorded, or without a timestamp when the history has none.
 	 */
 	private _completeLastResponse(): void {
-		if (Number.isFinite(this._lastResponseCompletedAt)) {
-			this._lastRequest?.response?.complete(this._lastResponseCompletedAt);
+		const response = this._lastRequest?.response;
+		const completedAt = this._lastResponseCompletedAt;
+		if (this._lastResponseCanceled) {
+			if (completedAt !== undefined && Number.isFinite(completedAt)) {
+				response?.cancel(completedAt);
+			} else {
+				response?.cancelWithoutTimestamp();
+			}
+		} else if (completedAt !== undefined && Number.isFinite(completedAt)) {
+			response?.complete(completedAt);
 		} else {
-			this._lastRequest?.response?.completeWithoutTimestamp();
+			response?.completeWithoutTimestamp();
 		}
 		this._lastResponseCompletedAt = undefined;
+		this._lastResponseCanceled = false;
 	}
 
 	private _onDidStartServerRequest(request: IChatSessionServerRequest): void {

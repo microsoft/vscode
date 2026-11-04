@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';
@@ -46,7 +47,7 @@ export class OpenInVSCodeAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { readonly session: ISession; readonly chat: IChat }): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
@@ -67,13 +68,14 @@ export class OpenInVSCodeAction extends Action2 {
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 
-		const activeSession = sessionsService.activeSession.get();
+		const activeSession = context?.session ?? sessionsService.activeSession.get();
 		if (!activeSession) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
-		const workspace = activeSession.activeChat.get().workspace.get();
+		const chat = context?.chat ?? sessionsService.activeSession.get()?.activeChat.get();
+		const workspace = chat?.workspace.get();
 		const folder = workspace?.folders[0];
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 
@@ -87,7 +89,7 @@ export class OpenInVSCodeAction extends Action2 {
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
-		params.set('session', activeSession.resource.toString());
+		params.set('session', (context?.chat.resource ?? activeSession.resource).toString());
 
 		if (remoteAuthority) {
 			await openerService.open(URI.from({

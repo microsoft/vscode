@@ -12,6 +12,7 @@ export const AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING = 'chat.agentSessio
 export { COMPARE_AGENTS_ENABLED_SETTING };
 export const COMPARE_AGENTS_OPEN_IN_GRID_SETTING = 'sessions.chat.compareAgents.openInGrid';
 export const COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING = 'sessions.chat.compareAgents.showPickerHint';
+export const COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING = 'sessions.chat.compareAgents.showSpotlight';
 export const WORKSPACE_OPT_OUT_SETTING = 'sessions.chat.experimental.workspaceOptOut';
 export const ENVIRONMENT_PICKER_SETTING = 'sessions.chat.experimental.environmentPicker';
 export const ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING = 'sessions.chat.experimental.environmentPickerManageRemotes';

@@ -7216,6 +7216,46 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
+		test('keeps labels and status summaries scoped to chats after partial nesting falls back to a group', () => {
+			const parent = buildTestSession({
+				id: 'parent', title: 'Comparison', status: SessionStatus.InProgress, mainChatStatus: SessionStatus.Completed,
+				chats: [{ id: 'peer', title: 'Stored peer', status: SessionStatus.NeedsInput }],
+			});
+			const peer = parent.chats.get('peer')!;
+			const judge = buildTestSession({ id: 'judge', title: 'Judge', status: SessionStatus.InProgress });
+			const comparison: ISessionComparison = {
+				id: 'comparison', groupId: group.id, title: 'Comparison', prompt: 'Implement', createdAt: 1,
+				participants: [
+					{ id: 'first', role: SessionComparisonParticipantRole.Attempt, sessionResource: parent.session.resource, chatResource: parent.mainChat.chat.resource, harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test', modelLabel: 'First model' } },
+					{ id: 'second', role: SessionComparisonParticipantRole.Attempt, sessionResource: parent.session.resource, chatResource: peer.chat.resource, harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test', modelLabel: 'Second model' } },
+					{ id: 'judge', role: SessionComparisonParticipantRole.Judge, sessionResource: judge.session.resource, chatResource: judge.mainChat.chat.resource, harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' } },
+				],
+			};
+			const harness = createListHarness(disposables, [parent.session, judge.session], {
+				groups: [group], memberships: new Map([[parent.session.sessionId, group.id], [judge.session.sessionId, group.id]]), comparisons: [comparison],
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			list.setHeaderCollapsed(`group:${group.id}`, false);
+			list.setItemCollapsed({ session: parent.session.resource }, false);
+			const summary = () => container.querySelector('.session-comparison-group .session-group-description')?.textContent;
+			const needsInput = summary();
+			peer.status.set(SessionStatus.InProgress, undefined);
+			const working = summary();
+			peer.status.set(SessionStatus.Completed, undefined);
+			assert.deepStrictEqual({
+				labels: [...container.querySelectorAll('.session-comparison-attempt .session-title, .session-chat-title')].map(element => element.textContent),
+				needsInput, working, reviewing: summary(),
+				peerAria: container.querySelector('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('Second model'),
+			}, {
+				labels: ['First model', 'Second model'], needsInput: 'Comparison · 1 attempt needs attention',
+				working: 'Comparison · 1 attempt working', reviewing: 'Comparison · Reviewing attempts', peerAria: true,
+			});
+		});
+
 		test('keeps the comparison icon quiet at rest and aligned with the title', () => {
 			const { container } = renderComparison();
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
@@ -7658,41 +7698,44 @@ suite('Sessions - SessionsList', () => {
 
 		});
 
-		test('allows regrouping sessions from archived comparisons while retaining history lookup', () => {
-			const session = createTestSession('Former attempt', { resourceId: 'former-attempt' }).session;
-			const targetGroup: ISessionGroup = { id: 'target-group', name: 'Target', createdAt: 2 };
-			const comparison: ISessionComparison = {
-				id: 'archived-comparison',
-				groupId: 'deleted-comparison-group',
-				title: 'Archived comparison',
-				createdAt: 1,
-				archivedAt: 2,
-				workspace: URI.parse('file:///workspace'),
-				prompt: 'Implement',
-				participants: [{
-					id: 'attempt',
-					role: SessionComparisonParticipantRole.Attempt,
-					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
-					sessionResource: session.resource,
-				}],
-			};
-			const harness = createListHarness(disposables, [session], { groups: [targetGroup], comparisons: [comparison] });
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			}));
+		for (const native of [false, true]) {
+			test(`allows normal grouping for ${native ? 'native comparison parents' : 'archived comparison participants'}`, () => {
+				const session = createTestSession('Former attempt', { resourceId: 'former-attempt' }).session;
+				const targetGroup: ISessionGroup = { id: 'target-group', name: 'Target', createdAt: 2 };
+				const comparison: ISessionComparison = {
+					id: 'archived-comparison',
+					groupId: 'deleted-comparison-group',
+					title: 'Archived comparison',
+					createdAt: 1,
+					archivedAt: native ? undefined : 2,
+					sessionResource: native ? session.resource : undefined,
+					workspace: URI.parse('file:///workspace'),
+					prompt: 'Implement',
+					participants: [{
+						id: 'attempt',
+						role: SessionComparisonParticipantRole.Attempt,
+						harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+						sessionResource: session.resource,
+					}],
+				};
+				const harness = createListHarness(disposables, [session], { groups: [targetGroup], comparisons: [comparison] });
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
 
-			list.addSessionsToGroup([session], targetGroup.id);
+				list.addSessionsToGroup([session], targetGroup.id);
 
-			assert.deepStrictEqual({
-				historicalComparisonId: harness.instantiationService.get(ISessionComparisonService).getComparisonForSession(session.resource)?.id,
-				addedToGroups: harness.addedToGroups,
-			}, {
-				historicalComparisonId: comparison.id,
-				addedToGroups: [{ groupId: targetGroup.id, sessionIds: [session.sessionId] }],
+				assert.deepStrictEqual({
+					historicalComparisonId: harness.instantiationService.get(ISessionComparisonService).getComparisonForSession(session.resource)?.id,
+					addedToGroups: harness.addedToGroups,
+				}, {
+					historicalComparisonId: comparison.id,
+					addedToGroups: [{ groupId: targetGroup.id, sessionIds: [session.sessionId] }],
+				});
 			});
-		});
+		}
 
 		test('opens from the parent and reserves disclosure for the chevron', () => {
 			const { container, harness } = renderComparison();

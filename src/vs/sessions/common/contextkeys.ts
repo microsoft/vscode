@@ -67,6 +67,9 @@ export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
 
+/** Whether the session in scope has a workspace, as the Changes and Files tabs of a chat window need. */
+export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
+
 //#endregion
 
 //#region < --- Sessions Part --- >

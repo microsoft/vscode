@@ -10550,6 +10550,153 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		for (const response of [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline]) {
+			test(`empty MCP form requires confirmation and dispatches ${response}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				agentHostService.dispatchedActions.length = 0;
+				fire({
+					type: ActionType.ChatInputRequested,
+					request: withChatInputRequestPurpose({
+						id: 'empty-form',
+						message: '**Proceed** with this operation?',
+						...(response === ChatInputResponseKind.Decline ? { questions: [] } : {}),
+					}, ChatInputRequestPurpose.Elicitation),
+				} as ChatAction);
+				await timeout(10);
+				const card = collected.flat().find(part => part.kind === 'elicitation2');
+				assert.ok(card instanceof ChatElicitationRequestPart);
+				const completionsBeforeClick = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted);
+				if (response === ChatInputResponseKind.Accept) {
+					await card.accept(true);
+				} else {
+					await card.reject?.();
+				}
+				fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				await turnPromise;
+
+				assert.deepStrictEqual({
+					parts: collected.flat().map(part => part.kind),
+					title: textOf(card.title),
+					message: textOf(card.message),
+					buttons: [card.acceptButtonLabel, card.rejectButtonLabel],
+					completionsBeforeClick,
+					completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+					state: card.state.get(),
+					openedUrls: openerService.openedUrls,
+				}, {
+					parts: ['elicitation2'],
+					title: 'Confirmation Required',
+					message: '**Proceed** with this operation?',
+					buttons: ['Accept', 'Decline'],
+					completionsBeforeClick: [],
+					completions: [{
+						channel: session,
+						action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}) },
+					}],
+					state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+					openedUrls: [],
+				});
+			}));
+		}
+
+		test('empty MCP form completion from another client settles and hides stale controls without redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const results = [];
+			for (const response of [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline, ChatInputResponseKind.Cancel]) {
+				const requestId = `empty-form-${response}`;
+				fire({ type: ActionType.ChatInputRequested, request: withChatInputRequestPurpose({ id: requestId, message: 'Proceed?' }, ChatInputRequestPurpose.Elicitation) } as ChatAction);
+				await timeout(10);
+				const card = collected.flat().filter(part => part.kind === 'elicitation2').at(-1);
+				assert.ok(card instanceof ChatElicitationRequestPart);
+				agentHostService.dispatchedActions.length = 0;
+				fire({ type: ActionType.ChatInputCompleted, requestId, response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}) } as ChatAction);
+				await timeout(10);
+				await card.accept(true);
+				await card.reject?.();
+				results.push({
+					response,
+					state: card.state.get(),
+					hidden: card.isHidden.get(),
+					completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => entry.action),
+				});
+			}
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(results, [
+				{ response: ChatInputResponseKind.Accept, state: ElicitationState.Accepted, hidden: true, completions: [] },
+				{ response: ChatInputResponseKind.Decline, state: ElicitationState.Rejected, hidden: true, completions: [] },
+				{ response: ChatInputResponseKind.Cancel, state: ElicitationState.Rejected, hidden: true, completions: [] },
+			]);
+		}));
+
+		for (const cancellation of ['token', 'turnEnd']) {
+			test(`empty MCP form ${cancellation} cancellation hides the confirmation and dispatches Cancel once`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const cts = disposables.add(new CancellationTokenSource());
+				const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cts.token });
+				fire({ type: ActionType.ChatInputRequested, request: withChatInputRequestPurpose({ id: 'empty-form', message: 'Proceed?' }, ChatInputRequestPurpose.Elicitation) } as ChatAction);
+				await timeout(10);
+				const card = collected.flat().find(part => part.kind === 'elicitation2');
+				assert.ok(card instanceof ChatElicitationRequestPart);
+				agentHostService.dispatchedActions.length = 0;
+				if (cancellation === 'token') {
+					cts.cancel();
+				} else {
+					fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				}
+				await turnPromise;
+				await card.accept(true);
+				await card.reject?.();
+
+				assert.deepStrictEqual({
+					state: card.state.get(),
+					hidden: card.isHidden.get(),
+					completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => entry.action),
+				}, {
+					state: ElicitationState.Rejected,
+					hidden: true,
+					completions: [{ type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Cancel }],
+				});
+			}));
+		}
+
+		test('keeps structured MCP forms and empty ask-user or unclassified requests as question carousels', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.defaultChatUri = 'ahp-chat:/host-chosen-input-chat';
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const requests = [
+				withChatInputRequestPurpose({ id: 'structured', message: 'Name?', questions: [{ id: 'name', kind: ChatInputQuestionKind.Text, message: 'Name?', required: true }] }, ChatInputRequestPurpose.Elicitation),
+				withChatInputRequestPurpose({ id: 'ask-user', message: 'What next?' }, ChatInputRequestPurpose.AskUser),
+				{ id: 'unclassified', message: 'What next?', questions: [] },
+			];
+			const results = [];
+			for (const request of requests) {
+				fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+				await timeout(10);
+				const carousel = collected.flat().filter(part => part.kind === 'questionCarousel').at(-1);
+				assert.ok(carousel instanceof ChatQuestionCarouselData);
+				results.push({ id: request.id, questions: carousel.questions.map(question => ({ id: question.id, type: question.type, required: question.required })) });
+				fire({ type: ActionType.ChatInputCompleted, requestId: request.id, response: ChatInputResponseKind.Cancel } as ChatAction);
+			}
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				results,
+				parts: collected.flat().map(part => part.kind),
+			}, {
+				results: [
+					{ id: 'structured', questions: [{ id: 'name', type: 'text', required: true }] },
+					{ id: 'ask-user', questions: [{ id: 'answer', type: 'text', required: true }] },
+					{ id: 'unclassified', questions: [{ id: 'answer', type: 'text', required: true }] },
+				],
+				parts: ['questionCarousel', 'questionCarousel', 'questionCarousel'],
+			});
+		}));
+
 		function computerUseSetupRequest(message: string) {
 			return withComputerUseSetupCard(withChatInputRequestPurpose({
 				id: 'cu-card',
@@ -18354,6 +18501,45 @@ suite('AgentHostChatContribution', () => {
 						response: ChatInputResponseKind.Accept,
 						answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' } } },
 					},
+				}],
+			});
+		});
+
+		test('reconnects to an empty MCP form confirmation on the advertised chat', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+			const sessionUri = URI.parse('ahp-session:/opaque-form-session');
+			const chatUri = 'ahp-chat:/host-chosen-form-chat';
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.seedSessionMetadata(sessionUri, 'copilot');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...state,
+				defaultChat: chatUri,
+				chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InputNeeded, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+				activeTurn: {
+					...state.activeTurn!,
+					responseParts: [{
+						kind: ResponsePartKind.InputRequest,
+						request: withChatInputRequestPurpose({ id: 'empty-form', message: 'Proceed after reconnect?' }, ChatInputRequestPurpose.Elicitation),
+					}],
+				},
+			});
+			const session = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/opaque-form-session'), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const card = session.progressObs?.get().find(part => part.kind === 'elicitation2');
+			assert.ok(card instanceof ChatElicitationRequestPart);
+			agentHostService.dispatchedActions.length = 0;
+			await card.accept(true);
+
+			assert.deepStrictEqual({
+				parts: session.progressObs?.get().map(part => part.kind),
+				message: textOf(card.message),
+				completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+			}, {
+				parts: ['elicitation2'],
+				message: 'Proceed after reconnect?',
+				completions: [{
+					channel: chatUri,
+					action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Accept, answers: {} },
 				}],
 			});
 		});

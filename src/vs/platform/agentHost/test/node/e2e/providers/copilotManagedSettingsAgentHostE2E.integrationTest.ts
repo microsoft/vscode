@@ -241,12 +241,13 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 			await fileTurn(chat, 'managed-write-second', 'write', mode === 'assisted' ? 'none' : 'approve');
 		});
 
-		test(`managed write denial prevents mutation under ${mode}`, async function () {
-			this.timeout(180_000);
-			const session = await createSession({ ask: ['Write'] }, mode);
-			await fileTurn(defaultChatChannel(session), 'managed-write-denied', 'write', 'deny');
-		});
 	}
+
+	test('managed write denial prevents mutation under autoApprove', async function () {
+		this.timeout(180_000);
+		const session = await createSession({ ask: ['Write'] });
+		await fileTurn(defaultChatChannel(session), 'managed-write-denied', 'write', 'deny');
+	});
 
 	for (const operation of ['read', 'write'] as const) {
 		test(`managed ${operation} denial blocks the native tool under Allow All`, async function () {

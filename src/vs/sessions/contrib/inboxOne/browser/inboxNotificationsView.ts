@@ -54,6 +54,9 @@ import { IChatContentPartRenderContext } from '../../../../workbench/contrib/cha
 import { ChatCustomConfirmationWidget, SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { buildCustomOptionButtons } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.js';
 import { ChatTerminalToolExplanation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolExplanation.js';
+import { createModifiedFilePreviewEditorInput, findModifiedFileConfirmationEntry } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatModifiedFilesConfirmationSubPart.js';
+import { renderFileWidgets } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { ChatPlanReviewPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatPlanReviewPart.js';
@@ -70,9 +73,11 @@ import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/part
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { WelcomeName } from '../../chat/browser/welcomeName.js';
 import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
@@ -99,7 +104,7 @@ import {
 	getInboxPullRequestRefs,
 	getInboxToolConfirmationDetails,
 } from '../common/inboxNotificationsService.js';
-import { getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
+import { getInboxEmptyMessage, getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { createInboxEvidenceSection, InboxEvidenceWidget } from './inboxEvidenceWidget.js';
 import { InboxCanvases } from './inboxCanvases.js';
 
@@ -379,6 +384,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}));
 	private readonly recentCardsElement = $('.inbox-notifications-section-cards');
 	private readonly emptyListElement = $('.inbox-notifications-empty');
+	private readonly welcomeName: WelcomeName;
+	private emptyMessageIndex: number;
 	private readonly cardVisibilityObserver: IntersectionObserver;
 	private readonly visibleCardIds = new Set<string>();
 	private renderedCards: HTMLElement[] = [];
@@ -487,8 +494,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		@ILabelService private readonly labelService: ILabelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
+		this.emptyMessageIndex = this.storageService.getNumber('sessions.inbox.emptyMessageIndex', StorageScope.PROFILE, 0);
+		this.advanceEmptyMessage();
+		this.welcomeName = this._register(this.instantiationService.createInstance(WelcomeName, this.visible));
 		this._register(runOnChange(this.sessionsService.navigationRequest, () => this.sessionsPaneVisibility.clear()));
 		this._register(toDisposable(() => {
 			for (const rendering of this.cardRenderings.values()) {
@@ -538,6 +550,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 				this.reportImpression(item, index);
 				this.inboxNotificationsService.requestPreview(item);
+				this.inboxNotificationsService.requestDetailSummary(item, 'visibility');
 			}
 		}, { root: this.scrollableElement.getDomNode() });
 		this._register(toDisposable(() => this.cardVisibilityObserver.disconnect()));
@@ -568,6 +581,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (this.visible.get() === visible || this._store.isDisposed) {
 			return;
 		}
+		if (visible) {
+			this.emptyMessageIndex = this.storageService.getNumber('sessions.inbox.emptyMessageIndex', StorageScope.PROFILE, 0);
+			this.advanceEmptyMessage();
+		}
 		this.visible.set(visible, undefined);
 		if (visible) {
 			this.visibleSince = Date.now();
@@ -591,6 +608,16 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.newSessionView?.setVisible(composerVisible);
 		this.newSessionView?.setActive(composerVisible);
 		this.evidenceCanvases?.setVisible(visible);
+	}
+
+	private advanceEmptyMessage(): void {
+		this.storageService.store('sessions.inbox.emptyMessageIndex',
+			this.emptyMessageIndex + 1 < Number.MAX_SAFE_INTEGER ? this.emptyMessageIndex + 1 : 0,
+			StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	getEmptyAccessibleContent(): string | undefined {
+		return this.emptyListElement.isConnected ? this.emptyListElement.textContent ?? undefined : undefined;
 	}
 
 	focus(): void {
@@ -921,6 +948,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			if (!this.visible.read(reader)) {
 				return;
 			}
+			this.welcomeName.name.read(reader);
 			const tab = this.selectedTab.read(reader);
 			const query = this.searchText.read(reader).toLocaleLowerCase().trim();
 			const rows = this.inboxNotificationsService.sessionRows.read(reader);
@@ -1101,7 +1129,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const empty = this.emptyListElement;
 			empty.textContent = hiddenByFilter
 				? localize('inboxNotifications.empty.filtered', "No notifications match the current filter.")
-				: localize('inboxNotifications.empty', "You're all caught up.");
+				: this.selectedTab.get() === InboxTab.ReadyForYou
+					? getInboxEmptyMessage(this.welcomeName.name.get(),
+						this.inboxNotificationsService.sessionRows.get().some(row => row.tab === InboxTab.Working), this.emptyMessageIndex)
+					: localize('inboxNotifications.empty', "You're all caught up.");
 			sections.push(empty);
 		} else {
 			const cards = this.recentCardsElement;
@@ -1281,7 +1312,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		store.add(this.hoverService.setupDelayedHover(title, () => ({ content: title.textContent ?? item.title })));
 		store.add(autorun(reader => {
 			const generated = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
-			title.textContent = generated || row?.workTitle || item.title;
+			const preparing = !!item.previewSignature && generated === undefined;
+			title.textContent = preparing ? localize('inboxNotifications.preparing', "Preparing notification…") : generated || row?.workTitle || item.title;
+			title.setAttribute('aria-busy', String(preparing));
 			sessionTitle.textContent = row?.workTitle ?? row?.sessionTitle ?? item.title;
 			card.setAttribute('aria-label', [
 				title.textContent, sessionTitle.textContent, kindLabel, row && getInboxTabLabel(row.tab),
@@ -1572,6 +1605,23 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 					getChatMarkdownRenderOptions(),
 				)).element);
 			}
+			const invocation = this.getNeedsInputRequestContext(part.chatResource, part.requestId)?.response.response.value
+				.find(candidate => candidate.kind === 'toolInvocation' && candidate.toolCallId === part.toolCallId);
+			const modifiedFiles = invocation?.kind === 'toolInvocation' && invocation.toolSpecificData?.kind === 'modifiedFilesConfirmation'
+				? invocation.toolSpecificData.modifiedFiles : undefined;
+			renderFileWidgets(message.element, this.instantiationService, this.chatMarkdownAnchorService, store, modifiedFiles ? {
+				openResource: async (resource, options) => {
+					const file = findModifiedFileConfirmationEntry(modifiedFiles, resource);
+					const input = file ? createModifiedFilePreviewEditorInput(
+						resource,
+						file.originalContentUri ? URI.revive(file.originalContentUri) : file.originalUri ? URI.revive(file.originalUri) : undefined,
+						file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : undefined,
+						file.title,
+						options,
+					) : { resource, options };
+					return !!await this.editorService.openEditor(input);
+				},
+			} : undefined);
 			if (!part.buttons.length) {
 				message.element.appendChild($('p', undefined, localize('inboxNotifications.toolConfirmation.openSession', "Open the session to review the full request and respond.")));
 			}
@@ -2944,7 +2994,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.detailDisposables.add(autorun(reader => {
 			const current = this.inboxNotificationsService.sessionRows.read(reader).find(row => row.id === item.id) ?? item;
 			const generated = current?.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(current.previewSignature) : undefined;
-			heading.textContent = generated || sessionTitle;
+			const preparing = !!current.previewSignature && generated === undefined;
+			heading.textContent = preparing ? localize('inboxNotifications.preparing', "Preparing notification…") : generated || sessionTitle;
+			heading.setAttribute('aria-busy', String(preparing));
 			this.detailContentElement.setAttribute('aria-label', localize('inboxNotifications.detail.ariaLabel.item', "Notification details for {0}.", heading.textContent));
 		}));
 		const headerActions = header.appendChild($('.inbox-notifications-evidence-actions'));
@@ -3239,6 +3291,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (summary && (summary.status || summary.decisions.length || summary.evidence.length)) {
 			return summary;
 		}
+		if (item.sessionResource && (item.kind === InboxNotificationKind.Completed || item.needsInputPart || item.pullRequestStates?.length)) {
+			return undefined;
+		}
 		const preview = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
 		return preview && preview !== item.description && preview !== item.previewFallbackText ? { status: preview, decisions: [], evidence: [] } : undefined;
 	}
@@ -3247,7 +3302,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (summary.status) {
 			container.appendChild($('.inbox-notifications-detail-summary', undefined, summary.status));
 		}
-		if (summary.decisions.length || summary.evidence.length) {
+		if (summary.status && (summary.decisions.length || summary.evidence.length)) {
 			const details = container.appendChild($<HTMLDetailsElement>('details.inbox-evidence-disclosure'));
 			details.appendChild($('summary', undefined, localize('inbox.interpretation.context', "More agent context")));
 			store.add(addDisposableListener(details, 'toggle', () => this.detailScrollableElement.scanDomNode()));
@@ -3335,7 +3390,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	getDetailAccessibleContent(): string | undefined {
 		const item = this.selectedItem();
 		const sessionTitle = item ? this.getRow(item.id)?.sessionTitle ?? item.title : '';
-		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? sessionTitle : sessionTitle;
+		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? localize('inboxNotifications.preparing', "Preparing notification…") : sessionTitle;
 		const interpretation = item && this.getDetailInterpretation(item);
 		const content = [
 			...(interpretation ? [
