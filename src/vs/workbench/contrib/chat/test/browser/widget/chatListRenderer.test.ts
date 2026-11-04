@@ -10612,6 +10612,40 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+		for (const arrayChunks of [false, true]) {
+			test(`untimed BYOK thinking stays in one block without a duration (${persistentProgress}, arrayChunks=${arrayChunks})`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress, progressVerbosity: ChatProgressVerbosity.Compact });
+				const blockCounts: number[] = [];
+				for (const value of ['Consider', ' the', ' request.']) {
+					model.acceptResponseProgress(request, { kind: 'thinking', id: '', value: arrayChunks ? [value] : value });
+					renderer.renderElement(node, 0, template);
+					blockCounts.push(template.value.querySelectorAll('.chat-thinking-box').length);
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const thinkingParts = [...new Set(template.renderedParts)].filter(part => part instanceof ChatThinkingContentPart);
+				await Promise.all(thinkingParts.map(part => part.getPendingCollapseAnimation()));
+				for (const part of thinkingParts) {
+					part.expandContent();
+				}
+
+				assert.deepStrictEqual({
+					blockCounts,
+					blocks: template.value.querySelectorAll('.chat-thinking-box').length,
+					headers: Array.from(template.value.querySelectorAll<HTMLElement>('.chat-thinking-box > .chat-used-context-label .monaco-button'), button => ({ title: button.textContent, ariaLabel: button.ariaLabel })),
+					completeText: template.value.querySelector('.chat-thinking-box')?.textContent?.includes('Consider the request.'),
+				}, {
+					blockCounts: [1, 1, 1],
+					blocks: 1,
+					headers: [{ title: 'Finished thinking', ariaLabel: 'Finished thinking' }],
+					completeText: true,
+				});
+			});
+		}
+	}
+
 	for (const value of ['Reasoning without a heading', ['First reasoning piece', 'Second reasoning piece']]) {
 		test(`late reasoning timing refreshes a finalized header and ARIA label (${typeof value})`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
@@ -14567,6 +14601,7 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				await timeout(2500);
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-array', value: '', reasoningDurationMs: 2500 });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
 				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');

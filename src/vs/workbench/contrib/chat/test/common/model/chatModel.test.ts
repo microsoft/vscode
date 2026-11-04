@@ -937,26 +937,23 @@ suite('ChatModel', () => {
 		});
 	});
 
-	test('persists reasoning duration when response progress moves on', () => {
+	test('merges untimed thinking chunks with changing ids without inferring durations', () => {
 		const clock = sinon.useFakeTimers({ now: 1000 });
 		testDisposables.add(toDisposable(() => clock.restore()));
 		const response = testDisposables.add(new Response([]));
-		response.updateContent({ kind: 'thinking', value: ['First', ' thought'] });
-		clock.tick(1500);
+		response.updateContent({ kind: 'thinking', id: 'first', value: ['First'] });
+		clock.tick(500);
+		response.updateContent({ kind: 'thinking', id: 'second', value: [' thought'] });
+		clock.tick(1000);
 		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
 
-		assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking' ? {
-			kind: part.kind,
-			value: part.value,
-			reasoningStartedAt: part.reasoningStartedAt,
-			reasoningDurationMs: part.reasoningDurationMs,
-		} : { kind: part.kind }), [
-			{ kind: 'thinking', value: ['First', ' thought'], reasoningStartedAt: 1000, reasoningDurationMs: 1500 },
-			{ kind: 'markdownContent' },
+		assert.deepStrictEqual(response.value, [
+			{ kind: 'thinking', id: 'first', value: 'First thought' },
+			{ kind: 'markdownContent', content: new MarkdownString('Done') },
 		]);
 	});
 
-	test('persists reasoning duration when response completes without a rendered row', () => {
+	test('leaves reasoning untimed when response completes without a rendered row', () => {
 		const clock = sinon.useFakeTimers({ now: 1000 });
 		testDisposables.add(toDisposable(() => clock.restore()));
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -967,7 +964,7 @@ suite('ChatModel', () => {
 		request.response?.complete();
 
 		const thinkingPart = request.response?.entireResponse.value.find(part => part.kind === 'thinking');
-		assert.deepStrictEqual(thinkingPart?.kind === 'thinking' ? { startedAt: thinkingPart.reasoningStartedAt, durationMs: thinkingPart.reasoningDurationMs } : undefined, { startedAt: 1000, durationMs: 2300 });
+		assert.deepStrictEqual(thinkingPart, { kind: 'thinking', value: 'Still reasoning' });
 	});
 
 	test('keeps the recorded timing of restored reasoning instead of timing the replay', () => {
@@ -979,7 +976,6 @@ suite('ChatModel', () => {
 		response.updateContent({ kind: 'thinking', id: 'untimed', value: 'Untimed reasoning' }, false, true);
 		clock.tick(800);
 		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') }, false, true);
-		response.finalizeReasoningDuration();
 
 		assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'thinking'
 			? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
@@ -989,7 +985,7 @@ suite('ChatModel', () => {
 		]);
 	});
 
-	test('provider-owned reasoning stays untimed after reconnect while local providers retain measurement', () => {
+	test('reasoning without recorded timing stays untimed after reconnect and live output', () => {
 		const clock = sinon.useFakeTimers({ now: 900_000 });
 		testDisposables.add(toDisposable(() => clock.restore()));
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1005,7 +1001,7 @@ suite('ChatModel', () => {
 
 		assert.deepStrictEqual(restored.getRequests()[0].response?.entireResponse.value.filter(part => part.kind === 'thinking'), [
 			{ kind: 'thinking', id: 'remote', value: 'Restored continuation', reasoningTimingSource: 'provider' },
-			{ kind: 'thinking', id: 'local', value: 'Local reasoning', reasoningStartedAt: 905_000, reasoningDurationMs: 2000 },
+			{ kind: 'thinking', id: 'local', value: 'Local reasoning' },
 		]);
 	});
 
@@ -1014,7 +1010,6 @@ suite('ChatModel', () => {
 		response.updateContent({ kind: 'thinking', id: 'remote', value: 'Reasoning', reasoningTimingSource: 'provider' });
 		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Answer') });
 		response.updateContent({ kind: 'thinking', id: 'remote', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 0 });
-		response.finalizeReasoningDuration();
 
 		assert.deepStrictEqual(response.value[0], { kind: 'thinking', id: 'remote', value: 'Reasoning', reasoningTimingSource: 'provider', reasoningDurationMs: 0 });
 	});
@@ -1029,7 +1024,6 @@ suite('ChatModel', () => {
 		clock.tick(5000);
 		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
 		response.updateContent({ kind: 'thinking', id: 'reasoning', value: '', reasoningDurationMs: 45_000 });
-		response.finalizeReasoningDuration();
 
 		assert.deepStrictEqual({ parts: response.value, keepsRenderedPart: response.value[0] === renderedPart }, {
 			parts: [
@@ -1058,15 +1052,18 @@ suite('ChatModel', () => {
 		]);
 	});
 
-	test('keeps consecutive reasoning ids and zero durations distinct', () => {
+	test('keeps consecutive provider reasoning ids distinct with or without recorded durations', () => {
 		const response = testDisposables.add(new Response([]));
 		response.updateContent({ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 });
 		response.updateContent({ kind: 'thinking', id: 'second', value: 'Second', reasoningDurationMs: 0 });
-		response.finalizeReasoningDuration();
+		response.updateContent({ kind: 'thinking', id: 'third', value: 'Third', reasoningTimingSource: 'provider' });
+		response.updateContent({ kind: 'thinking', id: 'fourth', value: 'Fourth', reasoningTimingSource: 'provider' });
 
 		assert.deepStrictEqual(response.value, [
 			{ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 },
 			{ kind: 'thinking', id: 'second', value: 'Second', reasoningDurationMs: 0 },
+			{ kind: 'thinking', id: 'third', value: 'Third', reasoningTimingSource: 'provider' },
+			{ kind: 'thinking', id: 'fourth', value: 'Fourth', reasoningTimingSource: 'provider' },
 		]);
 	});
 
@@ -1441,11 +1438,8 @@ suite('Response', () => {
 	});
 
 	test('mergeable thinking across nested subagent progress', () => {
-		const clock = sinon.useFakeTimers({ now: 1000 });
-		store.add(toDisposable(() => clock.restore()));
 		const response = store.add(new Response([]));
 		response.updateContent({ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid' });
-		clock.tick(500);
 		response.updateContent(ChatToolInvocation.createStreaming({
 			toolCallId: 'child-tool',
 			toolId: 'view',
@@ -1457,21 +1451,17 @@ suite('Response', () => {
 			},
 			subagentInvocationId: 'parent-tool',
 		}));
-		clock.tick(250);
 		response.updateContent({
 			kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit',
 			subAgentInvocationId: 'parent-tool',
 		});
-		clock.tick(250);
 		response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' base stats.' });
-		clock.tick(1000);
-		// The parent's own content ends the section, so the timer covers the whole merged block.
 		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
 
 		assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking'
-			? { kind: part.kind, id: part.id, value: part.value, reasoningDurationMs: part.reasoningDurationMs }
+			? { kind: part.kind, id: part.id, value: part.value }
 			: { kind: part.kind }), [
-			{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.', reasoningDurationMs: 2000 },
+			{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.' },
 			{ kind: 'toolInvocation' },
 			{ kind: 'externalEdit' },
 			{ kind: 'markdownContent' },
