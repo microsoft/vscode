@@ -561,8 +561,6 @@ importers:
         specifier: 0.6.1
         version: 0.6.1
 
-  .vscode/extensions/vscode-extras: {}
-
   .vscode/extensions/vscode-pr-pinger:
     dependencies:
       '@octokit/graphql':

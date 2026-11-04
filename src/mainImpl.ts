@@ -223,7 +223,7 @@ async function onReady() {
 			resolveNlsConfiguration()
 		]);
 
-		await startup(codeCachePath, nlsConfig);
+		await startup(codeCachePath, { ...nlsConfig, regionalLocale: app.getSystemLocale().toLowerCase() });
 	} catch (error) {
 		console.error(error);
 	}

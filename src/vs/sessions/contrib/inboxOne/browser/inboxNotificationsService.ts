@@ -74,6 +74,7 @@ import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceComman
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
 const MAX_DISMISSED_NOTIFICATION_IDS = 1000;
 const WORKFLOW_STORAGE_KEY = 'sessions.inboxNotifications.workflow';
+const COMPLETION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.completionStartTime';
 
 /** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
@@ -412,6 +413,12 @@ interface INeedsInputPartCandidate {
 	readonly part: IInboxNotificationNeedsInputPart;
 }
 
+interface IInboxWorkflowState {
+	readonly hold?: boolean;
+	readonly done?: string;
+	readonly resumedCompletion?: number;
+}
+
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -468,7 +475,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
 	readonly attentionCount: IObservable<number>;
-	private readonly _workflow = observableValue<ReadonlyMap<string, { hold?: boolean; done?: string }>>(this, new Map());
+	private readonly _workflow = observableValue<ReadonlyMap<string, IInboxWorkflowState>>(this, new Map());
+	private readonly _completionStartTime = observableValue(this, Number.POSITIVE_INFINITY);
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _enabled: IObservable<boolean>;
@@ -513,6 +521,20 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, COMPLETION_START_TIME_STORAGE_KEY, this._store)(event => {
+			if (event.external) {
+				this._completionStartTime.set(this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION, Number.POSITIVE_INFINITY), undefined);
+			}
+		}));
+		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
+				return;
+			}
+			// Enabling Inbox must not backfill completed history, even when it is still unread.
+			const startTime = this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION) ?? Date.now();
+			this.storageService.store(COMPLETION_START_TIME_STORAGE_KEY, startTime, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this._completionStartTime.set(startTime, undefined);
+		}));
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
 			for (const type of removed) {
 				this._unregisteredChatProviders.add(type);
@@ -672,7 +694,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
 					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou;
+						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge
+							: status === SessionStatus.Completed && !this.hasPendingCompletion(session, reader) ? InboxTab.Done : InboxTab.ReadyForYou;
 				const lead = notifications[0];
 				const title = this.getRowActionTitle(tab, lead, sessionTitle);
 				const chatResource = lead?.chatResource ?? lead?.needsInputPart?.chatResource;
@@ -1502,16 +1525,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			if (!Array.isArray(entries)) {
 				throw new Error('Invalid Inbox workflow state');
 			}
-			const state = new Map<string, { hold?: boolean; done?: string }>();
+			const state = new Map<string, IInboxWorkflowState>();
 			for (const entry of entries) {
 				if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'object' || !entry[1]) {
 					throw new Error('Invalid Inbox workflow entry');
 				}
 				const value = entry[1];
-				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')) {
+				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')
+					|| (value.resumedCompletion !== undefined && (typeof value.resumedCompletion !== 'number' || !Number.isFinite(value.resumedCompletion)))) {
 					throw new Error('Invalid Inbox workflow value');
 				}
-				state.set(entry[0], { hold: value.hold, done: value.done });
+				state.set(entry[0], { hold: value.hold, done: value.done, resumedCompletion: value.resumedCompletion });
 			}
 			this._workflow.set(state, undefined);
 		} catch (error) {
@@ -1519,10 +1543,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private saveWorkflow(id: string, value: { hold?: boolean; done?: string }): void {
+	private saveWorkflow(id: string, value: IInboxWorkflowState): void {
 		const state = new Map(this._workflow.get());
 		state.delete(id);
-		if (value.hold || value.done) {
+		if (value.hold || value.done || value.resumedCompletion !== undefined) {
 			state.set(id, value);
 		}
 		while (state.size > MAX_DISMISSED_NOTIFICATION_IDS) {
@@ -1533,7 +1557,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void {
-		this.saveWorkflow(row.id, { hold: onHold });
+		const session = row.sessionResource && this.sessionsManagementService.getSession(row.sessionResource);
+		const resumedCompletion = !onHold && session?.status.get() === SessionStatus.Completed
+			? session.lastTurnEnd.get()?.getTime() ?? session.updatedAt.get().getTime() : undefined;
+		this.saveWorkflow(row.id, { hold: onHold, resumedCompletion });
 	}
 
 	markSessionDone(row: IInboxSessionRow): void {
@@ -1674,7 +1701,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		// Use provider state rather than a resident chat model, so loading/unloading history
 		// does not change the id or resurrect a dismissed notification.
-		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
+		if (status === SessionStatus.Completed && this.hasPendingCompletion(session, reader) && itemsById.size === sizeBeforePullRequests) {
 			const turnId = session.lastTurnEnd.read(reader)?.getTime() ?? updatedAt;
 			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
@@ -1689,6 +1716,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				actions: this.sessionActions(true),
 			});
 		}
+	}
+
+	private hasPendingCompletion(session: ISession, reader: IReader): boolean {
+		const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
+		const saved = this._workflow.read(reader).get(`session:${session.sessionId}`);
+		return turnEnd >= this._completionStartTime.read(reader) || !!saved?.hold || saved?.resumedCompletion === turnEnd;
 	}
 
 	private ensureGitHubModels(session: ISession, reader: IReaderWithStore): void {

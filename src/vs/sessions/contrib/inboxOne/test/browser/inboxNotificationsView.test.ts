@@ -1632,6 +1632,55 @@ suite('InboxNotificationsView', () => {
 		assert.strictEqual(observer.targets.size, 0);
 	});
 
+	for (const kind of ['questionCarousel', 'confirmation', 'toolConfirmation', 'completed'] as const) {
+		test(`agent interpretation precedes ${kind} details even when generated later`, () => {
+			const chatResource = URI.parse('test:///chat');
+			const common = { chatResource, requestId: 'request', title: 'Continue?', message: '' };
+			const needsInputPart: IInboxNotificationItem['needsInputPart'] = kind === 'questionCarousel'
+				? { kind, ...common, resolveId: 'resolve', questions: [], allowSkip: true }
+				: kind === 'confirmation' ? { kind, ...common, data: {} }
+					: kind === 'toolConfirmation' ? { kind, ...common, toolCallId: 'tool', confirmationKind: 'execution', buttons: [{ label: 'Allow', kind: 'approve' }] }
+						: undefined;
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: needsInputPart ? InboxNotificationKind.NeedsInput : InboxNotificationKind.Completed,
+				priority: InboxNotificationPriority.Now, title: 'Pending work', description: 'Notification details',
+				timestamp: 1, actions: [], needsInputPart,
+			};
+			const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());
+			const { view, container, instantiationService } = createView(constObservable([item]), { detailSummaries: summaries });
+			instantiationService.stub(IMarkdownRendererService, 'render', (markdown: IMarkdownString) => {
+				const element = document.createElement('span');
+				element.textContent = markdown.value;
+				return { element, dispose: () => { } };
+			});
+			const questionControls = document.createElement('div');
+			questionControls.textContent = 'Question controls';
+			instantiationService.stubInstance(ChatQuestionCarouselPart, {
+				domNode: questionControls, onDidChangeHeight: Event.None, dispose: () => { },
+			});
+			view.render(container);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const section = container.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')!;
+			const initiallyHidden = section.hidden;
+			const initiallyAccessible = view.getDetailAccessibleContent();
+			summaries.set(new Map([[item.id, { status: 'Interpretation first', decisions: ['Supporting context'], evidence: [] }]]), undefined);
+			const accessible = view.getDetailAccessibleContent()!;
+			const body = container.querySelector<HTMLElement>('.inbox-notifications-detail-body')!;
+			assert.deepStrictEqual({
+				initiallyHidden,
+				initiallyAccessible: initiallyAccessible?.includes('Agent interpretation'),
+				hidden: section.hidden,
+				firstContent: body.children[1] === section,
+				followedByDetails: section.nextElementSibling?.textContent?.includes(kind === 'completed' ? item.description : kind === 'questionCarousel' ? 'Question controls' : 'Continue?'),
+				accessibleOrder: /Interpretation first[\s\S]*Notification details/.test(accessible),
+				context: section.querySelector('summary')?.textContent,
+			}, {
+				initiallyHidden: true, initiallyAccessible: false, hidden: false, firstContent: true,
+				followedByDetails: true, accessibleOrder: true, context: 'More agent context',
+			});
+		});
+	}
+
 	test('question cards isolate their context keys from the window and other cards', () => {
 		const scopes: IContextKeyService[] = [];
 		class RecordingContextKeyService extends ContextKeyService {
