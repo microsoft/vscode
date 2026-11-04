@@ -6,7 +6,8 @@
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { detectImageMimeType } from '../../../../../../base/common/image.js';
-import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, resolveWithBaseUri } from '../../../../../../base/common/htmlContent.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { rewriteMarkdownLinks } from '../../../../../../base/common/markdownLinks.js';
 import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -22,7 +23,8 @@ import { MessageAttachmentKind, MessageKind, readUsageInfoMeta, ResponsePartKind
 import { ElicitationState, IChatToolInvocation, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
 import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import type { ILanguageModelsService } from '../../../common/languageModels.js';
+import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
+import { getDisplayedQuestionText } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { getCodeCitationsMessage, type IChatModel, type IChatRequestModel } from '../../../common/model/chatModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, type IToolResultOutputDetails, type ToolInputOutputEmbedded, type ToolInputOutputReference } from '../../../common/tools/languageModelToolsService.js';
 
@@ -126,23 +128,33 @@ function markdownParagraph(text: string): string {
 	return `\n\n${text}\n\n`;
 }
 
-/** Rewrites the link targets in Local markdown to the host's resources, as agent-host history expects. */
-function toHostMarkdown(markdown: string, resourceUris: IAgentHostResourceUriMapper): string {
+/**
+ * Rewrites the link targets in Local markdown to the host's resources, as
+ * agent-host history expects. The imported markdown keeps no base URI, so
+ * relative targets are first resolved against the source's.
+ */
+function toHostMarkdown(markdown: string, resourceUris: IAgentHostResourceUriMapper, baseUri?: URI): string {
 	return rewriteMarkdownLinks(markdown, {
 		rewriteLink: token => {
+			const href = baseUri && !token.href.startsWith('#') ? resolveWithBaseUri(baseUri, token.href) : token.href;
 			let uri: URI;
 			try {
-				uri = URI.parse(token.href, true);
+				uri = URI.parse(href, true);
 			} catch {
 				return undefined;
 			}
 			if (!uri.scheme) {
 				return undefined;
 			}
-			const target = toHostResource(uri, resourceUris);
-			return target.toString() === uri.toString() ? undefined : `${token.type === 'image' ? '!' : ''}[${token.text}](${target.toString()})`;
+			const target = toHostResource(uri, resourceUris).toString();
+			return target === token.href ? undefined : `${token.type === 'image' ? '!' : ''}[${token.text}](${target})`;
 		},
 	});
+}
+
+/** Converts Local markdown to the host's, see {@link toHostMarkdown}. */
+function toHostMarkdownString(markdown: IMarkdownString, resourceUris: IAgentHostResourceUriMapper): string {
+	return toHostMarkdown(markdown.value, resourceUris, markdown.baseUri ? URI.revive(markdown.baseUri) : undefined);
 }
 
 /** Converts a Local tool message, keeping markdown (with its links mapped to the host) as markdown. */
@@ -150,20 +162,28 @@ function toolMessage(message: string | IMarkdownString | undefined, resourceUris
 	if (message === undefined || typeof message === 'string') {
 		return message || undefined;
 	}
-	return message.value ? { markdown: toHostMarkdown(message.value, resourceUris) } : undefined;
+	return message.value ? { markdown: toHostMarkdownString(message, resourceUris) } : undefined;
 }
 
 /**
  * Converts a Local tool result item that is not text: embedded data (e.g. an
- * image) is carried inline, and a referenced resource as a reference to the
- * host's resource.
+ * image) is carried inline, and a referenced file as a reference to the
+ * host's file. Two kinds are left out:
+ * - Output meant only for the user, which Local never gave the model: every
+ *   tool output imported becomes part of the history the agent continues from.
+ * - References the host cannot read, such as Local's references to MCP
+ *   resources (`mcp-resource:`), which only Local's own MCP connection serves.
  */
 function toolOutputContent(item: ToolInputOutputEmbedded | ToolInputOutputReference, resourceUris: IAgentHostResourceUriMapper): ToolResultContent | undefined {
+	if (item.audience && !item.audience.includes(LanguageModelPartAudience.Assistant)) {
+		return undefined;
+	}
 	if (item.type === 'embed') {
 		return item.value ? { type: ToolResultContentType.EmbeddedResource, data: item.value, contentType: item.mimeType ?? Mimes.binary } : undefined;
 	}
 	const uri = URI.isUri(item.uri) ? item.uri : URI.revive(item.uri);
-	return uri ? { type: ToolResultContentType.Resource, uri: toHostResource(uri, resourceUris).toString(), ...(item.mimeType ? { contentType: item.mimeType } : {}) } : undefined;
+	const target = uri && toHostResource(uri, resourceUris);
+	return target?.scheme === Schemas.file ? { type: ToolResultContentType.Resource, uri: target.toString(), ...(item.mimeType ? { contentType: item.mimeType } : {}) } : undefined;
 }
 
 /** Converts a Local tool result that is a single data item, live (bytes) or saved (base64). */
@@ -191,9 +211,14 @@ function toolCallCancellationMessage(reason: ToolDeniedReason): string | undefin
 }
 
 /**
- * How a Local tool call was let run, or why it never ran. Chats saved before
- * the reason was recorded only kept whether the call was confirmed; a call
- * with no record at all is treated as not needing confirmation.
+ * How a Local tool call was let run, or why it was cancelled. Chats saved
+ * before the reason was recorded only kept whether the call was confirmed; a
+ * call with no record at all is treated as not needing confirmation.
+ *
+ * Local records a call denied or skipped before it ran the same way as one
+ * whose result was rejected after it ran (and saves one still awaiting result
+ * approval as skipped), so neither is mapped to a rejected result: the
+ * cancellation is kept without claiming whether the call ran.
  */
 function toolCallConfirmation(part: IChatToolInvocation | IChatToolInvocationSerialized): { readonly confirmed: ToolCallConfirmationReason; readonly cancelled?: undefined } | { readonly cancelled: ToolCallCancellationReason; readonly reasonMessage: string | undefined } {
 	const reason = part.kind === 'toolInvocationSerialized' && part.isConfirmed === undefined
@@ -217,8 +242,8 @@ function toolCallConfirmation(part: IChatToolInvocation | IChatToolInvocationSer
 /**
  * Maps a local chat tool invocation (live or serialized) to an agent-host
  * tool call, carrying its name, invocation messages, raw input, result output
- * and how it was confirmed. A call that was denied or skipped never ran, so it
- * becomes a cancelled call. Failure is inferred from result details or a
+ * and how it was confirmed. A call that was denied or skipped becomes a
+ * cancelled call. Failure is inferred from result details or a
  * phase's terminal status.
  *
  * Sub-agent invocations (`toolSpecificData.kind === 'subagent'`) keep their
@@ -357,6 +382,16 @@ function editedFilesToMarkdown(files: readonly URI[], resourceUris: IAgentHostRe
 	return markdownParagraph(localize('chat.importConversation.editedFiles', "Edited {0}", links.join(', ')));
 }
 
+/**
+ * The question as it was shown, as one line of plain text. The built-in
+ * `askQuestions` tool keeps the question in its message and only a short
+ * header in its title.
+ */
+function questionText(question: IChatQuestion): string {
+	const text = getDisplayedQuestionText(question);
+	return (typeof text === 'string' ? text : renderAsPlaintext(text)).replace(/\s*\n\s*/g, ' ').trim() || question.title;
+}
+
 /** The text of one answer to a question, using its options' labels. */
 function questionAnswerText(question: IChatQuestion, answer: IChatQuestionAnswerValue): string {
 	const label = (value: string) => question.options?.find(option => option.value === value || option.id === value)?.label ?? value;
@@ -387,7 +422,7 @@ function questionCarouselToMarkdown(part: IChatQuestionCarousel): string | undef
 				: part.answeredExternally ? localize('chat.importConversation.questionAnsweredExternally', "Answered outside the chat")
 					: part.isUsed ? localize('chat.importConversation.questionSkipped', "Skipped")
 						: localize('chat.importConversation.questionUnanswered', "Not answered"));
-		return `- ${localize('chat.importConversation.questionAnswer', "{0}: {1}", escapeMarkdownSyntaxTokens(question.title), escapeMarkdownSyntaxTokens(text))}`;
+		return `- ${localize('chat.importConversation.questionAnswer', "{0}: {1}", escapeMarkdownSyntaxTokens(questionText(question)), escapeMarkdownSyntaxTokens(text))}`;
 	});
 	return markdownParagraph(localize('chat.importConversation.questions', "Questions:\n{0}", lines.join('\n')));
 }
@@ -410,7 +445,7 @@ function elicitationToMarkdown(part: IChatElicitationRequest | IChatElicitationR
 
 /** Renders a confirmation the agent asked for with its message. */
 function confirmationToMarkdown(part: IChatConfirmation, resourceUris: IAgentHostResourceUriMapper): string {
-	const message = typeof part.message === 'string' ? escapeMarkdownSyntaxTokens(part.message) : toHostMarkdown(part.message.value, resourceUris);
+	const message = typeof part.message === 'string' ? escapeMarkdownSyntaxTokens(part.message) : toHostMarkdownString(part.message, resourceUris);
 	return markdownParagraph(`**${escapeMarkdownSyntaxTokens(part.title)}**${message ? `\n\n${message}` : ''}`);
 }
 

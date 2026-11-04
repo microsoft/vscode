@@ -126,8 +126,9 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 
 	/**
 	 * Emits the `tool.execution_start` + `tool.execution_complete` pair for a
-	 * finished tool call. A call that was cancelled before running is recorded
-	 * as failed with why, so the history the model resumes from says it did not run.
+	 * finished tool call. A cancelled call is recorded as failed with why it
+	 * was cancelled, so the history the model resumes from does not present
+	 * it as having produced a result.
 	 */
 	const pushFinishedToolCall = (tc: ToolCallCompletedState | ToolCallCancelledState): void => {
 		let parsedToolInput: Record<string, JsonValue> | undefined;
@@ -484,17 +485,21 @@ function failedToolCallResult(tc: ToolCallCompletedState): { result?: ToolExecut
 }
 
 /**
- * Why a tool call never ran, as recorded for the model in place of its
+ * Why a tool call was cancelled, as recorded for the model in place of its
  * result. Who denied or skipped it is only known from its reason message.
+ * A call whose result was rejected had run. An imported call that was
+ * denied or skipped may have run too (Local records a result rejected after
+ * the call ran the same way), so the wording does not claim it did not run.
  */
 function cancelledToolCallMessage(tc: ToolCallCancelledState): string {
 	if (tc.reasonMessage) {
 		return typeof tc.reasonMessage === 'string' ? tc.reasonMessage : tc.reasonMessage.markdown;
 	}
 	switch (tc.reason) {
-		case ToolCallCancellationReason.Denied: return 'This tool call was denied and did not run.';
-		case ToolCallCancellationReason.Skipped: return 'This tool call was skipped and did not run.';
-		default: return 'This tool call was cancelled and did not run.';
+		case ToolCallCancellationReason.Denied: return 'This tool call was denied.';
+		case ToolCallCancellationReason.Skipped: return 'This tool call was skipped.';
+		case ToolCallCancellationReason.ResultDenied: return 'This tool call ran, but its result was rejected.';
+		default: return 'This tool call was cancelled.';
 	}
 }
 
@@ -593,9 +598,9 @@ interface IImportedToolCall {
 	readonly invocationMessage: StringOrMarkdown;
 	readonly pastTenseMessage?: StringOrMarkdown;
 	readonly confirmed?: ToolCallConfirmationReason;
-	/** Set when the call never ran; the event log records it as failed. */
+	/** Set when the call was cancelled; the event log records it as failed. */
 	readonly cancelled?: ToolCallCancellationReason;
-	/** Why the call never ran, e.g. who denied it. */
+	/** Why the call was cancelled, e.g. who denied it. */
 	readonly reasonMessage?: StringOrMarkdown;
 	/** Resource references in the result, which an event log replay keeps only for MCP tools. */
 	readonly resources?: readonly { readonly uri: string; readonly contentType?: string }[];

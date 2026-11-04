@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, resolveWithBaseUri } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ElicitationState, ToolConfirmKind, type IChatCodeCitation, type IChatContentReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import type { ILanguageModelsService } from '../../../common/languageModels.js';
+import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
 import { completedToolCallToSerialized, rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -360,9 +360,19 @@ suite('importedTurnsFromChatModel', () => {
 		const turns = importedTurnsFromChatModel(model([request('q', response([
 			call('outputs', {
 				invocationMessage: new MarkdownString('Reading [](file:///repo/a.ts)'),
-				pastTenseMessage: new MarkdownString('Read [](file:///repo/a.ts)'),
+				// A relative link resolves against the message's base URI, which the imported message does not keep.
+				pastTenseMessage: Object.assign(new MarkdownString('Read [a.ts](a.ts)'), { baseUri: URI.file('/repo/') }),
 				isConfirmed: { type: ToolConfirmKind.UserAction },
-				resultDetails: { input: '{}', output: [{ type: 'embed', isText: true, value: 'ok' }, { type: 'embed', mimeType: 'image/png', value: 'AAEC' }, { type: 'ref', uri: URI.file('/repo/out.log'), mimeType: 'text/plain' }] },
+				resultDetails: {
+					input: '{}', output: [
+						{ type: 'embed', isText: true, value: 'ok' },
+						{ type: 'embed', mimeType: 'image/png', value: 'AAEC' },
+						{ type: 'ref', uri: URI.file('/repo/out.log'), mimeType: 'text/plain' },
+						// Left out: output Local only showed the user, and a resource only Local's MCP connection can read.
+						{ type: 'embed', mimeType: 'image/png', value: 'USER', audience: [LanguageModelPartAudience.User] },
+						{ type: 'ref', uri: URI.from({ scheme: 'mcp-resource', authority: 'server', path: '/doc' }) },
+					]
+				},
 			}),
 			call('data', { isConfirmed: { type: ToolConfirmKind.Setting, id: 'chat.tools.autoApprove' }, resultDetails: { output: { type: 'data', mimeType: 'image/jpeg', base64Data: '/9j/' } } }),
 			call('denied', { isConfirmed: { type: ToolConfirmKind.Denied, source: 'hook' } }),
@@ -385,7 +395,7 @@ suite('importedTurnsFromChatModel', () => {
 			{
 				id: 'outputs',
 				invocationMessage: { markdown: 'Reading [](file:///host/repo/a.ts)' },
-				pastTenseMessage: { markdown: 'Read [](file:///host/repo/a.ts)' },
+				pastTenseMessage: { markdown: `Read [a.ts](${resourceUris.toAgentHost(URI.parse(resolveWithBaseUri(URI.file('/repo/'), 'a.ts'))).toString()})` },
 				confirmed: ToolCallConfirmationReason.UserAction,
 				content: [
 					{ type: ToolResultContentType.Text, text: 'ok' },
@@ -429,7 +439,8 @@ suite('importedTurnsFromChatModel', () => {
 			{
 				kind: 'questionCarousel', allowSkip: true, isUsed: true,
 				questions: [
-					{ id: 'db', type: 'singleSelect', title: 'Which database?', options: [{ id: 'pg', label: 'PostgreSQL', value: 'pg' }] },
+					// The question itself is its message; its title is only a short header.
+					{ id: 'db', type: 'singleSelect', title: 'Database', message: new MarkdownString('Which **database**\nshould we use?'), options: [{ id: 'pg', label: 'PostgreSQL', value: 'pg' }] },
 					{ id: 'features', type: 'multiSelect', title: 'Features', options: [{ id: 'auth', label: 'Auth', value: 'auth' }, { id: 'billing', label: 'Billing', value: 'billing' }] },
 					{ id: 'name', type: 'text', title: 'Project name' },
 				],
@@ -444,7 +455,7 @@ suite('importedTurnsFromChatModel', () => {
 		]))]));
 
 		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
-			'\n\nQuestions:\n- Which database?: PostgreSQL\n- Features: Auth, Billing, Search\n- Project name: Skipped\n\n',
+			'\n\nQuestions:\n- Which database should we use?: PostgreSQL\n- Features: Auth, Billing, Search\n- Project name: Skipped\n\n',
 			'\n\nAllow access to the issue tracker: Accepted\n\n',
 			'\n\nQuestions:\n- Branch name: Answered outside the chat\n\n',
 			'\n\nQuestions:\n- Retry: Answered automatically\n\n',

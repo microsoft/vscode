@@ -373,6 +373,18 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 					reason: ToolCallCancellationReason.Skipped,
 				} satisfies ToolCallCancelledState,
 			},
+			{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.Cancelled,
+					toolCallId: 'result-denied',
+					toolName: 'copilot_fetch',
+					displayName: 'Fetch',
+					invocationMessage: 'Fetching',
+					toolInput: '{}',
+					reason: ToolCallCancellationReason.ResultDenied,
+				} satisfies ToolCallCancelledState,
+			},
 		];
 		const turns = [userTurn(generateUuid(), 'check it', toolCalls)];
 		const events = buildSessionEventsFromTurns(turns, { sessionId });
@@ -391,7 +403,8 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		const withoutRecord = await replay(undefined);
 
 		assert.deepStrictEqual({
-			// The model's history says the denied and skipped calls did not run, naming who only when that was recorded.
+			// The model's history says the cancelled calls produced no result, naming who only when that was
+			// recorded, and that a call whose result was rejected had run.
 			cancelledResults: events.flatMap(e => e.type === 'tool.execution_complete' && !e.data.success && !e.data.result ? [e.data.error] : []),
 			restored,
 			// Without the record, a replay regenerates the messages and loses what only the record keeps.
@@ -399,7 +412,8 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		}, {
 			cancelledResults: [
 				{ message: 'Denied by a hook.', code: 'denied' },
-				{ message: 'This tool call was skipped and did not run.', code: 'skipped' },
+				{ message: 'This tool call was skipped.', code: 'skipped' },
+				{ message: 'This tool call ran, but its result was rejected.', code: 'result-denied' },
 			],
 			restored: [
 				{
@@ -431,6 +445,7 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 				},
 				{ status: ToolCallStatus.Cancelled, displayName: 'Run in Terminal', invocationMessage: 'Running npm test', reason: ToolCallCancellationReason.Denied, reasonMessage: 'Denied by a hook.' },
 				{ status: ToolCallStatus.Cancelled, displayName: 'Run in Terminal', invocationMessage: 'Running npm run build', reason: ToolCallCancellationReason.Skipped, reasonMessage: undefined },
+				{ status: ToolCallStatus.Cancelled, displayName: 'Fetch', invocationMessage: 'Fetching', reason: ToolCallCancellationReason.ResultDenied, reasonMessage: undefined },
 			],
 			withoutRecord: [
 				{
@@ -452,7 +467,8 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 					],
 				},
 				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'Denied by a hook.' }] },
-				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'This tool call was skipped and did not run.' }] },
+				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'This tool call was skipped.' }] },
+				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'This tool call ran, but its result was rejected.' }] },
 			],
 		});
 	});
