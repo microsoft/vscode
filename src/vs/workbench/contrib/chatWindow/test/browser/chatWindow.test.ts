@@ -167,6 +167,7 @@ suite('Chat window', () => {
 			resizing: constObservable(false),
 			didMoveChatOut: () => events.push('moved out'),
 			findGroup: editor => [...chat.part.groups, ...main.part.groups, ...elsewhere.part.groups].find(group => group.contains(editor)),
+			showMoveVeto: message => events.push(`veto ${message}`),
 			resetLayout: () => events.push('reset layout'),
 			windowGroups: options?.otherPart ? {
 				get groups() { return [...chat.part.groups, ...main.part.groups, ...other.part.groups, ...(terminals?.part.groups ?? [])]; },
@@ -434,7 +435,27 @@ suite('Chat window', () => {
 		chat.group.moveEditor(chatInput, elsewhere.group);
 		await timeout(0);
 
-		assert.deepStrictEqual({ events, chat: chat.group.contains(chatInput), elsewhere: elsewhere.group.contains(chatInput) }, { events: ['move to elsewhere', 'move to chat'], chat: true, elsewhere: false });
+		assert.deepStrictEqual({ events, chat: chat.group.contains(chatInput), elsewhere: elsewhere.group.contains(chatInput) }, { events: ['move to elsewhere', 'veto cannot move', 'move to chat'], chat: true, elsewhere: false });
+	});
+
+	test('the chat\'s group moving to another window, which opens the chat there and closes it in the group it leaves rather than moving it, takes the chat out of the window, with the groups split beside it, rather than closing the window', async () => {
+		const { window, chat, elsewhere, chatInput, events } = createWindow();
+		chat.addGroup().open(editor());
+		// As a group moves to another part: its editors open there, then close where they were, and the group goes away
+		elsewhere.group.open(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.UNKNOWN);
+		chat.part.groups.splice(chat.part.groups.indexOf(chat.group), 1);
+		await timeout(0);
+
+		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['moved out'], captured: { state: { groups: [1, 1] }, chatGroup: 0 } });
+	});
+
+	test('the chat moved into another part of the window, such as its main part, no longer has the chat part as it left it to open the window with', () => {
+		const { window, main, chat, chatInput } = createWindow();
+		chat.group.open(editor());
+		chat.group.moveEditor(chatInput, main.group);
+
+		assert.strictEqual(window.captureChatPart(), undefined);
 	});
 
 	test('while an editor of a part the window created, such as for an editor dropped on its edge, cannot move to the main window, closing it does nothing at all', () => {
