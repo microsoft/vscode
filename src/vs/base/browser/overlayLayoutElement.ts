@@ -19,29 +19,33 @@ export interface IOverlayAnchorHost {
 	setHidden(hidden: boolean): void;
 }
 
-const overlayAnchors = new Map<HTMLElement, Map<IOverlayAnchorHost, number>>();
+interface IOverlayAnchorRegistration {
+	readonly anchor: HTMLElement;
+	/** How many of what hides overlays hide it, such as cards that move. */
+	hidden: number;
+}
+
+const overlayHosts = new Map<IOverlayAnchorHost, IOverlayAnchorRegistration>();
 
 /**
  * Registers an element that something draws over, such as an overlay or a
  * native view, so that what moves the element by transforms can find it and
- * hide what draws over it meanwhile (see {@link hideOverlaysIn}).
+ * hide what draws over it meanwhile (see {@link hideOverlaysIn}). A host
+ * registered again, such as with another element, moves there and stays
+ * hidden as long as what hid it does; the registration it had then does
+ * nothing more. Disposed while hidden, the host shows again.
  */
 export function registerOverlayAnchor(anchor: HTMLElement, host: IOverlayAnchorHost): IDisposable {
-	let hosts = overlayAnchors.get(anchor);
-	if (!hosts) {
-		hosts = new Map();
-		overlayAnchors.set(anchor, hosts);
-	}
-	hosts.set(host, 0);
+	const registration: IOverlayAnchorRegistration = { anchor, hidden: overlayHosts.get(host)?.hidden ?? 0 };
+	overlayHosts.set(host, registration);
 
 	return toDisposable(() => {
-		const current = overlayAnchors.get(anchor);
-		if (current?.get(host)) {
-			host.setHidden(false);
+		if (overlayHosts.get(host) !== registration) {
+			return; // registered again since
 		}
-		current?.delete(host);
-		if (current?.size === 0) {
-			overlayAnchors.delete(anchor);
+		overlayHosts.delete(host);
+		if (registration.hidden > 0) {
+			host.setHidden(false);
 		}
 	});
 }
@@ -50,33 +54,32 @@ export function registerOverlayAnchor(anchor: HTMLElement, host: IOverlayAnchorH
  * The elements inside `container` that something draws over and that show.
  */
 export function findOverlayAnchors(container: HTMLElement): HTMLElement[] {
-	return Array.from(overlayAnchors.keys()).filter(anchor => anchor.isConnected && container.contains(anchor) && anchor.getClientRects().length > 0);
+	const anchors = new Set(Array.from(overlayHosts.values(), registration => registration.anchor));
+	return Array.from(anchors).filter(anchor => anchor.isConnected && container.contains(anchor) && anchor.getClientRects().length > 0);
 }
 
 /**
  * Hides what draws over the elements inside `container`, until disposed.
  */
 export function hideOverlaysIn(container: HTMLElement): IDisposable {
-	const hidden: [Map<IOverlayAnchorHost, number>, IOverlayAnchorHost][] = [];
-	for (const anchor of findOverlayAnchors(container)) {
-		const hosts = overlayAnchors.get(anchor)!;
-		for (const [host, count] of hosts) {
-			hosts.set(host, count + 1);
-			if (count === 0) {
+	const anchors = new Set(findOverlayAnchors(container));
+	const hidden: IOverlayAnchorHost[] = [];
+	for (const [host, registration] of overlayHosts) {
+		if (anchors.has(registration.anchor)) {
+			if (registration.hidden++ === 0) {
 				host.setHidden(true);
 			}
-			hidden.push([hosts, host]);
+			hidden.push(host);
 		}
 	}
 
 	return toDisposable(() => {
-		for (const [hosts, host] of hidden) {
-			const count = hosts.get(host);
-			if (count === undefined) {
+		for (const host of hidden) {
+			const registration = overlayHosts.get(host);
+			if (!registration) {
 				continue; // no longer registered
 			}
-			hosts.set(host, count - 1);
-			if (count === 1) {
+			if (--registration.hidden === 0) {
 				host.setHidden(false);
 			}
 		}
@@ -148,6 +151,7 @@ export class OverlayLayoutElement implements IDisposable {
 	}
 
 	private _hidden = false;
+	private readonly _anchorHost: IOverlayAnchorHost = { setHidden: hidden => this.setHidden(hidden) };
 
 	/**
 	 * Hides or shows the overlay, whatever else its content shows or hides.
@@ -184,11 +188,13 @@ export class OverlayLayoutElement implements IDisposable {
 		},
 	): void {
 		if (this._currentAnchor?.element !== anchorElement) {
-			this._currentAnchor?.registration.dispose();
 			const name = getOrCreateAnchorName(anchorElement);
 			this.content.style.setProperty('position-anchor', name);
 			setParentFlowTo(this.content, anchorElement);
-			this._currentAnchor = { element: anchorElement, name, registration: registerOverlayAnchor(anchorElement, { setHidden: hidden => this.setHidden(hidden) }) };
+			// Registered with the new element first, the overlay stays hidden as long as what hid it does
+			const registration = registerOverlayAnchor(anchorElement, this._anchorHost);
+			this._currentAnchor?.registration.dispose();
+			this._currentAnchor = { element: anchorElement, name, registration };
 		}
 
 		this._updateClipping(options?.clippingContainer);
