@@ -157,6 +157,16 @@ function f(x: number, y: string): void { }
 - Avoid using events to drive control flow between components. Instead, prefer direct method calls or service interactions to ensure clearer dependencies and easier traceability of logic. Events should be reserved for broadcasting state changes or notifications rather than orchestrating behavior across components.
 - Service dependencies MUST be declared in constructors and MUST NOT be accessed through the `IInstantiationService` at any other point in time.
 
+## Public Content
+
+This repository is public, and so is everything written in it: pull requests, issues, comments, reviews, commit messages, code, tests and documentation. The instructions above cover the code; this section covers the text around it.
+
+- Don't include confidential information: credentials or tokens, personal or customer data, links to internal-only tools and dashboards, or data from internal sources such as telemetry queries, experiment scorecards and cost reports.
+- Anything derived from internal data is confidential too: counts of users, devices, sessions or requests; rates, shares and deltas; statistical results; cost, token usage and capacity figures; and screenshots of queries or dashboards. Telemetry event and property names, and the shape of a query, are fine.
+- When internal data informs a change, describe the conclusion without numbers, for example "the experiment showed no regression" or "the error is common on Windows".
+- Numbers you measured yourself, for example in a local run, a test or a benchmark, are fine as long as they aren't cost figures. So are planned settings such as a rollout percentage.
+- Check the text of a pull request, issue, comment or commit message against these rules before you publish it. Commit messages can't be changed after they are merged.
+
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
 - Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `dom.DisposableResizeObserver`'s `resizeObserverCtor` option, which defaults to `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.

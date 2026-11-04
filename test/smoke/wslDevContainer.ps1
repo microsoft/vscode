@@ -274,29 +274,72 @@ if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/
 	throw 'Cannot safely resolve the Linux server archive path.'
 }
 # From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
-# command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
-# The Azure mirror usually serves the 80 MB of packages in 2-17 seconds, but its package files can come at only about
-# 250 KB/s for minutes on every connection (its index files stay fast), and the mirror is at times unreachable. A slow
-# but progressing download therefore gets the whole budget of this command rather than a per-attempt wall clock, while
-# a connection that stops sending data fails after 30 seconds and apt retries it. apt only warns about index files it
-# could not fetch, so the index update fails on any fetch error and is retried. The WSL Kerberos proxy smoke tests run
-# their own KDC and Squid, so policy-rc.d keeps the packages from starting theirs.
+# command's timeout, so apt uses the Azure Ubuntu mirror. apt only warns about index files it could not fetch, so the
+# index update fails on any fetch error and is retried. The WSL Kerberos proxy smoke tests run their own KDC and Squid,
+# so policy-rc.d keeps the packages from starting theirs.
 $aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
+$linuxRoot = $linuxArchive.Substring(0, $linuxArchive.LastIndexOf('/'))
+$debDirectory = Join-Path $Root 'debs'
+New-Item -ItemType Directory -Force -Path $debDirectory | Out-Null
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
 sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
 printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
-retry() {
-	for attempt in 1 2 3; do
-		if "`$@"; then
-			return 0
-		fi
-		echo "Attempt `$attempt of 3 failed: `$*" >&2
-	done
-	return 1
+for attempt in 1 2 3; do
+	if timeout --kill-after=10 45 apt-get update --error-on=any; then
+		break
+	fi
+	if [ "`$attempt" = 3 ]; then
+		exit 1
+	fi
+	echo "Attempt `$attempt of 3 failed: apt-get update" >&2
+done
+apt-get install -y -qq --print-uris --no-install-recommends $aptPackages > '$linuxRoot/apt-uris.txt'
+"@ 180
+
+# The packages are downloaded by the host rather than by apt in the distribution. The Azure mirror at times serves
+# package files to the distribution at about 120 KB/s for minutes while its index files stay fast, and apt keeps such
+# a connection rather than giving up on it. Here a transfer that stays below 1 MB/s for 15 seconds is abandoned and
+# retried on a fresh connection, then on the main Ubuntu archive. apt checks each file against the index when it installs.
+# The host gives up after 4 minutes in total, leaving the packages it did not get to apt, within the step's timeout.
+$debCount = 0
+$hostDownloadDeadline = [DateTime]::UtcNow.AddMinutes(4)
+foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
+	if ($line -notmatch "^'(https?://[^']+)' ([A-Za-z0-9_.+~%-]+\.deb) (\d+) (SHA512|SHA256|SHA1|MD5Sum):([0-9a-f]+)") {
+		continue
+	}
+	$url, $name, $size, $hash = $Matches[1], $Matches[2], [long]$Matches[3], $Matches[5]
+	$algorithm = @{ SHA512 = 'SHA512'; SHA256 = 'SHA256'; SHA1 = 'SHA1'; MD5Sum = 'MD5' }[$Matches[4]]
+	$destination = Join-Path $debDirectory $name
+	$downloaded = $false
+	# Each attempt opens a fresh connection: the Azure mirror twice, then the main Ubuntu archive.
+	$fallback = $url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'
+	foreach ($candidate in @($url, $url, $fallback)) {
+		$remainingSeconds = [int]($hostDownloadDeadline - [DateTime]::UtcNow).TotalSeconds
+		if ($remainingSeconds -lt 10) {
+			break
+		}
+		curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
+		if ($LASTEXITCODE -eq 0 -and (Get-Item -LiteralPath $destination).Length -eq $size -and (Get-FileHash -LiteralPath $destination -Algorithm $algorithm).Hash -eq $hash.ToUpperInvariant()) {
+			$downloaded = $true
+			break
+		}
+		Write-Host "Download of $name from $candidate failed (curl exit code $LASTEXITCODE)."
+	}
+	if (-not $downloaded) {
+		Remove-Item -LiteralPath $destination -ErrorAction SilentlyContinue
+		Write-Host "Leaving $name for apt to download."
+		continue
+	}
+	$debCount++
 }
-retry timeout --kill-after=10 45 apt-get update --error-on=any
-retry apt-get install -y --download-only --no-install-recommends $aptPackages
+Write-Host "Downloaded $debCount packages on the host."
+# A failed curl above must not become the exit code of this script.
+$global:LASTEXITCODE = 0
+
+Invoke-Wsl @"
+export DEBIAN_FRONTEND=noninteractive
+cp '$linuxRoot'/debs/*.deb /var/cache/apt/archives/ 2>/dev/null || true
 printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod +x /usr/sbin/policy-rc.d
 apt-get install -y --no-install-recommends $aptPackages

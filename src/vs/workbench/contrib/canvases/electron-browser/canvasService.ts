@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,6 +36,7 @@ interface ICanvasPresentation {
 	requestId: string | undefined;
 	canvas: ICanvas | undefined;
 	model: IBrowserViewModel | undefined;
+	/** The live source `model` presents, or `undefined` once its provider became unavailable. */
 	modelSource: URI | undefined;
 	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
 	modelDisposeListener: IDisposable | undefined;
@@ -300,11 +302,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
 			throw new CancellationError();
 		}
+		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
+			return { model: await presentation.modelPromise.value, reused: true };
+		}
 		if (presentation.model && isEqual(presentation.modelSource, source)) {
 			return { model: presentation.model, reused: true };
 		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return { model: await presentation.modelPromise.value, reused: true };
+		if (presentation.model) {
+			return { model: await this.navigatePresentationModel(presentation, presentation.model, source), reused: false };
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
@@ -335,6 +340,48 @@ export class CanvasService extends Disposable implements ICanvasService {
 		});
 		presentation.modelPromise = { source, value };
 		return { model: await value, reused: false };
+	}
+
+	/** Loads a new source into the retained page, so it is replaced in place without detaching its view or moving focus. */
+	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI): Promise<IBrowserViewModel> {
+		const generation = ++presentation.modelGeneration;
+		// The page leaves its previous source even if this navigation is superseded, so returning to that source must load it again.
+		presentation.modelSource = undefined;
+		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		const url = source.toString(true);
+		const network = model.network;
+		const loaded = network ? this.loadOnRemoteNetwork(model, network, url, isCurrent) : model.loadURL(url);
+		const value = loaded.then(() => {
+			if (!isCurrent()) {
+				throw new CancellationError();
+			}
+			presentation.modelSource = source;
+			return model;
+		}).finally(() => {
+			if (presentation.modelPromise?.value === value) {
+				presentation.modelPromise = undefined;
+			}
+		});
+		presentation.modelPromise = { source, value };
+		return value;
+	}
+
+	/**
+	 * Loads a URL into a retained page on a remote network once that network's proxy is ready, as a new page does. The
+	 * proxy may be restarting, or may have failed to start, while the canvas provider was away. A network the window
+	 * cannot reach rejects like a failed load; the page never falls back to the local network.
+	 */
+	private async loadOnRemoteNetwork(model: IBrowserViewModel, network: IBrowserViewNetwork, url: string, isCurrent: () => boolean): Promise<void> {
+		// A host that cannot proxy browsers holds nothing; the page keeps the network configuration it was created with.
+		const hold = await this.browserViewService.acquireNetwork(network);
+		try {
+			if (!isCurrent()) {
+				throw new CancellationError();
+			}
+			await model.loadURL(url);
+		} finally {
+			hold.dispose();
+		}
 	}
 
 	private async waitForWorkingSetRestore(): Promise<boolean> {
@@ -694,10 +741,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private setPresentationCanvas(presentation: ICanvasPresentation, canvas: ICanvas): void {
-		const disposeModel = !canvas.source || presentation.modelSource && !isEqual(presentation.modelSource, canvas.source);
 		presentation.canvas = canvas;
-		if (disposeModel) {
-			this.disposePresentationModel(presentation);
+		if (!canvas.source) {
+			// Keep the last page while the provider is unavailable; the next source loads into it in place.
+			presentation.modelSource = undefined;
+			presentation.modelPromise = undefined;
+			presentation.modelGeneration++;
 		}
 	}
 

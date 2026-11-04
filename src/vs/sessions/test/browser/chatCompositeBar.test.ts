@@ -550,7 +550,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.style.setProperty('--part-border-color', '#abcdef');
 		root.style.setProperty('--vscode-agentsCard-border', '#abcdef');
 		const card = mainWindow.document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart agents-part-card agents-card-surface';
 		card.style.transition = 'none';
 		const cardContent = mainWindow.document.createElement('div');
 		cardContent.className = 'content';

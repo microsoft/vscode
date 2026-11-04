@@ -134,6 +134,26 @@ function transcriptSeparator(current: string, next: string): '' | ' ' {
 	return ' ';
 }
 
+// Nemotron 3.5's tokenizer_config.json declares these language markers as special tokens.
+const languageTokens = [
+	'ar-AR', 'bg-BG', 'cs-CZ', 'da-DK', 'de-DE', 'el-GR', 'en-GB', 'en-US', 'es-ES', 'es-US',
+	'et-EE', 'fi-FI', 'fr-CA', 'fr-FR', 'he-IL', 'hi-IN', 'hr-HR', 'hu-HU', 'it-IT', 'ja-JP',
+	'ko-KR', 'lt-LT', 'lv-LV', 'nb-NO', 'nl-NL', 'nn-NO', 'pl-PL', 'pt-BR', 'pt-PT', 'ro-RO',
+	'ru-RU', 'sk-SK', 'sl-SL', 'sv-SE', 'th-TH', 'tr-TR', 'uk-UA', 'vi-VN', 'zh-CN',
+].map(language => `<${language}>`);
+const languageTokenPattern = new RegExp(languageTokens.join('|'), 'g');
+
+function stripTranscriptLanguageTokens(text: string, interim = false): string {
+	const cleaned = text.replace(languageTokenPattern, '');
+	if (interim) {
+		const start = cleaned.lastIndexOf('<');
+		if (start !== -1 && languageTokens.some(token => token.startsWith(cleaned.slice(start)))) {
+			return cleaned.slice(0, start);
+		}
+	}
+	return cleaned;
+}
+
 /**
  * Append a non-final (interim) transcript chunk to the current partial text.
  * Foundry Local emits interim results for the in-progress segment as *deltas* —
@@ -144,9 +164,6 @@ function transcriptSeparator(current: string, next: string): '' | ' ' {
  * Mirrors the GitHub Copilot app's `appendVoiceTranscriptChunk`.
  */
 function appendTranscriptChunk(current: string, next: string): string {
-	if (!next.trim()) {
-		return current;
-	}
 	if (!current) {
 		return next.trimStart();
 	}
@@ -175,7 +192,7 @@ class TranscriptAccumulator {
 
 	/** Record a finalized segment, replacing an earlier revision of the same one. */
 	addFinal(text: string, startTime: number | null, endTime: number | null): void {
-		const normalized = text.trim();
+		const normalized = stripTranscriptLanguageTokens(text).trim();
 		if (!normalized) {
 			return;
 		}
@@ -619,7 +636,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	 * that stops yielding results and never completes — without ever throwing —
 	 * would otherwise hang Stop forever with no error.
 	 */
-	private async _consume(session: LiveAudioTranscriptionSession, generation: number): Promise<void> {
+	private async _consume(session: Pick<LiveAudioTranscriptionSession, 'getStream'>, generation: number): Promise<void> {
 		const iterator = session.getStream()[Symbol.asyncIterator]();
 		try {
 			while (true) {
@@ -673,7 +690,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	/** Finalized transcript plus the current interim tail, joined naturally. */
 	private _cumulativeText(): string {
 		const finalized = this._accumulator.getText();
-		const partial = this._partialText;
+		const partial = stripTranscriptLanguageTokens(this._partialText, this._sessionActive);
 		if (!partial) {
 			return finalized;
 		}
