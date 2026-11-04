@@ -51,7 +51,7 @@ const SHOWS_NO_ACTIONS_CLASS = 'shows-no-actions';
  * Marks each of `containers` that shows no actions, such as one whose actions all hide themselves, as the Create Pull
  * Request bar without changes does, with `shows-no-actions`: as its actions show and hide.
  */
-export function trackActionsContainersShowingNoActions(containers: readonly HTMLElement[]): IDisposable {
+function trackActionsContainersShowingNoActions(containers: readonly HTMLElement[]): IDisposable {
 	const showsActions = (element: Element): boolean => [...element.children].some(child => child.classList.contains('action-item') ? isHTMLElement(child) && child.style.display !== 'none' : showsActions(child));
 	const update = (container: HTMLElement) => container.classList.toggle(SHOWS_NO_ACTIONS_CLASS, !showsActions(container));
 	const observers = containers.map(container => {
