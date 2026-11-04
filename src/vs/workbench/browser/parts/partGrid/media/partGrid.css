@@ -83,7 +83,8 @@
 	left: 50%;
 	z-index: 10;
 	width: 32px;
-	height: 8px;
+	/* Only as tall as down to its grip, so that what is under it, such as tabs, takes the pointer below */
+	height: var(--vscode-spacing-size40);
 	transform: translateX(-50%);
 	cursor: grab;
 	opacity: 0;
