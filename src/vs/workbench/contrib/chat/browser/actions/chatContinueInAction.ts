@@ -58,7 +58,7 @@ import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../chatSessions/chatSessions.contribution.js';
-import { importedTurnsFromChatModel, resolveImportedCopilotModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel, type IImportedConversationStats } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
 import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -194,6 +194,43 @@ type ChatEnterprisePolicyRecoveryClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A started attempt or its success, failure, or cancellation outcome. Concurrent duplicate invocations are counted once.' };
 };
 
+type ChatConversationImportEvent = {
+	source: 'move' | 'continueIn';
+	turns: number;
+	editedFiles: number;
+	skippedResponseParts: number;
+	skippedResponsePartKinds: string;
+	skippedAttachments: number;
+	skippedAttachmentKinds: string;
+	droppedToolOutputs: number;
+};
+
+type ChatConversationImportClassification = {
+	owner: 'vijayupadya';
+	comment: 'Tracks what a Local conversation imported into an Agent Host session had to summarize or leave out, to prioritize closing the gaps. Sent only once the conversation has opened in its new session; failed or cancelled moves send nothing.';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the conversation was imported by Move to Copilot or by Continue In.' };
+	turns: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns imported.' };
+	editedFiles: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of edited files summarized as links instead of carrying their edits, counted once per turn.' };
+	skippedResponseParts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of response parts that could not be imported.' };
+	skippedResponsePartKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, sorted code-defined kinds of the response parts that could not be imported.' };
+	skippedAttachments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of request attachments that could not be imported.' };
+	skippedAttachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, sorted code-defined kinds of the attachments that could not be imported.' };
+	droppedToolOutputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-text tool result items left out of imported tool calls.' };
+};
+
+function logConversationImport(telemetryService: ITelemetryService, source: ChatConversationImportEvent['source'], stats: IImportedConversationStats): void {
+	telemetryService.publicLog2<ChatConversationImportEvent, ChatConversationImportClassification>('chat.importConversation', {
+		source,
+		turns: stats.turns,
+		editedFiles: stats.editedFiles,
+		skippedResponseParts: stats.skippedResponseParts,
+		skippedResponsePartKinds: [...stats.skippedResponsePartKinds].sort().join(','),
+		skippedAttachments: stats.skippedAttachments,
+		skippedAttachmentKinds: [...stats.skippedAttachmentKinds].sort().join(','),
+		droppedToolOutputs: stats.droppedToolOutputs,
+	});
+}
+
 export class ContinueChatInCopilotAction extends Action2 {
 	private readonly pending = new ResourceMap<Promise<void>>();
 
@@ -236,7 +273,8 @@ export class ContinueChatInCopilotAction extends Action2 {
 			}
 		};
 		const resolveModel = (identifier: string) => resolveImportedCopilotModel(languageModelsService, identifier);
-		const sourceTurns = importedTurnsFromChatModel(sourceModel, { resourceUris: agentHostService.resourceUris, resolveModel });
+		const importStats = createImportedConversationStats();
+		const sourceTurns = importedTurnsFromChatModel(sourceModel, { resourceUris: agentHostService.resourceUris, resolveModel, stats: importStats });
 		// A host that cannot import history gets the conversation as an attached
 		// transcript instead. That is not a move, so the source is not archived.
 		const transcriptOnly = sourceTurns.length > 0 && !agentHostService.supportsConversationImport;
@@ -335,6 +373,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 		try {
 			await work;
 			logOutcome('succeeded');
+			// Reported only once the destination holds every moved turn.
+			if (turns.length) {
+				logConversationImport(telemetryService, 'move', importStats);
+			}
 		} catch (error) {
 			logOutcome(isCancellationError(error) ? 'cancelled' : 'failed');
 			throw error;
@@ -647,6 +689,7 @@ export class CreateRemoteAgentJobAction {
 		const instantiationService = accessor.get(IInstantiationService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const languageModelsService = accessor.get(ILanguageModelsService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -736,8 +779,9 @@ export class CreateRemoteAgentJobAction {
 				// `openChatSession` flow so the session lifecycle (model picker,
 				// config chips, etc.) is unchanged. Hosts that cannot import fall
 				// back to the transcript attachment.
+				const importStats = createImportedConversationStats();
 				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow && agentHostService.supportsConversationImport)
-					? importedTurnsFromChatModel(chatModel, { resourceUris: agentHostService.resourceUris, resolveModel: identifier => resolveImportedCopilotModel(languageModelsService, identifier) })
+					? importedTurnsFromChatModel(chatModel, { resourceUris: agentHostService.resourceUris, resolveModel: identifier => resolveImportedCopilotModel(languageModelsService, identifier), stats: importStats })
 					: undefined;
 				// Carry the source session's selected model so the imported session
 				// resumes on the same model rather than the host default. The raw
@@ -778,7 +822,7 @@ export class CreateRemoteAgentJobAction {
 						};
 						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
 					} else {
-						await instantiationService.invokeFunction(innerAccessor => openChatSession(
+						const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(
 							innerAccessor,
 							{
 								type: continuationTargetType,
@@ -800,6 +844,10 @@ export class CreateRemoteAgentJobAction {
 								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 							}
 						));
+						// Reported only once the conversation has opened in its new session.
+						if (opened && importConversationTurns?.length) {
+							logConversationImport(telemetryService, 'continueIn', importStats);
+						}
 					}
 					return;
 				}

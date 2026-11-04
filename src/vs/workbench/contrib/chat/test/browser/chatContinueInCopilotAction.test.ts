@@ -84,11 +84,20 @@ suite('Continue in Copilot policy recovery', () => {
 				let draft: Partial<IChatModelInputState> | undefined;
 				const preparation: string[] = [];
 				const telemetry: { event: string; data: object | undefined }[] = [];
+				const importEvents: (object | undefined)[] = [];
 				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled') => assert.deepStrictEqual(telemetry, ['started', outcome].map(outcome => ({
 					event: 'chat.enterprisePolicyRecovery',
 					data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
 				})));
-				services.stub(ITelemetryService, { publicLog2: (event, data) => { telemetry.push({ event, data }); } });
+				services.stub(ITelemetryService, {
+					publicLog2: (event, data) => {
+						if (event === 'chat.importConversation') {
+							importEvents.push(data);
+						} else {
+							telemetry.push({ event, data });
+						}
+					}
+				});
 				let archived = scenario === 'archived' || scenario === 'archived-unsupported' || scenario === 'archived-remote';
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
@@ -278,9 +287,10 @@ suite('Continue in Copilot policy recovery', () => {
 				if (scenario === 'hidden' || scenario === 'switched' || scenario === 'hidden-during-preparation') {
 					await assert.rejects(run, CancellationError);
 					assertTelemetry('cancelled');
-					assert.deepStrictEqual({ target, archived, draft, preparation }, {
+					assert.deepStrictEqual({ target, archived, draft, preparation, importEvents }, {
 						target: undefined, archived: false, draft: undefined,
 						preparation: scenario === 'hidden-during-preparation' ? ['prepare', 'release draft'] : [],
+						importEvents: [],
 					});
 					return;
 				}
@@ -291,10 +301,12 @@ suite('Continue in Copilot policy recovery', () => {
 								: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
 					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
-					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived }, {
+					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived, importEvents }, {
 						target: scenario === 'history-missing' || scenario === 'history-load-error' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
 						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
 							: scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'history-missing' || scenario === 'history-load-error' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
+						// A move that did not complete reports no import.
+						importEvents: [],
 					});
 					return;
 				}
@@ -310,6 +322,7 @@ suite('Continue in Copilot policy recovery', () => {
 					history: imported?.turns.map(turn => ({ text: turn.message.text, model: turn.message.model, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
 					draft: draft && { ...draft, attachments: draft.attachments?.map(entry => entry.id.startsWith('chat-delegation-transcript-') ? { transcript: entry.value } : entry) },
 					preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
+					importEvents,
 				}, {
 					target: SessionType.AgentHostCopilot,
 					title: newChat ? undefined : 'Local conversation title',
@@ -326,6 +339,13 @@ suite('Continue in Copilot policy recovery', () => {
 					aliases: newChat ? [] : [real],
 					published: newChat ? [] : [real],
 					modelOverride: expected.sessionModel, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
+					// Only an actual import reports what it carried over.
+					importEvents: newChat ? [] : [{
+						source: 'move', turns: 1, editedFiles: 0,
+						skippedResponseParts: 0, skippedResponsePartKinds: '',
+						skippedAttachments: 0, skippedAttachmentKinds: '',
+						droppedToolOutputs: 0,
+					}],
 				});
 			});
 		}
