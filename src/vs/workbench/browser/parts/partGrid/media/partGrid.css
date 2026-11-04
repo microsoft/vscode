@@ -112,6 +112,11 @@
 	transition: opacity 0.15s ease-out;
 }
 
+/* A part that does not move for now has no grabber: what is on the edge of its card, such as a sash, takes it all */
+.part-grid-cell-immovable > .part-grid-card > .part-grid-drag-handle {
+	display: none;
+}
+
 /* Flush cards have no gap between them for the sash: on the edge they share, the grabber takes the pointer over its span, the sash elsewhere */
 .part-grid-gapless .part-grid-card > .part-grid-drag-handle {
 	z-index: 36; /* above sashes (35) */

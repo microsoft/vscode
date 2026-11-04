@@ -370,6 +370,11 @@ function collectLeaves(node: ISerializedNode, into: ISerializedNode[] = []): ISe
  * {@link onDidBecomeEmpty} fires, so that the owner can close the window.
  */
 /**
+ * The class of the cell of a part that does not move for now (see `PartGrid.setMovable`): it shows no grabber.
+ */
+const PART_GRID_IMMOVABLE_CLASS = 'part-grid-cell-immovable';
+
+/**
  * The class of a grid whose cards are flush: the sash between two cards is on the top edge of the lower one, where its
  * grabber is, which then takes the pointer over the sash.
  */
@@ -613,7 +618,7 @@ export class PartGrid extends Disposable {
 	 * whether the drag started, for a part that shows.
 	 */
 	startPartDrag(id: string, e: PointerEvent): boolean {
-		return this.cardDrag.start(id, e);
+		return this.isCellMovable(id) && this.cardDrag.start(id, e);
 	}
 
 	/**
@@ -639,6 +644,44 @@ export class PartGrid extends Disposable {
 
 	private mergeAllowed: (id: string, targetId: string) => boolean = () => true;
 	private previewLayoutAllowed: (id: string, part: IContentPart) => boolean = () => true;
+
+	private movable: (id: string) => boolean = () => true;
+
+	/**
+	 * Whether a part moves: dragged by its card, or by a command such as
+	 * Move Part. By default parts do; a window can say which do not, for as
+	 * long as they do not, such as a part that shows only a little of itself.
+	 * A part that does not move shows no grabber, so that what is on the edge
+	 * of its card, such as a sash, takes the pointer there. Call
+	 * {@link updateMovable} once what it says changes.
+	 */
+	setMovable(movable: (id: string) => boolean): IDisposable {
+		this.movable = movable;
+		this.updateMovable();
+
+		return toDisposable(() => {
+			if (this.movable === movable) {
+				this.movable = () => true;
+				this.updateMovable();
+			}
+		});
+	}
+
+	/**
+	 * Whether the part of a cell moves, see {@link setMovable}.
+	 */
+	isCellMovable(id: string): boolean {
+		return !!this.cells.get(id)?.part && this.movable(id);
+	}
+
+	/**
+	 * Applies a change of which parts move, see {@link setMovable}.
+	 */
+	updateMovable(): void {
+		for (const [id, cell] of this.cells) {
+			cell.element.classList.toggle(PART_GRID_IMMOVABLE_CLASS, !!cell.part && !this.movable(id));
+		}
+	}
 
 	/**
 	 * Whether a part lays out at the sizes its card takes while cards make
@@ -934,6 +977,7 @@ export class PartGrid extends Disposable {
 
 		const cell = createCell(id, content);
 		this.cells.set(id, cell);
+		cell.element.classList.toggle(PART_GRID_IMMOVABLE_CLASS, !!cell.part && !this.movable(id));
 		const disposables = new DisposableStore();
 		this.cellDisposables.set(id, disposables);
 
@@ -1204,7 +1248,7 @@ export class PartGrid extends Disposable {
 	 */
 	moveCellInDirection(id: string, direction: Direction): boolean {
 		const cell = this.getCell(id);
-		if (!this.grid || this.cells.size < 2) {
+		if (!this.grid || this.cells.size < 2 || (cell.part && !this.movable(id))) {
 			return false;
 		}
 

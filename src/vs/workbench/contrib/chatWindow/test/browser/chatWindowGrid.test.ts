@@ -520,6 +520,42 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ pressed, pressedAgain, released, cancelled: grid.resizing.get() }, { pressed: true, pressedAgain: true, released: false, cancelled: false });
 	});
 
+	test('the chat showing only its input does not move: no grabber, its top edge is the sash\'s, and neither a drag nor Move Part moves it; showing its conversation, it moves again; the other parts move all along', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.Stacked);
+		const chatInputOnly = observableValue('chatInputOnly', true);
+		const container = createAttachedContainer();
+		// The grabber is as tall as this size token of the workbench
+		container.style.setProperty('--vscode-spacing-size40', '8px');
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), chatInputOnly }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const handleOf = (cell: ChatWindowGridCell) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${cell}"] .part-grid-drag-handle`)!;
+		const read = () => {
+			const partGrid = grid.partGrid!;
+			const chatTop = container.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Chat}"]`)!.getBoundingClientRect();
+			const onTopEdge = mainWindow.document.elementFromPoint(chatTop.left + chatTop.width / 2, chatTop.top + 1);
+			const drags = partGrid.startPartDrag(ChatWindowGridCell.Chat, new PointerEvent('pointerdown', { button: 0, clientX: chatTop.left + 10, clientY: chatTop.top + 4 }));
+			mainWindow.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+			return {
+				chatGrabber: mainWindow.getComputedStyle(handleOf(ChatWindowGridCell.Chat)).display !== 'none',
+				mainGrabber: mainWindow.getComputedStyle(handleOf(ChatWindowGridCell.Main)).display !== 'none',
+				topEdge: onTopEdge === handleOf(ChatWindowGridCell.Chat) ? 'grabber' : onTopEdge?.closest('.monaco-sash') ? 'sash' : 'other',
+				drags,
+				mainDrags: (() => { const started = partGrid.startPartDrag(ChatWindowGridCell.Main, new PointerEvent('pointerdown', { button: 0 })); mainWindow.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); return started; })(),
+				movePart: partGrid.isCellMovable(ChatWindowGridCell.Chat),
+			};
+		};
+
+		const inputOnly = read();
+		const movedByCommand = grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Up);
+		chatInputOnly.set(false, undefined);
+
+		assert.deepStrictEqual({ inputOnly, movedByCommand, conversation: read() }, {
+			inputOnly: { chatGrabber: false, mainGrabber: true, topEdge: 'sash', drags: false, mainDrags: true, movePart: false },
+			movedByCommand: false,
+			conversation: { chatGrabber: true, mainGrabber: true, topEdge: 'grabber', drags: true, mainDrags: true, movePart: true },
+		});
+	});
+
 	test('a part does not merge into the terminals, whose groups stay locked to terminals, as it does not into the chat', () => {
 		const { grid, open } = setupWithTerminals();
 		open();

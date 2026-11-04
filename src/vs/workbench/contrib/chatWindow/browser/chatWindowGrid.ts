@@ -51,6 +51,8 @@ export interface IChatWindowGridCells {
 	readonly strip?: IChatWindowGridChrome;
 	/** The part that holds the window's terminals, once it exists. */
 	readonly terminals?: IObservable<IContentPart | undefined>;
+	/** Whether the chat shows only its input: it does not move then, so that the sash on its edge takes the pointer there. */
+	readonly chatInputOnly?: IObservable<boolean>;
 }
 
 type TopologyNode = { readonly cell: ChatWindowGridCell } | { readonly orientation: Orientation; readonly children: readonly TopologyNode[] };
@@ -248,6 +250,7 @@ export class ChatWindowGrid extends Disposable {
 	private readonly _partFactory: IPartGridPartFactory | undefined;
 	private readonly _partFactoryRegistration = this._register(new MutableDisposable());
 	private readonly _previewAdjusterRegistration = this._register(new MutableDisposable());
+	private readonly _movableRegistration = this._register(new MutableDisposable());
 
 	private readonly _terminalPosition: IObservable<ChatWindowTerminalPosition>;
 
@@ -321,6 +324,10 @@ export class ChatWindowGrid extends Disposable {
 			if (this._sashOf(e)) {
 				this._rememberUserSizes(undefined);
 			}
+		}));
+		this._register(autorun(reader => {
+			_cells.chatInputOnly?.read(reader);
+			this._grid.value?.updateMovable();
 		}));
 		this._register(autorun(reader => {
 			// Read first: the grid is created later, and the gap must be followed from the start.
@@ -582,6 +589,8 @@ export class ChatWindowGrid extends Disposable {
 		// So does a part dropped on the terminals, whose groups stay locked to terminals.
 		partGrid.setMergeAllowed((_id, targetId) => targetId !== ChatWindowGridCell.Chat && targetId !== ChatWindowGridCell.Terminals);
 		// Terminals do not lay out while cards make way: their processes would resize, also for a drag that is cancelled
+		// The chat showing only its input does not move: its edge is the sash's, which shows its conversation
+		this._movableRegistration.value = partGrid.setMovable(id => id !== ChatWindowGridCell.Chat || !this._cells.chatInputOnly?.get());
 		partGrid.setPreviewLayoutAllowed((id, part) => id !== ChatWindowGridCell.Terminals && !part.groups.some(group => group.activeEditor?.typeId === TERMINAL_EDITOR_TYPE_ID));
 		// The title row of the window shows while the chat does not lead it, as the chat's own title stands in for it while
 		// it does: a part that moves shows where it goes with the title row as it will be

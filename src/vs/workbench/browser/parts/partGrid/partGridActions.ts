@@ -35,6 +35,8 @@ abstract class MovePartAction extends Action2 {
 		const found = PartGrid.findPart(part);
 		if (!found) {
 			status(localize('partCannotMove', "The parts of this window do not move"));
+		} else if (!found.grid.isCellMovable(found.id)) {
+			status(localize('partCannotMoveNow', "{0} does not move as it shows now", getPartName(part)));
 		} else if (found.grid.moveCellInDirection(found.id, this.direction)) {
 			status(localize('movedPart', "Moved {0}", getPartName(part)));
 		} else {
