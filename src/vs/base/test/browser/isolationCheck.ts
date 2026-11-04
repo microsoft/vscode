@@ -107,6 +107,35 @@ export const focusDetector: IIsolationDetector<Element | null> = {
 	},
 };
 
+interface IScrollPosition {
+	readonly page: readonly [number, number];
+	readonly body: readonly [number, number];
+	readonly root: readonly [number, number];
+}
+
+function getScrollPosition(): IScrollPosition {
+	const document = mainWindow.document;
+	return {
+		page: [mainWindow.scrollX, mainWindow.scrollY],
+		body: [document.body.scrollLeft, document.body.scrollTop],
+		root: [document.documentElement.scrollLeft, document.documentElement.scrollTop],
+	};
+}
+
+/**
+ * The page scrolled by the suite, for example by focusing an element it appended below the fold. Later suites that
+ * position against page coordinates then measure from a different origin.
+ */
+export const scrollDetector: IIsolationDetector<IScrollPosition> = {
+	kind: 'scroll',
+	snapshot: getScrollPosition,
+	check: before => {
+		const after = getScrollPosition();
+		return (['page', 'body', 'root'] as const)
+			.filter(key => after[key][0] !== before[key][0] || after[key][1] !== before[key][1])
+			.map(key => `left the ${key === 'page' ? 'page' : key === 'body' ? 'body' : 'document element'} scrolled to (${after[key][0]}, ${after[key][1]}), it was (${before[key][0]}, ${before[key][1]})`);
+	},
+};
 /**
  * The real pointer over the page after the suite when it was not before, or over an element the suite added. Either way
  * `:hover` styles apply in the layouts of later suites. A real pointer only hovers the page where the window can
@@ -259,7 +288,7 @@ export const animationFrameQueueDetector = createAnimationFrameQueueDetector({
 	timeout: ms => new Promise(resolve => originalTimeGlobals.setTimeout.call(globalThis, resolve, ms)),
 });
 
-export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftoverDomDetector, focusDetector, hoverDetector, fakeTimersDetector];
+export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftoverDomDetector, focusDetector, hoverDetector, scrollDetector, fakeTimersDetector];
 
 /**
  * Runs `detectors` around every top-level suite of `root` and records what each suite leaves behind in

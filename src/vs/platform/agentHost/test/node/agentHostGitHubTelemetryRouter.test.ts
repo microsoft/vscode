@@ -121,7 +121,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 
-		await router.route(notification('engine.messages'), internalContext, { initiatorClientType: 'agents_window' });
+		await router.route(notification('conversation.repetition.detected'), internalContext, { initiatorClientType: 'agents_window' });
 		const existingModelCallId = notification('engine.messages');
 		existingModelCallId.event.properties.modelCallId = 'existing-model-call';
 		await router.route(existingModelCallId, internalContext);
@@ -129,8 +129,8 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		assert.deepStrictEqual(telemetry.events, [
 			{
 				destination: 'enhancedGH',
-				eventName: 'engine.messages',
-				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window', sdkSessionId: 'session-1', sdkAgentId: undefined },
+				eventName: 'conversation.repetition.detected',
+				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window' },
 				measurements: { count: 2 },
 			},
 			{
@@ -140,6 +140,71 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 				measurements: { count: 2 },
 			},
 		]);
+	});
+
+	test('does not substitute SDK IDs for missing engine pairing IDs', async () => {
+		const telemetry = new TestRestrictedTelemetry();
+		const router = new AgentHostGitHubTelemetryRouter(telemetry);
+		for (const kind of ['engine.messages', 'engine.messages.length']) {
+			await router.route(notification(kind), internalContext);
+		}
+
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			modelCallId: event.properties?.modelCallId,
+			sdkSessionId: event.properties?.sdkSessionId,
+		})), [
+			{ modelCallId: undefined, sdkSessionId: 'session-1' },
+			{ modelCallId: undefined, sdkSessionId: 'session-1' },
+			{ modelCallId: undefined, sdkSessionId: 'session-1' },
+		]);
+	});
+
+	test('preserves independent engine call pairs through the restricted sender', async () => {
+		const envelopes: { data: { baseData: { name: string; properties: TelemetryProps } } }[] = [];
+		const sender = new AgentHostRestrictedTelemetrySender(
+			{ sessionID: 'telemetry-process' },
+			new NullLogService(),
+			'https://telemetry.example/telemetry',
+			undefined,
+			async (_url, init) => {
+				envelopes.push(JSON.parse(String(init?.body)));
+				return new Response(null, { status: 200 });
+			},
+		);
+		const router = new AgentHostGitHubTelemetryRouter(sender);
+		const calls = ['engine-call-1', 'engine-call-2'];
+		for (const modelCallId of calls) {
+			for (const direction of ['input', 'output']) {
+				const source = notification('engine.messages');
+				source.event.properties = {
+					modelCallId,
+					message_direction: direction,
+					headerRequestId: `${direction}-${modelCallId}`,
+					messagesJson: JSON.stringify([{ role: direction === 'input' ? 'user' : 'assistant', content: null, tool_calls: [{ id: 'tool-1', type: 'function', function: { name: 'view', arguments: '{"path":"synthetic"}' } }] }]),
+				};
+				await router.route(source, internalContext);
+				await router.route(source, { ...internalContext, restrictedTelemetryEnabled: false, isInternal: false });
+				await router.route({ ...source, restricted: false }, internalContext);
+			}
+		}
+
+		assert.deepStrictEqual(envelopes.map(({ data: { baseData } }) => ({
+			name: baseData.name,
+			call: baseData.properties.modelCallId,
+			direction: baseData.properties.message_direction,
+			header: baseData.properties.headerRequestId,
+			sdkSessionId: baseData.properties.sdkSessionId,
+			tracking: baseData.properties.copilot_trackingId,
+			process: baseData.properties.client_sessionid,
+		})), calls.flatMap(call => ['input', 'output'].map(direction => ({
+			name: 'copilot-chat/engine.messages',
+			call,
+			direction,
+			header: `${direction}-${call}`,
+			sdkSessionId: 'session-1',
+			tracking: 'tracking-id',
+			process: 'telemetry-process',
+		}))));
 	});
 
 	test('copies engine conversation and child identity from the producing notification, not enrichment', async () => {
