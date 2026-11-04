@@ -5,11 +5,14 @@ name: Code OSS (workspace images)
 # the Playwright browsers: a disk image of a workspace of main at the path of the workspaces of the
 # jobs, with a .git that their checkouts reuse. See .github/workflows/workspace_image/README.md.
 on:
+  # Only when an input of the images changes: the source code doesn't need to be current, as the
+  # checkout of a job fetches and writes only what changed since the commit of its image
   push:
     branches:
       - main
     # The inputs of the install (see build/npm/installStateHash.ts), of the native builds (see
-    # NATIVE_BUILD_INPUTS in workspace_image/image.ts) and of Electron
+    # NATIVE_BUILD_INPUTS in workspace_image/image.ts) and of the prepared Electron (see the stamp in
+    # .github/actions/setup-electron/action.yml)
     paths:
       - '**/pnpm-lock.yaml'
       - '**/pnpm-workspace.yaml'
@@ -20,12 +23,14 @@ on:
       - extensions/copilot/.nvmrc
       - build/npm/**
       - build/checksums/electron.txt
+      - build/lib/electron.ts
+      - build/lib/electronVersion.ts
+      - product.json
+      - resources/darwin/*.icns
+      - resources/win32/code.ico
       - build/.cachesalt
       - .github/workflows/pr-workspace-images.yml
       - .github/workflows/workspace_image/**
-  schedule:
-    # The checkout of a job downloads what changed since the commit of its image
-    - cron: '41 */6 * * *'
   workflow_dispatch:
   # Builds the images of a branch, for the workspace_image_branch input of the test workflows
   workflow_call:

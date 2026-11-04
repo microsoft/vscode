@@ -2,7 +2,7 @@
 
 The test jobs of pull requests ([pr-linux-test.yml](../pr-linux-test.yml), [pr-darwin-test.yml](../pr-darwin-test.yml) and [pr-win32-test.yml](../pr-win32-test.yml)) start from a disk image of a workspace of `main` instead of an empty folder: its dependencies, Electron and the Playwright browsers are installed, and its `.git` holds the commit it was built at. A job mounts the image, checks out its own commit, and installs only what changed since, which for most pull requests is nothing.
 
-[pr-workspace-images.yml](../pr-workspace-images.yml) builds an image for each platform on the runners of the jobs: when the inputs of the install or the salt of the CI caches change on `main`, and every 6 hours, so that the checkouts of the jobs download little. [image.ts](image.ts) restores, checks and builds them; it has no dependencies, as the jobs run it before they check out the repository.
+[pr-workspace-images.yml](../pr-workspace-images.yml) builds an image for each platform on the runners of the jobs when one of its inputs changes on `main`: those of the install, of the native builds (`NATIVE_BUILD_INPUTS` in `image.ts`) and of the prepared Electron. It doesn't build them for other changes, as the checkout of a job fetches and writes only what changed since the commit of its image. The images are kept for 2 days, so the jobs install everything as before when no input changed for longer. [image.ts](image.ts) restores, checks and builds them; it has no dependencies, as the jobs run it before they check out the repository.
 
 ## What a job does
 
@@ -28,7 +28,7 @@ The chunks of 32 MB download and decompress in parallel, and the restore writes 
 
 ## Trust
 
-A job only uses images of runs of this repository for pushes to `main`, schedules and manual dispatches, as any pull request could upload an artifact of the same name. The `.git` of an image holds no credentials. The test jobs need `actions: read` to find and download the artifacts.
+A job only uses images of runs of this repository for pushes to `main` and manual dispatches, as any pull request could upload an artifact of the same name. The `.git` of an image holds no credentials. The test jobs need `actions: read` to find and download the artifacts.
 
 ## Testing changes
 
