@@ -2531,6 +2531,54 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
+	test('resuming a legacy held completion preserves pending work across reloads', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessions.inboxNotifications.workflow', JSON.stringify([
+			['session:legacy-held', { hold: true }],
+		]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const session = createSession({ id: 'legacy-held', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const fixture = createFixture([session], storageService, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+		const initial = fixture.service.sessionRows.get()[0].tab;
+		fixture.service.setSessionOnHold(fixture.service.sessionRows.get()[0], false);
+		const resumed = fixture.service.sessionRows.get()[0].tab;
+		const restored = createFixture([session], storageService);
+		const row = restored.service.sessionRows.get()[0];
+		restored.service.markSessionDone(row);
+		const done = createFixture([session], storageService).service.sessionRows.get()[0].tab;
+		assert.deepStrictEqual({
+			initial, resumed, restored: row.tab,
+			notifications: row.notifications.map(item => item.id), done,
+		}, {
+			initial: InboxTab.OnHold, resumed: InboxTab.ReadyForYou, restored: InboxTab.ReadyForYou,
+			notifications: ['legacy-held:completed:100'], done: InboxTab.Done,
+		});
+	});
+
+	test('discovering many unread completions does not evict explicit workflows or read pending work', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessions.inboxNotifications.workflow', JSON.stringify([
+			['session:held', { hold: true }],
+		]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const held = createSession({ id: 'held', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const done = createSession({ id: 'done', status: SessionStatus.Completed, updatedAt: 200 });
+		const pending = createSession({ id: 'pending', status: SessionStatus.Completed, updatedAt: 200 });
+		const fixture = createFixture([held, done, pending], storageService, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+		fixture.service.markSessionDone(fixture.service.sessionRows.get().find(row => row.sessionTitle === 'done')!);
+		(pending.isRead as ISettableObservable<boolean>).set(true, undefined);
+		const savedWorkflow = storageService.get('sessions.inboxNotifications.workflow', StorageScope.APPLICATION);
+		fixture.setSessions([
+			held, done, pending,
+			...Array.from({ length: 1000 }, (_, index) => createSession({ id: `discovered-${index}`, status: SessionStatus.Completed, updatedAt: 300 })),
+		]);
+		assert.deepStrictEqual({
+			workflows: Object.fromEntries(fixture.service.sessionRows.get().filter(row => ['held', 'done', 'pending'].includes(row.sessionTitle)).map(row => [row.sessionTitle, row.tab])),
+			workflowUnchanged: storageService.get('sessions.inboxNotifications.workflow', StorageScope.APPLICATION) === savedWorkflow,
+		}, {
+			workflows: { held: InboxTab.OnHold, done: InboxTab.Done, pending: InboxTab.ReadyForYou },
+			workflowUnchanged: true,
+		});
+	});
+
 	test('attention count groups multiple notifications per Ready for you row and excludes other workflows', () => {
 		const completed = createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 100 });
 		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: 200 });
