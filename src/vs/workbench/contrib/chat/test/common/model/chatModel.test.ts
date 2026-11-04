@@ -33,7 +33,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, reviveSerializableInputState, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IChatResponseModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, reviveSerializableInputState, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
@@ -829,6 +829,8 @@ suite('ChatModel', () => {
 		const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
 		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 200 });
 		const exported = model.toJSON();
+		// Legacy saves recorded no latest-call count.
+		const { lastCallCompletionTokens: _lastCall, ...legacyRequest } = exported.requests[0];
 		const totals = [
 			undefined,
 			[],
@@ -839,7 +841,7 @@ suite('ChatModel', () => {
 		];
 		assert.deepStrictEqual(totals.map(modelTotals => {
 			const restored = testDisposables.add(instantiationService.createInstance(
-				ChatModel, { value: { ...exported, requests: [{ ...exported.requests[0], modelTotals }] }, serializer: undefined! },
+				ChatModel, { value: { ...exported, requests: [{ ...legacyRequest, modelTotals }] }, serializer: undefined! },
 				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
 			));
 			const response = restored.getRequests()[0].response;
@@ -849,6 +851,42 @@ suite('ChatModel', () => {
 			{ contextOutput: 0, consumptionOutput: 0 },
 			{ contextOutput: 0, consumptionOutput: 200 },
 		]);
+	});
+
+	test('keeps the latest call\'s output separate from the whole-response total across save and restore', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'two calls', parts: [] }, { variables: [] }, 0);
+		// Two model calls: 230 output tokens, then 20. The response's total is 250.
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 100, completionTokens: 230 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 330, completionTokens: 20 });
+		const saved = model.toJSON();
+		const restore = (requests: ISerializableChatData3['requests']) => testDisposables.add(instantiationService.createInstance(
+			ChatModel, { value: { ...saved, requests }, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const { lastCallCompletionTokens: _omitted, ...olderSave } = saved.requests[0];
+		const restoredOlder = restore([olderSave]);
+		const describe = (response: IChatResponseModel | undefined) => ({
+			latestCall: response?.usage?.completionTokens,
+			total: response?.completionTokenCount,
+			latestCallKnown: response?.lastCallCompletionTokensKnown,
+		});
+
+		assert.deepStrictEqual({
+			saved: { lastCallCompletionTokens: saved.requests[0].lastCallCompletionTokens, completionTokens: saved.requests[0].completionTokens },
+			live: describe(request.response),
+			restored: describe(restore(saved.requests).getRequests()[0].response),
+			// An older save only kept the total: restored as before, with the latest call unknown.
+			olderSave: describe(restoredOlder.getRequests()[0].response),
+			// Saving it again must not present the total as the latest call.
+			olderResaved: restoredOlder.toJSON().requests[0].lastCallCompletionTokens,
+		}, {
+			saved: { lastCallCompletionTokens: 20, completionTokens: 250 },
+			live: { latestCall: 20, total: 250, latestCallKnown: true },
+			restored: { latestCall: 20, total: 250, latestCallKnown: true },
+			olderSave: { latestCall: 250, total: 250, latestCallKnown: false },
+			olderResaved: undefined,
+		});
 	});
 
 	test('the session total and the summed turns each provide a floor for session cost', () => {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { $, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, registerWindow } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
@@ -49,6 +49,16 @@ suite('Part Grid', () => {
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
+		// The tests move a synthetic pointer, which the grid follows through listeners on the document. A real pointer
+		// that rests over the test window (Linux Electron under Xvfb) gets pointer events of its own as the layout changes
+		// under it, and would move the grabber to the part under it. The window sees them first, in the capture phase.
+		for (const type of ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'pointermove', 'pointerdown', 'pointerup', 'mouseover', 'mouseout', 'mouseenter', 'mouseleave', 'mousemove', 'mousedown', 'mouseup']) {
+			disposables.add(addDisposableListener(mainWindow, type, e => {
+				if (e.isTrusted) {
+					e.stopImmediatePropagation();
+				}
+			}, true));
+		}
 	});
 
 	teardown(() => {
@@ -977,7 +987,7 @@ suite('Part Grid', () => {
 	test('a dragged card finds where the cards go once for each place, in zones where the cards show, and drops there once', async () => {
 		const { grid, container, cellOf, translates, start, shownLeft, middleY: y, previews, arrangementChanges } = await createRowOfThree(true);
 		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
-		const makeWay = { a: 300, b: 380 };
+		const makeWay = { a: 300, b: 300 };
 
 		// c, its center, over the left side of a, by small moves: the others make way at once, with one dry run
 		dragCard(container, 'c', [[30, y], [32, y + 2], [28, y - 2], [31, y + 5]], { hold: true });
@@ -1007,7 +1017,7 @@ suite('Part Grid', () => {
 	test('a dragged card goes beside a part by where its center is, and to an edge of the window where the pointer pushes it, also over its own slot once it left it', async () => {
 		const { grid, container, translates, start, arrangementChanges } = await createRowOfThree(true);
 		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
-		const makeWay = { a: 300, b: 380 };
+		const makeWay = { a: 300, b: 300 };
 
 		// The pointer over the top of a, the center of the card, below it, over its left side: c goes left of a
 		dragCard(container, 'c', [[start.a.left + start.a.width * 0.2, 60]], { hold: true });
@@ -1166,7 +1176,7 @@ suite('Part Grid', () => {
 		const { grid, container, translates, middleY: y, arrangementChanges } = await createRowOfThree(true);
 		const before = grid.describe();
 		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
-		const makeWay = { a: 300, b: 380 };
+		const makeWay = { a: 300, b: 300 };
 
 		dragCard(container, 'c', [[30, y]], { hold: true });
 		const dragging = translates();
@@ -1204,6 +1214,8 @@ suite('Part Grid', () => {
 		grid.addPart('left', left);
 		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
 		grid.layout(1000, 800);
+		// Wider than the even share right gets beside it, for the slot not to be the whole of left
+		grid.resizeCell('left', { width: 600, height: 800 });
 
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
 		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
@@ -1298,6 +1310,60 @@ suite('Part Grid', () => {
 			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 385, terminals: 385 },
 			up: true,
 			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 385, terminals: 385 }
+		});
+	});
+
+	test('as the grid is resized, its parts keep their shares of it, views that are not parts, such as a title row, keep their sizes, and the way back gives the sizes it had', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [left, right, bottom] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(left, '/left.txt'), openEditor(right, '/right.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('left', left);
+		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.addView('title', createView(), { edge: Direction.Up });
+		grid.resizeCell('left', { width: 300 });
+		grid.resizeCell('bottom', { height: 200 });
+		const sizes = () => ({ left: grid.getCellSize('left').width, right: grid.getCellSize('right').width, row: grid.getCellSize('left').height, bottom: grid.getCellSize('bottom').height, title: grid.getCellSize('title').height });
+		const at1000 = sizes();
+		grid.layout(1600, 1200);
+		const at1600 = sizes();
+		grid.layout(800, 600);
+		const at800 = sizes();
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ at1000, at1600, at800, back: sizes() }, {
+			at1000: { left: 300, right: 700, row: 570, bottom: 200, title: 30 },
+			at1600: { left: 480, right: 1120, row: 866, bottom: 304, title: 30 },
+			at800: { left: 240, right: 560, row: 422, bottom: 148, title: 30 },
+			back: { left: 300, right: 700, row: 570, bottom: 200, title: 30 }
+		});
+	});
+
+	test('as the grid is resized, beside a part that keeps its size, a row of columns only keeps its share as every other part does', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const created = [createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all(created.map((part, index) => openEditor(part, `/${index}.txt`)));
+		const [a, b, c, d, f, e, kept] = created;
+		grid.addPart('a', a);
+		grid.addPart('b', b, { reference: 'a', direction: Direction.Right });
+		grid.addPart('c', c, { reference: 'a', direction: Direction.Down });
+		grid.addPart('d', d, { reference: 'b', direction: Direction.Down });
+		grid.addPart('f', f, { reference: 'd', direction: Direction.Down });
+		grid.addPart('e', e, { edge: Direction.Down });
+		grid.addPart('kept', kept, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.resizeCell('e', { height: 150 });
+		grid.resizeCell('kept', { height: 200 });
+		const heights = () => `${grid.getCellSize('a').height + grid.getCellSize('c').height}/${grid.getCellSize('e').height}/${grid.getCellSize('kept').height}`;
+		const resized = [800, 1200, 700, 800].map(height => {
+			grid.layout(1000, height);
+			return heights();
+		});
+
+		assert.deepStrictEqual({ shape: grid.describe(), resized }, {
+			shape: 'column(row(column(a, c), column(b, d, f)), e, kept)',
+			resized: ['266/334/200', '443/557/200', '222/278/200', '266/334/200'],
 		});
 	});
 

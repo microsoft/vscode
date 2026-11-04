@@ -22,7 +22,7 @@ import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/pa
 import { basename as resourceBasename, extUriBiasedIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
+import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
@@ -49,7 +49,7 @@ import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeCopilotPolicyHelperConfig, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
@@ -80,7 +80,7 @@ import { ProtectedResourceMetadata, type AgentCustomization, type AgentSelection
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, hasReportedUsage, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
@@ -103,7 +103,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
-import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
+import { buildSessionEventLogFromTurns, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedTurnDurations } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
@@ -1638,6 +1638,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return runtimePath ? runtimePath : undefined;
 	}
 
+	private _getPolicyHelper(): string | undefined {
+		const policyHelper = normalizeCopilotPolicyHelperConfig(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.PolicyHelper));
+		return policyHelper ? JSON.stringify(policyHelper) : undefined;
+	}
+
 	/**
 	 * Returns the installed Computer Use plugin. On a cache miss the client starts
 	 * without it while the plugin downloads in the background; the client then
@@ -1896,6 +1901,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isExecutionSubagentEnabled(),
 			this._getExecutionSubagentModel(),
 			this._isComputerUseEnabled(),
+			this._getPolicyHelper(),
 		);
 	}
 
@@ -4348,6 +4354,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
 			this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
 
+			deleteEnvironmentVariable(env, 'COPILOT_CLI_POLICY_HELPER');
+			if (startupConfig.policyHelper) {
+				addCopilotFeatureFlag(env, 'POLICY_HELPER');
+				env['COPILOT_CLI_POLICY_HELPER'] = startupConfig.policyHelper;
+			}
+
 			// Identify VS Code's agent host traffic in CAPI
 			env['GITHUB_COPILOT_INTEGRATION_ID'] = COPILOT_INTEGRATION_ID;
 			this._logService.info(`[Copilot] Set CLI env: GITHUB_COPILOT_INTEGRATION_ID=${COPILOT_INTEGRATION_ID}`);
@@ -5178,8 +5190,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const { sessionIds } = scan;
 		const sessions = sessionIds ? catalog.filter(session => sessionIds.has(session.sessionId)) : catalog;
 		const completed = new Set<string>();
-		const hostSessions = new Set(sessions.filter(session => !scan.isCurrent(session.sessionId)
-			|| (!session.isRemote && session.clientName === AGENT_HOST_COPILOT_CLIENT_NAME)).map(session => session.sessionId));
+		// A candidate that changed during the listing is rechecked by scan.prepare, which can tell a
+		// real change from a reported access to its files.
+		const hostSessions = new Set(sessions.filter(session => !session.isRemote && session.clientName === AGENT_HOST_COPILOT_CLIENT_NAME).map(session => session.sessionId));
 		// Filter registered candidates with one registry query.
 		const knownSessions = this._knownSessionsFilter
 			? await this._knownSessionsFilter(sessions.filter(session => !hostSessions.has(session.sessionId)).map(s => AgentSession.uri(this.id, s.sessionId)))
@@ -5331,7 +5344,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return false;
 				}
 				const id = AgentSession.id(chat.session);
-				return completed.has(id) && scan.isCurrent(id);
+				if (!scan.isCurrent(id)) {
+					// Changed after validation: keep it a candidate so a later scan publishes it.
+					completed.delete(id);
+					return false;
+				}
+				return completed.has(id);
 			});
 			if (chats.length > 0) {
 				discovered += chats.length;
@@ -6316,11 +6334,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 			await fs.mkdir(dirname(eventsPath), { recursive: true });
 			await fs.writeFile(eventsPath, jsonl, 'utf8');
-			if (responses.length) {
+			// The event log does not record usage, so imported usage is saved the way live
+			// usage is: keyed by the turn's id, which is its `user.message` event id.
+			const usages = importConfig.turns.filter(turn => isUUID(turn.id) && hasReportedUsage(turn.usage));
+			// The event log's timestamps are synthesized, so record the real durations for the replay.
+			const durations = serializeImportedTurnDurations(importConfig.turns);
+			if (responses.length || usages.length || durations) {
 				const reference = this._sessionDataService.openDatabase(this._resolveChatStorageScope(chat));
 				try {
 					for (const response of responses) {
 						await reference.object.setAssistantResponseParts(response.turnId, response.responseId, response.parts);
+					}
+					for (const turn of usages) {
+						await reference.object.setTurnUsage(turn.id, JSON.stringify(turn.usage));
+					}
+					if (durations) {
+						await reference.object.setMetadata(IMPORTED_TURN_DURATIONS_DB_KEY, durations);
 					}
 				} finally {
 					reference.dispose();

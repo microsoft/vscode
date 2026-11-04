@@ -402,6 +402,32 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual(states, [[true], [false, true], [false, false], [false, false], [true, false], [false, true]]);
 	});
 
+	test('a replaced session of a chat window keeps the groups it shows, with their active chats and the active group', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource, ChatOriginKind.Tool);
+		const windowSession = (active: IChat) => {
+			const session = Object.assign(new TestActiveSession([main, subagent]), { scopedChatResource: main.resource });
+			session.activeChat.set(active, undefined);
+			return session;
+		};
+		view.setSession(windowSession(main), options);
+		view.layout(800, 600, 0, 0);
+		await view.openChatInNewGroup(subagent.resource, main.resource);
+		const read = () => ({
+			groups: view['_groups'].map(group => ({ chats: group.resourceIds.get().map(id => URI.parse(id).authority), active: URI.parse(group.activeResourceId.get()).authority })),
+			activeGroup: view['_groups'].indexOf(view['_activeGroup']!),
+			groupCount: view.groupCount.get(),
+		});
+		const before = read();
+
+		view.setSession(windowSession(subagent), options);
+		view.layout(800, 600, 0, 0);
+
+		const split = { groups: [{ chats: ['main'], active: 'main' }, { chats: ['subagent'], active: 'subagent' }], activeGroup: 1, groupCount: 2 };
+		assert.deepStrictEqual({ before, after: read() }, { before: split, after: split });
+	});
+
 	test('releases the main chat resource observable when clearing the session', () => {
 		const { view } = createHarness(disposables);
 		view.setSession(new TestActiveSession([createChat('main')]), options);

@@ -143,9 +143,12 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			},
 			category: Categories.View,
 			f1: true,
+			// Not in a chat window, which has no side bar of its own: neither its key nor the Command Palette toggles the
+			// main window's.
+			precondition: LayoutModeContext.negate(),
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyB
+				primary: KeyMod.CtrlCmd | KeyCode.KeyB,
 			},
 			menu: [
 				{

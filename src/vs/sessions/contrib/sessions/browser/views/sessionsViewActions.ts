@@ -1849,13 +1849,26 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 	}
 });
 
+for (const [menu, submenu] of [
+	[Menus.SessionItemContextMenu, Menus.SessionItemOpenIn],
+	[Menus.SessionChatItemContext, Menus.SessionChatItemOpenIn],
+]) {
+	MenuRegistry.appendMenuItem(menu, {
+		title: localize2('openIn', "Open in"),
+		submenu,
+		group: 'navigation',
+		order: 1,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
+	});
+}
+
 registerAction2(class OpenSessionToTheSideAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.openToTheSide',
-			title: localize2('openToTheSide', "Open to the Side"),
+			title: localize2('splitView', "Split View"),
 			menu: [{
-				id: SessionItemContextMenuId,
+				id: Menus.SessionItemOpenIn,
 				group: 'navigation',
 				order: 1,
 				when: IsSessionsWindowContext,
