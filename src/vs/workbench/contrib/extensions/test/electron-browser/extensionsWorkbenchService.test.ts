@@ -601,6 +601,35 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(states, [migration, migration, migration]);
 	});
 
+	test('deprecation and installed-version blocking changes emit one combined refresh', async () => {
+		const identifier = { id: 'pub.deprecated', uuid: 'deprecated-uuid' };
+		const local = aLocalExtension('deprecated', {}, { identifier });
+		let gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', identifier });
+		let installedGallery = aGalleryExtension(local.manifest.name, { identifier });
+		await instantiationService.get(IConfigurationService).updateValue(ExtensionGalleryServiceUrlConfigKey, 'https://marketplace.example.com');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_infos: IExtensionInfo[], options: IExtensionQueryOptions) =>
+			options.includeBlockedVersions ? [installedGallery] : [gallery]);
+		testObject = await aWorkbenchService();
+		await testObject.checkForUpdates();
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+		const installedBlockingInfo = { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version };
+		const galleryIdentifier = gallery.identifier;
+		gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo: marketplace });
+		gallery.identifier = galleryIdentifier;
+		installedGallery = aGalleryExtension(local.manifest.name, { blockingInfo: installedBlockingInfo });
+		installedGallery.identifier = galleryIdentifier;
+		let changes = 0;
+		disposableStore.add(testObject.onChange(e => { if (e === testObject.local[0]) { changes++; } }));
+		await testObject.checkForUpdates();
+		assert.deepStrictEqual({
+			deprecation: testObject.local[0].deprecationInfo,
+			installedBlockingInfo: testObject.local[0].installedBlockingInfo,
+			changes
+		}, { deprecation: marketplace, installedBlockingInfo, changes: 1 });
+	});
+
 	test('test same-version blocking metadata refresh preserves the server gallery and fires a change', async () => {
 		const local = aLocalExtension('blocked', { version: '1.0.0' });
 		const targetPlatform = getTargetPlatform(platform, arch);
