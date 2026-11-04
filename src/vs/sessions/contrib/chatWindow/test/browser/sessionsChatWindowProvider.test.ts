@@ -202,12 +202,16 @@ suite('Sessions chat window provider', () => {
 			// The Changes editor of the window shows the list of the changed files, as the main window's, which sets no key, does not.
 			changesFileList: contextKeyService.getContextKeyValue(SessionChangesEditorFileListContext.key),
 		};
+		// The window opens for the session, by its resource, which is not its main chat's: it shows the main chat
+		const chatOfSession = await ofSession?.resolveChat(session.resource);
 		ofSession?.dispose();
 		content.dispose();
 
-		assert.deepStrictEqual({ unknown, ofSession: ofSession?.chat.get().path, beforeBind, bound, events }, {
+		assert.deepStrictEqual({ unknown, ofSession: ofSession?.chat.get().path, chatOfSession: chatOfSession?.chat.get().path, sessionIsNotMainChat: session.resource.toString() !== session.mainChat.get().resource.toString(), beforeBind, bound, events }, {
 			unknown: undefined,
 			ofSession: '/main',
+			chatOfSession: '/main',
+			sessionIsNotMainChat: true,
 			beforeBind: { chat: '/second', title: 'second', events: [] },
 			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'], changesFileList: true },
 			events: ['show session /second', 'active session', 'close session'],
@@ -225,9 +229,9 @@ suite('Sessions chat window provider', () => {
 		store.add(content.bind!(window, windowInstantiationService));
 		// The window closes as its chat moves to the main window.
 		content.dispose();
-		await provider.moveToMainWindow(main.resource, {});
+		await provider.moveToMainWindow([main.resource], {});
 		const moved = [...events];
-		await provider.moveToMainWindow(main.resource, {});
+		await provider.moveToMainWindow([main.resource], {});
 		const again = events.slice(moved.length);
 
 		// A window that just closes, without moving its chat, forgets them.
@@ -236,7 +240,7 @@ suite('Sessions chat window provider', () => {
 		reopened.dispose();
 		await timeout(0);
 		const beforeLaterMove = events.length;
-		await provider.moveToMainWindow(main.resource, {});
+		await provider.moveToMainWindow([main.resource], {});
 
 		assert.deepStrictEqual({ moved, again, laterMove: events.slice(beforeLaterMove) }, {
 			moved: ['show session /main', 'close session', 'open session /main', 'open session /subagent beside /main preserving focus'],

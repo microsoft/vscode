@@ -26,7 +26,7 @@ import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench
 import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { EditorInputCapabilities, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowProvider } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowProvider } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowColumnPlacement, ChatWindowLayoutMode, ChatWindowTerminalPosition, computeChatWindowLayout } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -426,6 +426,21 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		return store;
 	}
 
+	/**
+	 * Its one chat, which the window owns as one of its chats; the content stays its owner. Windows of the Agents window
+	 * show one chat each, so another chat does not resolve.
+	 */
+	async resolveChat(chat: URI): Promise<IChatWindowChat | undefined> {
+		// Its chat, also by the resource of its session, which the window opens for when it opens for a session, such as for
+		// a session as an old entry of the chat windows to restore names it
+		if (this._chatResolved || !(isEqual(chat, this.chat.get()) || isEqual(chat, this.sourceSession.resource))) {
+			return undefined;
+		}
+		this._chatResolved = true;
+		return { chat: this.chat, input: this.input, title: this.title, onDidEnd: this.onDidEnd, dispose: () => { } };
+	}
+	private _chatResolved = false;
+
 	setSession(session: IActiveSession): void {
 		this._session.set(session, undefined);
 		if (session.scopedChatResource) {
@@ -533,7 +548,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		this._register(closeChatWindowsOfGoneChats(this._contents));
 	}
 
-	async resolveContent(resource: URI): Promise<IChatWindowContent | undefined> {
+	async resolveContent(resource: URI): Promise<SessionsChatWindowContent | undefined> {
 		const resolved = resolveChat(this._sessionsManagementService, resource);
 		if (!resolved) {
 			return undefined;
@@ -562,8 +577,10 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return content;
 	}
 
-	async moveToMainWindow(chat: URI, editors: IChatWindowEditors): Promise<void> {
-		const resolved = resolveChat(this._sessionsManagementService, chat);
+	async moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void> {
+		// Windows of the Agents window show one chat each.
+		const chat = chats[0];
+		const resolved = chat && resolveChat(this._sessionsManagementService, chat);
 		if (!resolved) {
 			return;
 		}

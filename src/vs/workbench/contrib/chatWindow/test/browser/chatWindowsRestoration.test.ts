@@ -31,9 +31,10 @@ suite('ChatWindowsRestoration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWindow(chat: string): IChatWindow {
+	function createWindow(chat: string, others: readonly string[] = [], active = chat): IChatWindow {
 		return new class extends mock<IChatWindow>() {
-			override readonly chat = constObservable(URI.parse(chat));
+			override readonly chat = constObservable(URI.parse(active));
+			override readonly chats = constObservable([chat, ...others].map(candidate => URI.parse(candidate)));
 			override readonly mainPart = { groups: [] } as unknown as IContentPart;
 		}();
 	}
@@ -53,6 +54,7 @@ suite('ChatWindowsRestoration', () => {
 		const providerObs = observableValue<IChatWindowProvider | undefined>('provider', options.registered === false ? undefined : provider);
 		const windows = observableValue<readonly IChatWindow[]>('windows', []);
 		const opened: { chat: string; options: IChatWindowOpenOptions }[] = [];
+		const activated: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
@@ -61,17 +63,40 @@ suite('ChatWindowsRestoration', () => {
 			windows,
 			open: async (chat: URI, openOptions: IChatWindowOpenOptions) => {
 				opened.push({ chat: chat.toString(), options: openOptions });
-				return undefined;
+				return createWindow(chat.toString());
 			},
+			activateChat: (_window: IChatWindow, chat: URI) => activated.push(chat.toString()),
 			terminalsShown: () => true,
 			chatPart: window => window.chat.get().path === '/split' ? { state: { serializedGrid: {} }, chatGroup: 1 } : undefined,
 			createdParts: window => options.createdParts?.(window) ?? [],
 		}));
 		const read = () => storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
-		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, read };
+		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, activated, read };
 	}
 
 	const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+	test('stores the chats of a window with several, and its active chat, and restores those that can be, with old entries of one chat or session', async () => {
+		const { storageService, windows, read, opened } = createRestoration({
+			stored: [{ chat: 'test:/a', chats: ['test:/gone', 'test:/b'], activeChat: 'test:/b' }, { session: 'test:/session' }, { chat: 'test:/gone', chats: ['test:/c'] }],
+			gone: ['test:/gone'],
+		});
+		await flush();
+		windows.set([createWindow('test:/x', ['test:/y'], 'test:/y'), createWindow('test:/z')], undefined);
+		storageService.willSave();
+
+		assert.deepStrictEqual({ opened: opened.map(window => ({ chat: window.chat, chats: window.options.chats?.map(chat => chat.toString()) })), stored: JSON.parse(read()!).map((entry: { chat: string; chats?: string[]; activeChat?: string }) => ({ chat: entry.chat, chats: entry.chats, activeChat: entry.activeChat })) }, {
+			opened: [{ chat: 'test:/a', chats: ['test:/b'] }, { chat: 'test:/session', chats: undefined }, { chat: 'test:/c', chats: undefined }],
+			stored: [{ chat: 'test:/x', chats: ['test:/y'], activeChat: 'test:/y' }, { chat: 'test:/z', chats: undefined, activeChat: undefined }],
+		});
+	});
+
+	test('restores the active chat of a window of several chats, also when it is the first', async () => {
+		const { opened, activated } = createRestoration({ stored: [{ chat: 'test:/a', chats: ['test:/b'], activeChat: 'test:/a' }, { chat: 'test:/c', chats: ['test:/d'], activeChat: 'test:/d' }] });
+		await flush();
+
+		assert.deepStrictEqual({ opened: opened.map(window => window.chat), activated }, { opened: ['test:/a', 'test:/c'], activated: ['test:/a', 'test:/d'] });
+	});
 
 	test('keeps the stored chat windows while their restoration is pending', async () => {
 		const pending = new DeferredPromise<boolean>();
