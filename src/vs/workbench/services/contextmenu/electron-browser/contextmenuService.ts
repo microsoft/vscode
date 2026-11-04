@@ -213,7 +213,14 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 			}
 
 			const selection = getContextMenuAutoSelectItem(delegate, actions);
-			const positioningItem = typeof selection === 'number' ? entryIndexes[selection] : selection ? 0 : undefined;
+			let positioningItem: number | undefined;
+			if (typeof selection === 'number') {
+				positioningItem = entryIndexes[selection];
+			} else if (selection) {
+				// Like the custom menu, `true` positions the first enabled action, skipping separators and group titles
+				const firstEnabled = menu.findIndex(item => item.type !== 'separator' && item.enabled !== false);
+				positioningItem = firstEnabled >= 0 ? firstEnabled : undefined;
+			}
 			this.menuPopup(menu, { x, y, positioningItem }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
