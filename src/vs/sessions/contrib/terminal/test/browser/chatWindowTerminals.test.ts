@@ -384,20 +384,19 @@ suite('Chat window terminals', () => {
 		});
 	});
 
-	test('the part that holds the terminals holds only terminals: another editor that opens in it, such as one dropped on it, goes to the main part of the window, and the chat to the chat part; a terminal stays', async () => {
+	test('another editor that opens in the part that holds the terminals, such as one dropped on it, stays there beside the terminals; the chat goes back to the chat part', async () => {
 		const { mainGroup, terminalsGroup, chatGroup, chatEditor } = createEnvironment({ restoredWithTerminals: true });
 		const terminalEditor = editor('workbench.editors.terminal');
 		const file = editor('workbench.editors.files.fileEditorInput');
 
 		terminalsGroup.open(terminalEditor);
 		terminalsGroup.open(file);
-		// The chat goes back to the chat part
 		terminalsGroup.open(chatEditor);
 		await timeout(0);
 
 		assert.deepStrictEqual({ terminals: terminalsGroup.editors.map(candidate => candidate.typeId), main: mainGroup.moved.map(candidate => candidate.typeId), chat: chatGroup.moved.map(candidate => candidate.typeId) }, {
-			terminals: ['workbench.editors.terminal'],
-			main: ['workbench.editors.files.fileEditorInput'],
+			terminals: ['workbench.editors.terminal', 'workbench.editors.files.fileEditorInput'],
+			main: [],
 			chat: ['workbench.editors.viewEditor'],
 		});
 	});

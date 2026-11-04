@@ -114,7 +114,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		const onlyTerminals = store.add(autorun(reader => {
 			const part = window.terminalsPart.read(reader);
 			if (part) {
-				reader.store.add(this._keepOnlyTerminals(window, part));
+				reader.store.add(this._returnChat(window, part));
 			}
 		}));
 		store.add(window.onWillClose(() => {
@@ -374,12 +374,12 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	}
 
 	/**
-	 * The part that holds the terminals of a window holds only terminals, as the panel does: another editor in it, such
-	 * as one dropped on it, moved there or restored there, goes to the window's main part, and the chat to its chat part.
+	 * The chat, such as dropped on the part that holds the terminals of a window, or restored there, goes back to the chat
+	 * part. Other editors stay there, beside the terminals.
 	 */
-	private _keepOnlyTerminals(window: IChatWindow, part: IEditorPart): IDisposable {
-		const moveToMainPart = (group: IEditorGroup, editor: EditorInput | undefined) => {
-			if (!editor || isTerminalEditor(editor)) {
+	private _returnChat(window: IChatWindow, part: IEditorPart): IDisposable {
+		const returnChat = (group: IEditorGroup, editor: EditorInput | undefined) => {
+			if (!editor || editor !== window.chatEditor) {
 				return;
 			}
 			// After the open completes: moving it meanwhile would leave it in no group.
@@ -387,14 +387,14 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				if (this._store.isDisposed || !this._windows.has(window) || !group.contains(editor, { strictEquals: true })) {
 					return;
 				}
-				group.moveEditor(editor, editor === window.chatEditor ? window.chatPart.activeGroup : window.mainPart.activeGroup);
+				group.moveEditor(editor, window.chatPart.activeGroup);
 			});
 		};
 		return this._trackGroups(part, group => {
-			group.editors.forEach(editor => moveToMainPart(group, editor));
+			group.editors.forEach(editor => returnChat(group, editor));
 			return group.onDidModelChange(e => {
 				if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
-					moveToMainPart(group, e.editor);
+					returnChat(group, e.editor);
 				}
 			});
 		});
