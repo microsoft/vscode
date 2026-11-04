@@ -160,18 +160,21 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		return session && ownsSession(owner, session) ? session.resource : undefined;
 	}
 
-	getEditorGroup(_owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {
+	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {
 		const mainPart = this.editorGroupsService.mainPart;
 		if (restore) {
 			return mainPart.activeGroup;
 		}
-		const activeWindowId = this.editorGroupsService.activeGroup.windowId;
-		if (activeWindowId === mainPart.windowId) {
+		// The window that shows the owner's chat, whichever window has focus: a chat window keeps its canvases in its own
+		// main part, as the main window does.
+		const host = this.sessionHostService.getHostOfChat(owner.chat);
+		const windowHost = host && getWindowHost(host);
+		const windowId = windowHost?.kind === SessionHostKind.ChatWindow ? windowHost.windowId.get() : undefined;
+		const part = (windowId !== undefined ? this.chatWindowService.getWindow(windowId)?.mainPart : undefined) ?? mainPart;
+		if (part === mainPart && this.editorGroupsService.activeGroup.windowId === mainPart.windowId) {
+			// The main window is active: its active group is where editors open by default.
 			return undefined;
 		}
-		// A chat window keeps its canvases in its own main part, as the main window does; other auxiliary windows send
-		// them to the main window.
-		const part = this.chatWindowService.getWindow(activeWindowId)?.mainPart ?? mainPart;
 		return part.groups.find(group => group.contains(input)) ?? part.activeGroup;
 	}
 

@@ -46,6 +46,8 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../browser/pinnedCanvases.js';
 import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1302,7 +1304,7 @@ suite('SessionCanvasService', () => {
 		}, { mainWindow: undefined, auxiliaryOpen: 2, auxiliaryNew: 1, restore: 1 });
 	});
 
-	test('keeps a canvas opened from a chat window in the main part of that chat window, wherever focus is', () => {
+	test('opens a canvas in the window that shows its chat, not in the window that has focus', () => {
 		const input = upcastPartial<CanvasInput>({});
 		const mainGroup = upcastPartial<IEditorGroup>({ id: 1, windowId: 1, contains: () => false });
 		const chatWindowGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 2, contains: () => false });
@@ -1312,10 +1314,14 @@ suite('SessionCanvasService', () => {
 			[2, upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: chatWindowGroup, groups: [chatWindowGroup, chatWindowCanvasGroup] }) })],
 			[3, upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: otherChatWindowGroup, groups: [otherChatWindowGroup] }) })],
 		]);
-		// The active group is in a chat window while focus may be in another window, such as the main window.
-		let activeGroupWindowId = 2;
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
+		const notShown = { ...owner, chat: URI.parse('agent-host-chat:/session/side') };
+		// The chat window with id 2 shows the owner's chat.
+		const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(2) });
+		// Focus, and the active group, are in another chat window, then in the main window.
+		let activeGroupWindowId = 3;
 		const contextService = store.add(new SessionCanvasContextService(
-			sessionHostServiceOf({ mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
+			upcastPartial<ISessionHostService>({ getHostOfChat: chat => isEqual(chat, owner.chat) ? chatWindowHost : undefined }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
 			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
 			upcastPartial<IEditorGroupsService>({
@@ -1329,15 +1335,13 @@ suite('SessionCanvasService', () => {
 			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ getWindow: windowId => chatWindows.get(windowId) }),
 		));
-		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
-		const chatWindowOpen = contextService.getEditorGroup(owner, input, false)?.id;
-		const chatWindowNew = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
-		activeGroupWindowId = 3;
-		const otherChatWindow = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
-		activeGroupWindowId = 4;
-		const auxiliaryWindow = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
+		const fromOtherChatWindow = { open: contextService.getEditorGroup(owner, input, false)?.id, new: contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id };
+		activeGroupWindowId = 1;
+		const fromMainWindow = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
+		activeGroupWindowId = 2;
+		const ofChatNotShown = contextService.getEditorGroup(notShown, upcastPartial<CanvasInput>({}), false)?.id;
 
-		assert.deepStrictEqual({ chatWindowOpen, chatWindowNew, otherChatWindow, auxiliaryWindow }, { chatWindowOpen: 3, chatWindowNew: 2, otherChatWindow: 4, auxiliaryWindow: 1 });
+		assert.deepStrictEqual({ fromOtherChatWindow, fromMainWindow, ofChatNotShown }, { fromOtherChatWindow: { open: 3, new: 2 }, fromMainWindow: 2, ofChatNotShown: 1 });
 	});
 
 	test('a chat window presents the canvases of the chat it shows, in any of its groups, whichever session the main window shows; other windows and chats do not', () => {
