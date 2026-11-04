@@ -159,6 +159,11 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 
+		// A replacement of the session of a window or a pane, which shows the same chat, keeps the groups it shows.
+		const carriedLayout = session?.scopedChatResource && this._session?.scopedChatResource?.toString() === session.scopedChatResource.toString()
+			? this._serializeLayout()
+			: undefined;
+
 		// Snapshot the outgoing session's layout (captures final grid sizes) before tearing it down.
 		this._persistLayout();
 
@@ -210,7 +215,7 @@ export class ChatGroupsView extends Themable {
 			return view;
 		};
 		const grid = session.isCreated.get()
-			? (!session.scopedChatResource && this._tryRestoreLayout(session, store)) || this._createSingleGroupGrid(session, store, takeReusableView())
+			? (carriedLayout ? this._tryRestoreLayout(session, store, carriedLayout) : !session.scopedChatResource && this._tryRestoreLayout(session, store)) || this._createSingleGroupGrid(session, store, takeReusableView())
 			: this._createSingleGroupGrid(session, store, takeReusableView());
 		// A restored layout never claims the reusable view; release it now instead of keeping it detached.
 		reusableView?.dispose();
@@ -257,8 +262,7 @@ export class ChatGroupsView extends Themable {
 	 * yet (the catalog arrives asynchronously); {@link _reconcile} routes them back
 	 * to their groups via {@link _restoreAssignment} once they appear.
 	 */
-	private _tryRestoreLayout(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> | undefined {
-		const saved = this._loadStored(session.sessionId);
+	private _tryRestoreLayout(session: IActiveSession, store: DisposableStore, saved = this._loadStored(session.sessionId)): SerializableGrid<ChatGroupView> | undefined {
 		if (!saved || saved.groups.length <= 1) {
 			return undefined;
 		}
@@ -1264,12 +1268,16 @@ export class ChatGroupsView extends Themable {
 			this._saveStored(sessionId, undefined);
 			return;
 		}
-		if (this._groups.length <= 1) {
-			this._saveStored(sessionId, undefined);
-			return;
+		this._saveStored(sessionId, this._serializeLayout());
+	}
+
+	/** The layout of the groups shown, while there is more than one. */
+	private _serializeLayout(): ISerializedChatGroupsLayout | undefined {
+		if (!this._grid || this._restorePending || this._groups.length <= 1) {
+			return undefined;
 		}
 		this._groups.forEach((group, i) => group.view.setSerializationIndex(i));
-		const layout: ISerializedChatGroupsLayout = {
+		return {
 			version: 1,
 			grid: this._grid.serialize(),
 			groups: this._groups.map(group => ({
@@ -1279,7 +1287,6 @@ export class ChatGroupsView extends Themable {
 			})),
 			activeGroupIndex: Math.max(0, this._groups.indexOf(this._activeGroup!)),
 		};
-		this._saveStored(sessionId, layout);
 	}
 
 	private _readStoredLayouts(): Record<string, ISerializedChatGroupsLayout> {

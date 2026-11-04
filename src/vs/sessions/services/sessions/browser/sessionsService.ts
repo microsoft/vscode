@@ -1139,7 +1139,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
 			}
 			if (chat && intent === 'explicit' && !token.isCancellationRequested) {
-				const reopening = this.sessionsPartService.getSessionView(session.sessionId)?.reopenChat(chat.resource);
+				// The view of a window for its own chat and the subagent chats it shows beside it; else the session's view.
+				const inWindow = this._visibility.isWindowSession(activeSession)
+					&& (chat.origin?.kind === ChatOriginKind.Tool || this.uriIdentityService.extUri.isEqual(chat.resource, activeSession?.scopedChatResource));
+				const reopening = this.sessionsPartService.getSessionView(inWindow ? activeSession : session.sessionId)?.reopenChat(chat.resource);
 				if (reopening) {
 					// A retained grid view can keep loading after this navigation is superseded.
 					await raceCancellation(reopening, token);
@@ -1636,12 +1639,49 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
+		const windowSession = this._getSubagentWindowSession(session, chatResource, options?.referenceChatResource);
+		if (windowSession) {
+			this._activate(windowSession, options?.preserveFocus, 'explicit');
+			await this.sessionsPartService.getSessionView(windowSession)?.openChatToSide(chatResource, options?.referenceChatResource);
+			return;
+		}
 		this._showSession(this._getSession(session.resource), options);
 		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
 		if (!sessionView) {
 			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
 		}
 		await sessionView.openChatToSide(chatResource, options?.referenceChatResource);
+	}
+
+	/**
+	 * The chat window a subagent chat opens to the side in: the one that shows the reference chat, beside its own chat or
+	 * as it, such as for a subagent of a subagent; without a reference, the window of the session given. Other chats,
+	 * such as forks and side chats, and subagents of the main window's chats open in the main window.
+	 */
+	private _getSubagentWindowSession(session: ISession, chatResource: URI, referenceChatResource: URI | undefined): IActiveSession | undefined {
+		const extUri = this.uriIdentityService.extUri;
+		const chat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, chatResource));
+		if (chat?.origin?.kind !== ChatOriginKind.Tool) {
+			return undefined;
+		}
+		if (referenceChatResource) {
+			const windowOfReference = this._visibility.getWindowSession(session.sessionId, referenceChatResource);
+			if (windowOfReference) {
+				return windowOfReference;
+			}
+			// A subagent of a subagent shown beside a chat: opened from a surface that shows its parent, it opens there,
+			// such as the grid, which can show the same subagent as a window; else in a window that shows its parent.
+			const shows = (candidate: IActiveSession) => candidate.visibleChatTabs.get().some(shown => extUri.isEqual(shown.resource, referenceChatResource));
+			if (this._visibility.isWindowSession(session) && shows(session as IActiveSession)) {
+				return session as IActiveSession;
+			}
+			const grid = this._visibility.gridSessions.get().find(candidate => candidate === session);
+			if (grid && shows(grid)) {
+				return undefined;
+			}
+			return this._visibility.windowSessions.get().find(candidate => candidate.sessionId === session.sessionId && shows(candidate));
+		}
+		return this._visibility.isWindowSession(session) ? session as IActiveSession : undefined;
 	}
 
 	/**
