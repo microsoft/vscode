@@ -37,6 +37,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -48,10 +49,13 @@ import { ChatViewModel, IChatViewModelChangeEvent } from '../../../../../workben
 import { ChatListWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatQuestionCarouselPart } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { IChatMarkdownAnchorService } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPlanReviewData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorPane } from '../../../../../workbench/common/editor.js';
 import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -247,6 +251,8 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(IContextMenuService, {});
 		instantiationService.stub(IDialogService, {});
 		instantiationService.stub(IMarkdownRendererService, {});
+		instantiationService.stub(IChatMarkdownAnchorService, { register: () => toDisposable(() => { }) });
+		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IGitHubService, {});
 		instantiationService.stub(IAgentFeedbackService, {});
 		instantiationService.stub(IOnboardingScenarioService, {});
@@ -2695,6 +2701,67 @@ suite('InboxNotificationsView', () => {
 		}, { displayed: true, buttons: 0, guidance: true });
 	});
 
+	test('file confirmation links display the filename and open the pending change without approving it', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const resource = URI.file('/workspace/turtle.ts');
+		const pending = URI.parse('test:///pending/turtle.ts');
+		const part: IInboxNotificationToolConfirmationPart = {
+			kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'tool',
+			confirmationKind: 'execution', title: 'Create file?', message: `Create [](${resource.toString()})`, buttons: [],
+		};
+		const item: IInboxNotificationItem = {
+			id: 'tool', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: 'Task', description: '', timestamp: 1, actions: [], needsInputPart: part,
+		};
+		const invocation = upcastPartial<IChatToolInvocation>({
+			kind: 'toolInvocation', toolCallId: 'tool', toolSpecificData: {
+				kind: 'modifiedFilesConfirmation', options: ['Allow', 'Skip'],
+				modifiedFiles: [{ uri: resource, modifiedContentUri: pending, editKind: 'create' }],
+			},
+		});
+		const model = upcastPartial<IChatModel>({
+			onDidChange: Event.None, onDidDispose: Event.None,
+			getRequests: () => [upcastPartial<IChatRequestModel>({
+				response: upcastPartial<IChatResponseModel>({
+					requestId: 'request', onDidChange: Event.None,
+					response: upcastPartial<IChatResponseModel['response']>({ value: [invocation] }),
+				}),
+			})],
+		});
+		const { view, container } = createView(constObservable([item]), {
+			instantiationService, chatService: { getSession: () => model },
+		});
+		instantiationService.stub(ILabelService, 'getUriBasenameLabel', () => 'turtle.ts');
+		instantiationService.stub(ILabelService, 'getUriLabel', (uri: URI) => uri.path);
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.stub(IChatPetService, { unlockAchievement: () => false });
+		instantiationService.stub(IMarkdownRendererService, 'render', (markdown: IMarkdownString) => {
+			const element = $('div', undefined, markdown.value === part.message ? 'Create ' : markdown.value);
+			if (markdown.value === part.message) {
+				element.appendChild($('a', { 'data-href': resource.toString() }));
+			}
+			return { element, dispose: () => { } };
+		});
+		const opened = new DeferredPromise<Parameters<IEditorService['openEditor']>[0]>();
+		instantiationService.stub(IEditorService, 'openEditor', async (input: Parameters<IEditorService['openEditor']>[0]) => {
+			await opened.complete(input);
+			return upcastPartial<IEditorPane>({});
+		});
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const anchor = container.querySelector<HTMLElement>('.inbox-notifications-chat-part-host .chat-inline-anchor-widget')!;
+		anchor.click();
+		assert.deepStrictEqual({
+			label: anchor.textContent,
+			input: await opened.p,
+			approvalButtons: container.querySelectorAll('.inbox-notifications-chat-part-host .monaco-button').length,
+		}, {
+			label: 'turtle.ts',
+			input: { label: 'turtle.ts', original: { resource: undefined, contents: '' }, modified: { resource: pending }, options: { override: undefined, selection: undefined } },
+			approvalButtons: 0,
+		});
+	});
+
 	test('read-only tool approvals display the full input, avoid duplicate headings, and identify approvals', () => {
 		const toolInput = JSON.stringify({ input: 'echo test' }, null, 1);
 		const part: IInboxNotificationToolConfirmationPart = {
@@ -3189,7 +3256,8 @@ suite('InboxNotificationsView', () => {
 			repeatedCitation: view.getDetailAccessibleContent()?.includes('Review changes and choose next steps'),
 			target: open.firstCall.args[0],
 			hidden: container.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')?.hidden,
-		}, { evidence: true, claims: ['Tests passed.Test source', 'Reviewed the keyboard behavior.', 'Updated focus handling.'], repeatedCitation: false, target: uri, hidden: false });
+			collapsedContext: !!container.querySelector('.inbox-notifications-interpretation-content details:not([open])'),
+		}, { evidence: true, claims: ['Tests passed.Test source', 'Reviewed the keyboard behavior.', 'Updated focus handling.'], repeatedCitation: false, target: uri, hidden: false, collapsedContext: false });
 	});
 
 	for (const kind of ['questionCarousel', 'toolConfirmation'] as const) {

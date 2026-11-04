@@ -54,6 +54,9 @@ import { IChatContentPartRenderContext } from '../../../../workbench/contrib/cha
 import { ChatCustomConfirmationWidget, SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { buildCustomOptionButtons } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.js';
 import { ChatTerminalToolExplanation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolExplanation.js';
+import { createModifiedFilePreviewEditorInput, findModifiedFileConfirmationEntry } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatModifiedFilesConfirmationSubPart.js';
+import { renderFileWidgets } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { ChatPlanReviewPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatPlanReviewPart.js';
@@ -73,6 +76,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
@@ -487,6 +491,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		@ILabelService private readonly labelService: ILabelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this._register(runOnChange(this.sessionsService.navigationRequest, () => this.sessionsPaneVisibility.clear()));
@@ -1575,6 +1581,23 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 					getChatMarkdownRenderOptions(),
 				)).element);
 			}
+			const invocation = this.getNeedsInputRequestContext(part.chatResource, part.requestId)?.response.response.value
+				.find(candidate => candidate.kind === 'toolInvocation' && candidate.toolCallId === part.toolCallId);
+			const modifiedFiles = invocation?.kind === 'toolInvocation' && invocation.toolSpecificData?.kind === 'modifiedFilesConfirmation'
+				? invocation.toolSpecificData.modifiedFiles : undefined;
+			renderFileWidgets(message.element, this.instantiationService, this.chatMarkdownAnchorService, store, modifiedFiles ? {
+				openResource: async (resource, options) => {
+					const file = findModifiedFileConfirmationEntry(modifiedFiles, resource);
+					const input = file ? createModifiedFilePreviewEditorInput(
+						resource,
+						file.originalContentUri ? URI.revive(file.originalContentUri) : file.originalUri ? URI.revive(file.originalUri) : undefined,
+						file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : undefined,
+						file.title,
+						options,
+					) : { resource, options };
+					return !!await this.editorService.openEditor(input);
+				},
+			} : undefined);
 			if (!part.buttons.length) {
 				message.element.appendChild($('p', undefined, localize('inboxNotifications.toolConfirmation.openSession', "Open the session to review the full request and respond.")));
 			}
@@ -3255,7 +3278,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (summary.status) {
 			container.appendChild($('.inbox-notifications-detail-summary', undefined, summary.status));
 		}
-		if (summary.decisions.length || summary.evidence.length) {
+		if (summary.status && (summary.decisions.length || summary.evidence.length)) {
 			const details = container.appendChild($<HTMLDetailsElement>('details.inbox-evidence-disclosure'));
 			details.appendChild($('summary', undefined, localize('inbox.interpretation.context', "More agent context")));
 			store.add(addDisposableListener(details, 'toggle', () => this.detailScrollableElement.scanDomNode()));
