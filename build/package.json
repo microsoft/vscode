@@ -2,6 +2,12 @@
   "name": "code-oss-dev-build",
   "version": "1.0.0",
   "packageManager": "pnpm@12.16.0",
+  "nativeBuild": {
+    "runtime": "node",
+    "disturl": "https://nodejs.org/dist",
+    "buildFromSource": true,
+    "forceProcessConfig": true
+  },
   "license": "MIT",
   "devDependencies": {
     "@azure/core-auth": "^1.9.0",

@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, autorun, constObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -39,7 +39,8 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../../workbench/contrib/chat/common/chatUtilityModelService.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatPlanReviewData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsConstants.js';
 
@@ -686,6 +687,72 @@ suite('InboxNotificationsService', () => {
 				questionCount: 1,
 			},
 		}]);
+	});
+
+	test('surfaces streamed plan reviews and distinguishes successive reviews in the same request', () => {
+		const chatResource = URI.parse('test:///chat/plan');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'plan', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		const changes = disposables.add(new Emitter<IChatChangeEvent>());
+		const requests: IChatRequestModel[] = [];
+		chatService.setRequests(chatResource, requests, changes.event);
+		let latest: readonly IInboxNotificationItem[] = [];
+		disposables.add(autorun(reader => { latest = fixture.service.notifications.read(reader); }));
+		assert.strictEqual(latest[0].needsInputPart, undefined);
+		const review = new ChatPlanReviewData('Review Plan', 'First plan summary', [{ id: 'implement', label: 'Implement Plan' }], true, URI.file('/plan.md').toJSON(), 'first');
+		const parts = [review];
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: 'request',
+			response: upcastPartial<IChatResponseModel['response']>({ value: parts }),
+			isPendingConfirmation: constObservable({ startedWaitingAt: 10 }),
+		});
+		const request = upcastPartial<IChatRequestModel>({ response });
+		requests.push(request);
+		changes.fire({ kind: 'addRequest', request });
+		const first = latest[0];
+		review.content = 'Updated plan summary';
+		changes.fire({ kind: 'changedRequest', request });
+		const updated = latest[0];
+		review.isUsed = true;
+		const nextReview = new ChatPlanReviewData('Review Plan', 'Next plan summary', review.actions, true);
+		parts.push(nextReview);
+		changes.fire({ kind: 'changedRequest', request });
+		const next = latest[0];
+		assert.deepStrictEqual({
+			first: first.needsInputPart,
+			description: first.description,
+			preview: first.previewInputText?.includes('First plan summary'),
+			sameIdOnEdit: updated.id === first.id,
+			refreshedPreview: updated.previewSignature !== first.previewSignature,
+			distinctNextReview: next.id !== first.id,
+			next: next.needsInputPart?.kind === 'planReview' ? [next.needsInputPart.reviewIndex, next.needsInputPart.content] : undefined,
+		}, {
+			first: { kind: 'planReview', chatResource, requestId: 'request', reviewIndex: 0, resolveId: 'first', title: 'Review Plan', content: 'First plan summary', actions: review.actions, planUri: review.planUri },
+			description: 'Review the plan below.',
+			preview: true, sameIdOnEdit: true, refreshedPreview: true, distinctNextReview: true, next: [1, 'Next plan summary'],
+		});
+	});
+
+	test('does not expose answered, completed, or canceled plan reviews', () => {
+		const chatResource = URI.parse('test:///chat/finished-plan');
+		const chatService = new TestChatService();
+		const fixture = createFixture([createSession({ id: 'finished-plan', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource })], undefined, undefined, chatService);
+		const actual = [];
+		for (const state of ['used', 'complete', 'canceled'] as const) {
+			const review = new ChatPlanReviewData('Review Plan', 'Summary', [{ label: 'Implement Plan' }], false);
+			review.isUsed = state === 'used';
+			chatService.setRequests(chatResource, [upcastPartial<IChatRequestModel>({
+				response: upcastPartial<IChatResponseModel>({
+					requestId: 'request', isComplete: state === 'complete', isCanceled: state === 'canceled',
+					response: upcastPartial<IChatResponseModel['response']>({ value: [review] }),
+					isPendingConfirmation: constObservable({ startedWaitingAt: 10 }),
+				}),
+			})]);
+			actual.push(fixture.service.notifications.get()[0].needsInputPart);
+		}
+		assert.deepStrictEqual(actual, [undefined, undefined, undefined]);
 	});
 
 	test('surfaces a needs-input part that streams into an already-loaded model (window reload)', () => {
@@ -3012,8 +3079,8 @@ class TestChatService {
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
-	setRequests(chatResource: URI, requests: readonly IChatRequestModel[]): void {
-		this._chatModels.set(chatResource.toString(), upcastPartial<IChatModel>({ onDidChange: Event.None, getRequests: () => [...requests] }));
+	setRequests(chatResource: URI, requests: readonly IChatRequestModel[], onDidChange: IChatModel['onDidChange'] = Event.None): void {
+		this._chatModels.set(chatResource.toString(), upcastPartial<IChatModel>({ onDidChange, getRequests: () => [...requests] }));
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 

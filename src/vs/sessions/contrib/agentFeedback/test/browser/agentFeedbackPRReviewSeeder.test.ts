@@ -97,6 +97,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 		};
 
 		store.add(new AgentFeedbackPRReviewSeederContribution(feedbackService, codeReviewService, sessionsService));

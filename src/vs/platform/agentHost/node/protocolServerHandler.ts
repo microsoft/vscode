@@ -1134,7 +1134,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [sandboxCertificateRotationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.removeSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateRemovalCapability]: true } : {}),
-						...(this._config.allowExtensionMethods !== false && this._agentService.refreshSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+						...(this._agentService.refreshSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateRefreshCapability]: true } : {}),
 						...transport.relayHandshakeMeta,
 					}),
@@ -3603,7 +3603,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		await withChatWorkspaceErrors(() => this._agentService.setChatWorkspace(owner, URI.parse(chat), workspace, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined));
 	}
 
-	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
+	private _handleImportSessionRequest(params: unknown): Promise<{ session?: string }> | undefined {
 		if (!this._agentService.importSession) {
 			return undefined;
 		}
@@ -3612,7 +3612,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
 		}
 		try {
-			return this._agentService.importSession(this._parseSessionUri(validated.content.session));
+			return this._agentService.importSession(this._parseSessionUri(validated.content.session), validated.content.takeOver ? { takeOver: true } : undefined)
+				.then(imported => imported ? { session: imported.toString() } : {});
 		} catch (error) {
 			return Promise.reject(error);
 		}
@@ -3930,7 +3931,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === CompleteSavedChatContinuationExtensionMethod) {
 			return this._handleCompleteSavedChatContinuationRequest(client, params);
 		}
-		if (this._config.allowExtensionMethods === false) {
+		// A direct client may recheck certificate status without permission to change host trust.
+		const isCertificateStatusCheck = method === RefreshSandboxCertificateExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta;
+		if (this._config.allowExtensionMethods === false && !isCertificateStatusCheck) {
 			return undefined;
 		}
 

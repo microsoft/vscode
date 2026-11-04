@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@github/copilot-sdk';
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,7 +19,8 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivationTool.js';
@@ -1027,9 +1028,9 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 // Skill event synthesis
 //
 // The Copilot SDK emits a `skill` tool call (which we hide) and, separately, a
-// `skill.invoked` lifecycle event with the resolved skill file path. We turn
+// `skill.invoked` lifecycle event with the resolved skill origin. We turn
 // the latter into a synthesized tool-start/complete pair so clients can render
-// a clickable file link to the SKILL.md the agent loaded -- matching the
+// a readable resource link to the skill the agent loaded -- matching the
 // existing `view`-tool display style. Live and replay paths share this helper
 // so they stay in lock-step (see also the mirrored-pair gotcha for tool-call
 // display in this file).
@@ -1046,7 +1047,7 @@ export function getSkillSyntheticToolCallId(eventId: string | undefined, data: S
 	if (eventId) {
 		return `synth-skill-${eventId}`;
 	}
-	return `synth-skill-${hash(data.path).toString(16)}`;
+	return `synth-skill-${hash(data.path || data.name).toString(16)}`;
 }
 
 /**
@@ -1064,6 +1065,9 @@ export interface ISynthesizedSkillToolCall {
 	readonly toolInput: string;
 }
 
+/** Resolves a runtime skill identity to its published display name and readable host URI. */
+export type SkillToolCallResolver = (name: string, origin: McpSkillOrigin | undefined) => { readonly name: string; readonly uri?: string } | undefined;
+
 /**
  * Synthesizes the data for a `skill.invoked` tool call (a tool-start /
  * tool-complete pair). Returns the constituent fields without coupling to
@@ -1073,22 +1077,26 @@ export interface ISynthesizedSkillToolCall {
 export function synthesizeSkillToolCall(
 	data: SkillInvokedData,
 	eventId: string | undefined,
+	resolveSkill?: SkillToolCallResolver,
 ): ISynthesizedSkillToolCall {
 	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
 	const displayName = localize('toolName.skill', "Read Skill");
-	// Use the skill name as the link text rather than the basename: every skill
-	// file is named SKILL.md, so `Reading skill [plan]` reads better than the
-	// always-identical `Reading skill [SKILL.md]`. The client may further upgrade
-	// this link to a rich pill based on the `SKILL.md` basename. Skill names and
-	// paths come from the SDK / agent host and are escaped to prevent markdown
-	// injection from a malicious skill author.
-	// Escape only the characters that would break out of markdown link text
-	// syntax (`\` and `]`); a full markdown escape would leave visible
-	// backslashes in renderers (like the skill pill) that extract link text
-	// without re-parsing markdown.
-	const escapedName = escapeMarkdownLinkLabel(data.name);
-	const skillLink = `[${escapedName}](${URI.file(data.path)})`;
-	const invocationMessage = md(localize('toolInvoke.skill', "Read skill {0}", skillLink));
+	const origin = data.mcpOrigin;
+	const originRecord = typeof origin === 'object' && origin !== null && !Array.isArray(origin) ? origin : undefined;
+	const originServer = originRecord?.['serverName'];
+	const originResource = originRecord?.['uri'];
+	const mcpOrigin = typeof originServer === 'string' && originServer && typeof originResource === 'string' && originResource
+		? { serverName: originServer, uri: originResource } : undefined;
+	const skill = resolveSkill?.(data.name, mcpOrigin);
+	const isMcpSkill = !!skill || data.source === 'mcp' || !!mcpOrigin || data.name.startsWith('mcp1:');
+	const originUri = mcpOrigin ? URI.parse(mcpOrigin.uri) : undefined;
+	const name = skill?.name ?? (mcpOrigin && originUri
+		? getMcpSkillName(mcpOrigin.serverName, basename(dirname(originUri)) || originUri.authority)
+		: isMcpSkill ? undefined : data.name);
+	const fileUri = !isMcpSkill && data.path?.trim() ? URI.file(data.path) : undefined;
+	const uri = skill?.uri ?? (fileUri?.path !== '/' ? fileUri?.toString() : undefined);
+	const skillLabel = name ? (uri ? `[${escapeMarkdownLinkLabel(name)}](${uri})` : escapeMarkdownSyntaxTokens(name)) : undefined;
+	const invocationMessage = md(skillLabel ? localize('toolInvoke.skill', "Read skill {0}", skillLabel) : localize('toolInvoke.skillGeneric', "Read skill"));
 	return {
 		toolCallId,
 		toolName: CopilotToolName.Skill,

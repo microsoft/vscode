@@ -1110,6 +1110,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						contextLabel: 'tool run waiting for the user to approve',
 						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message), part.commandLine, part.toolInput].filter(Boolean).join(' — '),
 					};
+				case 'planReview':
+					return {
+						contextLabel: 'plan waiting for the user to review',
+						detailText: [part.title, toPreviewPlainText(part.content), part.actions.map(action => action.label).join(', ')].join(' — '),
+					};
 				case 'confirmation':
 					return {
 						contextLabel: 'action waiting for the user to confirm',
@@ -2134,6 +2139,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			case 'toolConfirmation':
 				return `tc:${part.requestId}:${part.toolCallId}:${part.confirmationKind}`;
+			case 'planReview':
+				return `pr:${part.requestId}:${part.resolveId ?? part.reviewIndex}`;
 			case 'confirmation':
 				return `cf:${part.requestId}:${hash(toPreviewPlainText(part.title))}`;
 		}
@@ -2155,7 +2162,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 
-		for (const part of response.response.value) {
+		for (const [reviewIndex, part] of response.response.value.entries()) {
 			if (part.kind === 'questionCarousel' && !part.isUsed) {
 				if (!part.questions.length) {
 					continue;
@@ -2170,6 +2177,20 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					questions: part.questions,
 				};
 				return questionPart;
+			}
+
+			if (part.kind === 'planReview' && !part.isUsed && !response.isComplete) {
+				return {
+					kind: 'planReview',
+					chatResource,
+					requestId: response.requestId,
+					reviewIndex,
+					resolveId: part.resolveId,
+					title: part.title,
+					content: part.content,
+					actions: part.actions,
+					planUri: part.planUri,
+				};
 			}
 
 			if (part.kind !== 'toolInvocation') {
@@ -2235,6 +2256,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	private getNeedsInputPartDescription(part: IInboxNotificationNeedsInputPart): string {
+		if (part.kind === 'planReview') {
+			return localize('inboxNotifications.needsInput.description.planReview', "Review the plan below.");
+		}
 		if (part.kind === 'questionCarousel') {
 			return localize('inboxNotifications.needsInput.description.questionCarousel', "Answer the pending questions below.");
 		}

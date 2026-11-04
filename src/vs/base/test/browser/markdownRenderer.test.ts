@@ -419,6 +419,14 @@ suite('MarkdownRenderer', () => {
 			});
 			assert.strictEqual(lang, 'js');
 		});
+
+		test('Code block placeholders keep their class, other HTML does not get it', () => {
+			const markdown = new MarkdownString('```js\n1 + 1;\n```\n\n<div class="code">a</div><div class="monaco-button" data-code="x">b</div>', { supportHtml: true });
+			const result = store.add(renderMarkdown(markdown, {
+				codeBlockRenderer: () => new Promise<HTMLElement>(() => { }),
+			}));
+			assert.deepStrictEqual([...result.element.querySelectorAll('div')].map(div => div.className), ['code', '', '']);
+		});
 	});
 
 	suite('ThemeIcons Support On', () => {
