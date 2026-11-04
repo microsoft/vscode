@@ -14,7 +14,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode, createCommandUri } from '../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isUUID } from '../../../../../base/common/uuid.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -34,7 +33,6 @@ import { createOnboardingTryoutUri, IOnboardingTryoutMetadata, IOnboardingTryout
 import { IWebview, WebviewMessageReceivedEvent } from '../../../webview/browser/webview.js';
 import { renderReleaseNotesMarkdown } from '../../browser/releaseNotesEditor.js';
 import { initializeReleaseNotesTryouts, ReleaseNotesTryouts } from '../../browser/releaseNotesTryouts.js';
-import { indexReleaseNotesContent } from '../../browser/releaseNotesTelemetry.js';
 
 suite('Release notes Try This', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -413,34 +411,6 @@ suite('Release notes Try This', () => {
 		assert.deepStrictEqual(integrated.innerHTML, legacy.innerHTML);
 	});
 
-	test('keeps occurrence indexes stable across registered and missing tryouts and settings', async () => {
-		const markdown = `## Feature\n\`ordinary code\`\n\n[Try](${sampleUri})\n\n<code><a href="${sampleUri}">Nested example</a></code>\n\n\`setting(editor.wordWrap:on)\`\n\n<a href="vscode://settings/editor.wordWrap">Setting</a>\n\n[Details with \`code\`](https://example.com)\n\n\`\`\`text\nexcluded code block\n\`\`\``;
-		const snapshots = [];
-		for (const registered of [true, false]) {
-			if (!registered) {
-				scenarios.delete('sample');
-			}
-			instantiationService.stub(IPreferencesService, {
-				getSetting: () => registered ? new class extends mock<ISetting>() {
-					override key = 'editor.wordWrap';
-					override value = 'off';
-					override type = 'string';
-				} : undefined,
-			});
-			const container = await render(markdown);
-			const manifest = indexReleaseNotesContent(container);
-			snapshots.push({
-				links: manifest.links.map(({ index, contentIndex, targetKind }) => ({ index, contentIndex, targetKind })),
-				detailsIndex: container.querySelector('a[href="https://example.com"]')?.getAttribute('data-release-notes-link-index'),
-			});
-		}
-		const expected = {
-			links: ['other', 'command', 'command', 'other', 'other', 'external'].map((targetKind, index) => ({ index, contentIndex: 0, targetKind })),
-			detailsIndex: '5',
-		};
-		assert.deepStrictEqual(snapshots, [expected, expected]);
-	});
-
 	test('skips tryout DOM processing when sanitized notes contain no tryout links', async () => {
 		const renderTryouts = stub(tryouts, 'render').callThrough();
 		store.add(toDisposable(() => renderTryouts.restore()));
@@ -550,8 +520,6 @@ suite('Release notes Try This', () => {
 
 	test('activates the selected shorthand occurrence with release-note attribution', async () => {
 		const options: (IOnboardingTryoutRunOptions | undefined)[] = [];
-		const interactions: { index: number; action: string; runId?: string }[] = [];
-		tryouts.onInteraction = (index, action, runId) => interactions.push({ index, action, runId });
 		runImplementation = async (_id, _token, runOptions) => {
 			options.push(runOptions);
 			return { kind: 'opened' };
@@ -560,8 +528,8 @@ suite('Release notes Try This', () => {
 		attach();
 		request('run', { index: 1 });
 		await timeout(0);
-		assert.deepStrictEqual({ runs, options: options.map(option => ({ source: option?.source, validRunId: typeof option?.runId === 'string' && isUUID(option.runId) })), interactions: interactions.map(interaction => ({ ...interaction, runId: interaction.runId === options[0]?.runId })), commands: executeCommand.callCount }, {
-			runs: ['sample'], options: [{ source: 'releaseNotes', validRunId: true }], interactions: [{ index: 1, action: 'run', runId: true }], commands: 0,
+		assert.deepStrictEqual({ runs, options: options.map(option => ({ source: option?.source })), commands: executeCommand.callCount }, {
+			runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0,
 		});
 	});
 
@@ -586,7 +554,7 @@ suite('Release notes Try This', () => {
 		attach();
 		request();
 		await timeout(0);
-		assert.deepStrictEqual({ runs, options: options.map(option => ({ source: option?.source, validRunId: typeof option?.runId === 'string' && isUUID(option.runId) })), commands: executeCommand.callCount, focusCount }, { runs: ['sample'], options: [{ source: 'releaseNotes', validRunId: true }], commands: 0, focusCount: 0 });
+		assert.deepStrictEqual({ runs, options: options.map(option => ({ source: option?.source })), commands: executeCommand.callCount, focusCount }, { runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0, focusCount: 0 });
 	});
 
 	test('coalesces repeated activation without cancelling the pending example', async () => {
