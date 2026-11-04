@@ -508,6 +508,29 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('revealing the Inbox composer restores a consumed draft without replacing an existing or pending draft', () => {
+		const session = observableValue<IActiveSession | undefined>('draft', createTestActiveSession('draft', false));
+		const creation = disposables.add(new MutableDisposable<IDisposable>());
+		const seeded: (IActiveSession | undefined)[] = [];
+		const harness = {
+			_preserveCustomView: true,
+			_session: session,
+			_newSessionCreation: creation,
+			_seedWorkspaceDraft: () => { seeded.push(session.get()); },
+		};
+		const setHostVisible = Reflect.get(NewChatWidget.prototype, 'setHostVisible') as (this: typeof harness, visible: boolean) => void;
+		setHostVisible.call(harness, true);
+		session.set(undefined, undefined);
+		setHostVisible.call(harness, false);
+		creation.value = toDisposable(() => { });
+		setHostVisible.call(harness, true);
+		creation.clear();
+		setHostVisible.call(harness, true);
+		harness._preserveCustomView = false;
+		setHostVisible.call(harness, true);
+		assert.deepStrictEqual(seeded, [undefined]);
+	});
+
 	test('forwards nonempty composing intent to the current draft provider, but not after Send', () => {
 		const changed = disposables.add(new Emitter<void>());
 		let input = '';

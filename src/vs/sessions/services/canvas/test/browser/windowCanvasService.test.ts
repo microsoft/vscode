@@ -512,4 +512,19 @@ suite('WindowCanvasService', () => {
 		const hiddenResult = h.service.openNewSession();
 		assert.deepStrictEqual({ sessionsOpened: content.sessionsOpened, hiddenResult }, { sessionsOpened: 1, hiddenResult: undefined });
 	});
+
+	test('New Session does not route to a retained canvas after navigating to a session', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		await h.service.openCanvas(descriptor.id);
+		const content = h.service.getPresentation(h.opened[0].input).content;
+		assert.ok(content instanceof TestCanvas);
+		h.service.deactivateCanvas();
+		const result = h.service.openNewSession();
+		assert.deepStrictEqual({
+			retainedEditor: h.service.activeCanvasId.get(),
+			sessionsOpened: content.sessionsOpened,
+			result,
+		}, { retainedEditor: descriptor.id, sessionsOpened: 0, result: undefined });
+	});
 });
