@@ -30,9 +30,9 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle, type IAgentImportedChat } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
-import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
+import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig, type IAgentImportSessionOptions } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { MCP_RESOURCE_SCHEME, TOOL_RESULT_RESOURCE_SCHEME } from '../common/mcpResourceUri.js';
@@ -42,6 +42,7 @@ import { filterChatConfigValues, getSessionApprovalProperty, getValidChatConfigV
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { changesetSession, parseChangesetUri } from '../common/changesetUri.js';
+import { readAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigSchema } from '../common/state/protocol/commands.js';
@@ -2422,11 +2423,23 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async importSession(session: URI): Promise<void> {
+	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI> {
+		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
+		// A provider backing can be admitted under another address, such as `ahp-session:` for an unseen Copilot session.
+		const runtimeSession = URI.parse(this._orchestratorDatabase.toRuntimeSession(session.toString()));
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.importChat) {
+			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
+			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), options);
+			if (imported) {
+				await this._offerImportedChatSelection(runtimeSession, chat, imported);
+			}
+		}
 		if (!await this._sessionRegistry.adoptExternalSession(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
+		return runtimeSession;
 	}
 
 	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
@@ -2460,6 +2473,53 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error('Sandbox certificate management is unavailable for this chat.');
 		}
 		await provider[operation]!(chat, scopeId);
+	}
+
+	/**
+	 * Clients carry the model and agent of a turn on its message and seed them from the chat's
+	 * draft, so the draft decides what the next turn runs with. An imported chat continues with
+	 * the selection its runtime restored, which may differ from the turns it was rebuilt from.
+	 */
+	private async _offerImportedChatSelection(session: URI, chat: URI, imported: IAgentImportedChat): Promise<void> {
+		const chatKey = chat.toString();
+		const resolved = this._stateManager.getChatState(chatKey);
+		let current: Message | undefined;
+		try {
+			current = resolved ? resolved.draft : await this._sessionStateStore.chatRows.getDraft(session, chat);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to read the draft of imported chat ${chatKey}`, err);
+		}
+		const { model: _model, agent: _agent, ...unselected } = current ?? { text: '', origin: { kind: MessageKind.User } };
+		const draft: Message = {
+			...unselected,
+			...(imported.model ? { model: imported.model } : {}),
+			...(imported.agent ? { agent: imported.agent } : {}),
+		};
+		if (resolved) {
+			this._stateManager.dispatchServerAction(chatKey, { type: ActionType.ChatDraftChanged, draft });
+		} else {
+			this._stateManager.setUnresolvedChatDraft(chatKey, draft);
+		}
+		try {
+			await this._sessionStateStore.chatRows.setDraft(session, chat, draft);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to persist the draft of imported chat ${chatKey}`, err);
+		}
+	}
+
+	/**
+	 * An import may name a session the registry does not know yet: discovery may
+	 * hide external sessions, or may not have scanned one that was just created.
+	 */
+	private async _registerSessionForImport(session: URI): Promise<void> {
+		if (await this._sessionRegistry.get(session)) {
+			return;
+		}
+		const provider = this._providerService.getProviderForSession(session);
+		const discovered = await provider?.discoverChat?.(session);
+		if (provider && discovered) {
+			await this._migrateAndRegisterDiscoveredChats(provider, [discovered]);
+		}
 	}
 
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
@@ -11495,6 +11555,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
+	getSnapshot(resource: string): IStateSnapshot | undefined {
+		const terminal = this._terminalManager.getTerminalState(resource);
+		return terminal
+			? { resource, state: terminal, fromSeq: this._stateManager.serverSeq }
+			: this._stateManager.getSnapshot(resource);
+	}
+
 	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot> {
 		if (resource.scheme === AHP_CANVAS_SCHEME) {
 			if (this._store.isDisposed || (isActive && !isActive())) {
@@ -12447,10 +12514,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return action.type === ActionType.AutomationRunCancelRequested;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, credentials?: IAgentHostCredentialSource): void | Promise<void> {
+	dispatchAction(channel: string, clientAction: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, credentials?: IAgentHostCredentialSource): void | Promise<void> {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
+		// Assisted permissions feedback is restricted telemetry. It reaches only the provider,
+		// never logs, protocol state, or the envelopes echoed to clients.
+		const permissionFeedback = clientAction.type === ActionType.ChatToolCallConfirmed ? readAgentPermissionResponseMeta(clientAction).userFeedback : undefined;
+		const action = clientAction.type === ActionType.ChatToolCallConfirmed ? withoutAgentPermissionFeedback(clientAction) : clientAction;
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 		if (this._isAutomationAction(action)) {
 			const origin = { clientId, clientSeq };
@@ -12501,7 +12572,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin && !requiresCredentialResolution) {
-			this._dispatchActionNow(channel, knownSessionChannel, action, clientId, clientSeq, clientContext, credentials);
+			this._dispatchActionNow(channel, knownSessionChannel, action, clientId, clientSeq, clientContext, credentials, permissionFeedback);
 			return;
 		}
 
@@ -12630,7 +12701,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._changesets.refreshBranchChangeset(changeset.ownerUri);
 			}
-			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext, credentials);
+			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext, credentials, permissionFeedback);
 			if (adoptedForArchiveToggle && action.type === ActionType.SessionIsArchivedChanged) {
 				this._queueCatalogSync(sessionUri, {
 					[AH_META_IS_ARCHIVED_DB_KEY]: action.isArchived ? 'true' : '',
@@ -13518,7 +13589,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return { turn };
 	}
 
-	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void {
+	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource, permissionFeedback?: string): void {
 		const origin = { clientId, clientSeq };
 		if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved) {
 			const id = action.id;
@@ -13677,7 +13748,7 @@ export class AgentService extends Disposable implements IAgentService {
 			|| action.type === ActionType.ChatWorkingDirectoryRemoved) {
 			this._publishWorkingDirectoryIdentities(sessionChannel);
 		}
-		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn, false, clientSeq, credentials);
+		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn, false, clientSeq, credentials, permissionFeedback);
 	}
 
 	private _publishWorkingDirectoryIdentities(sessionChannel: string): void {

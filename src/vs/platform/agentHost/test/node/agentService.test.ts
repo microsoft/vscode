@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -16880,12 +16880,13 @@ suite('AgentService (node dispatcher)', () => {
 		for (const opened of [false, true]) {
 			test(`imports an external session without sending a message (${opened ? 'opened' : 'unopened'})`, async () => {
 				const { svc, agent, session, database, stateManager, chat } = await createExternalSessionForAdoption(opened);
-				await svc.importSession(session);
+				const returned = await svc.importSession(session);
 				await svc.importSession(session);
 				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
 				await waitForSessionListReconciliation(svc);
 				const registered = await database.getSessionV2Registration(session.toString());
 				assert.deepStrictEqual({
+					returned: returned.toString(),
 					registered: { external: registered?.external, source: registered?.source },
 					metadata: stateManager.getSessionState(session.toString())?._meta,
 					sends: agent.sendMessageCalls.length,
@@ -16893,6 +16894,7 @@ suite('AgentService (node dispatcher)', () => {
 					listed: (await svc.listSessions()).map(metadata => metadata.session.toString()),
 					published: stateManager.getExposedSessionKeys().includes(session.toString()),
 				}, {
+					returned: session.toString(),
 					registered: { external: false, source: 'explicit' },
 					metadata: withSessionInitiator(withSessionExternal({ 'test.keep': 'preserved' }, false), { name: 'github/autopilot' }),
 					sends: 0,
@@ -16911,6 +16913,95 @@ suite('AgentService (node dispatcher)', () => {
 				registered: await database.getSessionV2Registration(session.toString()),
 				sends: agent.sendMessageCalls.length,
 			}, { registered: undefined, sends: 0 });
+		});
+
+		/** A provider whose discovery hides its sessions, so only an explicit import can register one. */
+		class ImportableExternalAgent extends TimedExternalAgent {
+			readonly discoverChatCalls: string[] = [];
+			readonly importChatCalls: string[] = [];
+			importChatError: Error | undefined;
+			importedSelection: IAgentImportedChat | undefined;
+
+			override async listExternalChats(): Promise<IAgentListedChat[]> {
+				return [];
+			}
+
+			async discoverChat(session: URI): Promise<IAgentDiscoveredChat | undefined> {
+				this.discoverChatCalls.push(session.toString());
+				const entry = this.catalog.get(AgentSession.id(session));
+				return entry && { ...discoveredChat(session, true, entry.modifiedTime), ...(entry._meta ? { _meta: entry._meta } : {}) };
+			}
+
+			async importChat(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void> {
+				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}${options?.takeOver ? ' takeOver' : ''}`);
+				if (this.importChatError) {
+					throw this.importChatError;
+				}
+				return this.importedSelection;
+			}
+		}
+
+		async function createImportableExternalSession(importChatError?: Error) {
+			const database = new AgentHostDatabase(':memory:');
+			const svc = createCentralCatalogService(createSessionDataService(new TestSessionDatabase()), database);
+			const agent = disposables.add(new ImportableExternalAgent('copilot'));
+			agent.importChatError = importChatError;
+			const session = agent.addSession('external-import', Date.now(), { 'test.keep': 'preserved' }, 'External session');
+			registerTestAgentProvider(svc, agent);
+			return { svc, agent, session, database, chat: buildDefaultChatUri(session) };
+		}
+
+		test('imports an external session that discovery has not registered', async () => {
+			const { svc, agent, session, database, chat } = await createImportableExternalSession();
+			const registeredBefore = await database.getSessionV2Registration(session.toString());
+			await svc.importSession(session, { takeOver: true });
+			const registered = await database.getSessionV2Registration(session.toString());
+			assert.deepStrictEqual({
+				registeredBefore,
+				registered: { external: registered?.external, source: registered?.source },
+				discoverChatCalls: agent.discoverChatCalls,
+				importChatCalls: agent.importChatCalls,
+				listed: (await svc.listSessions()).map(metadata => metadata.session.toString()),
+			}, {
+				registeredBefore: undefined,
+				registered: { external: false, source: 'explicit' },
+				discoverChatCalls: [session.toString()],
+				importChatCalls: [`${session.toString()} ${chat} takeOver`],
+				listed: [session.toString()],
+			});
+		});
+
+		test('an imported chat offers the selection its runtime continues with as its draft', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			agent.importedSelection = {
+				model: { id: 'cli-model', config: { thinkingLevel: 'high' } },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+			};
+			await svc.importSession(session);
+			const expected = {
+				text: '', origin: { kind: MessageKind.User },
+				model: { id: 'cli-model', config: { thinkingLevel: 'high' } },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+			};
+			assert.deepStrictEqual({
+				live: getStateManager(svc).getChatState(chat)?.draft,
+				stored: await (svc as unknown as { _getChatDraft(session: URI, chat: URI): Promise<unknown> })._getChatDraft(session, URI.parse(chat)),
+			}, { live: expected, stored: expected });
+		});
+
+		test('a provider that refuses an import leaves the session external', async () => {
+			const { svc, agent, session, database, chat } = await createImportableExternalSession(new ProtocolError(AhpErrorCodes.Conflict, 'Session is in use'));
+			await assert.rejects(() => svc.importSession(session), { code: AhpErrorCodes.Conflict });
+			const registered = await database.getSessionV2Registration(session.toString());
+			assert.deepStrictEqual({
+				registered: { external: registered?.external, source: registered?.source },
+				importChatCalls: agent.importChatCalls,
+				sends: agent.sendMessageCalls.length,
+			}, {
+				registered: { external: true, source: 'discovery' },
+				importChatCalls: [`${session.toString()} ${chat}`],
+				sends: 0,
+			});
 		});
 
 		for (const { outcome, hidden } of [
@@ -33654,6 +33745,44 @@ suite('AgentService (node dispatcher)', () => {
 
 			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
 			await assert.rejects(service.subscribe(URI.parse(subagentUri), 'client-race'), /Cannot subscribe to unknown resource/);
+		});
+
+		test('permission feedback reaches only the provider, never protocol state or envelopes', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			copilotAgent.respondToPermissionRequest = (...args) => { responses.push(args); };
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash', contributor: undefined, _meta: { toolKind: 'terminal', language: 'bash' } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(parentChat),
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Run a command', confirmationTitle: 'Run command?' },
+				permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
+			});
+			await timeout(0);
+
+			service.dispatchAction(parentChat, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-1', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+				_meta: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Private note' },
+			}, 'client-1', 2);
+			await timeout(0);
+
+			const toolCall = getStateManager(service).getChatState(parentChat)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+			assert.deepStrictEqual({
+				responses,
+				stateMeta: toolCall?.kind === ResponsePartKind.ToolCall ? toolCall.toolCall._meta : undefined,
+				leakedToEnvelopes: JSON.stringify(envelopes).includes('Private note'),
+			}, {
+				responses: [['tc-1', true, { decisionSource: 'human_response', userFeedback: 'Private note', selectedOptionId: undefined, origin: { clientId: 'client-1', clientSeq: 2 } }]],
+				stateMeta: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response' },
+				leakedToEnvelopes: false,
+			});
 		});
 
 		test('subscribe to a subagent chat announced via _meta.subagentChatUri waits for the resource instead of failing immediately', async () => {

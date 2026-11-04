@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -346,8 +347,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 		const generation = ++presentation.modelGeneration;
 		// The page leaves its previous source even if this navigation is superseded, so returning to that source must load it again.
 		presentation.modelSource = undefined;
-		const value = model.loadURL(source.toString(true)).then(() => {
-			if (presentation.model !== model || presentation.modelGeneration !== generation || !isEqual(presentation.canvas?.source, source)) {
+		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		const url = source.toString(true);
+		const network = model.network;
+		const loaded = network ? this.loadOnRemoteNetwork(model, network, url, isCurrent) : model.loadURL(url);
+		const value = loaded.then(() => {
+			if (!isCurrent()) {
 				throw new CancellationError();
 			}
 			presentation.modelSource = source;
@@ -359,6 +364,24 @@ export class CanvasService extends Disposable implements ICanvasService {
 		});
 		presentation.modelPromise = { source, value };
 		return value;
+	}
+
+	/**
+	 * Loads a URL into a retained page on a remote network once that network's proxy is ready, as a new page does. The
+	 * proxy may be restarting, or may have failed to start, while the canvas provider was away. A network the window
+	 * cannot reach rejects like a failed load; the page never falls back to the local network.
+	 */
+	private async loadOnRemoteNetwork(model: IBrowserViewModel, network: IBrowserViewNetwork, url: string, isCurrent: () => boolean): Promise<void> {
+		// A host that cannot proxy browsers holds nothing; the page keeps the network configuration it was created with.
+		const hold = await this.browserViewService.acquireNetwork(network);
+		try {
+			if (!isCurrent()) {
+				throw new CancellationError();
+			}
+			await model.loadURL(url);
+		} finally {
+			hold.dispose();
+		}
 	}
 
 	private async waitForWorkingSetRestore(): Promise<boolean> {

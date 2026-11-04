@@ -143,6 +143,8 @@ export class MockChatService implements IChatService {
 
 	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
 
+	consumePendingRequest(_sessionResource: URI, _pendingRequestId: string, _requestId: string): void { }
+
 	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
 
 	syncPendingRequestsFromRemote(_sessionResource: URI, _requests: readonly IRemotePendingRequest[]): void { }

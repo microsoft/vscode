@@ -21,6 +21,12 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
+ * The files that configure how the native modules build. A cached node_modules folder only works with the
+ * configuration that built it.
+ */
+const nativeBuildConfigFiles = ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
+
+/**
  * Computes the node_modules cache key from the native module build configuration (`.npmrc` and
  * pnpmfiles), the dependency sections of every `package.json`, the `pnpm-lock.yaml` and
  * `pnpm-workspace.yaml` of every install root, and the given arguments.
@@ -29,7 +35,7 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 	const shasum = crypto.createHash('sha256');
 
 	shasum.update(readFile('build/.cachesalt'));
-	for (const file of ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts']) {
+	for (const file of nativeBuildConfigFiles) {
 		shasum.update(readFile(file));
 	}
 
@@ -50,6 +56,31 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 	// Add the lockfile and settings of every install root
 	for (const dir of ['', ...separateRoots, ...distroRoots]) {
 		shasum.update(readFile(path.posix.join(dir, 'pnpm-lock.yaml')));
+		shasum.update(readFile(path.posix.join(dir, 'pnpm-workspace.yaml')));
+	}
+
+	for (const arg of args) {
+		shasum.update(arg);
+	}
+
+	return shasum.digest('hex');
+}
+
+/**
+ * Computes the key of the configuration that a node_modules folder needs so that `pnpm install` can
+ * update it to other dependencies: the inputs of {@link computeNodeModulesCacheKey} without the
+ * dependencies and lockfiles, plus the Node.js and pnpm versions and the pnpm settings of every install
+ * root, which can change the layout of the folder.
+ */
+export function computeNodeModulesBaseCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
+	const shasum = crypto.createHash('sha256');
+
+	shasum.update(readFile('build/.cachesalt'));
+	for (const file of [...nativeBuildConfigFiles, '.nvmrc', 'extensions/copilot/.nvmrc']) {
+		shasum.update(readFile(file));
+	}
+	shasum.update(JSON.stringify(JSON.parse(readFile('package.json').toString()).packageManager));
+	for (const dir of ['', ...separateRoots, ...distroRoots]) {
 		shasum.update(readFile(path.posix.join(dir, 'pnpm-workspace.yaml')));
 	}
 

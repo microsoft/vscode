@@ -7,7 +7,7 @@ import { URI } from '../../base/common/uri.js';
 import { stringHash } from '../../base/common/hash.js';
 import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
 import { isHTMLElement } from '../../base/browser/dom.js';
-import { getInputDropTargets, isInputDropTarget } from '../../workbench/browser/dnd.js';
+import { getInputDropTargetClipPath, isInputDropTarget } from '../../workbench/browser/dnd.js';
 import { ISession } from '../services/sessions/common/session.js';
 
 /**
@@ -33,18 +33,7 @@ export function getChatReferenceDropClipPath(container: HTMLElement, event: Drag
 	if (!event.dataTransfer?.types.includes(CodeDataTransfers.CHAT_REFERENCE)) {
 		return '';
 	}
-	const bounds = container.getBoundingClientRect();
-	const holes = getInputDropTargets(container).flatMap(input => {
-		const rect = input.getBoundingClientRect();
-		const left = Math.max(0, rect.left - bounds.left);
-		const top = Math.max(0, rect.top - bounds.top);
-		const right = Math.min(bounds.width, rect.right - bounds.left);
-		const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
-		return right > left && bottom > top
-			? [`${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px, ${left}px ${top}px, 0 0`]
-			: [];
-	});
-	return holes.length ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${holes.join(', ')})` : '';
+	return getInputDropTargetClipPath(container);
 }
 
 /** Keep a small drag-free buffer beside the pane's resize boundaries. */
