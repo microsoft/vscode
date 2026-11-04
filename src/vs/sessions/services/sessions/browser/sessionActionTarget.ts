@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IReader } from '../../../../base/common/observable.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { getChatWindowSession } from './sessionScope.js';
 import { ISessionsService } from './sessionsService.js';
 
 function isSession(value: unknown): value is IActiveSession {
@@ -51,7 +54,12 @@ export function resolveSessionActionTarget(accessor: ServicesAccessor, arg?: unk
 	const activeSession = sessionsService.activeSession.get();
 	let session: IActiveSession | undefined;
 	if (arg instanceof URI) {
-		session = findSessionByResource(sessionsService, arg);
+		// The resource of a session names it in every window that shows it, such as the main window and a chat window
+		// showing another of its chats: the session of the window the action runs in, such as from its Changes toolbar,
+		// when that window shows it. Its window has focus as the action runs, before the active session follows it.
+		const chatWindow = accessor.get(IChatWindowService).activeWindow;
+		const windowSession = chatWindow ? getChatWindowSession(accessor, chatWindow) : undefined;
+		session = windowSession && isEqual(windowSession.resource, arg) ? windowSession : findSessionByResource(sessionsService, arg);
 	} else if (arg && typeof arg === 'object' && hasKey(arg as { readonly session?: IActiveSession }, { session: true })) {
 		session = (arg as { readonly session: IActiveSession | undefined }).session;
 	} else {
