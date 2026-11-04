@@ -9,7 +9,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuActionOptions, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -31,7 +31,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
-import { ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
+import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 suite('ChangesActionsBar', () => {
@@ -39,11 +39,12 @@ suite('ChangesActionsBar', () => {
 
 	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[] } = {}) {
 		const menus: MenuId[] = [];
+		const toolbarArgs: unknown[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
 			createMenu: (id: MenuId) => {
 				menus.push(id);
-				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); return []; }, dispose: () => { } });
+				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.arg); } return []; }, dispose: () => { } });
 			},
 		}));
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService())));
@@ -82,7 +83,7 @@ suite('ChangesActionsBar', () => {
 		};
 		const container = document.createElement('div');
 		store.add(instantiationService.createInstance(ChangesActionsBar, container, source, new Set<string>()));
-		return { menus, session, container };
+		return { menus, session, container, toolbarArgs };
 	}
 
 	test('renders the git variant for a non-agent-host source session', () => {
@@ -94,15 +95,26 @@ suite('ChangesActionsBar', () => {
 	});
 
 	test('the actions of its toolbar get the session of a bar of a session other than the main window\'s, such as in a chat window, and nothing in the main window, as before', () => {
-		const ofOtherSession = new Map<MenuId, IMenuActionOptions | undefined>();
-		const { session } = createBar('local-agent-host', ofOtherSession);
+		const { session, toolbarArgs } = createBar('local-agent-host');
 		const ofMainWindowSession = new Map<MenuId, IMenuActionOptions | undefined>();
 		createBar('local-agent-host', ofMainWindowSession, { isMainWindowSession: true });
 
 		assert.deepStrictEqual({
-			otherSession: ofOtherSession.get(MenuId.AgentsChangesToolbar)?.arg === session.resource,
+			// The session itself, for its own actions, and its resource, for those of extensions.
+			otherSession: toolbarArgs.map(arg => arg === session ? 'session' : arg === session.resource ? 'resource' : arg),
 			mainWindow: ofMainWindowSession.get(MenuId.AgentsChangesToolbar),
-		}, { otherSession: true, mainWindow: { shouldForwardArgs: true } });
+		}, { otherSession: ['session', 'resource'], mainWindow: { shouldForwardArgs: true } });
+	});
+
+	test('its own actions get the session, which names it whichever window has focus, and those of extensions its resource, as the API gives them', () => {
+		const action = (source?: { id: string; title: string }) => Object.assign(Object.create(MenuItemAction.prototype) as MenuItemAction, { item: { id: 'action', title: 'Action', source } });
+		const extension = { id: 'publisher.extension', title: 'Extension' };
+		const own = action();
+		const ofExtensionWithResource = action(extension);
+
+		const [[, actions]] = actionsNamingSession([['navigation', [own, action(extension)]]], [['navigation', [action(), ofExtensionWithResource]]]);
+
+		assert.deepStrictEqual(actions.map(candidate => candidate === own ? 'session' : candidate === ofExtensionWithResource ? 'resource' : 'other'), ['session', 'resource']);
 	});
 
 	test('a bar of a session other than the main window\'s, such as in a chat window, shows its operations, such as Merge Changes or Create Pull Request, without waiting for its folders to be the mounted workspace, which only the main window\'s session is', () => {

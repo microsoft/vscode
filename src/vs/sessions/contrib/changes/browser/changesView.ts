@@ -386,8 +386,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			menuChanged.read(reader);
 			// A bar of a session other than the main window's, such as in a chat window, names its session to its actions,
 			// as the bar of a non-agent-host session does, rather than leaving them to act on whichever session is active.
-			const sessionResource = sessionObs !== sessionsService.mainWindowActiveSession ? sessionObs.read(reader)?.resource : undefined;
-			return getActionBarActions(menu.getActions(sessionResource ? { arg: sessionResource, shouldForwardArgs: true } : { shouldForwardArgs: true }));
+			const session = sessionObs !== sessionsService.mainWindowActiveSession ? sessionObs.read(reader) : undefined;
+			if (!session) {
+				return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			}
+			return getActionBarActions(actionsNamingSession(
+				menu.getActions({ arg: session, shouldForwardArgs: true }),
+				menu.getActions({ arg: session.resource, shouldForwardArgs: true }),
+			));
 		});
 
 		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
@@ -688,6 +694,15 @@ export class ChangesActionsBar extends Disposable {
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
 /** Renders the {@link ChangesActionsBar} widget as the Create Pull Request title-bar action item. */
+/**
+ * The actions of a menu that name a session: those of extensions, which the API gives its resource, from
+ * `withResource`; the others from `withSession`, which get the session itself, which names it whichever window has
+ * focus. Both are the actions of the same menu.
+ */
+export function actionsNamingSession<T extends MenuItemAction | SubmenuItemAction>(withSession: [string, T[]][], withResource: [string, T[]][]): [string, T[]][] {
+	return withSession.map(([group, actions], groupIndex) => [group, actions.map((action, index) => action instanceof MenuItemAction && action.item.source ? withResource[groupIndex]?.[1][index] ?? action : action)]);
+}
+
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
