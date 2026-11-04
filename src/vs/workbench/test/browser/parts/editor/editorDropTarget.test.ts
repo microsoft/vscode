@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { DraggedEditorIdentifier, registerContentDropTarget, registerInputDropTarget } from '../../../../browser/dnd.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { EditorDropTarget } from '../../../../browser/parts/editor/editorDropTarget.js';
 import { EditorInputWithOptions } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -37,7 +37,7 @@ suite('EditorDropTarget', () => {
 		readonly operations: string[];
 	}
 
-	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean }): ITestSetup {
+	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number }): ITestSetup {
 		const operations: string[] = [];
 
 		// A 300x300 group at the viewport origin with a registered input drop target in its lower center
@@ -69,6 +69,8 @@ suite('EditorDropTarget', () => {
 			override readonly element = groupElement;
 			override readonly isEmpty = true;
 			override readonly groupsView = groupsView;
+			override readonly minimumWidth = options?.groupMinimumWidth ?? 0;
+			override readonly minimumHeight = 0;
 			override isActive(): boolean { return true; }
 			override isSticky(): boolean { return false; }
 			override focus(): void { }
@@ -99,8 +101,8 @@ suite('EditorDropTarget', () => {
 				operations.push(`split ${direction}`);
 				return newGroup;
 			}
-			override getSize() { return { width: 300, height: 300 }; }
-			override setSize() { }
+			override getSize() { return { width: options?.groupWidth ?? 300, height: 300 }; }
+			override setSize(group: IEditorGroup, size: { width: number; height: number }) { operations.push(`size ${size.width}`); }
 		}());
 		instantiation.stub(IEditorService, {});
 		instantiation.stub(ITreeViewsDnDService, {});
@@ -211,6 +213,22 @@ suite('EditorDropTarget', () => {
 		});
 	});
 
+	test('over content that handles drops, an edge drop shows the size the new group gets, half of the group within the least sizes of the group and of an editor, and gives it that', () => {
+		// The chat of a window, 474 wide, which does not get narrower than 280: an editor's least width, 220, rather than half
+		const { groupElement, content, operations } = setup({ contentCoversGroup: true, groupWidth: 474, groupMinimumWidth: 280 });
+
+		dispatch(content, 'dragenter', 5, 150);
+		dispatch(content, 'dragover', 5, 150);
+		const shown = getOverlay(groupElement)?.querySelector<HTMLElement>('.editor-group-overlay-indicator')?.style.width;
+		dispatch(getOverlay(groupElement)!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual({ shown, operations }, {
+			shown: `${(220 * 100 / 474).toFixed(2)}%`,
+			operations: [`split ${GroupDirection.LEFT}`, 'size 220', 'move 1 editor(s) to new group']
+		});
+	});
+
 	test('over content that handles drops, the overlay that shows at an edge takes the drop, also when no drag moved over it yet, and the content does not get that drag', () => {
 		const { groupElement, content, operations } = setup({ contentCoversGroup: true });
 		const dragged = editorTransfer.getData(DraggedEditorIdentifier.prototype)!;
@@ -240,10 +258,11 @@ suite('EditorDropTarget', () => {
 		// The content gets no drag of editors: they split the group at its edges, and go into it in its center
 		assert.deepStrictEqual({ contentDragOvers, shown, taken: [drop.defaultPrevented, dropOnEnter.defaultPrevented], overlayAfter: !!getOverlay(groupElement), operations }, {
 			contentDragOvers: [],
-			shown: { width: '50%', height: '100%' },
+			// Half of the 300 wide group is less than an editor's least width: the new group shows, and gets, that
+			shown: { width: `${(DEFAULT_EDITOR_MIN_DIMENSIONS.width * 100 / 300).toFixed(2)}%`, height: '100%' },
 			taken: [true, true],
 			overlayAfter: false,
-			operations: [`split ${GroupDirection.LEFT}`, 'move 1 editor(s) to new group', `split ${GroupDirection.RIGHT}`, 'move 1 editor(s) to new group']
+			operations: [`split ${GroupDirection.LEFT}`, 'size 220', 'move 1 editor(s) to new group', `split ${GroupDirection.RIGHT}`, 'size 220', 'move 1 editor(s) to new group']
 		});
 	});
 

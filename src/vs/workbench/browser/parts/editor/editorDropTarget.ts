@@ -20,7 +20,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, getInputDropTargetClipPath, isContentDropTarget, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
-import { IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
 import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
@@ -34,10 +34,18 @@ interface IDropOperation {
 	splitDirection?: GroupDirection;
 
 	/**
-	 * Whether the drop splits the group into even halves, as over content
-	 * that handles drops, where the drop shows half of the group.
+	 * Where the drop splits the group evenly, as over content that handles
+	 * drops: the size of the new group, as the drop shows it.
 	 */
-	splitEvenly?: boolean;
+	splitSize?: number;
+}
+
+/**
+ * The size of the group that an even split of a group adds: half of the
+ * group, within the least sizes of the group and of an editor.
+ */
+function getEvenSplitSize(size: number, groupMinimum: number, newGroupMinimum: number): number {
+	return Math.max(newGroupMinimum, Math.min(Math.round(size / 2), size - groupMinimum));
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
@@ -455,18 +463,18 @@ class DropOverlay extends Themable {
 	private async handleDrop(event: DragEvent, operation: IDropOperation): Promise<void> {
 		const splitDirection = operation.splitDirection;
 
-		// A group that splits evenly gives the new group half of its size, as
-		// the drop shows: the part would otherwise expand the new group, such
-		// as when the group counts as expanded beside one at its minimum size
-		const sizeBeforeSplit = operation.splitEvenly ? this.editorGroupService.getSize(this.groupView) : undefined;
+		// A group that splits evenly gives the new group the size the drop
+		// shows: the part would otherwise expand the new group, such as when
+		// the group counts as expanded beside one at its minimum size
+		const splitSize = operation.splitSize;
 		const splitEvenly = (targetGroup: IEditorGroup) => {
-			if (!sizeBeforeSplit || typeof splitDirection !== 'number' || targetGroup === this.groupView) {
+			if (splitSize === undefined || typeof splitDirection !== 'number' || targetGroup === this.groupView) {
 				return;
 			}
 
 			const size = this.editorGroupService.getSize(targetGroup);
 			const vertically = splitDirection === GroupDirection.UP || splitDirection === GroupDirection.DOWN;
-			this.editorGroupService.setSize(targetGroup, vertically ? { width: size.width, height: Math.round(sizeBeforeSplit.height / 2) } : { width: Math.round(sizeBeforeSplit.width / 2), height: size.height });
+			this.editorGroupService.setSize(targetGroup, vertically ? { width: size.width, height: splitSize } : { width: splitSize, height: size.height });
 		};
 
 		// Determine target group
@@ -633,22 +641,34 @@ class DropOverlay extends Themable {
 
 		const splitDirection = getSplitDirection(mousePosX, mousePosY, editorControlWidth, editorControlHeight, isDraggingGroup, preferSplitVertically, splitsOnly);
 
+		// An even split shows the size the new group gets: half, within the least sizes of the group and of an editor
+		const vertically = splitDirection === GroupDirection.UP || splitDirection === GroupDirection.DOWN;
+		let splitSize: number | undefined;
+		let share = '50%';
+		if (splitsEvenly && typeof splitDirection === 'number') {
+			const size = this.editorGroupService.getSize(this.groupView);
+			const total = vertically ? size.height : size.width;
+			splitSize = getEvenSplitSize(total, vertically ? this.groupView.minimumHeight : this.groupView.minimumWidth, vertically ? DEFAULT_EDITOR_MIN_DIMENSIONS.height : DEFAULT_EDITOR_MIN_DIMENSIONS.width);
+			share = total > 0 ? `${Math.min(100, splitSize * 100 / total).toFixed(2)}%` : share;
+		}
+		const rest = share === '50%' ? '50%' : `calc(100% - ${share})`;
+
 		// Draw overlay based on split direction
 		switch (splitDirection) {
 			case GroupDirection.UP:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: share });
 				this.toggleDropIntoPrompt(false);
 				break;
 			case GroupDirection.DOWN:
-				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
+				this.doPositionOverlay({ top: rest, left: '0', width: '100%', height: share });
 				this.toggleDropIntoPrompt(false);
 				break;
 			case GroupDirection.LEFT:
-				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
+				this.doPositionOverlay({ top: '0', left: '0', width: share, height: '100%' });
 				this.toggleDropIntoPrompt(false);
 				break;
 			case GroupDirection.RIGHT:
-				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
+				this.doPositionOverlay({ top: '0', left: rest, width: share, height: '100%' });
 				this.toggleDropIntoPrompt(false);
 				break;
 			default:
@@ -664,7 +684,7 @@ class DropOverlay extends Themable {
 		setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
 
 		// Remember as current split direction
-		this.currentDropOperation = { splitDirection, splitEvenly: splitsEvenly && typeof splitDirection === 'number' };
+		this.currentDropOperation = { splitDirection, splitSize };
 	}
 
 	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {

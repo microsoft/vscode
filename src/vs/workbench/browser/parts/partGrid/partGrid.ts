@@ -1765,7 +1765,7 @@ function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T
 		addAtEdge(arrangement, view, resolved.edge, undefined);
 	}
 
-	giveEvenShare(arrangement, view, before);
+	giveEvenShare(arrangement, view, before, getView);
 }
 
 function getViewSizes<T extends IArrangedView>(grid: SerializableGrid<T>): Map<string, IViewSize> {
@@ -1802,7 +1802,7 @@ function toEdgeIfAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, v
  * and views that are not parts, such as a title row, keep theirs. Its least
  * and most sizes hold.
  */
-function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>): void {
+function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>, getView: (id: string) => T): void {
 	const state = arrangement.grid.serialize();
 	const id = view.id;
 	const isView = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
@@ -1841,7 +1841,16 @@ function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, vi
 
 	const horizontal = line.orientation === Orientation.HORIZONTAL;
 	const [minimum, maximum] = horizontal ? [view.minimumWidth, view.maximumWidth] : [view.minimumHeight, view.maximumHeight];
-	const share = Math.round(Math.min(Math.max(total / shown.length, minimum), maximum, total));
+
+	// The least size of a node along the line: of what is along the line in it, the sum; of what is across it, the most
+	const minimumOf = (node: ISerializedNode, orientation: Orientation): number => {
+		if (node.type !== 'branch') {
+			const leaf = getView((node.data as { id: string }).id);
+			return horizontal ? leaf.minimumWidth : leaf.minimumHeight;
+		}
+		const minimums = node.data.filter(shows).map(child => minimumOf(child, orthogonal(orientation)));
+		return orientation === line.orientation ? minimums.reduce((sum, value) => sum + value, 0) : Math.max(0, ...minimums);
+	};
 
 	// What a node took along the line before, from the sizes of its views then: the sum of what is along the line in it,
 	// the most of what is across it
@@ -1855,16 +1864,36 @@ function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, vi
 	};
 	const others = shown.filter(node => node !== placed);
 	const weights = others.map(node => extentBefore(node, orthogonal(line.orientation)));
-	const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
-	if (!others.length || weightTotal <= 0) {
+	const minimums = others.map(node => minimumOf(node, orthogonal(line.orientation)));
+	if (!others.length || weights.every(weight => weight <= 0)) {
 		return;
 	}
 
-	// The others make room in proportion to their sizes, the last taking what rounding leaves, and so do the parts in them
+	// The share leaves the others room for their least sizes
+	const share = Math.round(Math.max(Math.min(total / shown.length, maximum, total - minimums.reduce((sum, value) => sum + value, 0)), minimum));
+
+	// The others make room in proportion to their sizes, those that would get less than their least size keeping that,
+	// the last taking what rounding leaves, and so do the parts in them
+	const sizes = new Array<number>(others.length);
+	const fixed = new Set<number>();
+	for (let changed = true; changed;) {
+		changed = false;
+		const free = others.map((_, index) => index).filter(index => !fixed.has(index));
+		const room = total - share - Array.from(fixed).reduce((sum, index) => sum + minimums[index], 0);
+		const weightTotal = free.reduce((sum, index) => sum + weights[index], 0);
+		for (const index of free) {
+			sizes[index] = weightTotal > 0 ? weights[index] * room / weightTotal : room / free.length;
+			if (sizes[index] < minimums[index]) {
+				sizes[index] = minimums[index];
+				fixed.add(index);
+				changed = true;
+			}
+		}
+	}
 	let left = total - share;
 	const resizedNodes = new Map<ISerializedNode, ISerializedNode>([[placed, { ...placed, size: share }]]);
 	others.forEach((node, index) => {
-		const size = index === others.length - 1 ? left : Math.round(weights[index] * (total - share) / weightTotal);
+		const size = index === others.length - 1 ? left : Math.round(sizes[index]);
 		resizedNodes.set(node, scaleAlong(node, size));
 		left -= size;
 	});

@@ -1093,6 +1093,49 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(results, Object.fromEntries(cases.map(([name]) => [name, name.endsWith('edge') ? atEdge : { added: 199, rearranged: 199 }])));
 	});
 
+	test('an editor dropped at an edge of the window goes into a new part with an even share of the row, as its preview shows, the other parts keeping their least sizes, such as the chat split into groups', () => {
+		const partWith = (name: string, minimumWidth: number) => new class extends mock<IContentPart>() {
+			override readonly element = $(`.${name}`);
+			override readonly minimumWidth = minimumWidth;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [new class extends mock<IEditorGroup>() {
+				override readonly isEmpty = false;
+				override readonly onDidModelChange = Event.None;
+				override focus(): void { }
+			}()];
+			override get activeGroup() { return this.groups[0]; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: partWith('main', 220), chat: partWith('chat', 500), titleRow: createChrome(30) }, mode, constObservable(0), undefined, undefined, { createPart: () => ({ id: 'created', part: partWith('created', 220) }) }, editorGroupsService));
+		grid.layout(1200, 800);
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 504, height: 770 });
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const widths = (rects: ReadonlyMap<string, { readonly width: number }> | undefined) => Object.fromEntries(['chat', 'main', 'new'].map(id => [id, Math.round(rects?.get(id)?.width ?? 0)]));
+
+		const preview = widths(grid.partGrid!.previewNewPart('new', { edge: Direction.Right }, 'main', false, true));
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Right }, { dropped: true });
+		const result = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width, new: grid.partGrid!.getCellSize('created').width };
+
+		// An even third of 1200 is 400: the chat keeps its least 500 rather than 336 in proportion, so main takes the rest
+		assert.deepStrictEqual({ preview, result }, {
+			preview: { chat: 500, main: 300, new: 400 },
+			result: { chat: 500, main: 300, new: 400 }
+		});
+	});
+
 	test('a part created for an editor dropped on an edge of the window stays when the layout mode changes, until it closes, and the sizes of the arrangement with it or without it are remembered', () => {
 		const onWillClose = new Emitter<void>();
 		const created = new class extends mock<IContentPart>() {
