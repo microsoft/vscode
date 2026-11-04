@@ -317,6 +317,11 @@ export class ChatWindowGrid extends Disposable {
 		}
 	}
 
+	/** The parts the grid created, such as for editors dropped on an edge of the window, in the order it created them. */
+	get createdParts(): readonly IContentPart[] {
+		return Array.from(this._created.values());
+	}
+
 	/** The arrangement shown, such as `column(titleRow,row(chat,main))`. */
 	get topology(): string | undefined {
 		return this._topologyKey;

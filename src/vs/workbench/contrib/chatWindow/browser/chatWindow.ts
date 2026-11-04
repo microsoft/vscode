@@ -45,6 +45,11 @@ export interface IChatWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
 	/** The groups its chat part starts with besides the chat's own, such as editors split beside the chat, as it opens again. */
 	readonly chatPart?: IChatWindowChatPart;
+	/**
+	 * The parts besides its main part it starts with, such as those created for editors dropped on its edges, as it opens
+	 * again: each with its editors, at the edge of the window where such parts go as its parts are arranged.
+	 */
+	readonly createdParts?: readonly IChatWindowEditors[];
 }
 
 /**

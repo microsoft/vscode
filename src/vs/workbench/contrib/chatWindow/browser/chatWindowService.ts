@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, EventType, getActiveWindow } from '../../../../base/browser/dom.js';
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -339,6 +340,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	private readonly _opening = new InFlightOperations<IChatWindow | undefined>();
 	private readonly _chatLayouts: ChatWindowChatLayouts;
 	private readonly _chatSizes: ChatWindowChatSizes;
+	/** The grid of each open window, which arranges its parts. */
+	private readonly _grids = new Map<IChatWindow, ChatWindowGrid>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -359,6 +362,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			open: (chat: URI, options: IChatWindowOpenOptions) => this.open(chat, options),
 			terminalsShown: window => window.terminalsVisible.get(),
 			chatPart: window => this._windows.get().find(candidate => candidate === window)?.captureChatPart(),
+			createdParts: window => this._grids.get(window)?.createdParts ?? [],
 		}));
 	}
 
@@ -543,6 +547,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			terminals: window.terminalsPart,
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition, partFactory));
 		gridRef.set(grid, undefined);
+		this._grids.set(window, grid);
+		disposables.add(toDisposable(() => this._grids.delete(window)));
 		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
 		const saveSizes = () => this._chatSizes.set(content.chat.get(), grid.exportSizes());
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
@@ -577,6 +583,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		chatPart.activateGroup(chatGroup);
 		await chatGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus });
 		await this._openEditors(options?.editors, mainPart);
+		await this._openCreatedParts(options?.createdParts, mainPart, grid);
 		showChatInsteadOfEmptyMainPart(mainPart, window, !rememberedLayout);
 		if (options?.showTerminals) {
 			window.getOrCreateTerminalsPart();
@@ -598,6 +605,22 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 		content.didShow?.(window, !options?.preserveFocus);
 		return window;
+	}
+
+	/**
+	 * Opens each part the window created before, with its editors, as such parts are created: its editors move into a new
+	 * part at the edge of the window, where such parts go as the window's parts are arranged. Where the window creates no
+	 * parts, its editors stay in its main part.
+	 */
+	private async _openCreatedParts(createdParts: readonly IChatWindowEditors[] | undefined, mainPart: IContentPart, grid: ChatWindowGrid): Promise<void> {
+		for (const created of createdParts ?? []) {
+			await this._openEditors(created, mainPart);
+			const group = mainPart.activeGroup;
+			const editors = (created.editors ?? []).filter(editor => group.contains(editor)).map(editor => ({ editor, groupId: group.id }));
+			if (editors.length) {
+				grid.partGrid?.moveEditorsIntoNewPart(editors, { edge: Direction.Right });
+			}
+		}
 	}
 
 	private async _openEditors(editors: IChatWindowEditors | undefined, part: IContentPart): Promise<void> {

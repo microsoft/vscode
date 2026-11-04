@@ -10,10 +10,14 @@ import { constObservable, IObservable, observableValue } from '../../../../../ba
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
-import { IContentPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowOpenOptions, IChatWindowProvider } from '../../browser/chatWindow.js';
 import { ChatWindowsRestoration, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/chatWindowsRestoration.js';
 
@@ -34,7 +38,7 @@ suite('ChatWindowsRestoration', () => {
 		}();
 	}
 
-	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; canRestore?: (chat: URI) => Promise<boolean> }) {
+	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[] }) {
 		const storageService = disposables.add(new TestStorageService());
 		if (options.stored) {
 			storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(options.stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -61,6 +65,7 @@ suite('ChatWindowsRestoration', () => {
 			},
 			terminalsShown: () => true,
 			chatPart: window => window.chat.get().path === '/split' ? { state: { serializedGrid: {} }, chatGroup: 1 } : undefined,
+			createdParts: window => options.createdParts?.(window) ?? [],
 		}));
 		const read = () => storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
 		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, read };
@@ -133,6 +138,42 @@ suite('ChatWindowsRestoration', () => {
 		assert.deepStrictEqual({ stored, none: read() }, {
 			stored: [{ chat: 'test:/a', editors: [], terminal: true }, { chat: 'test:/split', editors: [], terminal: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } }],
 			none: undefined,
+		});
+	});
+
+	test('the parts a window created, such as for editors dropped on its edges, are stored with their editors and open again with them', async () => {
+		const typeId = 'chatWindowsRestoration.test';
+		const createEditor = (path: string) => new class extends mock<EditorInput>() {
+			override readonly typeId = typeId;
+			override readonly resource = URI.file(path);
+		}();
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+		disposables.add(new TestInstantiationService()).invokeFunction(accessor => registry.start(accessor));
+		disposables.add(registry.registerEditorSerializer(typeId, class implements IEditorSerializer {
+			canSerialize() { return true; }
+			serialize(editor: EditorInput) { return editor.resource!.path; }
+			deserialize(_instantiationService: IInstantiationService, value: string) { return createEditor(value); }
+		}));
+		const created = createEditor('/created.txt');
+		const createdPart = {
+			groups: [new class extends mock<IEditorGroup>() {
+				override readonly activeEditor = created;
+				override getEditors() { return [created]; }
+			}()]
+		} as unknown as IContentPart;
+		const saving = createRestoration({ createdParts: window => window.chat.get().path === '/a' ? [createdPart, { groups: [] } as unknown as IContentPart] : [] });
+		await flush();
+		saving.windows.set([createWindow('test:/a'), createWindow('test:/b')], undefined);
+		saving.storageService.willSave();
+		const stored = JSON.parse(saving.read()!);
+		saving.windows.set([], undefined);
+
+		const { opened } = createRestoration({ stored });
+		await flush();
+
+		assert.deepStrictEqual({ stored, restored: opened.map(window => ({ chat: window.chat, createdParts: window.options.createdParts?.map(part => ({ editors: part.editors?.map(editor => editor.resource?.path), active: part.activeEditor?.resource?.path })) })) }, {
+			stored: [{ chat: 'test:/a', editors: [], terminal: true, created: [[{ typeId, value: '/created.txt', active: true }]] }, { chat: 'test:/b', editors: [], terminal: true }],
+			restored: [{ chat: 'test:/a', createdParts: [{ editors: ['/created.txt'], active: '/created.txt' }] }, { chat: 'test:/b', createdParts: undefined }]
 		});
 	});
 });
