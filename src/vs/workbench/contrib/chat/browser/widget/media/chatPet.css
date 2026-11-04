@@ -213,6 +213,10 @@
 	height: 12px;
 }
 
+.chat-pet-subagent .chat-pet-pupil {
+	height: 8px;
+}
+
 .chat-pet-sprite {
 	position: absolute;
 	bottom: 0;

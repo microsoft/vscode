@@ -2284,6 +2284,11 @@ suite('ChatPetWidget', () => {
 		const first = createSubagent('first');
 		const firstMini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
 		assert.ok(firstMini.offsetLeft >= button.offsetLeft + button.offsetWidth);
+		button.dataset.state = 'idle';
+		const miniPupil = firstMini.querySelector<HTMLElement>('.chat-pet-pupil')!;
+		const mainPupil = button.querySelector<HTMLElement>('.chat-pet-pupil')!;
+		assert.strictEqual(mainWindow.getComputedStyle(miniPupil).height, mainWindow.getComputedStyle(mainPupil).height);
+		assert.strictEqual(mainWindow.getComputedStyle(miniPupil).height, '8px');
 		button.style.left = '300px';
 		createSubagent('second');
 		const minis = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
