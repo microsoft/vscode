@@ -12,11 +12,11 @@ import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, T
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler, isHTMLElement } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -43,6 +43,24 @@ const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
  * below the notch, whose area is about as tall as the menu bar.
  */
 const FULLSCREEN_NOTCH_ALLOWANCE = 64;
+
+const SHOWS_NO_ACTIONS_CLASS = 'shows-no-actions';
+
+/**
+ * Marks each of `containers` that shows no actions, such as one whose actions all hide themselves, as the Create Pull
+ * Request bar without changes does, with `shows-no-actions`: as its actions show and hide.
+ */
+export function trackActionsContainersShowingNoActions(containers: readonly HTMLElement[]): IDisposable {
+	const showsActions = (element: Element): boolean => [...element.children].some(child => child.classList.contains('action-item') ? isHTMLElement(child) && child.style.display !== 'none' : showsActions(child));
+	const update = (container: HTMLElement) => container.classList.toggle(SHOWS_NO_ACTIONS_CLASS, !showsActions(container));
+	const observers = containers.map(container => {
+		update(container);
+		const observer = new (getWindow(container).MutationObserver)(() => update(container));
+		observer.observe(container, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+		return observer;
+	});
+	return toDisposable(() => observers.forEach(observer => observer.disconnect()));
+}
 
 /**
  * Whether the window hosting the title bar is in full screen, where the
@@ -216,6 +234,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			this.sessionActionsContainer.before(this.centerActionsContainer);
 			const windowControls = [...this.rightContent.children].find(child => child.classList.contains('window-controls-container'));
 			this.rightContent.insertBefore(this.sessionHeaderActionsHost, windowControls ?? null);
+			const actionsContainers = [...this.rightContent.children].filter((child): child is HTMLElement => child.classList.contains('titlebar-actions-container'));
+			this._register(trackActionsContainersShowingNoActions(actionsContainers));
 			this.titleBarToolBarOverflowScheduler.schedule();
 		}
 		return this.sessionHeaderActionsHost;

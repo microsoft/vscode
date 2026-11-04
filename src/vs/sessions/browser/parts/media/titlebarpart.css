@@ -310,7 +310,7 @@
 }
 
 /* One gap between the groups of actions, as between those of the main window's title bar: a group whose actions all hide themselves, such as the Create Pull Request bar without changes, takes no room, and Open in VS Code adds none of its own after it. */
-.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(:has(.action-item:not([style*="display: none"]))) {
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.shows-no-actions {
 	display: none;
 }
 

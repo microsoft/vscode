@@ -9,6 +9,7 @@ import { $, append, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
+import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
@@ -20,7 +21,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { TitlebarPart, TitleService, trackActionsContainersShowingNoActions } from '../../browser/parts/titlebarPart.js';
 // eslint-disable-next-line local/code-import-patterns -- Test the title-bar styling supplied by the Modern UI contribution.
 import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
 // eslint-disable-next-line local/code-import-patterns -- Use the rendered command center's sizing and border.
@@ -636,7 +637,7 @@ suite('Sessions - Titlebar Part', () => {
 	}
 
 	for (const { chatColumn, width } of [{ chatColumn: true, width: 520 }, { chatColumn: false, width: 520 }, { chatColumn: false, width: 1200 }]) {
-		test(`the actions of the session in a title bar that hosts its header are one group at its right, Run and Open in VS Code, Create Pull Request, the layout actions, then the header's More Actions last, ${chatColumn ? 'above the chat\'s column' : `across a window ${width}px wide`}`, () => {
+		test(`the actions of the session in a title bar that hosts its header are one group at its right, Run and Open in VS Code, Create Pull Request, the layout actions, then the header's More Actions last, ${chatColumn ? 'above the chat\'s column' : `across a window ${width}px wide`}`, async () => {
 			const { instantiationService } = createTitlebar();
 			const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 			store.add(toDisposable(() => root.remove()));
@@ -665,6 +666,8 @@ suite('Sessions - Titlebar Part', () => {
 				// Above the chat's column only: the title bar is as wide as the column.
 				part.element.style.width = '400px';
 			}
+			// Once the title bar marked the groups of actions, as their actions rendered.
+			await timeout(0);
 
 			const label = (id: string) => part.element.querySelector<HTMLElement>(`.action-label[aria-label="${id}"]`)!;
 			const actions = [label('test.run'), label('test.openInVSCode'), label('test.createPullRequest'), label('test.layout'), more].map(element => element.getBoundingClientRect());
@@ -730,6 +733,27 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
+	test('a group of actions is marked as showing none while all its actions hide themselves, as they hide and show', async () => {
+		const container = append(mainWindow.document.body, $('.titlebar-actions-container'));
+		store.add(toDisposable(() => container.remove()));
+		const item = append(container, $('li.action-item'));
+		item.style.display = 'none';
+		store.add(trackActionsContainersShowingNoActions([container]));
+		const marked = () => container.classList.contains('shows-no-actions');
+		const states = [marked()];
+		item.style.display = '';
+		await timeout(0);
+		states.push(marked());
+		item.style.display = 'none';
+		await timeout(0);
+		states.push(marked());
+		append(container, $('li.action-item'));
+		await timeout(0);
+		states.push(marked());
+
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
+
 	test('the actions of a title bar that hosts a session header are one group with the gaps of the main window\'s, a group whose actions all hide themselves taking no room, and end with More Actions centered above the Session Activity Bar\'s column at the right', () => {
 		/** The right of a title bar with the actions of a chat window, or of the main window, as they render. */
 		const render = (hostsHeader: boolean) => {
@@ -767,6 +791,8 @@ suite('Sessions - Titlebar Part', () => {
 				group('.titlebar-actions-container.titlebar-session-actions-container', [{ name: 'Create Pull Request', className: 'changes-actions-bar', hidden: true }]);
 				group('.titlebar-actions-container.titlebar-window-layout-container', ['Show Editor', 'Layout']);
 				group('.titlebar-actions-container.titlebar-right-layout-container', ['Always on Top']);
+				// As the title bar marks them once it hosts the header.
+				store.add(trackActionsContainersShowingNoActions([...right.querySelectorAll<HTMLElement>(':scope > .titlebar-actions-container')]));
 				const host = append(right, $('.session-header-actions-host'));
 				const more = append(host, $('.action-item'));
 				more.dataset.name = 'More Actions';
