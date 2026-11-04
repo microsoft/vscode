@@ -152,6 +152,13 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number } | undefined>;
 
 	/**
+	 * Whether the editor renders its own title. A group that holds only
+	 * this editor then does not show its title area, and editors opened
+	 * from it go to the main part of its window rather than beside it.
+	 */
+	readonly providesTitle?: boolean;
+
+	/**
 	 * The context key service for this editor. Should be overridden by
 	 * editors that have their own ScopedContextKeyService
 	 */

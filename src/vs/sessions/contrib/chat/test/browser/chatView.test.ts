@@ -582,44 +582,52 @@ suite('Sessions - Chat View', () => {
 		]);
 	});
 
-	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
-		const element = dom.$('.chat-view-chat');
-		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
-		const progress = dom.append(element, dom.$('.monaco-progress-container'));
-		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
-		const layouts: number[][] = [];
-		const progressOffsets: string[] = [];
-		let offsetReads = 0;
-		let bannerHeight = 35;
-		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
-			element,
-			_lastLayout: { width: 500, height: 400 },
-			_externalSessionBanner: { domNode: banner },
-			_widgetContainer: widgetContainer,
-			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
-			_comparisonResult: { layout: () => { } },
-			_layoutStickyScrollBackground: () => { },
+	for (const inputOnly of [false, true]) {
+		test(`reads the widget offset only for a visible external banner and keeps input sizing independent for input-only hosts: ${inputOnly}`, () => {
+			const element = dom.$('.chat-view-chat');
+			const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
+			const progress = dom.append(element, dom.$('.monaco-progress-container'));
+			const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
+			const layouts: number[][] = [];
+			const inputMaxHeights: number[] = [];
+			const progressOffsets: string[] = [];
+			let offsetReads = 0;
+			let bannerHeight = 35;
+			Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
+			const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+				element,
+				_lastLayout: { width: 500, height: 400 },
+				_inputOnly: inputOnly,
+				_externalSessionBanner: { domNode: banner },
+				_widgetContainer: widgetContainer,
+				_widget: {
+					layout: (height: number, width: number) => layouts.push([height, width]),
+					setInputPartMaxHeightOverride: (height: number) => inputMaxHeights.push(height),
+				},
+				_comparisonResult: { layout: () => { } },
+				_layoutStickyScrollBackground: () => { },
+			});
+			view._layoutChatWidget();
+			const hiddenReads = offsetReads;
+			progressOffsets.push(progress.style.top);
+			banner.classList.remove('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			bannerHeight = 60;
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			banner.classList.add('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, inputMaxHeights, progressOffsets, viewportWidth: widgetContainer.style.width }, {
+				hiddenReads: 0, offsetReads: 2,
+				layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+				inputMaxHeights: inputOnly ? Array.from({ length: 4 }, () => Number.POSITIVE_INFINITY) : [],
+				progressOffsets: ['0px', '35px', '60px', '0px'],
+				viewportWidth: '500px',
+			});
 		});
-		view._layoutChatWidget();
-		const hiddenReads = offsetReads;
-		progressOffsets.push(progress.style.top);
-		banner.classList.remove('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		bannerHeight = 60;
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		banner.classList.add('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
-			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
-			progressOffsets: ['0px', '35px', '60px', '0px'],
-			viewportWidth: '500px',
-		});
-	});
+	}
 
 	test('centers chat content in the width its host lays it out with, to the left of the Session Activity Bar\'s column, and keeps the scrollbar at its right edge', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -2547,6 +2555,39 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('uses a still koi background for reduced motion and preserves user image behavior', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part));
+		const imageBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/koi-dark.webp")',
+			backgroundImageReducedMotion: 'url("file:///textures/koi-dark-static.webp")',
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: 'auto',
+			backgroundPosition: 'center center',
+		} as const;
+		renderer.setBackground(imageBackground);
+		const backgroundLayer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		const readImage = () => backgroundLayer ? dom.getWindow(backgroundLayer).getComputedStyle(backgroundLayer).backgroundImage : undefined;
+		const animated = readImage();
+		workbench.classList.add('monaco-reduce-motion');
+		const reducedMotion = readImage();
+		workbench.classList.remove('monaco-reduce-motion');
+		const restored = readImage();
+		workbench.classList.add('monaco-reduce-motion');
+		renderer.setBackground({ ...imageBackground, backgroundImage: 'url("file:///textures/user.gif")', backgroundImageReducedMotion: undefined });
+
+		assert.deepStrictEqual({ animated, reducedMotion, restored, userImage: readImage() }, {
+			animated: 'url("file:///textures/koi-dark.webp")',
+			reducedMotion: 'url("file:///textures/koi-dark-static.webp")',
+			restored: 'url("file:///textures/koi-dark.webp")',
+			userImage: 'url("file:///textures/user.gif")',
+		});
+	});
+
 	test('renders the codicons background preset from decorative in-memory icons', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-foreground', '#202020');
@@ -3812,11 +3853,71 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	for (const { width, padding } of [{ width: 420, padding: 24 }, { width: 1200, padding: 32 }]) {
+		test(`keeps pinned progress within the chat surface over backgrounds (${width}px)`, () => {
+			const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			workbench.style.cssText = `width: ${width}px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px; --vscode-spacing-size160: 16px; --vscode-spacing-size240: 24px;`;
+			if (padding !== 24) {
+				workbench.style.setProperty('--session-view-content-horizontal-padding', `${padding}px`);
+			}
+			const part = dom.append(workbench, dom.$('.part.sessionspart'));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			session.style.height = '400px';
+			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
+			response.style.width = '100%';
+			const value = dom.append(response, dom.$('.value'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const sticky = dom.append(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const progress = dom.append(sticky, dom.$('.chat-working-progress', undefined, 'Working'));
+			const pills = dom.append(persistentContent, dom.$('.chat-pills'));
+			pills.style.height = '28px';
+
+			const readAlignment = () => {
+				const inputBounds = input.getBoundingClientRect();
+				const stickyBounds = sticky.getBoundingClientRect();
+				const fade = dom.getWindow(sticky).getComputedStyle(sticky, '::before');
+				return {
+					left: stickyBounds.left - inputBounds.left,
+					right: inputBounds.right - stickyBounds.right,
+					textLeft: progress.getBoundingClientRect().left - value.getBoundingClientRect().left,
+					fadeLeft: fade.left,
+					fadeRight: fade.right,
+				};
+			};
+			const plain = readAlignment();
+			part.classList.add('has-chat-background');
+			const background = readAlignment();
+			pills.style.display = 'none';
+			persistentContent.classList.remove('chat-persistent-content-visible');
+			session.classList.remove('chat-floating-persistent-content');
+			const withoutPills = readAlignment();
+			part.classList.remove('has-chat-background');
+
+			assert.deepStrictEqual({
+				plain,
+				background,
+				withoutPills,
+				restored: readAlignment(),
+			}, {
+				plain: { left: -padding, right: -padding, textLeft: 0, fadeLeft: '0px', fadeRight: '0px' },
+				background: { left: 0, right: 0, textLeft: 0, fadeLeft: '0px', fadeRight: '0px' },
+				withoutPills: { left: 0, right: 0, textLeft: 0, fadeLeft: '0px', fadeRight: '0px' },
+				restored: plain,
+			});
+		});
+	}
+
 	for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
 		test(`fades only the top edge of pinned progress without blurring text (${theme})`, () => {
 			const highContrast = theme === 'hc-black' || theme === 'hc-light';
 			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
 			workbench.style.setProperty('--vscode-chat-list-background', '#123456');
+			workbench.style.setProperty('--vscode-editorWidget-background', '#654321');
+			workbench.style.setProperty('--session-view-background', '#abcdef');
 			workbench.style.setProperty('--vscode-spacing-size20', '2px');
 			workbench.style.setProperty('--vscode-spacing-size160', '16px');
 			workbench.style.setProperty('--vscode-strokeThickness', '1px');
@@ -3824,6 +3925,7 @@ suite('Sessions - Chat View', () => {
 			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 			const chatView = dom.append(part, dom.$('.chat-view'));
 			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
 			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
 			const sticky = dom.append(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
@@ -3835,19 +3937,30 @@ suite('Sessions - Chat View', () => {
 			const progress = dom.append(sticky, dom.$('.chat-working-progress', undefined, '1 confirmation pending'));
 			progress.style.height = '22px';
 			const fade = targetWindow.getComputedStyle(sticky, '::before');
+			const matchesResponseSurface = () => {
+				const responseColor = targetWindow.getComputedStyle(response, '::before').backgroundColor;
+				return targetWindow.getComputedStyle(sticky).backgroundColor === responseColor
+					&& fade.backgroundImage === `linear-gradient(rgba(0, 0, 0, 0) 0px, ${responseColor} 16px)`;
+			};
 			const pinned = {
 				content: fade.content,
-				matchesSurface: fade.backgroundImage === 'linear-gradient(rgba(0, 0, 0, 0) 0px, rgb(18, 52, 86) 16px)',
+				matchesSurface: matchesResponseSurface(),
 				aboveProgress: !highContrast && Number.parseFloat(fade.top) === -16 && fade.height === '16px',
 				pointerEvents: fade.pointerEvents,
 				textFilter: targetWindow.getComputedStyle(progress).filter,
 				outline: targetWindow.getComputedStyle(sticky).outlineStyle,
 				inputTop: inputPart.getBoundingClientRect().top,
 			};
+			workbench.style.removeProperty('--vscode-editorWidget-background');
+			const fallbackMatchesSurface = matchesResponseSurface();
+			part.classList.remove('has-chat-background');
+			const plainBackground = targetWindow.getComputedStyle(sticky).backgroundColor;
 			progress.remove();
 			assert.deepStrictEqual({
 				empty,
 				pinned,
+				fallbackMatchesSurface,
+				plainBackground,
 				returnedInline: targetWindow.getComputedStyle(sticky, '::before').content,
 			}, {
 				empty: 'none',
@@ -3860,6 +3973,8 @@ suite('Sessions - Chat View', () => {
 					outline: highContrast ? 'solid' : 'none',
 					inputTop,
 				},
+				fallbackMatchesSurface: true,
+				plainBackground: 'rgb(18, 52, 86)',
 				returnedInline: 'none',
 			});
 		});

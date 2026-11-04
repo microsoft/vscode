@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { $, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -13,9 +15,10 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IBrowserViewBounds } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
@@ -29,7 +32,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly screenshot?: VSBuffer }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -44,16 +47,19 @@ suite('CanvasEditor', () => {
 		let pendingLayouts: DeferredPromise<void>[] | undefined;
 		let disposed = 0;
 		let created = 0;
+		const requested: string[] = [];
 		const openExternal = store.add(new Emitter<string>());
 		const opened: Array<{ resource: string; options: OpenOptions | undefined }> = [];
 		const modelAttached = new DeferredPromise<void>();
 		const openerCalled = new DeferredPromise<void>();
 		const warningLogged = new DeferredPromise<string>();
 		const ownerVisible = observableValue('ownerVisible', true);
+		const loadingState = store.add(new Emitter<IBrowserViewLoadingEvent>());
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'https://example.test',
+			screenshot: harnessOptions?.screenshot,
 			onDidChangeFocus: Event.None,
-			onDidChangeLoadingState: Event.None,
+			onDidChangeLoadingState: loadingState.event,
 			onDidNavigate: Event.None,
 			onDidRequestOpenExternal: openExternal.event,
 			onWillDispose: Event.None,
@@ -75,7 +81,8 @@ suite('CanvasEditor', () => {
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('enabled', true),
 			isOwnerPresentable: (_reference, reader) => ownerVisible.read(reader),
-			resolveCanvasModel: async () => { created++; return { model: await view, reused: false }; },
+			isPresentable: (_reference, reader) => ownerVisible.read(reader),
+			resolveCanvasModel: async (_reference, source) => { created++; requested.push(source.toString()); return { model: await view, reused: false }; },
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IAccessibleViewService, {});
@@ -119,6 +126,11 @@ suite('CanvasEditor', () => {
 			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged, parent, log, nativeBounds, errors,
 			get disposed() { return disposed; },
 			get created() { return created; },
+			requested,
+			loadingState,
+			frozenFrame: () => parent.querySelector<HTMLElement>('.session-canvas-frozen-frame')?.style.backgroundImage,
+			message: () => parent.querySelector('.session-canvas-message')?.textContent,
+			reconnecting: () => !!parent.querySelector('.session-canvas-editor.provider-reconnecting'),
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
 			open: () => editor.setInput(input, undefined, { newInGroup: true }, CancellationToken.None),
 			/** Native layouts stay pending until the returned promises are settled. */
@@ -344,6 +356,105 @@ suite('CanvasEditor', () => {
 		assert.deepStrictEqual({ created: harness.created, attached: harness.attached.includes(harness.model) }, { created: 0, attached: false });
 	});
 
+	test('loads a returning source while a newer in-place load is still pending', async () => {
+		const harness = createHarness();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const canvas = harness.input.canvas.get();
+		assert.ok(canvas);
+		const pendingLoad = new DeferredPromise<IBrowserViewModel>();
+		harness.setView(pendingLoad.p);
+		harness.input.setCanvas({ ...canvas, source: URI.parse('https://example.test/next') });
+		harness.setView(Promise.resolve(harness.model));
+		harness.input.setCanvas(canvas);
+		await timeout(0);
+		await pendingLoad.complete(harness.model);
+		await timeout(0);
+
+		assert.deepStrictEqual({ requested: harness.requested, errors: harness.errors }, {
+			requested: ['https://example.test/', 'https://example.test/next', 'https://example.test/'],
+			errors: [],
+		});
+	});
+
+	test('keeps its own frozen frame and reconnect status while the retained page loads or fails', async () => {
+		const screenshot = VSBuffer.fromString('last frame');
+		const harness = createHarness({ screenshot });
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const canvas = harness.input.canvas.get();
+		assert.ok(canvas);
+		harness.input.setCanvas({ ...canvas, source: undefined });
+		// The retained page reloads itself and fails while its provider is away; the host then clears its own screenshot.
+		harness.loadingState.fire({ loading: true });
+		harness.loadingState.fire({ loading: false, error: { url: 'https://example.test/', errorCode: -102, errorDescription: 'ERR_CONNECTION_REFUSED' } });
+		const whileReconnecting = { frame: harness.frozenFrame(), message: harness.message() };
+		harness.input.setCanvas({ ...canvas, source: URI.parse('http://127.0.0.1:54321/') });
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileReconnecting, afterReconnect: { frame: harness.frozenFrame(), message: harness.message() } }, {
+			whileReconnecting: { frame: `url("data:image/jpeg;base64,${encodeBase64(screenshot)}")`, message: 'Reconnecting to the canvas provider…' },
+			afterReconnect: { frame: '', message: '' },
+		});
+	});
+
+	test('freezes the attached page while its provider reconnects and reveals it only after the fresh source loads', async () => {
+		const harness = createHarness();
+		await harness.show();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const canvas = harness.input.canvas.get();
+		assert.ok(canvas);
+		harness.log.length = 0;
+		harness.input.setCanvas({ ...canvas, source: undefined });
+		harness.editor.layout();
+		await timeout(0);
+		const whileReconnecting = { log: harness.log.splice(0), message: harness.message(), reconnecting: harness.reconnecting() };
+		harness.input.setCanvas({ ...canvas, source: URI.parse('http://127.0.0.1:54321/') });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			whileReconnecting,
+			afterReconnect: { log: harness.log, message: harness.message(), reconnecting: harness.reconnecting() },
+			disposed: harness.disposed,
+		}, {
+			whileReconnecting: {
+				log: ['host.visible:false', 'host.layout', 'host.visible:false', 'host.layout'],
+				message: 'Reconnecting to the canvas provider…',
+				reconnecting: true,
+			},
+			afterReconnect: { log: ['model.layout:400x200', 'host.layout', 'host.visible:true'], message: '', reconnecting: false },
+			disposed: 0,
+		});
+	});
+
+	test('reports the provider unavailable when it does not reconnect, keeping the frozen frame', () => runWithFakedTimers({}, async () => {
+		const harness = createHarness();
+		await harness.open();
+		await harness.modelAttached.p;
+		const canvas = harness.input.canvas.get();
+		assert.ok(canvas);
+		harness.input.setCanvas({ ...canvas, source: undefined });
+		const reconnectingMessage = harness.message();
+		await timeout(60_000);
+
+		assert.deepStrictEqual({
+			reconnectingMessage,
+			message: harness.message(),
+			reconnecting: harness.reconnecting(),
+			attached: harness.attached.at(-1) === harness.model,
+		}, {
+			reconnectingMessage: 'Reconnecting to the canvas provider…',
+			message: 'The canvas provider is unavailable.',
+			reconnecting: true,
+			attached: true,
+		});
+		harness.editor.clearInput();
+	}));
+
 	test('leaves a late service-owned model detached when its owner is hidden', async () => {
 		const harness = createHarness();
 		const pending = new DeferredPromise<IBrowserViewModel>();
@@ -363,7 +474,7 @@ suite('CanvasEditor', () => {
 		assert.strictEqual(harness.created, 0);
 	});
 
-	test('routes external link requests through the workbench opener', async () => {
+	test('routes external link requests through the workbench opener, from the window of the canvas', async () => {
 		const harness = createHarness();
 		await harness.open();
 		await harness.modelAttached.p;
@@ -375,6 +486,7 @@ suite('CanvasEditor', () => {
 				openExternal: true,
 				fromUserGesture: true,
 				allowContributedOpeners: true,
+				sourceWindowId: mainWindow.vscodeWindowId,
 			},
 		}]);
 	});

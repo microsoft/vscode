@@ -62,6 +62,79 @@ suite('NewSessionComposerService', () => {
 		});
 	});
 
+	test('routes model picker actions back to the normal composer after Inbox is hidden', () => {
+		const service = disposables.add(new NewSessionComposerService());
+		const inboxVisible = observableValue('inboxVisible', false);
+		const opened: string[] = [];
+		const normal = { ...composer(), modelPicker: { getDomNode: () => undefined, open: () => opened.push('normal') } };
+		const inbox = { ...composer(), modelPicker: { getDomNode: () => undefined, open: () => opened.push('inbox') } };
+		disposables.add(service.registerComposer(normal));
+		const registration = disposables.add(service.registerComposer(inbox, inboxVisible));
+		service.activeComposer.get()?.modelPicker?.open();
+		inboxVisible.set(true, undefined);
+		service.activeComposer.get()?.modelPicker?.open();
+		inboxVisible.set(false, undefined);
+		service.activeComposer.get()?.modelPicker?.open();
+		inboxVisible.set(true, undefined);
+		registration.dispose();
+		service.activeComposer.get()?.modelPicker?.open();
+		inboxVisible.set(false, undefined);
+		inboxVisible.set(true, undefined);
+		assert.deepStrictEqual({ opened, active: service.activeComposer.get() === normal }, {
+			opened: ['normal', 'inbox', 'normal', 'normal'], active: true,
+		});
+	});
+
+	test('focus selects a visible composer and hiding it restores the last visible one', () => {
+		const service = disposables.add(new NewSessionComposerService());
+		const firstFocus = disposables.add(new Emitter<void>());
+		const secondFocus = disposables.add(new Emitter<void>());
+		const firstVisible = observableValue('firstVisible', true);
+		const secondVisible = observableValue('secondVisible', true);
+		const first = { ...composer(), onDidFocus: firstFocus.event };
+		const second = { ...composer(), onDidFocus: secondFocus.event };
+		disposables.add(service.registerComposer(first, firstVisible));
+		disposables.add(service.registerComposer(second, secondVisible));
+		const states: string[] = [];
+		disposables.add(autorun(reader => {
+			const active = service.activeComposer.read(reader);
+			states.push(active === first ? 'first' : active === second ? 'second' : 'none');
+		}));
+		firstFocus.fire();
+		firstVisible.set(false, undefined);
+		firstFocus.fire();
+		secondVisible.set(false, undefined);
+		secondFocus.fire();
+		firstVisible.set(true, undefined);
+		assert.deepStrictEqual(states, ['second', 'first', 'second', 'none', 'first']);
+	});
+
+	test('hidden composers still protect their unsent drafts', () => {
+		const service = disposables.add(new NewSessionComposerService());
+		const resource = URI.parse('test:/hidden-draft');
+		const changed = disposables.add(new Emitter<void>());
+		const hidden = observableValue('visible', false);
+		const registration = disposables.add(service.registerComposer({
+			...composer(),
+			sessionResource: observableValue('sessionResource', resource),
+			hasInput: true,
+			onDidChangeInput: changed.event,
+		}, hidden));
+		changed.fire();
+		const before = {
+			active: service.activeComposer.get(),
+			hasDraft: service.hasDraftInputForSession(resource),
+			inputState: service.getDraftInputStateForSession(resource),
+			version: service.draftInputVersion.get(),
+		};
+		registration.dispose();
+		changed.fire();
+		assert.deepStrictEqual({ before, hasDraft: service.hasDraftInputForSession(resource), version: service.draftInputVersion.get() }, {
+			before: { active: undefined, hasDraft: true, inputState: true, version: 1 },
+			hasDraft: false, version: 1,
+		});
+	});
+
 	test('tracks draft input changes and excludes unready composers from live content checks', () => {
 		const service = disposables.add(new NewSessionComposerService());
 		const changed = disposables.add(new Emitter<void>());

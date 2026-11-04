@@ -73,7 +73,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasService, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 suite('Sessions - Actions', () => {
 
@@ -153,41 +153,37 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('swaps the primary session row action when New Chat is promoted', () => {
-		const actionRegistration = new DisposableStore();
+		const actionRegistration = disposables.add(new DisposableStore());
 		actionRegistration.add(registerAction2(ArchiveSessionAction));
-		try {
-			const actionIds = new Set([
-				'sessions.chatCompositeBar.addChat',
-				'sessionsViewPane.pinSession',
-				'sessionsViewPane.unpinSession',
-				ARCHIVE_SESSION_COMMAND_ID,
-			]);
-			const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
-				.filter(isIMenuItem)
-				.filter(item => actionIds.has(item.command.id))
-				.sort((a, b) => a.command.id.localeCompare(b.command.id))
-				.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			ARCHIVE_SESSION_COMMAND_ID,
+		]);
+		const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.sort((a, b) => a.command.id.localeCompare(b.command.id))
+			.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
 
-			assert.deepStrictEqual({
-				toolbar: snapshot(Menus.SessionItemToolbar),
-				contextMenu: snapshot(Menus.SessionItemContextMenu),
-			}, {
-				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
-					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
-				],
-				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
-					{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
-				],
-			});
-		} finally {
-			actionRegistration.dispose();
-		}
+		assert.deepStrictEqual({
+			toolbar: snapshot(Menus.SessionItemToolbar),
+			contextMenu: snapshot(Menus.SessionItemContextMenu),
+		}, {
+			toolbar: [
+				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
+				{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
+				{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
+			],
+			contextMenu: [
+				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+				{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
+				{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
+			],
+		});
 	});
 
 	test('uses the promoted session row action by default and preserves experiment assignments', async () => {
@@ -874,47 +870,43 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('switches nested session headers from Delete Chat to archive after commit', () => {
-		const actionRegistration = new DisposableStore();
+		const actionRegistration = disposables.add(new DisposableStore());
 		actionRegistration.add(registerAction2(ArchiveSessionAction));
 		actionRegistration.add(registerAction2(ArchiveChatAction));
-		try {
-			const getItems = (commandId: string) => MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
-				.filter(isIMenuItem)
-				.filter(item => item.command.id === commandId)
-				.map(item => ({
-					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-					group: item.group,
-					order: item.order,
-					when: item.when?.serialize(),
-				}));
+		const getItems = (commandId: string) => MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === commandId)
+			.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
 
-			assert.deepStrictEqual({
-				archiveSession: getItems(ARCHIVE_SESSION_COMMAND_ID),
-				archiveNestedSession: getItems(ARCHIVE_CHAT_COMMAND_ID),
-				deleteChat: getItems('sessions.chatCompositeBar.deleteChat'),
-			}, {
-				archiveSession: [{
-					title: 'Archive',
-					group: 'secondary/1_state',
-					order: 20,
-					when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
-				}],
-				archiveNestedSession: [{
-					title: 'Archive',
-					group: 'secondary/1_state',
-					order: 20,
-					when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
-				}],
-				deleteChat: [{
-					title: 'Delete Chat',
-					group: 'secondary/4_manage',
-					order: 20,
-					when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
-				}],
-			});
-		} finally {
-			actionRegistration.dispose();
-		}
+		assert.deepStrictEqual({
+			archiveSession: getItems(ARCHIVE_SESSION_COMMAND_ID),
+			archiveNestedSession: getItems(ARCHIVE_CHAT_COMMAND_ID),
+			deleteChat: getItems('sessions.chatCompositeBar.deleteChat'),
+		}, {
+			archiveSession: [{
+				title: 'Archive',
+				group: 'secondary/1_state',
+				order: 20,
+				when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
+			}],
+			archiveNestedSession: [{
+				title: 'Archive',
+				group: 'secondary/1_state',
+				order: 20,
+				when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
+			}],
+			deleteChat: [{
+				title: 'Delete Chat',
+				group: 'secondary/4_manage',
+				order: 20,
+				when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
+			}],
+		});
 	});
 
 	test('routes New Quick Chat through the new-session composer', async () => {
@@ -1224,7 +1216,8 @@ suite('Sessions - Actions', () => {
 	});
 
 	for (const os of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
-		test(`binds Alt+Left/Right to session navigation outside the editor area (${os})`, () => {
+		test(`binds Alt+Left/Right to session navigation outside ordinary editors (${os})`, () => {
+			const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
 			const navigationBindings = [
 				{ command: 'sessions.goBack', key: KeyCode.LeftArrow },
@@ -1234,14 +1227,23 @@ suite('Sessions - Actions', () => {
 				return bindings.filter(binding => binding.command === command && binding.keybinding?.getHashCode() === hash)
 					.map(binding => ({
 						command: binding.command,
-						when: binding.when?.serialize().split(' && ').sort(),
+						enabled: [
+							{ editorAreaFocus: false, activeEditor: '', inputFocus: false },
+							{ editorAreaFocus: true, activeEditor: 'workbench.editors.textEditor', inputFocus: false },
+							{ editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID, inputFocus: false },
+							{ editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID, inputFocus: true },
+						].map(focus => {
+							for (const [key, value] of Object.entries({ isSessionsWindow: true, sessionsCanGoBack: true, sessionsCanGoForward: true, textInputFocus: false, ...focus })) {
+								context.createKey(key, value).set(value);
+							}
+							return context.contextMatchesRules(binding.when ?? undefined);
+						}),
 					}));
 			});
 
-			const inputScope = os === OperatingSystem.Macintosh ? ['!inputFocus', '!textInputFocus'] : [];
 			assert.deepStrictEqual(navigationBindings, [
-				[{ command: 'sessions.goBack', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoBack'] }],
-				[{ command: 'sessions.goForward', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoForward'] }],
+				[{ command: 'sessions.goBack', enabled: [true, false, true, os !== OperatingSystem.Macintosh] }],
+				[{ command: 'sessions.goForward', enabled: [true, false, true, os !== OperatingSystem.Macintosh] }],
 			]);
 		});
 	}
@@ -1261,6 +1263,7 @@ suite('Sessions - Actions', () => {
 			{ inputFocus: false, textInputFocus: true, editorAreaFocus: false },
 			{ inputFocus: true, textInputFocus: false, editorAreaFocus: false },
 			{ inputFocus: true, textInputFocus: true, editorAreaFocus: true },
+			{ inputFocus: true, textInputFocus: true, editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID },
 		].map(focus => {
 			for (const [key, value] of Object.entries({ isSessionsWindow: true, sessionsCanGoBack: true, sessionsCanGoForward: true, ...focus })) {
 				contextKeyService.createKey(key, value).set(value);
@@ -1277,6 +1280,7 @@ suite('Sessions - Actions', () => {
 			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
 			[undefined, undefined, 'sessions.goBack'],
 			['cursorWordLeft', 'cursorWordEndRight', undefined],
+			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
 		]);
 	});
 
@@ -1969,8 +1973,8 @@ suite('Sessions - Actions', () => {
 		};
 
 		const primary = {
-			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'view:empty', 'focusPicker'], requests: [] },
-			unchecked: { navigationVersion: 1, events: ['unset', 'view:empty', 'focusPicker'], requests: [] },
+			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'open', 'view:empty', 'focusPicker'], requests: [undefined] },
+			unchecked: { navigationVersion: 1, events: ['unset', 'open', 'view:empty', 'focusPicker'], requests: [undefined] },
 		};
 		const toSide = { navigationVersion: 1, events: ['open'], requests: [{ folderUri: undefined, toSide: true }] };
 		assert.deepStrictEqual({
@@ -2197,6 +2201,72 @@ suite('Sessions - Actions', () => {
 		await run({ sessions: [sandbox('sandbox'), local] });
 
 		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
+	});
+
+	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		let canvasRequests = 0;
+		let sessionRequests = 0;
+		let canvasHandlesNewSession = true;
+		instantiationService.stub(IWindowCanvasService, {
+			activeCanvasId: constObservable('test.inbox'),
+			openNewSession: () => {
+				if (!canvasHandlesNewSession) {
+					return undefined;
+				}
+				canvasRequests++;
+				return Promise.resolve();
+			},
+		});
+		instantiationService.stub(ISessionsService, {
+			activeSession: constObservable(undefined),
+			openNewSession: async () => { sessionRequests++; return { session: undefined, trustDeclined: false }; },
+		});
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		await command.handler(instantiationService);
+		await command.handler(instantiationService, {});
+		await command.handler(instantiationService, { preserveFocus: true });
+		await command.handler(instantiationService, { toSide: false });
+		await command.handler(instantiationService, { toSide: true });
+		canvasHandlesNewSession = false;
+		await command.handler(instantiationService);
+		assert.deepStrictEqual({ canvasRequests, sessionRequests }, { canvasRequests: 4, sessionRequests: 2 });
+	});
+
+	test('New Session propagates native canvas failures without opening the standard composer', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const error = new Error('Inbox composer unavailable');
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		instantiationService.stub(IWindowCanvasService, {
+			openNewSession: async () => { throw error; },
+		});
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		await assert.rejects(async () => command.handler(instantiationService), error);
+	});
+
+	test('New Session keyboard navigation works inside native canvases but leaves ordinary editors alone', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const enabled = [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux].map(os => {
+			const binding = KeybindingsRegistry.getDefaultKeybindingsForOS(os).find(binding => binding.command === NEW_SESSION_ACTION_ID);
+			assert.ok(binding);
+			return [
+				{ editorAreaFocus: false, activeEditor: '' },
+				{ editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID },
+				{ editorAreaFocus: true, activeEditor: 'workbench.editors.textEditor' },
+			].map(focus => {
+				for (const [key, value] of Object.entries(focus)) {
+					context.createKey(key, value).set(value);
+				}
+				return context.contextMatchesRules(binding.when ?? undefined);
+			});
+		});
+		assert.deepStrictEqual(enabled, [[true, true, false], [true, true, false], [true, true, false]]);
 	});
 
 	test('New Session uses the displayed custom view for plain invocations and incidental toolbar context', async () => {

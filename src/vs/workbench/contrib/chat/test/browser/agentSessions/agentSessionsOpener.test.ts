@@ -272,7 +272,7 @@ suite('AgentSessionsOpener', () => {
 		assert.deepStrictEqual(events, [{
 			name: 'agentHost.legacyCopilotCliMigrationOpen',
 			data: {
-				source: 'open', surfaced: false, reason: 'resolveFailed',
+				source: 'open', entry: 'legacyRow', surfaced: false, reason: 'resolveFailed',
 				migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
 				errorCode: undefined, errorMessage: 'refresh failed',
 			},
@@ -347,7 +347,7 @@ suite('AgentSessionsOpener', () => {
 				events: [{
 					name: 'agentHost.legacyCopilotCliMigrationOpen',
 					data: {
-						source: 'open', surfaced: false, reason: 'resolveFailed',
+						source: 'open', entry: 'legacyRow', surfaced: false, reason: 'resolveFailed',
 						migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
 						errorCode: 'EIO', errorMessage: `${failure} failed for [REDACTED: session]`,
 					},

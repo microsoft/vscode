@@ -161,8 +161,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
-			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
-			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
+			back: content.includes('Go back through visited sessions, the New Session view, custom views such as Automations, and canvas tabs such as Inbox<keybinding:sessions.goBack>'),
+			forward: content.includes('Go forward through visited sessions, views, and canvas tabs<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
 			independentDrag: content.includes('without moving its parent.'),

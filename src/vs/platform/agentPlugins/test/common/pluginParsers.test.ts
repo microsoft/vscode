@@ -394,6 +394,16 @@ suite('pluginParsers', () => {
 		});
 		teardown(() => store.clear());
 
+		test('publishes ordered model and reasoning preferences without reading agent files in the client', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/review.agent.md' });
+			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Review\nmodel: [missing, sonnet]\nmodel-policy: required\nreasoning-effort: low\n---\nReview.'));
+			const agents = await readAgentComponents([uri], fileService);
+			const customization = toParsedAgent(agents[0]).customization;
+			assert.deepStrictEqual({ model: customization.model, meta: customization._meta }, {
+				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' },
+			});
+		});
+
 		for (const sameFilename of [true, false]) {
 			test(`deduplicates ${sameFilename ? 'file-derived' : 'authored'} names unless the caller opts out`, async () => {
 				const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
@@ -929,10 +939,20 @@ suite('pluginParsers', () => {
 			const groups = parse({
 				hooks: {
 					postToolUse: [{ hooks: [{ type: 'command', command: 'echo a' }] }],
+					preCompact: [{ type: 'command', command: 'echo compact' }],
+					subagentStart: [{ type: 'command', command: 'echo subagent' }],
 					bogusEvent: [{ hooks: [{ type: 'command', command: 'echo b' }] }],
 				},
 			});
-			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+			assert.deepStrictEqual(groups.map(g => ({
+				type: g.type,
+				originalId: g.originalId,
+				commands: g.commands.map(c => c.command),
+			})), [
+				{ type: 'PostToolUse', originalId: 'postToolUse', commands: ['echo a'] },
+				{ type: 'PreCompact', originalId: 'preCompact', commands: ['echo compact'] },
+				{ type: 'SubagentStart', originalId: 'subagentStart', commands: ['echo subagent'] },
+			]);
 		});
 
 		test('recognizes a userPromptTransformed-only hook file', () => {

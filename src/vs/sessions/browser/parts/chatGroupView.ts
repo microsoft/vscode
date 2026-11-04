@@ -29,7 +29,7 @@ import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionRea
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ChatHeader } from './chatHeader.js';
-import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from './gridGap.js';
+import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 
 /**
  * The data + callbacks a {@link ChatGroupView} needs from its owning

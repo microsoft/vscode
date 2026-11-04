@@ -7,12 +7,13 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
 import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
+
+export { createNoopGitService } from './testAgentHostGitService.js';
 
 /** A metadata map that reports every write. */
 class ObservedMetadata extends Map<string, string> {
@@ -836,63 +837,6 @@ export function createNullSessionDataService(): ISessionDataService {
 
 export function encodeString(text: string): Uint8Array {
 	return new TextEncoder().encode(text);
-}
-
-/**
- * Returns a no-op {@link IAgentHostGitService} suitable for tests that
- * exercise the {@link AgentService} but don't care about git state.
- * Tests that DO care about git state should pass their own implementation.
- */
-export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
-	return {
-		_serviceBrand: undefined,
-		getCurrentBranch: async () => undefined,
-		getHEAD: async () => undefined,
-		getDefaultBranch: async () => undefined,
-		getDefaultBranch2: async () => undefined,
-		getBranch: async () => undefined,
-		getRefs: async () => [],
-		getBranches: async () => [],
-		hasGitRoot: () => constObservable(undefined),
-		getRepositoryRoot: async () => undefined,
-		getWorktreeRoots: async () => [],
-		getWorktrees: async () => [],
-		addWorktree: async () => { },
-		copyWorktreeIncludeFiles: async () => { },
-		symlinkWorktreeFolders: async () => [],
-		addExistingWorktree: async () => { },
-		isWorktreeRegistered: async () => true,
-		removeWorktree: async () => { },
-		branchExists: async () => false,
-		createBranch: async () => { },
-		checkout: async () => { },
-		hasUncommittedChanges: async () => false,
-		createStash: async () => { },
-		commitAll: async () => { },
-		mergeBranch: async () => '',
-		restore: async () => { },
-		hasUpstream: async () => false,
-		fetch: async () => { },
-		pull: async () => { },
-		push: async () => { },
-		getSessionGitState: async () => undefined,
-		computeSessionFileDiffs: async () => undefined,
-		resolveBranchBaselineCommit: async () => undefined,
-		showBlob: async () => undefined,
-		captureWorkingTreeAsTree: async () => undefined,
-		commitTree: async () => undefined,
-		updateRef: async () => { },
-		deleteRefs: async () => { },
-		revParse: async () => undefined,
-		overlayPathIntoTree: async () => undefined,
-		diffTreePaths: async () => undefined,
-		computeFileDiffsBetweenRefs: async () => undefined,
-		getFetchRemoteUrls: async () => undefined,
-		getFetchRemotes: async () => undefined,
-		getUntrackedPaths: async () => [],
-		getBranchDiffSafetyInfo: async () => undefined,
-		getDiffPatchBetweenRefs: async () => undefined,
-	};
 }
 
 /**

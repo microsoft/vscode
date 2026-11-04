@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, DisposableResizeObserver, getActiveElement, getWindow, trackFocus } from '../../../../base/browser/dom.js';
+import { Dimension, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem, ItemActivation, QuickPickFocus } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { WorkbenchIconSelectBox } from './iconSelectBox.js';
@@ -25,7 +25,7 @@ export class IconPicker extends Disposable {
 	async pickIcons(title = localize('changeIcon', "Change icon")): Promise<ThemeIcon | null | undefined> {
 		const disposables = this._register(new DisposableStore());
 		try {
-			const picker = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true }));
+			const picker = disposables.add(this.quickInputService.createQuickWidget());
 			const characters = new Set<string>();
 			const icons = getIconRegistry().getIcons().filter(icon => {
 				if (icon.id === 'blank' || ThemeIcon.isThemeIcon(icon.defaults) || characters.has(icon.defaults.fontCharacter)) {
@@ -38,17 +38,10 @@ export class IconPicker extends Disposable {
 				icons,
 				inputBoxStyles: defaultInputBoxStyles,
 				showIconInfo: true,
+				showResetButton: true,
 			}));
 			picker.title = title;
-			picker.ariaLabel = localize('iconPicker', "Icon picker");
-			picker.hideInput = true;
-			picker.useNeutralSelection = true;
-			picker.itemActivation = ItemActivation.NONE;
 			picker.widget = grid.domNode;
-			picker.items = [{ type: 'separator' }, { label: localize('resetIcon', "Reset to default") }];
-			const focus = disposables.add(trackFocus(grid.domNode));
-			disposables.add(focus.onDidFocus(() => picker.activeItems = []));
-			disposables.add(focus.onDidBlur(() => picker.focus(QuickPickFocus.First)));
 			return await new Promise<ThemeIcon | null | undefined>(resolve => {
 				let settled = false;
 				const complete = (result: ThemeIcon | null | undefined) => {
@@ -59,17 +52,8 @@ export class IconPicker extends Disposable {
 				};
 				disposables.add(picker.onDidHide(() => complete(undefined)));
 				disposables.add(grid.onDidSelect(icon => complete(icon)));
-				disposables.add(picker.onWillAccept(event => {
-					const activeElement = getActiveElement();
-					if (activeElement && grid.domNode.contains(activeElement)) {
-						event.veto();
-						const index = grid.getFocus()[0];
-						if (index !== undefined) {
-							grid.setSelection(index);
-						}
-					}
-				}));
-				disposables.add(picker.onDidAccept(() => complete(null)));
+				disposables.add(grid.onDidReset(() => complete(null)));
+				disposables.add(grid.onDidCancel(() => picker.hide()));
 				picker.show();
 				const container = grid.domNode.parentElement;
 				if (!container) {

@@ -770,6 +770,33 @@ describe('makeUriConfirmationChecker', async () => {
 		expect(results).toEqual(files.map(() => ConfirmationCheckResult.Sensitive));
 	});
 
+	test.each(['settings.json', 'settings.local.json'])('always checks Copilot hook settings despite explicit approval: %s', async filename => {
+		const workspaceFolder = URI.file('/workspace');
+		workspaceService = new TestWorkspaceService([workspaceFolder], []);
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/*': true,
+			'**/.github/**': true,
+			[`**/.github/copilot/${filename}`]: true,
+		});
+
+		const checker = makeUriConfirmationChecker(configService, resource => workspaceService.getWorkspaceFolder(resource), workspaceService.getWorkspaceFolders());
+		const files = [
+			URI.joinPath(workspaceFolder, '.github', 'copilot', filename),
+			URI.joinPath(workspaceFolder, 'nested', '.github', 'copilot', filename),
+		];
+		if (isMacintosh || isWindows) {
+			files.push(URI.joinPath(workspaceFolder, '.GITHUB', 'COPILOT', filename.toUpperCase()));
+		}
+
+		expect({
+			protectedFiles: await Promise.all(files.map(file => checker(file))),
+			ordinaryFile: await checker(URI.joinPath(workspaceFolder, '.github', 'copilot', 'notes.md')),
+		}).toEqual({
+			protectedFiles: files.map(() => ConfirmationCheckResult.Sensitive),
+			ordinaryFile: ConfirmationCheckResult.NoConfirmation,
+		});
+	});
+
 	test('pattern precedence - later patterns override earlier ones', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);
@@ -1038,20 +1065,24 @@ describe('makeUriConfirmationChecker', async () => {
 			expect(await checker(hookFile)).toBe(ConfirmationCheckResult.Sensitive);
 		});
 
-		test('does not treat file extensions like .png as folders', async () => {
+		test.each(['settings.json', 'settings.json/', 'settings.JSON', 'hooks.d', 'hooks.d/', 'assets/icon.png'])('protects JSON children regardless of configured location suffix: %s', async location => {
 			await configService.setNonExtensionConfig('chat.hookFilesLocations', {
-				'assets/icon.png': true,
+				[location]: true,
 			});
+			await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', { '**/*': true });
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), workspaceService.getWorkspaceFolders());
+			const directory = location.replace(/\/+$/, '');
 
-			// The .png file itself should be sensitive
-			const pngFile = URI.file('/workspace/assets/icon.png');
-			expect(await checker(pngFile)).toBe(ConfirmationCheckResult.Sensitive);
-
-			// But a JSON file next to it should not
-			const jsonFile = URI.file('/workspace/assets/icon.png/something.json');
-			expect(await checker(jsonFile)).toBe(ConfirmationCheckResult.NoConfirmation);
+			expect(await Promise.all([
+				checker(URI.file(`/workspace/${directory}/hook.json`)),
+				checker(URI.file(`/workspace/${directory}-other/hook.json`)),
+				checker(URI.file(`/workspace/${directory}/readme.txt`)),
+			])).toEqual([
+				ConfirmationCheckResult.Sensitive,
+				ConfirmationCheckResult.NoConfirmation,
+				ConfirmationCheckResult.NoConfirmation,
+			]);
 		});
 
 		test('pattern starting with **/ is preserved as-is', async () => {

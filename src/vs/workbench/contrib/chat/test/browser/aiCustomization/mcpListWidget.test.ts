@@ -25,6 +25,7 @@ import { ContributionEnablementState, EnablementModel } from '../../../common/en
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -108,6 +109,7 @@ function createAgentHostCustomizations(hasWorkspace = true): { service: IAgentHo
 	const calls: unknown[][] = [];
 	const service = {
 		getWorkingDirectories: () => hasWorkspace ? ['file:///workspace'] : [],
+		getClientPluginUri: (_session: URI, plugin: { uri: string }) => URI.parse(plugin.uri),
 		setCustomizationEnablement: (sessionResource: URI, serverId: string, enablement: unknown, kind: unknown, enabled: boolean) => {
 			calls.push([sessionResource, serverId, enablement, kind, enabled]);
 		},
@@ -1824,6 +1826,21 @@ suite('mcpListWidget', () => {
 			});
 		});
 
+		test('does not route a foreign plugin global enablement decision to this client', () => {
+			const { service } = createAgentHostCustomizations();
+			service.getClientPluginUri = () => undefined;
+			const server = createAgentHostServer({
+				enabled: false,
+				disabledReason: {
+					source: 'plugin', plugin: {
+						id: 'foreign-plugin', name: 'Foreign', uri: 'file:///plugins/plugin-1', clientId: 'foreign',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					}
+				},
+			});
+			assert.deepStrictEqual(getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server), []);
+		});
+
 		test('offers the inverse session action and preserves all decisions when dispatching', () => {
 			const cases: readonly [AgentHostMcpServer, string, boolean][] = [
 				[createAgentHostServer(), 'Disable (Session)', false],
@@ -2185,6 +2202,7 @@ suite('mcpListWidget', () => {
 			const outputActions: string[] = [];
 			const managementClicks: string[] = [];
 			const openedPlugins: string[] = [];
+			const shownSkillBundles: string[] = [];
 			const openedExtensions: string[] = [];
 			const executedCommands: unknown[][] = [];
 			let migrationRequests = 0;
@@ -2277,6 +2295,7 @@ suite('mcpListWidget', () => {
 				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
+				bundleId => shownSkillBundles.push(bundleId),
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -2285,6 +2304,7 @@ suite('mcpListWidget', () => {
 				labelService,
 				extensionsWorkbenchService,
 				themeService,
+				new class extends mock<IOpenerService>() { }(),
 			));
 
 			const container = document.createElement('div');
@@ -2331,6 +2351,7 @@ suite('mcpListWidget', () => {
 				outputActions,
 				managementClicks,
 				openedPlugins,
+				shownSkillBundles,
 				openedExtensions,
 				executedCommands,
 				migrationRequests: () => migrationRequests,
@@ -3140,6 +3161,53 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(observed, [undefined, 'Native connection failed', undefined]);
 		});
 
+		test('shows localized skill counts only for active-session servers with a skill bundle', () => {
+			const render = (count: number | undefined, kind: 'session' | 'matched' | 'local' = 'session') => {
+				const server = createAgentHostServer({ name: 'test-skills', skillBundle: count === undefined ? undefined : { id: 'opaque/server', count } });
+				const ctx = createRenderer(server);
+				disposables.add(ctx.store);
+				const entry: Entry = { type: 'session-server-item', server };
+				ctx.render(kind === 'session' ? entry : {
+					type: 'builtin-item', id: 'native', collectionId: 'native', label: 'Native', description: '', activeSessionServer: kind === 'matched' ? server : undefined,
+				});
+				const link = ctx.templateData.skillsLinkElement;
+				const visible = link.style.display !== 'none';
+				const focusedTabIndex = link.tabIndex;
+				ctx.setFocusedIndex(-1);
+				return { visible, text: visible ? link.textContent : undefined, ariaLabel: visible ? link.getAttribute('aria-label') : undefined, focusedTabIndex, unfocusedTabIndex: link.tabIndex };
+			};
+			assert.deepStrictEqual([render(undefined), render(0), render(1), render(4), render(4, 'matched'), render(4, 'local')], [
+				{ visible: false, text: undefined, ariaLabel: undefined, focusedTabIndex: -1, unfocusedTabIndex: -1 },
+				{ visible: false, text: undefined, ariaLabel: undefined, focusedTabIndex: -1, unfocusedTabIndex: -1 },
+				{ visible: true, text: '• 1 Skill', ariaLabel: 'Show 1 skill from test-skills', focusedTabIndex: 0, unfocusedTabIndex: -1 },
+				{ visible: true, text: '• 4 Skills', ariaLabel: 'Show 4 skills from test-skills', focusedTabIndex: 0, unfocusedTabIndex: -1 },
+				{ visible: true, text: '• 4 Skills', ariaLabel: 'Show 4 skills from test-skills', focusedTabIndex: 0, unfocusedTabIndex: -1 },
+				{ visible: false, text: undefined, ariaLabel: undefined, focusedTabIndex: -1, unfocusedTabIndex: -1 },
+			]);
+		});
+
+		test('skill links request bundle navigation and update without rebuilding row actions', () => {
+			const server = createAgentHostServer({ name: 'test-skills', skillBundle: { id: 'opaque/server', count: 4 } });
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			ctx.render();
+			const action = ctx.actionNode();
+			ctx.templateData.skillsLinkElement.click();
+			ctx.setServers([{ ...server, skillBundle: { id: 'opaque/server', count: 1 } }]);
+			ctx.notifyUnchanged();
+			const updated = ctx.templateData.skillsLinkElement.textContent;
+			ctx.setServers([{ ...server, skillBundle: undefined }]);
+			ctx.notifyUnchanged();
+			ctx.templateData.skillsLinkElement.click();
+			assert.deepStrictEqual({
+				requests: ctx.shownSkillBundles,
+				updated,
+				hidden: ctx.templateData.skillsLinkElement.style.display,
+				tabIndex: ctx.templateData.skillsLinkElement.tabIndex,
+				actionsPreserved: action === ctx.actionNode(),
+			}, { requests: ['opaque/server'], updated: '• 1 Skill', hidden: 'none', tabIndex: -1, actionsPreserved: true });
+		});
+
 		test('installed rows use compact density', () => {
 			const ctx = createRenderer(createAgentHostServer());
 			disposables.add(ctx.store);
@@ -3178,6 +3246,8 @@ suite('mcpListWidget', () => {
 					secondaryOrder: [
 						'mcp-server-compatibility-message unsupported',
 						'mcp-server-source-path middle-ellipsis-path-label',
+						'mcp-server-description',
+						'monaco-link mcp-server-source-path source-link mcp-server-skills',
 					],
 					badges: 0,
 					focusedLinkTabIndex: 0,
@@ -3191,6 +3261,8 @@ suite('mcpListWidget', () => {
 					secondaryOrder: [
 						'mcp-server-compatibility-message partially-supported',
 						'mcp-server-source-path middle-ellipsis-path-label',
+						'mcp-server-description',
+						'monaco-link mcp-server-source-path source-link mcp-server-skills',
 					],
 					badges: 0,
 					focusedLinkTabIndex: 0,

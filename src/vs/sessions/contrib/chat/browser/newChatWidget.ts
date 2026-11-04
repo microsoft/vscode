@@ -28,7 +28,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
@@ -38,6 +37,7 @@ import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISession
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
@@ -148,6 +148,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _usage: AgentsWindowUsage;
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: SharedChatInputComposer;
+	private _inputContentElement: HTMLElement | undefined;
 	private readonly _preserveCustomView: boolean;
 	private readonly _backgroundSend: boolean;
 	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
@@ -267,7 +268,10 @@ export class NewChatWidget extends Disposable {
 		this._restoreSessionOptionsExpanded();
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
-		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
+		this._session = this._preserveCustomView ? derived(this, reader => {
+			const draft = this.sessionsManagementService.newSession.read(reader);
+			return draft ? reader.store.add(new VisibleSession(draft, draft.mainChat.read(reader))) : undefined;
+		}) : derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			if (activeSession && activeSession.isCreated.read(reader)) {
 				return prev;
@@ -498,6 +502,7 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => creationProviderKey.reset()));
 
 		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
+			inputEditorOptions: this.options.inputEditorOptions,
 			session: this._session,
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
@@ -578,7 +583,8 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
 		}
 
-		this._register(newSessionComposerService.registerComposer(this._newChatInput));
+		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader =>
+			(this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true))));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
 		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based
@@ -726,6 +732,10 @@ export class NewChatWidget extends Disposable {
 
 	// --- Rendering ---
 
+	get inputContentElement(): HTMLElement | undefined {
+		return this._inputContentElement;
+	}
+
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const composerFocus = NewSessionComposerFocusContext.bindTo(this.contextKeyService);
@@ -734,7 +744,7 @@ export class NewChatWidget extends Disposable {
 		this._register(focusTracker.onDidBlur(() => composerFocus.set(false)));
 		this._register(toDisposable(() => composerFocus.reset()));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
 		this._welcomeMessageTitle = welcomeMessageTitle;
@@ -793,7 +803,9 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
-		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		if (this.options.renderAquarium !== false) {
+			this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		}
 		const aquariumAction = this._register(new Action(
 			'sessions.aquarium.showAction',
 			localize('aquariumAction', "Aquarium"),
@@ -823,7 +835,10 @@ export class NewChatWidget extends Disposable {
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => [aquariumAction, petAction],
+				getActions: () => [
+					...(this.options.renderAquarium !== false ? [aquariumAction] : []),
+					...(this.options.renderChatPet !== false ? [petAction] : []),
+				],
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));
@@ -1226,18 +1241,22 @@ export class NewChatWidget extends Disposable {
 				&& !await this._workspacePicker.whenWorkspaceRestored(cancellation.token)) {
 				return;
 			}
-			if (cancellation.token.isCancellationRequested || this.sessionsService.activeSession.get()
+			if (cancellation.token.isCancellationRequested || (this._preserveCustomView ? this._session.get() : this.sessionsService.activeSession.get())
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
 			const environment = this._environment.get();
+			// Wait for the default environment instead of pinning a temporary Cloud-only provider.
+			if (!environment && isSessionEnvironmentPickerEnabled(this.configurationService)) {
+				return;
+			}
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
 					this.selectNoWorkspace(target);
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = this.sessionsService.openQuickChat(target, true)?.sessionId;
+					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1476,7 +1495,7 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
 		const environment = this._environment.get();
 		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
-			? this.sessionsService.openQuickChat(options ?? this._workspaceOptOutTarget.get(), this._preserveCustomView ? true : selectionOptions?.preserveNavigation, this._preserveCustomView || undefined)
+			? this._createQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation)
 			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
 		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
 			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
@@ -1493,7 +1512,20 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			}
 		}
-		return this.sessionsService.openQuickChat(options, this._preserveCustomView ? true : preserveNavigation, this._preserveCustomView || undefined);
+		return this._createQuickChat(options, preserveNavigation);
+	}
+
+	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+		if (this._preserveCustomView) {
+			try {
+				this.sessionsManagementService.createQuickChat(options);
+				return this._session.get();
+			} catch (error) {
+				this.logService.error('Failed to prepare quick chat:', error);
+				return undefined;
+			}
+		}
+		return this.sessionsService.openQuickChat(options, preserveNavigation);
 	}
 
 	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
@@ -1601,6 +1633,7 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
+		store.add(this._renderPlaceRow(container, row));
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
@@ -1732,7 +1765,10 @@ export class NewChatWidget extends Disposable {
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const matchesSelectedFolder = !selectedFolderUri || !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (session && provider && isAgentHostProvider(provider) && matchesSelectedFolder) {
-			const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+			const values = provider.getCreateSessionConfig(session.sessionId);
+			const config = values && provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const branchProperty = config && getSessionWorkspaceProperties(config.schema).baseBranch;
+			const branch = branchProperty && values?.[branchProperty.key];
 			if (typeof branch === 'string' && branch.trim()) {
 				return branch;
 			}
@@ -1786,6 +1822,10 @@ export class NewChatWidget extends Disposable {
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
 			&& supportsWorktreeIsolation;
+	}
+
+	private _renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable {
+		return this.options.renderNewSessionHeader?.(container, chipRow) ?? Disposable.None;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
@@ -1857,7 +1897,7 @@ export class NewChatWidget extends Disposable {
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
 		this._newChatInput.pickerVisibility.setVisible('workspace', false);
-		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
+		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState, this.options.showEmptyStateIcon);
 		this._activeEmptyState.set(emptyState, undefined);
 		emptyState.render(container);
 		return toDisposable(() => {
@@ -2019,7 +2059,7 @@ export class NewChatWidget extends Disposable {
 				if (this._backgroundSend) {
 					if (!this._store.isDisposed && !this._pendingWorkspaceCreation
 						&& this.sessionsManagementService.newSession.get()?.sessionId === session.sessionId
-						&& this.sessionsService.activeSession.get()?.sessionId === session.sessionId
+						&& (this._preserveCustomView || this.sessionsService.activeSession.get()?.sessionId === session.sessionId)
 						&& (isQuickChat || isEqual(workspace, this._workspacePicker.selectedFolderUri))) {
 						this._comparisonSelection.reset();
 						// Creating the replacement releases the old draft without an empty-composer handoff.
@@ -2061,6 +2101,14 @@ export class NewChatWidget extends Disposable {
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
+			return false;
+		}
+		const workspaceValid = await this._workspacePicker.validateSelectedWorkspace().catch(error => {
+			this.logService.error('Failed to validate workspace:', error);
+			this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
+			return false;
+		});
+		if (!workspaceValid || session !== this._session.get()) {
 			return false;
 		}
 		const feedbackItems = [...this._feedbackItems.get()];
@@ -2317,12 +2365,20 @@ export class NewChatWidget extends Disposable {
 			this._newSessionCreation.clear();
 			if (workspaceOptOutTarget) {
 				if (!this.selectNoWorkspace(workspaceOptOutTarget, { userSelection: false, preserveNavigation: true })) {
-					this.sessionsService.unsetNewSession();
+					if (this._preserveCustomView) {
+						this.sessionsManagementService.discardNewSession();
+					} else {
+						this.sessionsService.unsetNewSession();
+					}
 					this.notificationService.error(localize('newSession.workspaceOptOutFailed', "Unable to start a chat without a workspace. Choose a workspace to continue."));
 				}
 				return;
 			}
-			this.sessionsService.unsetNewSession();
+			if (this._preserveCustomView) {
+				this.sessionsManagementService.discardNewSession();
+			} else {
+				this.sessionsService.unsetNewSession();
+			}
 			if (!this._workspaceOptOutEnabled.get()) {
 				void this._restoreNoWorkspaceDraft();
 			}
