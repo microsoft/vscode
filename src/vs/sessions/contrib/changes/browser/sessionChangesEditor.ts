@@ -692,7 +692,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 * which shows or resolves it.
 	 */
 	private _clearUnlessShownElsewhere(input: SessionChangesEditorInput): void {
-		if (!this.editorGroupService.groups.some(group => group.id !== this.group.id && group.contains(input))) {
+		if (!this.editorGroupService.groups.some(group => group.id !== this.group.id && group.contains(input, { strictEquals: true }))) {
 			input.clear();
 		}
 	}
