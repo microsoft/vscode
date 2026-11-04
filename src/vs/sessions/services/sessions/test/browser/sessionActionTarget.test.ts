@@ -13,10 +13,8 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { findSessionByResource, resolveSessionActionTarget } from '../../browser/sessionActionTarget.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISessionScope } from '../../browser/sessionScope.js';
-import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ActiveSessionHost, IFocusedSessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 suite('sessionActionTarget', () => {
 
@@ -29,12 +27,9 @@ suite('sessionActionTarget', () => {
 	function resolve(arg: unknown, active: IActiveSession | undefined, visible: readonly (IActiveSession | undefined)[] = [], windows: readonly IActiveSession[] = [], focusedChatWindowSession?: IActiveSession) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
-		// The chat window that has focus, whose own scope shows `focusedChatWindowSession`.
-		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: focusedChatWindowSession ? upcastPartial<IChatWindow>({}) : undefined }));
-		const windowScope = upcastPartial<ISessionScope>({ session: constObservable(focusedChatWindowSession) });
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
-			getScopedInstantiationService: () => upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(upcastPartial<ServicesAccessor>({ get: <T>() => windowScope as T }))) as IInstantiationService['invokeFunction'] }),
-		}));
+		// The chat window that has focus, whose host shows `focusedChatWindowSession`.
+		const focusedHost = new ActiveSessionHost({ kind: focusedChatWindowSession ? SessionHostKind.ChatWindow : SessionHostKind.MainWindow, parent: undefined, session: constObservable(focusedChatWindowSession), contextKeyService: upcastPartial<IContextKeyService>({}) });
+		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => focusedHost }));
 		instantiationService.stub(ISessionsService, { activeSession: constObservable(active), mainWindowActiveSession: constObservable<IActiveSession | undefined>(undefined), windowSessions: constObservable(windows), visibleSessions: constObservable(visible) });
 		return instantiationService.invokeFunction(accessor => resolveSessionActionTarget(accessor, arg));
 	}

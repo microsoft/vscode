@@ -10,8 +10,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { getChatWindowSession } from './sessionScope.js';
+import { hasActiveSessionSource, IFocusedSessionHostService, SessionHostKind } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 
 function isSession(value: unknown): value is IActiveSession {
@@ -57,8 +56,8 @@ export function resolveSessionActionTarget(accessor: ServicesAccessor, arg?: unk
 		// The resource of a session names it in every window that shows it, such as the main window and a chat window
 		// showing another of its chats: the session of the window the action runs in, such as from its Changes toolbar,
 		// when that window shows it. Its window has focus as the action runs, before the active session follows it.
-		const chatWindow = accessor.get(IChatWindowService).activeWindow;
-		const windowSession = chatWindow ? getChatWindowSession(accessor, chatWindow) : undefined;
+		const focusedHost = accessor.get(IFocusedSessionHostService).getFocusedHost();
+		const windowSession = focusedHost.kind === SessionHostKind.ChatWindow && hasActiveSessionSource(focusedHost) ? focusedHost.activeSession.get() : undefined;
 		session = windowSession && isEqual(windowSession.resource, arg) ? windowSession : findSessionByResource(sessionsService, arg);
 	} else if (arg && typeof arg === 'object' && hasKey(arg as { readonly session?: IActiveSession }, { session: true })) {
 		session = (arg as { readonly session: IActiveSession | undefined }).session;

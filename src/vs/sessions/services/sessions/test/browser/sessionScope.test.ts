@@ -7,16 +7,13 @@ import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { IContentPart, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../browser/sessionHost.js';
+import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../browser/sessionHost.js';
 import { ActiveSessionScope, getFocusedWindowSession, ISessionScope } from '../../browser/sessionScope.js';
 import { MainWindowSessionHost } from '../../browser/sessionHostService.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
@@ -45,19 +42,19 @@ suite('ActiveSessionScope', () => {
 		assert.strictEqual(new ActiveSessionScope(paneHost).session.get(), main);
 	});
 
-	test('the session of the window with focus is that of the chat window with focus, from its own scope, even before it is the active session', () => {
+	test('the session of the window with focus is that of the chat window with focus, from its host, even before it is the active session', () => {
 		const active = upcastPartial<IActiveSession>({ sessionId: 'main' });
 		const ofWindow = upcastPartial<IActiveSession>({ sessionId: 'chat-window' });
-		const mainPart = upcastPartial<IContentPart>({});
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(active), contextKeyService });
+		const chatWindowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(ofWindow), contextKeyService });
+		let focusedHost: ISessionHost = chatWindowHost;
 		const instantiationService = disposables.add(new TestInstantiationService());
-		const windowInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([ISessionScope, upcastPartial<ISessionScope>({ session: constObservable(ofWindow) })])));
-		let focusedWindow: IChatWindow | undefined = upcastPartial<IChatWindow>({ mainPart });
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable<IActiveSession | undefined>(active) }));
-		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ get activeWindow() { return focusedWindow; } }));
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ getScopedInstantiationService: (part): IInstantiationService => part === mainPart ? windowInstantiationService : instantiationService }));
+		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => focusedHost }));
 
 		const inChatWindow = instantiationService.invokeFunction(getFocusedWindowSession)?.sessionId;
-		focusedWindow = undefined;
+		focusedHost = mainHost;
 		const inMainWindow = instantiationService.invokeFunction(getFocusedWindowSession)?.sessionId;
 
 		assert.deepStrictEqual({ inChatWindow, inMainWindow }, { inChatWindow: 'chat-window', inMainWindow: 'main' });

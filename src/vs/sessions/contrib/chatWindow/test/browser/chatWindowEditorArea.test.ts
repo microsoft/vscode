@@ -6,13 +6,12 @@
 import assert from 'assert';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveEditorCannotCloseContext, ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
 import { IEditorPane } from '../../../../../workbench/common/editor.js';
@@ -26,7 +25,7 @@ import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../..
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
@@ -73,16 +72,12 @@ suite('Chat window editor area', () => {
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override get activeWindow() { return activeWindow; }
 		}());
-		// The window acts on the session of its own scope, whichever session is active.
+		// The window acts on the session of its host, whichever session is active.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		}());
-		const windowScope = disposables.add(instantiationService.createChild(new ServiceCollection([ISessionScope, new class extends mock<ISessionScope>() {
-			override readonly session = constObservable(session);
-		}()])));
-		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-			override getScopedInstantiationService() { return windowScope; }
-		}());
+		const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(session), contextKeyService: upcastPartial<IContextKeyService>({}) });
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => windowHost }));
 		return instantiationService;
 	}
 

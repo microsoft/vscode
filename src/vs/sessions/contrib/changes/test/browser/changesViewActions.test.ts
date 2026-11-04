@@ -47,7 +47,8 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Menus } from '../../../../browser/menus.js';
 import { setActiveSessionContextKeys } from '../../../../services/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -137,7 +138,8 @@ suite('Changes View Actions', () => {
 			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ILogService, new NullLogService());
-			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+			const { mainHost } = stubSessionHosts(instantiationService, disposables);
+			instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => mainHost }));
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 				override readonly mainWindowActiveSession = this.activeSession;

@@ -24,7 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -34,6 +34,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../../editor/browser/addTabActions.js';
 import '../../../../browser/layoutActions.js';
@@ -268,8 +269,11 @@ suite('Chat window contribution', () => {
 				showEditor: () => { editorShown = true; },
 			});
 			// The session of the window, which its scope provides, differs from the active session of the main window.
+			const windowSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat') }));
 			const scoped = disposables.add(new TestInstantiationService());
-			scoped.stub(ISessionScope, { session: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat') })) });
+			scoped.stub(ISessionScope, { session: windowSession });
+			const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
+			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: windowId => windowId === window.windowId ? windowHost : undefined }));
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				activeWindow: focusedWindow === 'chat' ? window : undefined,
 				windows: constObservable([window]),
