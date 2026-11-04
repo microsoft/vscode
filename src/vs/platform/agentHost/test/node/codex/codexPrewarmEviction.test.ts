@@ -14,11 +14,11 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { join, sep } from '../../../../../base/common/path.js';
+import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
+import { basename, dirname, join, sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -125,6 +125,8 @@ function createTestPeer(): ITestPeer {
 		const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
 		if (request.method === 'skills/list' || request.method === 'hooks/list') {
 			stdout.write(JSON.stringify({ id: request.id, result: { data: [] } }) + '\n');
+		} else if (request.method === 'account/read') {
+			stdout.write(JSON.stringify({ id: request.id, result: { account: null, requiresOpenaiAuth: true } }) + '\n');
 		} else {
 			outbound.write(chunk);
 		}
@@ -213,6 +215,7 @@ interface ICreateAgentOptions {
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
 	readonly customizationEnablementService?: IAgentHostCustomizationEnablementService;
+	readonly userHome?: URI;
 }
 
 class TestCodexLogService extends NullLogService {
@@ -271,12 +274,20 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 	}
 }
 
+function createUserHome(disposables: Pick<DisposableStore, 'add'>): URI {
+	// Match fsPath's drive-letter casing in the case-sensitive in-memory filesystem.
+	const userHome = URI.parse(URI.file(fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-home-'))).toString());
+	disposables.add(toDisposable(() => fs.rmSync(userHome.fsPath, { recursive: true, force: true, maxRetries: 3 })));
+	return userHome;
+}
+
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
 	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
 	const logService = new TestCodexLogService();
 	const fileService = disposables.add(new TestCodexFileService(logService));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+	disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
 	instantiationService.stub(ISessionDataService, createSessionDataService(options.database));
@@ -306,7 +317,12 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	});
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
-	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
+	const userHome = options.userHome ?? createUserHome(disposables);
+	if (isWindows) {
+		// FileService assumes drive roots exist; seed the fake filesystem using a provider-native path.
+		await fileSystemProvider.mkdir(URI.from({ scheme: Schemas.inMemory, path: userHome.path.slice(0, 3) }));
+	}
+	instantiationService.stub(INativeEnvironmentService, { userHome });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
@@ -1120,7 +1136,8 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('immediately releases, restores, and sends a workspace-less peer before metadata flushes', async () => {
-		const agent = await createAgent(disposables);
+		const userHome = createUserHome(disposables);
+		const agent = await createAgent(disposables, { userHome });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		const metadataWrite = new DeferredPromise<void>();
@@ -1206,6 +1223,17 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), false);
 		await metadataWrite.complete(undefined);
 		peer.exit();
+
+		const directoryName = basename(start.params.cwd!);
+		assert.deepStrictEqual({
+			scratchRoot: dirname(start.params.cwd!),
+			independentChatDirectory: directoryName.startsWith('chat-') && isUUID(directoryName.slice('chat-'.length)),
+			resumeCwd: resume.params.cwd,
+		}, {
+			scratchRoot: join(userHome.fsPath, '.copilot', 'chats'),
+			independentChatDirectory: true,
+			resumeCwd: start.params.cwd,
+		});
 	});
 
 	test('cold chat restore waits for model refresh before validating its provider-qualified model', async () => {
@@ -2049,6 +2077,7 @@ suite('CodexAgent prewarm eviction', () => {
 			_serviceBrand: undefined,
 			onDidChange: onDidChange.event,
 			initializeSession: async () => { },
+			adoptMcpServerOwnership: () => { },
 			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 			resolve,
 			applyClientGlobalEnablement: resolve,
@@ -4375,7 +4404,9 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fork from a workspace-less session owns an independent managed directory', async () => {
+		const userHome = createUserHome(disposables);
 		const agent = await createAgent(disposables, {
+			userHome,
 			sessionConfig: {
 				[CodexSessionConfigKey.PermissionsPreset]: 'default',
 				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
@@ -4393,9 +4424,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const sourceChat = defaultChatOf(source.session);
 		const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
-		// A workspace-less session is not prewarmed (there is no directory to
-		// start a thread in yet), so its first send materializes the thread in
-		// the managed temp folder Codex creates for it.
+		// The first send materializes a workspace-less session in its owned scratch directory.
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
 		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
@@ -4503,6 +4532,18 @@ suite('CodexAgent prewarm eviction', () => {
 		await disposingFork;
 		assert.strictEqual(fs.existsSync(forkDirectory), false);
 		peer.exit();
+
+		const directoryName = basename(forkDirectory);
+		const scratchRoot = join(userHome.fsPath, '.copilot', 'chats');
+		assert.deepStrictEqual({
+			sourceCwd: start.params.cwd,
+			forkScratchRoot: dirname(forkDirectory),
+			independentForkDirectory: directoryName.startsWith('fork-') && isUUID(directoryName.slice('fork-'.length)),
+		}, {
+			sourceCwd: join(scratchRoot, AgentSession.id(source.session)),
+			forkScratchRoot: scratchRoot,
+			independentForkDirectory: true,
+		});
 	});
 
 	test('workspace-less turns honor the full-access permissions preset', async () => {
@@ -5144,38 +5185,35 @@ suite('CodexAgent managed working directory ownership', () => {
 		const userFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-user-'));
 		const marker = join(userFolder, 'marker.txt');
 		fs.writeFileSync(marker, 'keep-me');
-		try {
-			// An overlay written before the explicit `managedWorkingDirectory`
-			// field existed: only the legacy boolean flag was ever recorded,
-			// and `cwd` has since been overwritten — by an adoption in some
-			// prior process — with a real, unmanaged user folder.
-			await agent['_metadataStore'].write(session, {
-				threadId: 'legacy-thread',
-				cwd: URI.file(userFolder),
-				ownsManagedWorkingDirectory: true,
-			});
+		disposables.add(toDisposable(() => fs.rmSync(userFolder, { recursive: true, force: true })));
+		// An overlay written before the explicit `managedWorkingDirectory`
+		// field existed: only the legacy boolean flag was ever recorded,
+		// and `cwd` has since been overwritten — by an adoption in some
+		// prior process — with a real, unmanaged user folder.
+		await agent['_metadataStore'].write(session, {
+			threadId: 'legacy-thread',
+			cwd: URI.file(userFolder),
+			ownsManagedWorkingDirectory: true,
+		});
 
-			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
-			assert.strictEqual(
-				agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
-				undefined,
-				'a legacy flag with no explicit path must not resurrect a managed directory',
-			);
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+		assert.strictEqual(
+			agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
+			undefined,
+			'a legacy flag with no explicit path must not resurrect a managed directory',
+		);
 
-			// Idle-release then dispose: drops the runtime from memory and
-			// untracks the chat's configuration scope, driving the reclaim
-			// path for a session that is no longer live — the exact path a
-			// stale flag could otherwise infer `cwd` from. Clearing the
-			// released-directory memo simulates the in-memory map being
-			// empty, as it would be after a process restart.
-			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat, chatContext(session, chat));
-			await agent.chats.disposeChat(chat, chatContext(session, chat));
+		// Idle-release then dispose: drops the runtime from memory and
+		// untracks the chat's configuration scope, driving the reclaim
+		// path for a session that is no longer live — the exact path a
+		// stale flag could otherwise infer `cwd` from. Clearing the
+		// released-directory memo simulates the in-memory map being
+		// empty, as it would be after a process restart.
+		agent['_releasedManagedWorkingDirectories'].clear();
+		await agent.chats.releaseChat(chat, chatContext(session, chat));
+		await agent.chats.disposeChat(chat, chatContext(session, chat));
 
-			assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
-		} finally {
-			fs.rmSync(userFolder, { recursive: true, force: true });
-		}
+		assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
 	});
 
 	test('an explicit managed working directory is still reclaimed once the session is no longer live', async () => {
@@ -5185,29 +5223,26 @@ suite('CodexAgent managed working directory ownership', () => {
 		const sessionId = AgentSession.id(session);
 
 		const managedFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-agent-codex-'));
-		try {
-			await agent['_metadataStore'].write(session, {
-				threadId: 'managed-thread',
-				cwd: URI.file(managedFolder),
-				ownsManagedWorkingDirectory: true,
-				managedWorkingDirectory: URI.file(managedFolder),
-			});
+		disposables.add(toDisposable(() => fs.rmSync(managedFolder, { recursive: true, force: true })));
+		await agent['_metadataStore'].write(session, {
+			threadId: 'managed-thread',
+			cwd: URI.file(managedFolder),
+			ownsManagedWorkingDirectory: true,
+			managedWorkingDirectory: URI.file(managedFolder),
+		});
 
-			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
-			assert.strictEqual(
-				agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
-				URI.file(managedFolder).fsPath,
-				'an explicit managed path is trusted and restored',
-			);
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+		assert.strictEqual(
+			agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
+			URI.file(managedFolder).fsPath,
+			'an explicit managed path is trusted and restored',
+		);
 
-			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat, chatContext(session, chat));
-			await agent.chats.disposeChat(chat, chatContext(session, chat));
+		agent['_releasedManagedWorkingDirectories'].clear();
+		await agent.chats.releaseChat(chat, chatContext(session, chat));
+		await agent.chats.disposeChat(chat, chatContext(session, chat));
 
-			assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
-		} finally {
-			fs.rmSync(managedFolder, { recursive: true, force: true });
-		}
+		assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
 	});
 
 	test('adopting a host-supplied working directory abandons a stale managed folder left behind by a failed thread start, and never touches the newly adopted folder', async () => {
@@ -5222,7 +5257,7 @@ suite('CodexAgent managed working directory ownership', () => {
 		} as never;
 
 		// A workspace-less session defers its backing until the first send.
-		// `_materialize` mints the managed temp folder and records it on the
+		// `_materialize` mints the managed scratch directory and records it on the
 		// session *before* issuing `thread/start`; if that request fails, the
 		// folder is left behind with no thread id ever assigned. A retry that
 		// supplies a real, host-selected folder must abandon that stale

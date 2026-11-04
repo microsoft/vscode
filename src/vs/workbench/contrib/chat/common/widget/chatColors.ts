@@ -170,7 +170,7 @@ export const chatVoiceListeningGlow = registerColor(
 export const chatVoiceSpeakingGlow = registerColor(
 	'chat.voiceSpeakingGlow',
 	{ dark: null, light: null, hcDark: null, hcLight: null },
-	localize('chat.voiceSpeakingGlow', 'Unused speaking accent color.'), true,
+	localize('chat.voiceSpeakingGlow.unused', 'Unused speaking accent color.'), true,
 	localize('chat.voiceSpeakingGlow.deprecated', "This color is no longer used. Use 'chat.voiceListeningGlow' to customize the connected Voice Mode glow."));
 
 // Dictation shares Voice Mode's listening accent, so an open microphone reads the

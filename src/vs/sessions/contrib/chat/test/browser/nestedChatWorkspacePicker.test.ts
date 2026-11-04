@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspaceSupport } from '../../../../services/sessions/common/sessionsProvider.js';
-import { getDefaultNestedChatFolder, getNestedChatFolderOptions, NestedChatFolderChoice, toNestedChatWorkspace } from '../../browser/nestedChatWorkspacePicker.js';
+import { getDefaultNestedChatFolder, getNestedChatFolderMark, getNestedChatFolderOptions, NestedChatFolderChoice, toNestedChatWorkspace } from '../../browser/nestedChatWorkspacePicker.js';
 
 suite('NestedChatWorkspacePicker', () => {
 
@@ -21,29 +21,51 @@ suite('NestedChatWorkspacePicker', () => {
 	const git: INestedChatFolderInfo = { supportsWorktree: true, defaultBranch: 'main' };
 	const plain: INestedChatFolderInfo = { supportsWorktree: false, defaultBranch: undefined };
 
-	function support(sessionFolder: URI | undefined, multipleFolders: boolean, sessionFolders: URI[] = sessionFolder ? [sessionFolder] : []): INestedChatWorkspaceSupport {
-		return { sessionFolder, sessionFolders, multipleFolders, browseActions: [browse] };
+	function support(sessionFolder: URI | undefined, multipleFolders: boolean): INestedChatWorkspaceSupport {
+		return { sessionFolder, sessionFolderWorktree: undefined, multipleFolders, browseActions: [browse] };
 	}
 
 	function describe(choice: NestedChatFolderChoice): string {
 		return choice.kind === 'scratch' ? 'scratch' : choice.folder.path;
 	}
 
-	test('offers the folders, browsing and No Workspace per session and agent', () => {
+	test('offers the session folder, recent folders, browsing and No Workspace per session and agent', () => {
 		const cases = {
-			workspaceSession: support(repo, true, [repo, other]),
-			workspacelessSession: support(undefined, true, [other]),
+			workspaceSession: support(repo, true),
+			workspacelessSession: support(undefined, true),
 			singleFolderWorkspaceSession: support(repo, false),
 			singleFolderWorkspacelessSession: support(undefined, false),
 		};
 		assert.deepStrictEqual(Object.fromEntries(Object.entries(cases).map(([name, value]) => {
-			const options = getNestedChatFolderOptions(value, { recentFolders: [URI.file('/recent'), other], canOpenLocalFolder: true });
+			const options = getNestedChatFolderOptions(value, { recentFolders: [URI.file('/recent'), repo, other], canOpenLocalFolder: true });
 			return [name, { default: describe(getDefaultNestedChatFolder(value)), choices: options.choices.map(describe), browse: options.browseActions.length, openFolder: options.openFolder }];
 		})), {
-			workspaceSession: { default: '/repo', choices: ['/repo', '/other', '/recent', 'scratch'], browse: 1, openFolder: true },
-			workspacelessSession: { default: 'scratch', choices: ['/other', '/recent', 'scratch'], browse: 1, openFolder: true },
+			workspaceSession: { default: '/repo', choices: ['/repo', '/recent', '/other', 'scratch'], browse: 1, openFolder: true },
+			workspacelessSession: { default: 'scratch', choices: ['/recent', '/repo', '/other', 'scratch'], browse: 1, openFolder: true },
 			singleFolderWorkspaceSession: { default: '/repo', choices: ['/repo'], browse: 0, openFolder: false },
 			singleFolderWorkspacelessSession: { default: 'scratch', choices: ['scratch'], browse: 0, openFolder: false },
+		});
+	});
+
+	test('marks only the session folder of a worktree session as the session\'s worktree', () => {
+		const worktreeSupport: INestedChatWorkspaceSupport = { ...support(repo, true), sessionFolderWorktree: { branch: 'agents/fix', repositoryLabel: 'project' } };
+		const unnamedBranchSupport: INestedChatWorkspaceSupport = { ...worktreeSupport, sessionFolderWorktree: { branch: undefined, repositoryLabel: undefined } };
+		const mark = (value: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice) => {
+			const { icon, worktreeNote } = getNestedChatFolderMark(value, choice, Codicon.commentDiscussion);
+			return { icon: icon.id, worktreeNote };
+		};
+		assert.deepStrictEqual({
+			sessionWorktree: mark(worktreeSupport, { kind: 'folder', folder: repo }),
+			sessionWorktreeWithoutBranch: mark(unnamedBranchSupport, { kind: 'folder', folder: repo }),
+			otherFolderOfWorktreeSession: mark(worktreeSupport, { kind: 'folder', folder: other }),
+			scratchOfWorktreeSession: mark(worktreeSupport, { kind: 'scratch' }),
+			plainSessionFolder: mark(support(repo, true), { kind: 'folder', folder: repo }),
+		}, {
+			sessionWorktree: { icon: Codicon.worktreeCompact.id, worktreeNote: 'Session worktree · agents/fix' },
+			sessionWorktreeWithoutBranch: { icon: Codicon.worktreeCompact.id, worktreeNote: 'Session worktree' },
+			otherFolderOfWorktreeSession: { icon: Codicon.folder.id, worktreeNote: undefined },
+			scratchOfWorktreeSession: { icon: Codicon.commentDiscussion.id, worktreeNote: undefined },
+			plainSessionFolder: { icon: Codicon.folder.id, worktreeNote: undefined },
 		});
 	});
 

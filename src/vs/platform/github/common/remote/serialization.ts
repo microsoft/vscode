@@ -36,6 +36,7 @@ const parseError = {
 			serverDate: parse.optional(parse.string),
 			requestId: parse.optional(parse.string),
 			retryAfterSeconds: parse.optional(parse.nonNegativeNumber),
+			ssoAuthorizationUrl: parse.optional(parse.string),
 		})),
 	}),
 	timeout: parse.object({ type: parse.exact('timeout'), requestDispatched: parse.boolean }),

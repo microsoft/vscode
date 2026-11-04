@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -46,6 +47,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isString } from '../../../../base/common/types.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 const enum ProcessConstants {
 	/**
@@ -137,6 +139,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
 	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
+	private _parentWindowId: number | undefined;
+	private _parentWindowHandle: VSBuffer | undefined;
+
 	constructor(
 		private readonly _instanceId: number,
 		cwd: string | URI | undefined,
@@ -159,7 +164,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -364,6 +370,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}
 
+		if (this._parentWindowId !== undefined && this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			await this._resolveParentWindowHandle();
+		}
+
 		// If the process was disposed during its creation, shut it down and return failure
 		if (this._isDisposed) {
 			newProcess.shutdown(false);
@@ -374,6 +384,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// Don't report the previous shell's pid for the new process before it's ready
 		this.shellProcessId = undefined;
 		this._setProcessState(ProcessState.Launching);
+
+		// Before start() so the shell's first GetConsoleWindow() already has its owner
+		this._updateProcessParentWindow();
 
 		// Add any capabilities inherent to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
@@ -763,6 +776,63 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async clearBuffer(): Promise<void> {
 		this._process?.clearBuffer?.();
+	}
+
+	async setParentWindow(windowId: number): Promise<void> {
+		if (!isWindows || this.remoteAuthority) {
+			return;
+		}
+		// Track the window even while the setting is off, so processes started after it's turned on
+		// get the window the terminal is in now. The saved handle is for the previous window.
+		if (windowId !== this._parentWindowId) {
+			this._parentWindowId = windowId;
+			this._parentWindowHandle = undefined;
+		}
+		if (!this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			return;
+		}
+		const handle = await this._getNativeWindowHandle(windowId);
+		if (windowId !== this._parentWindowId || handle === undefined || this._parentWindowHandle?.equals(handle)) {
+			return;
+		}
+		this._parentWindowHandle = handle;
+		await this._updateProcessParentWindow();
+	}
+
+	/**
+	 * Waits for the handle of the window the terminal is in now, which may change while waiting.
+	 */
+	private async _resolveParentWindowHandle(): Promise<void> {
+		let windowId = this._parentWindowId;
+		while (windowId !== undefined) {
+			const handle = await this._getNativeWindowHandle(windowId);
+			if (windowId === this._parentWindowId) {
+				if (handle !== undefined) {
+					this._parentWindowHandle = handle;
+				}
+				return;
+			}
+			windowId = this._parentWindowId;
+		}
+	}
+
+	private async _getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
+		try {
+			return await this._hostService.getNativeWindowHandle(windowId);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private async _updateProcessParentWindow(): Promise<void> {
+		if (!this._process || this._parentWindowHandle === undefined || !this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			return;
+		}
+		try {
+			await this._process.setParentWindow?.(this._parentWindowHandle);
+		} catch (e) {
+			this._logService.trace('Could not set the parent window of the terminal process', e);
+		}
 	}
 }
 

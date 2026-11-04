@@ -183,29 +183,32 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {
 	if (!branch) {
-		return localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.");
-	}
-	if (hasGitRemote !== true) {
-		return localize('sessionComparison.gitRemoteRequired', "Comparisons require a Git remote.");
+		return localize('sessionComparison.gitBranchRequired', "Comparisons require a Git repository with branch information.");
 	}
 	return undefined;
 }
 
-export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
-	return getSessionComparisonHarnessDisplayLabel(participant.harness);
+export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant, includeHarness = true): string {
+	return getSessionComparisonHarnessDisplayLabel(participant.harness, includeHarness);
 }
 
 export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, attemptNumber: number): string {
 	return localize('sessionComparison.attemptLabel', "Attempt {0} ({1})", attemptNumber, getSessionComparisonHarnessLabel(participant));
 }
 
-export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness): string {
+export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness, includeHarness = true): string {
+	const configurationLabel = getSessionComparisonHarnessConfigurationLabel(harness);
+	if (!includeHarness) {
+		if (harness.modelLabel && configurationLabel) {
+			return localize('sessionComparison.modelAndConfiguration', "{0} · {1}", harness.modelLabel, configurationLabel);
+		}
+		return harness.modelLabel || configurationLabel || harness.label;
+	}
 	const harnessLabel = harness.modelLabel
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
 		: harness.label;
-	const configurationLabel = getSessionComparisonHarnessConfigurationLabel(harness);
 	return configurationLabel
 		? localize('sessionComparison.harnessModelAndConfiguration', "{0} · {1}", harnessLabel, configurationLabel)
 		: harnessLabel;

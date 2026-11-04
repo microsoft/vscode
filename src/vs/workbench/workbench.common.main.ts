@@ -62,7 +62,6 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';
-import './services/workspaces/common/canonicalUriService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
 import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
@@ -133,6 +132,7 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
+import './services/lifecycle/common/unattendedRestart.js';
 import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';

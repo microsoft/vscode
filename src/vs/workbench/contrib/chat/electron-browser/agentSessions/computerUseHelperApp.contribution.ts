@@ -29,9 +29,6 @@ class ComputerUseHelperAppContribution extends Disposable implements IWorkbenchC
 			startDrag: (path, targetWindow) => {
 				void nativeHostService.startFileDrag(path, { targetWindowId: isAuxiliaryWindow(targetWindow) ? targetWindow.vscodeWindowId : undefined });
 			},
-			reveal: path => {
-				void nativeHostService.showItemInFolder(path);
-			},
 		}));
 	}
 }

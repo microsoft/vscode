@@ -33,6 +33,8 @@ export interface ISubmenuItem {
 	submenu: MenuId;
 	icon?: Icon;
 	when?: ContextKeyExpression;
+	/** Submenu item is checked if this expression returns true. */
+	toggled?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 	isSelection?: boolean;
@@ -287,6 +289,7 @@ export class MenuId {
 	static readonly ChatInputAttachmentToolbar = new MenuId('ChatInputAttachmentToolbar');
 	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
 	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
+	static readonly ChatImageContext = new MenuId('ChatImageContext');
 	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
@@ -295,6 +298,7 @@ export class MenuId {
 	static readonly ChatNewMenu = new MenuId('ChatNewMenu');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
+	static readonly ChatViewMode = new MenuId('ChatViewMode');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly ChatTipContext = new MenuId('ChatTipContext');
 	static readonly ChatTipToolbar = new MenuId('ChatTipToolbar');
@@ -569,13 +573,16 @@ export class SubmenuItemAction extends SubmenuAction {
 		readonly item: ISubmenuItem,
 		readonly hideActions: IMenuItemHide | undefined,
 		actions: readonly IAction[],
+		checked?: boolean,
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked);
 	}
 }
 
 export interface IMenuItemHide {
 	readonly isHidden: boolean;
+	/** Whether the visibility differs from the menu item's default (e.g. a hidden-by-default item that is shown). */
+	readonly isModifiedFromDefault: boolean;
 	readonly hide: IAction;
 	readonly toggle: IAction;
 }

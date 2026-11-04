@@ -39,6 +39,7 @@ import {
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
 	AgentHostWorkspaceSnapshotEnabledSettingId,
+	AgentHostMcpSkillsEnabledSettingId,
 } from './agentService.js';
 import {
 	AgentHostAhpJsonlLoggingEnabledConfigKey,
@@ -56,10 +57,12 @@ import {
 	AgentHostPrewarmSessionsConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
+	AgentHostMcpSkillsEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
-import { ChatMoveConfigKey, ChatMoveSettingId } from './agentHostChatMove.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
 
@@ -217,24 +220,37 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
-		[ChatMoveSettingId.Enabled]: {
+		[ChatProvidersSettingId.Enabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.moveChats.enabled', "Enables moving chats between Agent Host sessions and into new sessions."),
+			description: nls.localize('chat.agentHost.multipleChatProviders.enabled', "Enables chats in one Agent Host session to use different agents."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			agentHost: { key: ChatMoveConfigKey.Enabled },
+			agentHost: { key: ChatProvidersConfigKey.Enabled },
 		},
+		...chatMoveConfigurationProperties,
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.canvases.enabled', "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."),
+			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Newly created sessions pick up changes to this setting.", 'workbench.browser.enableRemoteProxy'),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCanvasesEnabledConfigKey },
+			policy: {
+				name: 'ChatCanvases',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.144',
+				value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.canvases.enabled.policy',
+						value: nls.localize('chat.canvases.enabled.policy', "Controls whether Copilot sessions can use Canvases to present interactive content."),
+					},
+				},
+			},
 		},
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
@@ -272,6 +288,15 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
 		},
+		[AgentHostMcpSkillsEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.mcpSkills.enabled', "When enabled, Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostMcpSkillsEnabledConfigKey },
+		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.workspaceSnapshot', "When enabled, the first turn of a new Copilot agent host chat includes a bounded file-name snapshot of its working directories, so the agent can orient itself without listing the workspace first. File contents are never included."),
@@ -288,7 +313,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
 				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
 			],
-			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls process-wide limits on sessions and chats created, messages sent, and recursive session spawning by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
 			default: 'on',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
@@ -312,7 +337,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostComputerUseEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat; each application still requires your approval."),
+			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
@@ -320,7 +345,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Routing tools wait for the selected server's tools to become available. Servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions offer routing tools for configured MCP servers and Connectors, using server names and cached MCP tool metadata to discover relevant servers. Selecting a routing tool can request authentication and waits for the server's current tools. Connector-owned servers do not show proactive sign-in hints when this setting is enabled. Other servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },

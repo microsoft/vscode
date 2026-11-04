@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { promises as fs, type BigIntStats, type Dir } from 'fs';
-import { Limiter, Promises } from '../../../base/common/async.js';
+import { Limiter, Promises, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode } from '../../../base/common/errors.js';
 import { join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { SessionStatus } from '../common/state/sessionState.js';
+import { IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 interface IWorktreeFileSystem {
 	lstat(path: string): Promise<BigIntStats>;
@@ -32,20 +35,76 @@ export const IAgentHostWorktreeDiskUsageService = createDecorator<IAgentHostWork
 
 export interface IAgentHostWorktreeDiskUsageService {
 	readonly _serviceBrand: undefined;
-	measure(root: URI, token: CancellationToken): Promise<number | undefined>;
+	measure(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 }
 
 /** Owns the scan limit shared by every protocol endpoint in one host runtime. */
 export class AgentHostWorktreeDiskUsageService extends Disposable implements IAgentHostWorktreeDiskUsageService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _limiter = this._register(new Limiter<number | undefined>(2));
+	private readonly _measurements = new SequencerByKey<string>();
 
-	constructor(private readonly _fileSystem: IWorktreeFileSystem = nodeFileSystem) {
+	constructor(
+		private readonly _fileSystem: IWorktreeFileSystem | undefined,
+		@IAgentHostDatabase private readonly _database: IAgentHostDatabase,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+	) {
 		super();
 	}
 
-	measure(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._limiter.queue(() => measureWorktreeDiskUsage(root, token, this._fileSystem));
+	measure(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		const measure = () => this._limiter.queue(async () => {
+			throwIfCancelled(token);
+			const fileSystem = this._fileSystem ?? nodeFileSystem;
+			if (!session) {
+				return measureWorktreeDiskUsage(root, token, fileSystem);
+			}
+			const rootStat = await statPath(root.fsPath, fileSystem);
+			if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
+				return undefined;
+			}
+			const sessionKey = session.toString();
+			const worktree = root.toString();
+			const owners = [sessionKey, ...(await this._database.readWorktreeCoOwners(worktree)).map(owner => owner.session)];
+			const activityRevision = this._getIdleOwnersRevision(owners);
+			const sessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, worktree);
+			const currentActivityRevision = this._getIdleOwnersRevision(owners);
+			let revision = sessionRevision === undefined || activityRevision === undefined || currentActivityRevision !== activityRevision || rootStat.birthtimeNs <= 0n
+				? undefined : `${sessionRevision}\0${rootStat.dev}:${rootStat.ino}:${rootStat.birthtimeNs}`;
+			if (activityRevision === undefined || currentActivityRevision !== activityRevision) {
+				await this._database.deleteWorktreeDiskUsage(worktree);
+			}
+			if (revision !== undefined) {
+				const cached = await this._database.readWorktreeDiskUsage(sessionKey, worktree, revision);
+				throwIfCancelled(token);
+				if (this._getIdleOwnersRevision(owners) !== activityRevision) {
+					await this._database.deleteWorktreeDiskUsage(worktree);
+					revision = undefined;
+				} else if (cached !== undefined) {
+					return cached;
+				}
+			}
+			const sizeBytes = await measureWorktreeDiskUsage(root, token, fileSystem);
+			if (revision !== undefined && sizeBytes !== undefined) {
+				const currentSessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, worktree);
+				throwIfCancelled(token);
+				if (this._getIdleOwnersRevision(owners) !== activityRevision) {
+					await this._database.deleteWorktreeDiskUsage(worktree);
+				} else if (currentSessionRevision === sessionRevision) {
+					await this._database.writeWorktreeDiskUsage(sessionKey, worktree, revision, sizeBytes);
+				}
+			}
+			return sizeBytes;
+		});
+		return session ? this._measurements.queue(root.toString(), measure) : measure();
+	}
+
+	private _getIdleOwnersRevision(owners: readonly string[]): string | undefined {
+		const summaries = owners.map(owner => this._stateManager.getSessionSummary(owner) ?? this._stateManager.getSurfacedSessionSummary(owner));
+		if (summaries.some(summary => summary && (summary.status & SessionStatus.InProgress) !== 0)) {
+			return undefined;
+		}
+		return JSON.stringify(summaries.map(summary => summary?.modifiedAt));
 	}
 }
 

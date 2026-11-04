@@ -13,20 +13,29 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSelectedModelStorageKey, storeSelectedModel } from '../../../../../workbench/contrib/chat/common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { isAutomationModelConfiguration } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { buildModelPickerDestinations } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, LanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../../../workbench/contrib/chat/common/languageModelsConfiguration.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvider, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -63,6 +72,7 @@ const auto = {
 };
 
 interface ITestChat extends IChat {
+	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
@@ -75,6 +85,7 @@ function createChat(resource: string, selectedModelId?: string, source = ChatMod
 		status: observableValue<SessionStatus>(`${resource}.status`, status),
 		modelId: observableValue<string | undefined>(`${resource}.model`, selectedModelId),
 		modelSource: observableValue<ChatModelSource | undefined>(`${resource}.modelSource`, selectedModelId ? source : undefined),
+		mode: observableValue<{ readonly id: string; readonly kind: string } | undefined>(`${resource}.mode`, undefined),
 	} as ITestChat;
 }
 
@@ -119,6 +130,7 @@ function createSession(providerId: string, status: SessionStatus, selectedModelI
 }
 
 interface ITestProvider extends ISessionsProvider {
+	agentModelPreferences?: ISessionModelsSnapshot['agentModelPreferences'];
 	models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly modelChanges: Emitter<void>;
 	readonly writes: string[];
@@ -150,6 +162,7 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 			const resolved = desiredModelId ? provider.resolveDesired?.(desiredModelId) : undefined;
 			return {
 				models: provider.models,
+				agentModelPreferences: provider.agentModelPreferences,
 				desiredModelResolution: resolved
 					? { kind: 'available' as const, model: resolved }
 					: resolveModelIdentifier(provider.models, desiredModelId, provider.modelsResolved),
@@ -351,6 +364,20 @@ suite('SessionModelSelection', () => {
 					model: claude,
 				},
 			});
+			const chat = testSession.activeChat.get() as ITestChat;
+			provider.agentModelPreferences = { models: [second.metadata.id], required: true };
+			chat.mode.set({ id: 'file:///required.agent.md', kind: 'agent' }, undefined);
+			const required = {
+				comparison: selection.getComparisonModels().map(model => model.identifier),
+				disallowed: selection.resolveComparisonModel(copilot.identifier),
+				blocked: !!selection.state.get().agentModelPolicyError,
+			};
+			provider.agentModelPreferences = undefined;
+			chat.mode.set(undefined, undefined);
+			assert.deepStrictEqual({ required, cleared: selection.state.get().agentModelPolicyError, comparisonCount: selection.getComparisonModels().length }, {
+				required: { comparison: [claude.identifier, codex.identifier], disallowed: undefined, blocked: true },
+				cleared: undefined, comparisonCount: 4,
+			});
 		});
 	}
 
@@ -403,6 +430,102 @@ suite('SessionModelSelection', () => {
 				this.writes.push({ ...values });
 				this.configuration = { ...this.configuration, ...values };
 			}
+		}
+
+		test('allows undefined only in transient model configuration edits', () => {
+			const values = [{ thinkingLevel: undefined }, { thinkingLevel: null }, { thinkingLevel: { value: 'low' } }, { thinkingLevel: NaN }, { thinkingLevel: Infinity }, [], new Date(0)];
+			assert.deepStrictEqual(values.map(value => ({
+				stored: isAutomationModelConfiguration(value), edit: isAutomationModelConfiguration(value, true),
+			})), [
+				{ stored: false, edit: true }, { stored: true, edit: true },
+				{ stored: false, edit: false }, { stored: false, edit: false }, { stored: false, edit: false },
+				{ stored: false, edit: false }, { stored: false, edit: false },
+			]);
+		});
+
+		test('resetting unspecified effort clears the preference before capture and first send', async () => {
+			const service = new ConfigurationService();
+			service.metadata = {
+				...first.metadata,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string', enum: ['low', 'high'] } } },
+			};
+			const configuration = disposables.add(new AutomationModelConfiguration(service));
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: undefined });
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			const reopened = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			assert.deepStrictEqual({
+				captured, sent: configuration.getModelConfigurationForRequest(first.identifier),
+				reopened: reopened.getModelConfigurationForRequest(first.identifier), writes: service.writes,
+			}, { captured: {}, sent: {}, reopened: {}, writes: [{ thinkingLevel: 'low' }, { thinkingLevel: undefined }] });
+		});
+
+		for (const retainContext of [false, true]) {
+			test(`a fresh draft can capture shared configuration after effort reset before catalogue refresh (retainContext=${retainContext})`, async () => {
+				const instantiation = workbenchInstantiationService(undefined, disposables);
+				instantiation.stub(ISecretStorageService, disposables.add(new TestSecretStorageService()));
+				instantiation.stub(IRequestService, new class extends mock<IRequestService>() { }());
+				instantiation.stub(IProductService, new class extends mock<IProductService>() { override readonly version = '1.100.0'; }());
+				instantiation.stub(IOpenerService, { ...NullOpenerService });
+				let groups: ILanguageModelsProviderGroup[] = [];
+				instantiation.stub(ILanguageModelsConfigurationService, new class extends mock<ILanguageModelsConfigurationService>() {
+					override readonly onDidChangeLanguageModelGroups = Event.None;
+					override getLanguageModelsProviderGroups() { return groups; }
+					override async addLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup) {
+						groups.push(group);
+						return group;
+					}
+					override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup) {
+						groups = groups.map(group => group === from ? to : group);
+						return to;
+					}
+					override async removeLanguageModelsProviderGroup(removed: ILanguageModelsProviderGroup) {
+						groups = groups.filter(group => group !== removed);
+					}
+				}());
+				const service = disposables.add(instantiation.createInstance(LanguageModelsService));
+				service.deltaLanguageModelChatProviderDescriptors([{ vendor: 'test', displayName: 'Test', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+				let publications = 0;
+				disposables.add(service.registerLanguageModelProvider('test', {
+					onDidChange: Event.None,
+					provideLanguageModelChatInfo: async () => {
+						publications++;
+						return [{
+							...first,
+							metadata: {
+								...first.metadata,
+								configurationSchema: {
+									properties: {
+										reasoningEffort: { type: 'string', enum: ['low', 'high'] },
+										...(retainContext ? { contextTier: { type: 'string' as const, enum: ['default', 'long_context'] } } : {}),
+									}
+								},
+							},
+						}];
+					},
+					sendChatRequest: async () => { throw new Error('Unexpected model request'); },
+					provideTokenCount: async () => { throw new Error('Unexpected token count'); },
+				}));
+				await service.selectLanguageModels({ vendor: 'test' });
+				const publishedBeforeReset = publications;
+				const draft = disposables.add(new AutomationModelConfiguration(service));
+				await draft.setModelConfiguration(first.identifier, { reasoningEffort: 'low', ...(retainContext ? { contextTier: 'long_context' } : {}) });
+				await draft.setModelConfiguration(first.identifier, { reasoningEffort: undefined });
+				const fresh = disposables.add(new AutomationModelConfiguration(service));
+				const captured = fresh.captureModelConfiguration(first.identifier);
+				const expected = retainContext ? { contextTier: 'long_context' } : {};
+				assert.deepStrictEqual({
+					captured, sent: fresh.getModelConfigurationForRequest(first.identifier),
+					shared: service.getModelConfiguration(first.identifier, false),
+					saved: groups.map(group => group.settings),
+					refreshed: publications !== publishedBeforeReset,
+				}, {
+					captured: expected, sent: expected,
+					shared: retainContext ? expected : undefined,
+					saved: retainContext ? [{ [first.metadata.id]: expected }] : [],
+					refreshed: false,
+				});
+			});
 		}
 
 		test('host defaults remain implicit until an explicit selection, including the default itself', async () => {
@@ -521,6 +644,7 @@ suite('SessionModelSelection', () => {
 			};
 			const locked = configuration.getModelConfiguration(first.identifier);
 			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' }), /managed by the agent host/);
+			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: undefined }), /managed by the agent host/);
 			const captured = configuration.captureModelConfiguration(first.identifier);
 			service.metadata = original;
 			assert.deepStrictEqual({ locked, captured, removed: configuration.getModelConfiguration(first.identifier), writes: service.writes }, {
@@ -564,7 +688,7 @@ suite('SessionModelSelection', () => {
 			const values = [access.getModelConfiguration(first.identifier)];
 			const writesAfterOpening = [...languageModelsService.writes];
 			const changes: (Record<string, unknown> | undefined)[] = [];
-			disposables.add(access.onDidChange!(modelId => changes.push(access.getModelConfiguration(modelId))));
+			disposables.add(access.onDidChange!(modelIds => changes.push(...modelIds.map(modelId => access.getModelConfiguration(modelId)))));
 
 			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'medium' });
 			activeSession.set(secondSession.session, undefined);

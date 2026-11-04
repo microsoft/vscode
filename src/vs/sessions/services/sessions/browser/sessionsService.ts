@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -30,6 +32,7 @@ import { VisibleSession, VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
@@ -37,6 +40,7 @@ import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpen
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -69,6 +73,14 @@ export interface ISessionNavigationRequest {
 	readonly token: CancellationToken;
 }
 
+/** Options of {@link ISessionsService.showSessionInWindow}. */
+export interface IShowSessionInWindowOptions {
+	/** The chat to show: by default, the chat the session shows in the grid, or its main chat. */
+	readonly chatResource?: URI;
+	/** Whether the session becomes the active session while its window is focused; `true` by default. */
+	readonly activates?: boolean;
+}
+
 /**
  * Options for {@link ISessionsService.openNewSession}.
  */
@@ -83,6 +95,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly cancelRestore?: boolean;
 	/** Keep the current navigation intent when the composer creates or updates its own draft. */
 	readonly preserveNavigation?: boolean;
+	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
+	readonly preserveCustomView?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -304,7 +318,7 @@ export interface ISessionsService {
 	 * active session. Returns the activated session, or `undefined` when no
 	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -365,8 +379,30 @@ export interface ISessionsService {
 	 */
 	closeAllSessions(): void;
 
-	/** Make the given (already visible) session the active session. */
-	setActive(session: IActiveSession | undefined): void;
+	/**
+	 * Make the given (already visible) session the active session, and move focus into it unless `preserveFocus`, such as
+	 * when its window gains focus elsewhere than in its session.
+	 */
+	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void;
+
+	/** Sessions shown in windows of their own, outside the grid; see {@link showSessionInWindow}. */
+	readonly windowSessions: IObservable<readonly IActiveSession[]>;
+
+	/**
+	 * The session the main window is laid out for, with its editors, side pane and panel: the {@link activeSession}, except
+	 * while the session of a chat window is (see {@link showSessionInWindow}), when it is the session of the main window
+	 * that was active before. The main window keeps its layout while a chat window has focus.
+	 */
+	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
+
+	/**
+	 * Shows a chat of a session in a window of its own instead of in the grid: the session leaves the grid, and the
+	 * returned window session, which shows only that chat, is shown by a session view registered with
+	 * `ISessionsPartService.registerWindowSessionView`. Opening or showing the session focuses its window, and it
+	 * becomes the active session while its window is focused, unless {@link IShowSessionInWindowOptions.activates} is
+	 * `false`. {@link closeSession} stops showing it, which closes its window.
+	 */
+	showSessionInWindow(session: ISession, options?: IShowSessionInWindowOptions): IActiveSession;
 
 	/** Submit the live input in the active new-session composer. */
 	submitNewSessionInput(): Promise<boolean>;
@@ -406,6 +442,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The canonical active session — the visible active slot. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+	readonly windowSessions: IObservable<readonly IActiveSession[]>;
+	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
 	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
 	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 	private readonly _navigationRequest = observableValue<ISessionNavigationRequest | undefined>(this, undefined);
@@ -458,11 +496,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
+		@IWindowCanvasService private readonly windowCanvasService: IWindowCanvasService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
 
@@ -481,6 +522,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.visibleSessionPanes = this._visibility.gridSessions;
 		this.activeSession = this._visibility.activeSession;
+		this.windowSessions = this._visibility.windowSessions;
+		this.mainWindowActiveSession = this._visibility.mainWindowActiveSession;
 
 		this._closedItems = this._register(this.instantiationService.createInstance(
 			ClosedItemHistory,
@@ -512,6 +555,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			},
 			this.activeSession,
 			this.customViewService,
+			this.windowCanvasService,
 			this.sessionsManagementService,
 			this._recencyHistory,
 			this.contextKeyService,
@@ -522,6 +566,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		this._register(autorun(reader => {
 			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				this._openSessionCts.value?.cancel();
+				this.windowCanvasService.deactivateCanvas();
+				this._recordNavigation();
+			}
+		}));
+		this._register(autorun(reader => {
+			if (this.windowCanvasService.navigationRequest.read(reader)) {
 				this._openSessionCts.value?.cancel();
 				this._recordNavigation();
 			}
@@ -575,12 +626,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const visible = this._visibility.gridSessions.read(reader);
 			const active = this._visibility.activeSession.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
+			const canvasNavigation = this.windowCanvasService.navigationRequest.read(reader);
 			const request = this._gridRequest.read(reader);
 			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getRenderedGridSlots(), request);
 
 			if (active !== this._focusedActiveSession) {
 				this._focusedActiveSession = active;
-				if (!preserveFocus) {
+				// Startup restoration may populate the grid underneath an open or opening canvas.
+				if (!preserveFocus && !canvasNavigation) {
 					this.sessionsPartService.focusSession(active);
 				}
 			}
@@ -593,6 +646,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 				?? this.visibleSessions.get().find(s => s?.sessionId === sessionId);
 			if (sessionId === undefined || session) {
 				this.setActive(session);
+			}
+		}));
+		this._register(this.sessionsPartService.onDidFocusWindowSession(session => this.setActive(session)));
+		// A session shown in another window is active only while that window has focus. Once the main window has focus
+		// again, the session of its grid is active again, without moving focus within the main window or cancelling what
+		// the main window is opening.
+		this._register(hostService.onDidChangeActiveWindow(windowId => {
+			if (windowId === mainWindow.vscodeWindowId && this._visibility.isWindowSession(this.activeSession.get())) {
+				this._activate(this.mainWindowActiveSession.get(), true);
 			}
 		}));
 		this._register(this.sessionsPartService.onDidInteractWithGrid(() => {
@@ -855,6 +917,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._rememberDepartedSession(session);
 			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
+			for (const session of e.removed) {
+				let windowSession: IActiveSession | undefined;
+				while ((windowSession = this._visibility.getWindowSession(session.sessionId))) {
+					this._visibility.removeFromWindow(windowSession);
+				}
+			}
 		}
 
 		if (!currentActive) {
@@ -944,6 +1012,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _beginNavigation(intent: SessionNavigationIntent, token: CancellationToken = CancellationToken.None, preserveNavigation = false): void {
 		if (intent !== 'automatic') {
+			this.windowCanvasService.cancelPendingOpen();
 			if (!preserveNavigation) {
 				this._recordNavigation(token);
 			}
@@ -975,14 +1044,24 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
 	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
+		if (this._visibility.isPassiveWindowSession(session)) {
+			return session as IActiveSession;
+		}
+		const previousActive = this.activeSession.get();
+		const leavingCanvas = intent !== 'automatic' && !!this.windowCanvasService.activeCanvasOpen.get();
 		let active: IActiveSession | undefined;
 		transaction(tx => {
 			// Dismiss the custom view atomically so its covered session is not recorded as a visit.
 			if (intent !== 'automatic') {
 				this.customViewService.hideCustomView(tx);
+				this.windowCanvasService.deactivateCanvas(tx);
+				this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			}
 			active = this._visibility.setActive(session, preserveFocus);
 		});
+		if (leavingCanvas && !preserveFocus && active === previousActive) {
+			this.sessionsPartService.focusSession(active);
+		}
 		return active;
 	}
 
@@ -1032,15 +1111,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-			this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? session, preserveFocus, intent);
+			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._visibility.getWindowSession(session.sessionId, chatUri) ?? session, preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 				return;
 			}
 
-			// Find the chat and update active chat
+			// Find the chat and update active chat: in the session opened, also once focus moved into another window,
+			// whose session is then active.
 			let chat: IChat | undefined;
-			const activeSession = this._visibility.activeSession.get();
+			const current = this._visibility.activeSession.get();
+			const activeSession = current?.sessionId === session.sessionId ? current : opened;
 			if (activeSession) {
 				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 				if (chat) {
@@ -1295,6 +1376,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 				uri: folder,
 				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+				remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(workspace, session.providerId),
 			});
 			if (!trusted) {
 				return false;
@@ -1430,6 +1512,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			try {
 				transaction(tx => {
 					this.customViewService.hideCustomView(tx);
+					this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
 					for (const session of ordered) {
 						if (referenceSlotId) {
@@ -1481,6 +1564,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const slots = prepared.map(session => ({ session, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
 		transaction(tx => {
 			this.customViewService.hideCustomView(tx);
+			this.windowCanvasService.deactivateCanvas(tx);
+			this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)), tx);
 			this._gridRequest.set({ type: 'arrange' }, tx);
 		});
@@ -1591,7 +1676,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const t0 = Date.now();
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
 
-		this._activate(sessionData, options?.preserveFocus, intent);
+		// Shown only in a window of its own: focuses that window. A session that still has chats in the grid opens there.
+		const inGrid = this._visibility.visibleSessions.get().some(candidate => candidate?.sessionId === sessionData.sessionId);
+		this._activate((!inGrid && this._visibility.getWindowSession(sessionData.sessionId)) || sessionData, options?.preserveFocus, intent);
 		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
@@ -1621,6 +1708,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		if (options?.preserveCustomView) {
+			intent = 'automatic';
+		}
 		if (options?.cancelRestore) {
 			this._cancelRestore();
 		}
@@ -1638,6 +1728,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 					uri: folderUri,
 					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+					remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 				});
 				if (token.isCancellationRequested) {
 					return { session: undefined, trustDeclined: false };
@@ -1650,8 +1741,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			this._beginNavigation(intent, token, options?.preserveNavigation);
-			this._startOpenSession();
+			if (!options?.preserveCustomView) {
+				this._beginNavigation(intent, token, options?.preserveNavigation);
+				this._startOpenSession();
+			}
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				if (options?.requireDevContainer) {
@@ -1667,7 +1760,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide, intent);
+				if (!options?.preserveCustomView) {
+					this._activateOrInsert(session, options?.toSide, intent);
+				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordOpened({ kind: 'newSession' });
 				}
@@ -1678,6 +1773,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				// through to the folder-less composer view.
 				this.logService.trace(`[SessionsView] openNewSession: createNewSession failed for folder ${folderUri.toString()}, falling back to composer view`);
 			}
+		}
+
+		if (options?.preserveCustomView) {
+			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
 		}
 
 		// Without a folder (or when folder resolution failed above): switch to
@@ -1691,7 +1790,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (!folderUri && !options?.preserveNavigation) {
 					this._startOpenSession();
 				}
-				this.customViewService.hideCustomView();
+				if (!options?.preserveCustomView) {
+					this._activate(undefined, undefined, intent);
+				}
 			}
 			if (intent === 'explicit' && !options?.preserveNavigation) {
 				this._navigation.recordOpened({ kind: 'newSession' });
@@ -1711,7 +1812,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide, intent);
+		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
 			this._navigation.recordOpened({ kind: 'newSession' });
 		}
@@ -1719,7 +1820,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
-	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent): void {
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): void {
 		const activeSession = this._visibility.activeSession.get();
 		const activeSessionId = activeSession?.sessionId;
 		const sessionId = session?.sessionId;
@@ -1734,6 +1835,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 				transaction(tx => {
 					if (intent !== 'automatic') {
 						this.customViewService.hideCustomView(tx);
+						this.windowCanvasService.deactivateCanvas(tx);
+						this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					}
 					if (reference) {
 						this._visibility.insertAtGridSlot(session, reference.id, 'right', true);
@@ -1744,19 +1847,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 		}
-		this._activate(session, undefined, intent);
+		this._activate(session, preserveFocus, intent);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
-		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): IActiveSession | undefined {
+		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit', preserveFocus);
 	}
 
-	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
+	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): IActiveSession | undefined {
 		this._beginNavigation(intent);
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session, undefined, intent);
+			return this._activate(session, preserveFocus, intent);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.
@@ -1784,13 +1887,29 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	setActive(session: IActiveSession | undefined): void {
-		if (session?.sessionId !== this.activeSession.get()?.sessionId) {
+	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void {
+		if (this._visibility.isPassiveWindowSession(session)) {
+			return;
+		}
+		// The session of a window of its own becomes active as focus moves into its window: a passive change, as the main
+		// window's session becomes active again as focus moves back, which leaves what the main window restores, opens and
+		// shows, such as its canvas, as it is.
+		if (this._visibility.isWindowSession(session)) {
+			this._activate(session, preserveFocus);
+			return;
+		}
+		const active = this.activeSession.get();
+		// A window session is another wrapper of a session the grid may show too; only then does the wrapper matter.
+		const windowInvolved = this._visibility.isWindowSession(active);
+		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== active?.sessionId || (windowInvolved && session !== active)) {
 			this._cancelRestore();
 			this._startOpenSession();
 			this._recordNavigation();
 		}
-		this._activate(session);
+		transaction(tx => {
+			this.windowCanvasService.deactivateCanvas(tx);
+			this._activate(session, preserveFocus);
+		});
 	}
 
 	async submitNewSessionInput(): Promise<boolean> {
@@ -1801,7 +1920,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// The composer is not necessarily mounted in the grid (e.g. every slot
 		// holds a created session), so open it before submitting into it.
-		if (!this.sessionsPartService.getSessionView(activeSession?.sessionId)) {
+		if (!this.sessionsPartService.getSessionView(activeSession)) {
 			await this.openNewSession();
 			activeSession = this.activeSession.get();
 			if (activeSession?.isCreated.get()) {
@@ -1809,7 +1928,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		return this.sessionsPartService.getSessionView(activeSession?.sessionId)?.submitInput() ?? false;
+		return this.sessionsPartService.getSessionView(activeSession)?.submitInput() ?? false;
 	}
 
 	toggleSessionStickiness(session: ISession): void {
@@ -1829,7 +1948,42 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	showSessionInWindow(session: ISession, options?: IShowSessionInWindowOptions): IActiveSession {
+		const gridSession = this._visibility.gridSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const chatResource = options?.chatResource ?? gridSession?.activeChat.get().resource;
+		const chat = (chatResource && session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatResource)))
+			|| session.mainChat.get();
+		const existing = this._visibility.getWindowSession(session.sessionId, chat.resource);
+		if (existing) {
+			return existing;
+		}
+
+		// The chat leaves the grid; the session leaves it too when that was the only chat it shows there.
+		const gridSessions = this._visibility.gridSessions.get().filter(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const onlyChat = gridSessions.every(candidate => candidate!.openChats.get().every(openChat => this.uriIdentityService.extUri.isEqual(openChat.resource, chat.resource)));
+		if (gridSessions.length && onlyChat) {
+			this._cancelRestore();
+			this._startOpenSession();
+			const active = this._visibility.activeSession.get();
+			const wasActive = !this._visibility.isWindowSession(active) && active?.sessionId === session.sessionId;
+			this._visibility.removeMany([session.sessionId]);
+			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
+				// The grid shows the new-session composer instead, without taking focus from the window.
+				this._visibility.setActive(undefined, true);
+			}
+		}
+
+		return this._visibility.showInWindow(session, chat, undefined, options?.activates === false);
+	}
+
 	closeSession(session: ISession | undefined): void {
+		// Closing the session of another window leaves alone what the main window is opening.
+		const windowSession = this._visibility.isWindowSession(session) ? session
+			: session && !this._visibility.visibleSessions.get().some(candidate => candidate?.sessionId === session.sessionId) ? this._visibility.getWindowSession(session.sessionId) : undefined;
+		if (windowSession) {
+			this._visibility.removeFromWindow(windowSession);
+			return;
+		}
 		this._cancelRestore();
 		this._startOpenSession();
 		if (session instanceof VisibleSession && session.scopedChatResource) {

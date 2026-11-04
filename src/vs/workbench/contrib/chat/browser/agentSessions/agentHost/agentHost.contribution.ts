@@ -19,7 +19,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { registerWorkbenchContribution2, IWorkbenchContribution, WorkbenchPhase } from '../../../../../common/contributions.js';
-import { AgentHostAllowSignedOutWhenUsableContribution } from './agentHostAllowSignedOutWhenUsableContribution.js';
+import { AgentHostSignedOutCompatibilityContribution } from './agentHostSignedOutCompatibilityContribution.js';
 import { AgentHostByokLmHandler } from './agentHostByokLmHandler.js';
 import { AgentHostContribution } from './agentHostChatContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from './agentHostCopilotCliSettingsContribution.js';
@@ -57,7 +57,7 @@ registerWorkbenchContribution2(AgentHostSessionListContribution.ID, AgentHostSes
 registerWorkbenchContribution2(AgentHostOpenSessionLinkOpenerContribution.ID, AgentHostOpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, AgentHostCopilotCliSettingsContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSignedOutCompatibilityContribution.ID, AgentHostSignedOutCompatibilityContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostRemoteByokNotificationContribution.ID, AgentHostRemoteByokNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);

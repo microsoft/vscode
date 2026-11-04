@@ -10,16 +10,17 @@ import { constObservable, observableFromEvent } from '../../../../base/common/ob
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { formatArtifactAutomationNotice, mergeArtifactAutomationNotices } from '../../../artifactIntegrations/common/artifactIntegrationNotices.js';
 import { ArtifactIntegrationService } from '../../../artifactIntegrations/common/artifactIntegrationService.js';
 import { IArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
-import { ArtifactSessionState, IArtifactRuntime } from '../../../artifactIntegrations/common/artifactRuntime.js';
+import { ArtifactAutomationNotice, ArtifactSessionState, IArtifactRuntime } from '../../../artifactIntegrations/common/artifactRuntime.js';
 import { FileArtifactIntegrationStorage } from '../../../artifactIntegrations/node/artifactIntegrationStorage.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ArtifactChatAction, ArtifactChatEvent, ArtifactProtocolChatAccess } from '../../common/artifactIntegrationChat.js';
 import { AgentHostArtifactIntegrationsConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { AgentHostArtifactNoticeMetaKey } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
+import { IArtifactIntegrationNoticeChanges, readArtifactIntegrationNotice, readArtifactIntegrationNoticeChanges, toArtifactIntegrationNoticeMeta } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { isSessionStatusArchived, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -37,10 +38,47 @@ export class AgentHostArtifactEventService extends Disposable {
 	}
 }
 
+type ArtifactChatNotice = SystemNotificationResponsePart & { readonly content: string };
+
+/**
+ * Creates the part of `notice`. A notice with rule changes is rendered from
+ * them, so that it reads the same as the notices it is later merged into.
+ */
+function toNoticePart(notice: ArtifactAutomationNotice): ArtifactChatNotice {
+	const changes = notice.changes && notice.enabledRules
+		? { artifactId: notice.artifact.id, artifactLabel: notice.artifact.label, changes: notice.changes, enabledRules: notice.enabledRules }
+		: undefined;
+	return toNoticeResponsePart(changes ? formatArtifactAutomationNotice(changes.artifactLabel, changes.changes, changes.enabledRules) : notice, notice.iconId, changes);
+}
+
+function toNoticeResponsePart({ kind, content }: Pick<ArtifactAutomationNotice, 'kind' | 'content'>, iconId: string | undefined, changes: IArtifactIntegrationNoticeChanges | undefined): ArtifactChatNotice {
+	return { kind: ResponsePartKind.SystemNotification, content, _meta: toArtifactIntegrationNoticeMeta({ kind, iconId }, changes) };
+}
+
+/** Combines two notices with rule changes of the same artifact into one, keeping the latest state of each rule. */
+function mergeNoticeParts(previous: SystemNotificationResponsePart, next: SystemNotificationResponsePart): ArtifactChatNotice | undefined {
+	const earlier = readArtifactIntegrationNoticeChanges(previous);
+	const later = readArtifactIntegrationNoticeChanges(next);
+	if (!earlier || !later || earlier.artifactId !== later.artifactId) {
+		return undefined;
+	}
+	const notices = mergeArtifactAutomationNotices(earlier, later);
+	if (!notices) {
+		return undefined;
+	}
+	const merged = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...notices };
+	const iconId = readArtifactIntegrationNotice(next)?.iconId ?? readArtifactIntegrationNotice(previous)?.iconId;
+	return toNoticeResponsePart(formatArtifactAutomationNotice(merged.artifactLabel, merged.changes, merged.enabledRules), iconId, merged);
+}
+
 export interface IAgentHostArtifactCallbacks {
 	acquire(resource: URI, owner: string): Promise<IDisposable>;
 	dispatch(chat: string, action: ArtifactChatAction): Promise<void>;
-	postNotice(chat: string, part: SystemNotificationResponsePart & { readonly content: string }): void;
+	/**
+	 * Posts `part` as a system notice. When the chat's last turn is a notice,
+	 * `merge` may combine that notice with the next one into a notice that replaces it.
+	 */
+	postNotice(chat: string, part: ArtifactChatNotice, merge: (previous: SystemNotificationResponsePart, next: ArtifactChatNotice) => ArtifactChatNotice | undefined): void;
 	/** Fires when a session's data is permanently deleted, as opposed to the session being unloaded. */
 	readonly onDidDeleteSession?: Event<string>;
 }
@@ -89,13 +127,9 @@ export class AgentHostArtifactRuntime extends Disposable {
 				if (!chat || stateManager.getChatOwner(chat) !== notice.session) {
 					throw new Error(localize('artifactNoticeChatMissing', "The chat for this artifact automation notice is unavailable."));
 				}
-				const part: SystemNotificationResponsePart & { readonly content: string } = {
-					kind: ResponsePartKind.SystemNotification,
-					content: notice.content,
-					_meta: { [AgentHostArtifactNoticeMetaKey]: { kind: notice.kind, iconId: notice.iconId } },
-				};
+				const part = toNoticePart(notice);
 				if (stateManager.getChatState(chat)) {
-					callbacks.postNotice(chat, part);
+					callbacks.postNotice(chat, part, mergeNoticeParts);
 					return;
 				}
 				const reference = await this.acquire(chat, callbacks, () => stateManager.getChatState(chat));
@@ -103,7 +137,7 @@ export class AgentHostArtifactRuntime extends Disposable {
 					if (!reference.object() || stateManager.getChatOwner(chat) !== notice.session) {
 						throw new Error(localize('artifactNoticeChatMissing', "The chat for this artifact automation notice is unavailable."));
 					}
-					callbacks.postNotice(chat, part);
+					callbacks.postNotice(chat, part, mergeNoticeParts);
 				} finally {
 					reference.dispose();
 				}

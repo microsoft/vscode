@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindowById } from '../../../base/browser/dom.js';
 import { Action } from '../../../base/common/actions.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -18,6 +19,7 @@ import { defaultExternalUriOpenerId } from '../../contrib/externalUriOpener/comm
 import { ContributedExternalUriOpenersStore } from '../../contrib/externalUriOpener/common/contributedOpeners.js';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IHostService } from '../../services/host/browser/host.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 interface RegisteredOpenerMetadata {
@@ -40,6 +42,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
@@ -47,6 +50,18 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
 
 		this._contributedExternalUriOpenersStore = this._register(new ContributedExternalUriOpenersStore(storageService, extensionService));
+	}
+
+	/**
+	 * An extension opens what it opens, such as an editor, in the active window, which it cannot be told otherwise: the
+	 * window the link was activated in becomes the active window first. Focus may be in a page of that window, outside
+	 * its workbench, from which the workbench cannot tell its window.
+	 */
+	private async focusSourceWindow(sourceWindowId: number | undefined): Promise<void> {
+		const sourceWindow = sourceWindowId === undefined ? undefined : getWindowById(sourceWindowId)?.window;
+		if (sourceWindow) {
+			await this.hostService.focus(sourceWindow);
+		}
 	}
 
 	public async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
@@ -72,22 +87,23 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			canOpen: (uri, token) => {
 				return this.proxy.$canOpenUri(id, uri, token);
 			},
-			openExternalUri: async (uri, ctx, token) => {
+			openExternalUri: async (href, ctx, token) => {
 				try {
+					await this.focusSourceWindow(ctx.sourceWindowId);
 					await this.proxy.$openUri(id, {
-						resolvedUri: uri,
+						resolvedUri: URI.parse(href),
 						sourceUri: ctx.sourceUri,
 						viewColumn: ctx.viewColumn
 					}, token);
 				} catch (e) {
 					if (!isCancellationError(e)) {
 						const openDefaultAction = new Action('default', localize('openerFailedUseDefault', "Open using default opener"), undefined, undefined, async () => {
-							await this.openerService.open(uri, {
+							await this.openerService.open(href, {
 								allowTunneling: false,
 								allowContributedOpeners: defaultExternalUriOpenerId,
 							});
 						});
-						openDefaultAction.tooltip = uri.toString();
+						openDefaultAction.tooltip = href;
 
 						this.notificationService.notify({
 							severity: Severity.Error,

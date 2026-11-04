@@ -9,6 +9,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SessionOptionsRow } from '../../browser/sessionOptionsRow.js';
+import { getSessionPickerId } from '../../browser/sessionPickerToolbar.js';
 
 suite('Sessions - SessionOptionsRow', () => {
 
@@ -29,7 +30,6 @@ suite('Sessions - SessionOptionsRow', () => {
 		const folder = control(row, 'folder', 'button');
 		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
 			user: 'test',
-			useExperimentalLayout: constObservable(true),
 			screenReaderOptimized: constObservable(false),
 			expanded: constObservable(true),
 			collapsedShowIcons: constObservable(true),
@@ -70,7 +70,6 @@ suite('Sessions - SessionOptionsRow', () => {
 		const hasDetails = observableValue('hasDetails', true);
 		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
 			user: 'test',
-			useExperimentalLayout: constObservable(true),
 			screenReaderOptimized: constObservable(false),
 			expanded: constObservable(true),
 			collapsedShowIcons: constObservable(true),
@@ -84,5 +83,104 @@ suite('Sessions - SessionOptionsRow', () => {
 		hasDetails.set(false, undefined);
 
 		assert.deepStrictEqual({ focused: document.activeElement?.getAttribute('aria-label'), toggleHidden: sessionOptionsRow.toggle.element.hidden }, { focused: 'folder', toggleHidden: true });
+	});
+
+	test('pickers collapse to their icon and open their context menu', () => {
+		const document = mainWindow.document;
+		const container = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const row = container.appendChild(document.createElement('div'));
+		const picker = (parent: HTMLElement, id: string) => {
+			const slot = parent.appendChild(document.createElement('div'));
+			slot.className = 'sessions-chat-picker-slot';
+			slot.setAttribute('data-session-picker-id', id);
+			const label = slot.appendChild(document.createElement('a')).appendChild(document.createElement('span'));
+			label.className = 'sessions-chat-dropdown-label';
+			label.textContent = id;
+			return slot;
+		};
+		const workspace = picker(row, 'workspace');
+		const iconOnlyPickerIds = observableValue<ReadonlySet<string>>('iconOnlyPickerIds', new Set());
+		const contextMenus: (string | undefined)[] = [];
+		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
+			user: 'test',
+			screenReaderOptimized: constObservable(false),
+			expanded: constObservable(true),
+			collapsedShowIcons: constObservable(true),
+			setExpanded: () => { },
+			iconOnlyPickers: {
+				iconOnlyPickerIds,
+				showOptionsToggle: constObservable(true),
+				getPickerId: element => getSessionPickerId(element),
+				showContextMenu: pickerId => contextMenus.push(pickerId),
+			},
+		}));
+		const environment = picker(sessionOptionsRow.details, 'environment');
+		const harness = picker(sessionOptionsRow.details, 'harness');
+		const snapshot = () => {
+			sessionOptionsRow.layout();
+			const contextMenuCount = contextMenus.length;
+			const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+			harness.querySelector('.sessions-chat-dropdown-label')!.dispatchEvent(event);
+			return {
+				iconOnly: [workspace, environment, harness].filter(element => element.classList.contains('compact-picker')).map(element => element.getAttribute('data-session-picker-id')),
+				contextMenu: contextMenus.slice(contextMenuCount),
+				handled: event.defaultPrevented,
+			};
+		};
+
+		const states = [snapshot()];
+		iconOnlyPickerIds.set(new Set(['workspace', 'environment']), undefined);
+		states.push(snapshot());
+
+		assert.deepStrictEqual(states, [
+			{ iconOnly: [], contextMenu: ['harness'], handled: true },
+			{ iconOnly: ['workspace', 'environment'], contextMenu: ['harness'], handled: true },
+		]);
+	});
+
+	test('a hidden disclosure keeps the options available and can be restored from the row context menu', () => {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const row = container.appendChild(mainWindow.document.createElement('div'));
+		const workspace = row.appendChild(mainWindow.document.createElement('a'));
+		workspace.textContent = 'Workspace';
+		workspace.role = 'button';
+		workspace.tabIndex = 0;
+		const showOptionsToggle = observableValue('showOptionsToggle', true);
+		const menus: (string | undefined)[] = [];
+		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
+			user: 'test',
+			screenReaderOptimized: constObservable(false),
+			expanded: constObservable(false),
+			collapsedShowIcons: constObservable(false),
+			setExpanded: () => { },
+			iconOnlyPickers: {
+				iconOnlyPickerIds: constObservable(new Set<string>()),
+				showOptionsToggle,
+				getPickerId: () => undefined,
+				showContextMenu: pickerId => menus.push(pickerId),
+			},
+		}));
+		const snapshot = () => ({
+			toggleHidden: sessionOptionsRow.toggle.element.hidden,
+			optionsHidden: sessionOptionsRow.details.hidden,
+			inert: sessionOptionsRow.details.inert,
+		});
+		const initial = snapshot();
+		const unrelatedMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+		workspace.dispatchEvent(unrelatedMenu);
+		sessionOptionsRow.toggle.focus();
+		showOptionsToggle.set(false, undefined);
+		const hidden = { ...snapshot(), focusedWorkspace: mainWindow.document.activeElement === workspace };
+		row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		showOptionsToggle.set(true, undefined);
+		assert.deepStrictEqual({ initial, hidden, restored: snapshot(), menus, unrelatedMenuHandled: unrelatedMenu.defaultPrevented }, {
+			initial: { toggleHidden: false, optionsHidden: true, inert: true },
+			hidden: { toggleHidden: true, optionsHidden: false, inert: false, focusedWorkspace: true },
+			restored: initial,
+			menus: [undefined],
+			unrelatedMenuHandled: false,
+		});
 	});
 });

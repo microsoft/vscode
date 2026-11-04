@@ -25,10 +25,11 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IConfigurationResolverService } from '../../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
+import { IChatWindowTerminalsService } from '../../browser/chatWindowTerminals.js';
 import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
 
-function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStatus?: SessionRemoteConnectionStatus }): ISession {
+function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStatus?: SessionRemoteConnectionStatus; sessionId?: string }): ISession {
 	const folder: ISessionFolder | undefined = opts.cwd ? {
 		root: opts.cwd,
 		workingDirectory: opts.cwd,
@@ -46,7 +47,7 @@ function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStat
 	} : undefined;
 	const chat = { resource: URI.parse('file:///session') } as IChat;
 	return {
-		sessionId: `${opts.providerId}:session`,
+		sessionId: opts.sessionId ?? `${opts.providerId}:session`,
 		resource: chat.resource,
 		providerId: opts.providerId,
 		sessionType: 'background',
@@ -75,7 +76,7 @@ function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStat
 
 suite('AgentHostSessionTaskRunner', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let runner: AgentHostSessionTaskRunner;
 	let createdTerminals: { address: string; options?: IAgentHostTerminalCreateOptions; instance: ITerminalInstance }[];
 	let sentText: { text: string; shouldExecute: boolean }[];
@@ -92,12 +93,18 @@ suite('AgentHostSessionTaskRunner', () => {
 	let firstShowPanelCall: DeferredPromise<void> | undefined;
 	let secondShowPanelCall: DeferredPromise<void> | undefined;
 	let showPanelCallCount: number;
+	/** The session a chat window shows, if any, and the terminals shown in its terminals. */
+	let chatWindowSessionId: string | undefined;
+	let shownInChatWindow: { sessionId: string; instanceId: number; focus: boolean }[];
+	let activated: number;
+	let nextInstanceId = 1;
 
 	function createFakeTerminal(): ITerminalInstance {
 		const instanceStore = store.add(new DisposableStore());
 		const onDisposed = instanceStore.add(new Emitter<ITerminalInstance>());
 		let isDisposed = false;
 		const instance = {
+			instanceId: nextInstanceId++,
 			get isDisposed() { return isDisposed; },
 			store: instanceStore,
 			onDisposed: onDisposed.event,
@@ -131,6 +138,9 @@ suite('AgentHostSessionTaskRunner', () => {
 		firstShowPanelCall = undefined;
 		secondShowPanelCall = undefined;
 		showPanelCallCount = 0;
+		chatWindowSessionId = undefined;
+		shownInChatWindow = [];
+		activated = 0;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -171,7 +181,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override setActiveInstance() { /* no-op */ }
+			override setActiveInstance() { activated++; }
 			override get foregroundInstances() {
 				return createdTerminals.map(t => t.instance).filter(instance => !backgroundedTerminals.includes(instance));
 			}
@@ -189,6 +199,15 @@ suite('AgentHostSessionTaskRunner', () => {
 			}
 		});
 
+		instantiationService.stub(IChatWindowTerminalsService, new class extends mock<IChatWindowTerminalsService>() {
+			override async showSessionTerminal(session: ISession, instanceId: number, focus: boolean) {
+				if (session.sessionId !== chatWindowSessionId) {
+					return false;
+				}
+				shownInChatWindow.push({ sessionId: session.sessionId, instanceId, focus });
+				return true;
+			}
+		});
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
 			override resolveAsync(folder: IWorkspaceFolderData | undefined, value: any): any {
@@ -205,10 +224,6 @@ suite('AgentHostSessionTaskRunner', () => {
 		// Reference unused imports to keep them in the bundle and silence linters.
 		void Event;
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function shellTask(): ITaskEntry {
 		return { label: 'build', type: 'shell', command: 'echo', args: ['hi'] };
@@ -256,6 +271,21 @@ suite('AgentHostSessionTaskRunner', () => {
 		assert.strictEqual(createdTerminals[0].address, '__local__');
 		assert.deepStrictEqual(createdTerminals[0].options?.cwd?.toString(), cwd.toString());
 		assert.deepStrictEqual(sentText, [{ text: 'echo hi', shouldExecute: true }]);
+	});
+
+	test('a task of a session a chat window shows, such as run from its Run menu, shows in the terminals of that window, not in the panel of the main window; of another session, in the panel', async () => {
+		const shown = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const other = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///y'), sessionId: 'other' });
+		chatWindowSessionId = shown.sessionId;
+
+		(await runner.runTask(shellTask(), shown))?.dispose();
+		const inChatWindow = { shownInChatWindow: [...shownInChatWindow], showPanelCallCount, activated, sentText: [...sentText] };
+		(await runner.runTask(shellTask(), other))?.dispose();
+
+		assert.deepStrictEqual({ inChatWindow, inPanel: { shownInChatWindow, showPanelCallCount, activated } }, {
+			inChatWindow: { shownInChatWindow: [{ sessionId: shown.sessionId, instanceId: createdTerminals[0].instance.instanceId, focus: false }], showPanelCallCount: 0, activated: 0, sentText: [{ text: 'echo hi', shouldExecute: true }] },
+			inPanel: { shownInChatWindow: inChatWindow.shownInChatWindow, showPanelCallCount: 1, activated: 1 },
+		});
 	});
 
 	test('returned handle stops the task by disposing its terminal', async () => {

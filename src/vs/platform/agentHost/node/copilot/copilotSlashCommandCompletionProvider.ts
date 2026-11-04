@@ -7,13 +7,13 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession } from '../../common/agent.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
-import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
+import { Customization, CustomizationType, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
 import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
-import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
+import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
 
@@ -39,6 +39,8 @@ export interface ICopilotSlashCommandSessionInfo {
 	isLocalIndexEnabled?(): boolean;
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
+	/** Internal MCP skill commands, never offered as user-facing completions. */
+	getMcpSkillCommandNames?(sessionId: string): ReadonlySet<string>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
 	getPluginMarketplaces?(sessionId: string): Promise<readonly { readonly name: string; readonly isDefault?: boolean; readonly managed?: boolean }[]>;
 	getPluginMarketplacePlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]>;
@@ -199,17 +201,15 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				.filter(plugin => plugin.marketplace || plugin.source !== 'builtin' || !syncedPluginNames.has(plugin.name));
 			const togglePluginNameCounts = new Map<string, number>();
 			for (const plugin of availablePlugins) {
-				if (plugin.directSourceId === undefined) {
-					togglePluginNameCounts.set(plugin.name, (togglePluginNameCounts.get(plugin.name) ?? 0) + 1);
-				}
+				togglePluginNameCounts.set(plugin.name, (togglePluginNameCounts.get(plugin.name) ?? 0) + 1);
 			}
 			const candidates = availablePlugins
 				.filter(plugin => {
 					switch (subcommand.toLowerCase()) {
 						case 'enable':
-							return plugin.directSourceId === undefined && !plugin.enabled;
+							return !plugin.enabled;
 						case 'disable':
-							return plugin.directSourceId === undefined && plugin.enabled;
+							return plugin.enabled;
 						case 'uninstall':
 						case 'remove':
 						case 'update':
@@ -224,7 +224,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					if ((togglePluginNameCounts.get(plugin.name) ?? 0) <= 1) {
 						return [plugin.name];
 					}
-					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : [];
+					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : plugin.directSourceId ? [plugin.directSourceId] : [];
 				});
 			return Array.from(new Set(candidates))
 				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
@@ -293,16 +293,13 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		const syncedContainerNames = new Set<string>();
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
-				continue;
-			}
-			if (c.type === CustomizationType.Plugin && isSyncedCustomization(c)) {
+			if (c.type === CustomizationType.Plugin && isCustomizationEnabled(c) && isSyncedCustomization(c)) {
 				syncedContainerNames.add(c.name.toLowerCase());
 			}
-			for (const child of c.children) {
-				if (child.type === CustomizationType.Skill && isSkillEligibleForUserInvocation(child)) {
-					known.add(this._toSlashCommandCandidate(c, child).toLowerCase());
-				}
+		}
+		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
+				known.add(this._toSlashCommandCandidate(container, skill).toLowerCase());
 			}
 		}
 		return { known, syncedContainerNames };
@@ -343,7 +340,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			&& (command.name?.toLowerCase() === name || !!command.aliases?.some(alias => alias.toLowerCase() === name)));
 	}
 
-	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): string {
+	private _toSlashCommandCandidate(container: Customization, skill: SkillCustomization): string {
 		// see getCanonicalPluginCommandId
 		let slashCommandName = skill.name;
 		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
@@ -357,6 +354,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
 		]);
+		const mcpSkillCommandNames = new Set(Array.from(this._sessionInfo.getMcpSkillCommandNames?.(sessionId) ?? [], name => name.toLowerCase()));
 		const typedLower = typed.toLowerCase();
 		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? true;
 		const localIndexEnabled = this._sessionInfo.isLocalIndexEnabled?.() ?? true;
@@ -365,7 +363,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		for (const runtimeCommand of runtimeCommands) {
 			const command = runtimeCommand.name === 'sandbox' && runtimeCommand.kind === 'builtin' ? copilotSandboxPolicyCommand : runtimeCommand;
-			if (!command.name) {
+			if (!command.name || mcpSkillCommandNames.has(command.name.toLowerCase()) || command.aliases?.some(alias => mcpSkillCommandNames.has(alias.toLowerCase()))) {
 				continue;
 			}
 			if (returnJustSkills && command.kind !== 'skill') {

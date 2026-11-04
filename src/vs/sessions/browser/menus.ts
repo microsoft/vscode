@@ -31,6 +31,13 @@ export const Menus = {
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
+	/** The Layout menu of a window with layout modes, such as a chat window: how it shows its chat and its editor parts. */
+	WindowLayout: new MenuId('SessionsWindowLayout'),
+	/**
+	 * The layout actions in the title bar of a window with layout modes, such as a chat window: its Layout menu, and a
+	 * button for each of its actions, which the user shows and hides from the context menu of the buttons.
+	 */
+	TitleBarWindowLayout: new MenuId('SessionsTitleBarWindowLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
@@ -57,6 +64,12 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Header actions of the pinned canvas page. */
+	CustomViewCanvas: new MenuId('SessionsCustomViewCanvas'),
+	/** Context menu of a pinned canvas row in the sidebar. */
+	SidebarCanvasContext: new MenuId('SessionsSidebarCanvasContext'),
+	/** Hover toolbar of a pinned canvas row in the sidebar. */
+	SidebarCanvasToolbar: new MenuId('SessionsSidebarCanvasToolbar'),
 	/** Context menu for the Automations sidebar shortcut. */
 	AutomationsContext: new MenuId('SessionsAutomationsContext'),
 	/** Context menu actions for an Automation definition card. */
@@ -87,7 +100,14 @@ export const Menus = {
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
 	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
+	/** Context menu of a section header in the Sessions list. The list merges its own section actions into these groups. */
+	SessionSectionContext: new MenuId('SessionsSessionSectionContext'),
+	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
+	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
+	/** Right-aligned actions of the editor header row; groups starting with `secondary/` go to its More Actions menu. */
+	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
+	/** Actions of the editor header row after {@link SessionsEditorHeaderSecondary}, behind a separator. */
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
@@ -95,6 +115,9 @@ export const Menus = {
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
 	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
+	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
+	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
 	/**
 	 * The Add Tab actions listed in place of the watermark in an empty editor
 	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
@@ -109,9 +132,11 @@ export const Menus = {
 	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
+	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
+	ChangesFilesViewAndPosition: new MenuId('SessionsChangesFilesViewAndPosition'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
@@ -134,8 +159,12 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
+	/** The layout actions of a window with layout modes, such as a chat window, at the top of its Session Activity Bar while it shows the layout actions. */
+	WindowLayout: '0_windowLayout',
 	/** The side panel toggle, followed by the entries that open its tabs. */
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */
 	Panel: '2_panel',
+	/** Links to the active chat's pull requests and issues. */
+	GitHub: '3_github',
 } as const;

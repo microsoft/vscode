@@ -17,6 +17,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuEntryActionViewItemOptions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -211,9 +212,12 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 				return undefined;
 			}
 			// The main window's Changes tab stays a visible editor while the side pane is closed, and can show just its file list in the auxiliary bar while the editor part is hidden.
-			const isViewing = visibleEditorPanes.read(reader).some(pane =>
-				!!pane.input.resource && isEqual(sessionChangesService.getSessionResource(pane.input.resource), value.session.resource)
-				&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader)));
+			// A pane's input is briefly undefined while its editor input is being swapped.
+			const isViewing = visibleEditorPanes.read(reader).some(pane => {
+				const resource = pane.input?.resource;
+				return !!resource && isEqual(sessionChangesService.getSessionResource(resource), value.session.resource)
+					&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader));
+			});
 			return { chat: value.chat.resource.toString(), stats, isViewing };
 		});
 
@@ -255,8 +259,9 @@ class ChangesActivityBarActionViewItem extends SessionActivityBarActionViewItem 
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ISessionActivityBarActivityService activityService: ISessionActivityBarActivityService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService, activityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService, activityService, commandService);
 
 		this._register(autorun(reader => {
 			this.stats.read(reader);

@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
+import { GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
+import { PullRequestCheck } from '../../../../platform/github/common/githubPullRequestService.js';
+import { getPullRequestCheckState, isUnreportedCheckSuite, RequiredPullRequestChecks } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionIsActiveContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
@@ -49,21 +51,26 @@ export const enum CICheckGroup {
 	Successful,
 }
 
-export function isFailedConclusion(conclusion: GitHubCheckConclusion | undefined): boolean {
-	return conclusion === GitHubCheckConclusion.Failure
-		|| conclusion === GitHubCheckConclusion.TimedOut
-		|| conclusion === GitHubCheckConclusion.ActionRequired;
+/** Groups a check run by how it stands (see {@link getPullRequestCheckState}), telling running checks from queued ones. */
+export function getCheckGroup(check: IGitHubCICheck): CICheckGroup {
+	switch (getPullRequestCheckState({ type: 'checkRun', status: check.status, conclusion: check.conclusion })) {
+		case 'failed':
+			return CICheckGroup.Failed;
+		case 'passed':
+			return CICheckGroup.Successful;
+		case 'pending':
+			return check.status === GitHubCheckStatus.InProgress ? CICheckGroup.Running : CICheckGroup.Pending;
+	}
 }
 
-export function getCheckGroup(check: IGitHubCICheck): CICheckGroup {
-	switch (check.status) {
-		case GitHubCheckStatus.InProgress:
-			return CICheckGroup.Running;
-		case GitHubCheckStatus.Queued:
-			return CICheckGroup.Pending;
-		case GitHubCheckStatus.Completed:
-			return isFailedConclusion(check.conclusion) ? CICheckGroup.Failed : CICheckGroup.Successful;
-	}
+/**
+ * Counts the checks that count (see {@link GitHubPullRequestCIModel.requiredChecks}):
+ * those that failed, those that finished, and those yet to finish, including
+ * required checks that have not reported yet.
+ */
+export function countRequiredChecks(required: RequiredPullRequestChecks): { readonly failed: number; readonly completed: number; readonly pending: number } {
+	const running = required.checks.filter(check => getPullRequestCheckState(check) === 'pending').length;
+	return { failed: required.failed.length, completed: required.checks.length - running, pending: running + required.missing.length };
 }
 
 export function getCheckStateLabel(check: IGitHubCICheck): string {
@@ -79,20 +86,16 @@ export function getCheckStateLabel(check: IGitHubCICheck): string {
 	}
 }
 
-export function getFailedChecks(checks: readonly IGitHubCICheck[]): readonly IGitHubCICheck[] {
-	return checks.filter(check => getCheckGroup(check) === CICheckGroup.Failed);
-}
-
 /** Builds the GitHub pull request URL for a CI model's coordinates. */
 export function getPullRequestUrl(coords: { owner: string; repo: string; prNumber: number }): string {
 	return `https://github.com/${coords.owner}/${coords.repo}/pull/${coords.prNumber}`;
 }
 
-export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>, prUrl?: string, query: string = FIX_CI_QUERY): string {
+export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: PullRequestCheck; annotations: string }>, prUrl?: string, query: string = FIX_CI_QUERY): string {
 	const sections = failedChecks.map(({ check, annotations }) => {
 		const parts = [
 			`Check: ${check.name}`,
-			`Status: ${getCheckStateLabel(check)}`,
+			`Status: ${check.status ?? 'unknown'}`,
 			`Conclusion: ${check.conclusion ?? 'unknown'}`,
 		];
 
@@ -118,20 +121,22 @@ export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHu
 }
 
 /**
- * Builds the `fix-ci` prompt for a CI model's failing checks: fetches each
- * failed check's annotations and assembles the prompt text. Returns `undefined`
- * when there are no failing checks. Shared by the widget-based active-session
- * action and the blocked-sessions list's background fix.
+ * Builds the `fix-ci` prompt for the failed checks that count (see
+ * {@link GitHubPullRequestCIModel.requiredChecks}): fetches the annotations of
+ * each failed check run and assembles the prompt text. Returns `undefined` when
+ * no check that counts failed, including while that is still loading. Shared by
+ * the widget-based active-session action and the blocked-sessions list's
+ * background fix.
  */
 export async function buildFixCIPrompt(ciModel: GitHubPullRequestCIModel, query?: string): Promise<string | undefined> {
-	const checks = ciModel.checks.get();
-	const failedChecks = getFailedChecks(checks);
+	const failedChecks = ciModel.requiredChecks.get()?.failed ?? [];
 	if (failedChecks.length === 0) {
 		return undefined;
 	}
 
 	const failedCheckDetails = await Promise.all(failedChecks.map(async check => {
-		const annotations = await ciModel.getCheckRunAnnotations(check.id);
+		// A commit status, or a check suite that reported no check run, has no annotations to read.
+		const annotations = check.type === 'checkRun' && !isUnreportedCheckSuite(check) ? await ciModel.getCheckRunAnnotations(Number(check.id)) : '';
 		return { check, annotations };
 	}));
 
@@ -158,36 +163,27 @@ export async function submitFixCIChecks(ciModel: GitHubPullRequestCIModel, chatW
 }
 
 /**
- * Sets the `hasActiveSessionFailedCIChecks` context key to true when the
- * active session has a PR with CI checks and at least one has failed.
+ * Binds `hasActiveSessionFailedCIChecks` (a failed check that counts on the pull
+ * request of the session; see {@link GitHubPullRequestCIModel.requiredChecks}) and
+ * `activeSessionCIFixRequested` on the given context key service.
  */
-class ActiveSessionFailedCIChecksContextContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.activeSessionFailedCIChecksContext';
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IGitHubService gitHubService: IGitHubService,
-	) {
-		super();
-
-		this._register(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
-			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
-			if (!ciModel) {
-				return false;
-			}
-			const checks = ciModel.checks.read(reader);
-			return getFailedChecks(checks).length > 0;
-		}));
-
-		this._register(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
-			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
-			if (!ciModel) {
-				return false;
-			}
-			return ciModel.fixRequested.read(reader);
-		}));
-	}
+export function bindSessionCIChecksContextKeys(pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>, contextKeyService: IContextKeyService): IDisposable {
+	const store = new DisposableStore();
+	store.add(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
+		const ciModel = pullRequest.pullRequestCIObs.read(reader);
+		if (!ciModel) {
+			return false;
+		}
+		return (ciModel.requiredChecks.read(reader)?.failed.length ?? 0) > 0;
+	}));
+	store.add(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
+		const ciModel = pullRequest.pullRequestCIObs.read(reader);
+		if (!ciModel) {
+			return false;
+		}
+		return ciModel.fixRequested.read(reader);
+	}));
+	return store;
 }
 
 class FixCIChecksAction extends Action2 {
@@ -210,32 +206,31 @@ class FixCIChecksAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const gitHubService = accessor.get(IGitHubService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
+		const session = resolveSessionActionTarget(accessor, sessionArg);
+		if (!session) {
 			return;
 		}
 
-		const ciModel = gitHubService.activeSessionPullRequestCIObs.get();
+		const ciModel = gitHubService.getSessionPullRequest(constObservable(session)).pullRequestCIObs.get();
 		if (!ciModel) {
 			return;
 		}
 
-		const sessionResource = activeSession.resource;
-		const chatWidget = await whenChatWidgetForSession(chatWidgetService, sessionResource);
+		// The widget of the chat the session shows, which is the chat its model is for: for a chat other than the main one,
+		// not the widget of the main chat, which might show in another window or not at all.
+		const chatResource = session.activeChat.get().resource;
+		const chatWidget = await whenChatWidgetForSession(chatWidgetService, chatResource);
 		if (!chatWidget) {
-			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for session', sessionResource.toString());
+			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for chat', chatResource.toString());
 			return;
 		}
 
 		await submitFixCIChecks(ciModel, chatWidget);
 	}
 }
-
-registerWorkbenchContribution2(ActiveSessionFailedCIChecksContextContribution.ID, ActiveSessionFailedCIChecksContextContribution, WorkbenchPhase.AfterRestored);
 registerAction2(FixCIChecksAction);

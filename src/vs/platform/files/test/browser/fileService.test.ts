@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { bufferToReadable, bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,11 +27,7 @@ class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
 
 suite('File Service', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => {
-		disposables.clear();
-	});
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolveAll does not trace missing resources', async () => {
 		const traces: (string | Error)[] = [];
@@ -828,5 +824,4 @@ suite('File Service', () => {
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -37,7 +37,7 @@ import { IChatPetService } from '../../../../../../workbench/contrib/chat/browse
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { trackChatInputPickerFocus } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -241,6 +241,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => config, refreshResolvedConfig: async () => { } });
+		instantiationService.set(IChatSessionsService, new class extends mock<IChatSessionsService>() { }());
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = Event.None;
 			override readonly viewModel = new class extends mock<IChatViewModel>() {

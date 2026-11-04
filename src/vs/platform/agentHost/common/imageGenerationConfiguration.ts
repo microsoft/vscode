@@ -5,7 +5,6 @@
 
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
-import product from '../../product/common/product.js';
 import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId, CopilotImageGenerationWatermarkSettingId, copilotCliConfigSchema } from './copilotCliConfig.js';
 
 /** The {@link CopilotImageGenerationModelSettingId} value that turns image generation off. */
@@ -19,11 +18,6 @@ export const CopilotImageGenerationModels = ['gpt-image-2.5-flare'] as const;
 
 export type CopilotImageGenerationModel = typeof CopilotImageGenerationModels[number];
 export type CopilotImageGenerationModelSetting = typeof CopilotImageGenerationOff | CopilotImageGenerationModel;
-
-/** Image generation uses the current image model in Insiders and stays off in Stable and development builds. */
-export function getDefaultImageGenerationModel(quality: string | undefined): CopilotImageGenerationModelSetting {
-	return quality === 'insider' ? CopilotImageGenerationModels[0] : CopilotImageGenerationOff;
-}
 
 /** Whether a setting value selects a listed image model. `off`, retired models, and other values leave generation off. */
 export function isImageGenerationModelSelected(value: unknown): value is CopilotImageGenerationModel {
@@ -61,9 +55,10 @@ export const imageGenerationConfigurationProperties = {
 		enumItemLabels: imageGenerationModelSettingValues.map(value => imageGenerationModelChoices[value].label),
 		markdownEnumDescriptions: imageGenerationModelSettingValues.map(value => imageGenerationModelChoices[value].description),
 		markdownDescription: nls.localize('chat.copilot.imageGeneration.model', "Selects the model Copilot uses to generate and edit images, or turns image generation off. Each model lists its rates. Account access and tool permissions still apply, and choosing **Off** prevents future image tool calls."),
-		default: getDefaultImageGenerationModel(product.quality),
+		default: CopilotImageGenerationModels[0],
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['preview', 'experimental'],
+		experiment: { mode: 'auto' },
 		agentHost: {
 			key: CopilotCliConfigKey.ImageGeneration,
 			// Hosts keep receiving an on/off flag because the runtime serves one image model and takes no model option.

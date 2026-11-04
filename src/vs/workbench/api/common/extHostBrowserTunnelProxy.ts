@@ -11,8 +11,8 @@ export const IExtHostBrowserTunnelProxy = createDecorator<IExtHostBrowserTunnelP
 
 /**
  * Hosts (in the local node extension host) one HTTPS proxy server per remote
- * network browsers use. Today the only network is the window's remote, served
- * through the remote connection.
+ * network browsers use: the window's remote, through the remote connection, or
+ * a remote agent host, through the renderer's agent host connection.
  *
  * Running the servers here — rather than in the shared process — gives them
  * in-process access to the resolver's managed connection, so managed remotes

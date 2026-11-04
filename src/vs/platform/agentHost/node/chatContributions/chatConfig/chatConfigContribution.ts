@@ -10,6 +10,8 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDi
 import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel } from '../../../common/state/sessionState.js';
+import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../../../common/agentHostChatProviders.js';
+import { IAgentConfigurationService, isChatOwnConfigUnchanged } from '../../agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /**
@@ -27,16 +29,23 @@ export class ChatConfigContribution extends Disposable implements IAgentHostChat
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
 		if (dispatched.action.type !== ActionType.ChatConfigChanged || dispatched.rejectionReason || !isAhpChatChannel(dispatched.channel)
-			|| this._stateManager.getChatOrigin(dispatched.channel)?.kind === ChatOriginKind.Tool) {
+			|| this._stateManager.getChatOrigin(dispatched.channel)?.kind === ChatOriginKind.Tool
+			// With complete values, a session before its first message has no database yet: its default chat's values are
+			// persisted when it materializes. Otherwise they are persisted as before.
+			|| (this._stateManager.isIdleProvisionalSession(dispatched.session) && this._configurationService.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled) === true)
+			// Publishes only what a default chat takes from its session: the row it persisted is unchanged.
+			|| isChatOwnConfigUnchanged(dispatched.action)) {
 			return;
 		}
-		const values = this._stateManager.getChatConfig(dispatched.channel)?.values ?? {};
+		// A default chat's values the session gives it are the session's, not the chat's own.
+		const values = this._configurationService.getChatPersistedConfigValues(dispatched.channel) ?? {};
 		this._sessionStateStore.chatRows.setChatConfig(URI.parse(dispatched.session), URI.parse(dispatched.channel), values).catch(err => {
 			this._logService.warn(`[ChatConfigContribution] Failed to persist the config of ${dispatched.channel}`, err);
 		});

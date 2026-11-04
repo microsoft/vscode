@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -13,7 +14,7 @@ import { NotificationType } from '../../../../../../platform/agentHost/common/st
 import { IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 
-/** Shares initial config reads until the chat, owning connection, backend or working directory changes. */
+/** Shares initial config reads until the chat, owning connection, backend, working directory or defaults change. */
 export class AgentHostInitialSessionConfig extends Disposable {
 	private _generation = 0;
 	private _value: ResolveSessionConfigResult | undefined;
@@ -22,6 +23,7 @@ export class AgentHostInitialSessionConfig extends Disposable {
 		readonly provider: string;
 		readonly resolution: IAgentHostSessionResolution;
 		readonly workingDirectory: URI | undefined;
+		readonly config: Record<string, unknown> | undefined;
 		readonly promise: Promise<ResolveSessionConfigResult | undefined>;
 	} | undefined;
 
@@ -50,12 +52,12 @@ export class AgentHostInitialSessionConfig extends Disposable {
 		this._value = undefined;
 	}
 
-	resolve(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution, workingDirectory: URI | undefined): Promise<ResolveSessionConfigResult | undefined> {
+	resolve(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution, workingDirectory: URI | undefined, config?: Record<string, unknown>): Promise<ResolveSessionConfigResult | undefined> {
 		if (this._store.isDisposed) {
 			return Promise.resolve(undefined);
 		}
 		const current = this._request;
-		if (current && current.provider === provider && this.isCurrent(sessionResource, resolution) && isEqual(current.workingDirectory, workingDirectory)) {
+		if (current && current.provider === provider && this.isCurrent(sessionResource, resolution) && isEqual(current.workingDirectory, workingDirectory) && equals(current.config, config)) {
 			return current.promise;
 		}
 		const generation = ++this._generation;
@@ -63,9 +65,10 @@ export class AgentHostInitialSessionConfig extends Disposable {
 		const operation = Promise.resolve().then(() => generation === this._generation ? resolution.connection.resolveSessionConfig({
 			provider,
 			workingDirectory,
+			...(config ? { config } : {}),
 		}) : undefined);
 		const promise = this._read(operation, generation);
-		this._request = { sessionResource, provider, resolution, workingDirectory, promise };
+		this._request = { sessionResource, provider, resolution, workingDirectory, config, promise };
 		return promise;
 	}
 

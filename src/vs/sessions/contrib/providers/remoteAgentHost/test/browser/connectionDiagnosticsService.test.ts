@@ -19,9 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -97,8 +95,7 @@ suite('ConnectionDiagnosticsService', () => {
 		}();
 		instantiation.stub(IAgentHostFilterService, filter);
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });
-		const files = store.add(new FileService(new NullLogService()));
-		store.add(files.registerProvider('test', store.add(new InMemoryFileSystemProvider())));
+		const files = createInMemoryFileService(store, 'test');
 		const logFile = URI.parse('test:/window.log');
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IWorkbenchEnvironmentService, { logFile });

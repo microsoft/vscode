@@ -5,6 +5,8 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { HubRpcConnection } from '@vscode/hubrpc';
 import { MarkdownContributions } from '../markdownExtensions';
@@ -30,33 +32,9 @@ suite('Markdown editor bridge', () => {
 			const navigation = provider.resolveCustomTextEditorNavigation(document, panel, cancellation.token);
 			const navigationBeforeReady = navigation.revealRange(new vscode.Range(1, 0, 1, 6), { preserveFocus: true }, cancellation.token);
 			assert.strictEqual(panel.webview.sent.length, 0, 'do not start requests before the renderer is listening');
-			renderer = HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
-				secret,
-				message => panel.webview.incoming.fire(message),
-				listener => panel.webview.outgoing.event(listener),
-			));
-			const updates: { content: string; editEpoch: number }[] = [];
-			const reveals: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
-			let updated: (() => void) | undefined;
-			renderer.register(markdownEditorRenderer, {
-				readClipboardMedia: () => ({ base64: '' }),
-				diagnosticsChanged: () => { },
-				update: update => { updates.push(update); updated?.(); },
-				codeBlockEditorProviders: () => { },
-				codeBlockEditorHostTransportMessage: () => { },
-				gutterMarkers: () => { },
-				comments: () => { },
-				revealComment: () => { },
-				revealLinkTarget: () => { },
-				captureNavigationState: () => ({ editEpoch: updates.at(-1)!.editEpoch, revision: 0, scrollTop: 0 }),
-				revealRange: request => { reveals.push(request); },
-				restoreNavigationState: () => { },
-				command: () => { },
-				highlightThemeChanged: () => { },
-				configurationChanged: () => { },
-				richLinkPresentations: () => { },
-			});
-			const host = renderer.get(markdownEditorHost);
+			const connection = connectRenderer(panel, secret);
+			renderer = connection.renderer;
+			const { host, updates, reveals } = connection;
 			await host.ready({ documentVersion: initialVersion, editEpoch: 0 });
 			assert.strictEqual(updates.length, 1);
 			assert.strictEqual(updates[0].content, 'changed\r\nbefore-ready');
@@ -74,7 +52,7 @@ suite('Markdown editor bridge', () => {
 			assert.strictEqual(updates.length, 1, 'accepted local edits must not echo authoritative replacements');
 			await host.selectionChanged({ editEpoch: epoch, selection: { anchor: 1, active: 9 } });
 			assert.deepStrictEqual(navigation.selection, new vscode.Selection(1, 0, 1, 8));
-			const externalUpdate = new Promise<void>(resolve => updated = resolve);
+			const externalUpdate = new Promise<void>(resolve => connection.onUpdate = resolve);
 			await replaceDocument(document, 'external\r\n');
 			await externalUpdate;
 			await host.edit({ start: 0, endExclusive: 0, text: 'stale-again', editEpoch: epoch });
@@ -95,6 +73,45 @@ suite('Markdown editor bridge', () => {
 			renderer?.close();
 			provider.dispose();
 			cancellation.dispose();
+		}
+	});
+
+	test('keeps accepting edits across saves without resynchronizing the renderer', async () => {
+		const file = vscode.Uri.file(path.join(os.tmpdir(), `markdown-editor-save-${Date.now()}.md`));
+		await vscode.workspace.fs.writeFile(file, new TextEncoder().encode('initial'));
+		const document = await vscode.workspace.openTextDocument(file);
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let renderer: HubRpcConnection<undefined> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			const connection = connectRenderer(panel, secret);
+			renderer = connection.renderer;
+			const { host, updates } = connection;
+			await host.ready({ documentVersion: document.version, editEpoch: 0 });
+
+			// Saving flips the dirty state, which fires a change event without content changes.
+			await host.edit({ start: 7, endExclusive: 7, text: ' a', editEpoch: 0 });
+			assert.ok(await document.save());
+			await host.edit({ start: 9, endExclusive: 9, text: 'b', editEpoch: 0 });
+			assert.ok(await document.save());
+
+			assert.deepStrictEqual({
+				document: document.getText(),
+				updates,
+			}, {
+				document: 'initial ab',
+				updates: [],
+			});
+		} finally {
+			panel.dispose();
+			renderer?.close();
+			provider.dispose();
+			cancellation.dispose();
+			await vscode.workspace.fs.delete(file);
 		}
 	});
 
@@ -136,6 +153,42 @@ function createProvider(state: vscode.Memento): MarkdownEditorProvider {
 		{ trace: () => { } },
 		async () => false,
 	);
+}
+
+function connectRenderer(panel: TestPanel, secret: string) {
+	const renderer = HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
+		secret,
+		message => panel.webview.incoming.fire(message),
+		listener => panel.webview.outgoing.event(listener),
+	));
+	const updates: { content: string; editEpoch: number }[] = [];
+	const reveals: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
+	const connection = {
+		renderer,
+		host: renderer.get(markdownEditorHost),
+		updates,
+		reveals,
+		onUpdate: undefined as (() => void) | undefined,
+	};
+	renderer.register(markdownEditorRenderer, {
+		readClipboardMedia: () => ({ base64: '' }),
+		diagnosticsChanged: () => { },
+		update: update => { updates.push(update); connection.onUpdate?.(); },
+		codeBlockEditorProviders: () => { },
+		codeBlockEditorHostTransportMessage: () => { },
+		gutterMarkers: () => { },
+		comments: () => { },
+		revealComment: () => { },
+		revealLinkTarget: () => { },
+		captureNavigationState: () => ({ editEpoch: updates.at(-1)!.editEpoch, revision: 0, scrollTop: 0 }),
+		revealRange: request => { reveals.push(request); },
+		restoreNavigationState: () => { },
+		command: () => { },
+		highlightThemeChanged: () => { },
+		configurationChanged: () => { },
+		richLinkPresentations: () => { },
+	});
+	return connection;
 }
 
 async function replaceDocument(document: vscode.TextDocument, content: string): Promise<void> {

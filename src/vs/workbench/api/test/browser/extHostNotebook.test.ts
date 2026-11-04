@@ -7,7 +7,6 @@ import assert from 'assert';
 import * as vscode from 'vscode';
 import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape, NotebookCellsChangedEventDto, NotebookOutputItemDto } from '../../common/extHost.protocol.js';
@@ -41,13 +40,7 @@ suite('NotebookCell#Document', function () {
 	let extHostSearch: ExtHostSearch;
 
 	const notebookUri = URI.parse('test:///notebook.file');
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async function () {
 		rpcProtocol = new TestRPCProtocol();

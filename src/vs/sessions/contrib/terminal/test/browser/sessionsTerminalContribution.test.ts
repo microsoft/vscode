@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { DisposableStore, Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalProfileService, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
@@ -38,7 +38,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, LayoutModeContext, PanelVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import '../../../../browser/layoutActions.js';
@@ -272,7 +272,7 @@ function addCommandToInstance(instance: ITerminalInstance, timestamp: number): v
 }
 
 suite('SessionsTerminalContribution', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let contribution: SessionsTerminalContribution;
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
@@ -348,6 +348,7 @@ suite('SessionsTerminalContribution', () => {
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSessionObs;
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
@@ -457,12 +458,6 @@ suite('SessionsTerminalContribution', () => {
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --- Background provider: uses worktree/repository path ---
 
@@ -2362,11 +2357,14 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 	test('shows the terminal before the panel toggle in the panel group of the session activity bar', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem)
 			.filter(item => item.group === SessionActivityBarGroup.Panel)
+			// The entries of chat windows show only in windows with layout modes.
+			.filter(item => !item.when?.keys().includes(LayoutModeContext.key))
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 		const terminal = items.find(item => item.command.id === TerminalCommandId.Focus);
 		const evaluate = (expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>) => expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
 		const terminalAvailable: Record<string, ContextKeyValue> = { [TerminalContextKeys.processSupported.key]: true };
 		const terminalState = (values: Record<string, ContextKeyValue>) => ({ shows: evaluate(terminal?.when, values), enabled: evaluate(terminal?.command.precondition, values) });
+		const checked = (values: Record<string, ContextKeyValue>) => evaluate(terminal?.command.toggled as ContextKeyExpression | undefined, values);
 
 		assert.deepStrictEqual({
 			// The panel toggle registers Show and Hide alternates under the same command, one shown at a time.
@@ -2379,6 +2377,12 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 				unavailable: terminalState({}),
 				auxiliaryWindow: terminalState({ ...terminalAvailable, [IsAuxiliaryWindowContext.key]: true }),
 				customView: terminalState({ ...terminalAvailable, [CustomViewVisibleContext.key]: true }),
+			},
+			// Checked while the panel shows the terminal, so activating the entry hides the panel.
+			checked: {
+				panelShowsTerminal: checked({ [PanelVisibleContext.key]: true, [ActivePanelContext.key]: TERMINAL_VIEW_ID }),
+				panelShowsOtherView: checked({ [PanelVisibleContext.key]: true, [ActivePanelContext.key]: 'workbench.panel.output' }),
+				panelHidden: checked({ [PanelVisibleContext.key]: false, [ActivePanelContext.key]: TERMINAL_VIEW_ID }),
 			},
 		}, {
 			items: [
@@ -2394,6 +2398,7 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 				auxiliaryWindow: { shows: false, enabled: true },
 				customView: { shows: true, enabled: false },
 			},
+			checked: { panelShowsTerminal: true, panelShowsOtherView: false, panelHidden: false },
 		});
 	});
 

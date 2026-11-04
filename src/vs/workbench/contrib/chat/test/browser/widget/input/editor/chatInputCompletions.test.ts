@@ -18,7 +18,7 @@ import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
-import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionList, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
@@ -55,6 +55,8 @@ import { MockContextKeyService } from '../../../../../../../../platform/keybindi
 import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IsSessionsWindowContext } from '../../../../../../../common/contextkeys.js';
+import { PromptsType } from '../../../../../common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../../../../common/promptSyntax/service/promptsService.js';
 
 suite('AgentCompletions in agent-host chats', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -240,10 +242,8 @@ class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> 
 
 suite('AgentHostInputCompletionsBase', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marks results incomplete so the host is queried as the token changes', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
@@ -343,10 +343,8 @@ class TestableAgentHostInputCompletions extends AgentHostInputCompletions {
 
 suite('AgentHostInputCompletions #chat references', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accepting a multi-word #chat reference registers a range covering the whole token', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -388,10 +386,8 @@ suite('AgentHostInputCompletions #chat references', () => {
 
 suite('AgentHostInputCompletions plain text', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('builds a Monaco text completion without an accept command', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -499,10 +495,8 @@ suite('AgentHostInputCompletions plain text', () => {
 
 suite('SlashCommandCompletions fork variants', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class ForkCompletionChatSessionsService extends MockChatSessionsService {
 		lookupCount = 0;
@@ -732,10 +726,8 @@ suite('SlashCommandCompletions fork variants', () => {
 });
 
 suite('AgentHostInputCompletions skills', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ranks matches on later words without changing the inserted skill', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -769,10 +761,8 @@ suite('AgentHostInputCompletions skills', () => {
 
 suite('AgentHostInputCompletions follow-up suggestions', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('carries the retrigger hint into the command accept handler', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -881,7 +871,58 @@ suite('escapeForCharClass', () => {
 });
 
 suite('prompt slash command matching', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('completes the full Unicode prompt name without leaving a suffix behind', async () => {
+		// allow-any-unicode-next-line
+		const reportedName = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+		const names = [reportedName, 'plugin:tool!', 'plugin:\uFF160', 'plugin:cafe\u0301'];
+		const model = store.add(createTextModel('/', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/unicode-prompt' })));
+		const languageFeaturesService = new LanguageFeaturesService();
+		const widget = upcastDeepPartial<IChatWidget>({
+			viewModel: upcastPartial<ChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource: URI.parse('test:/session') }) }),
+			parsedInput: { parts: [] },
+			location: ChatAgentLocation.Chat,
+		});
+		store.add(new SlashCommandCompletions(
+			languageFeaturesService,
+			upcastPartial<IChatWidgetService>({ getWidgetByInputUri: () => widget }),
+			upcastPartial<IChatSlashCommandService>({}),
+			upcastPartial<ICustomizationHarnessService>({
+				getSlashCommands: async () => names.map(name => ({
+					name,
+					uri: URI.file(`/prompts/${name}.prompt.md`),
+					type: PromptsType.prompt,
+					storage: PromptsStorage.local,
+					userInvocable: true,
+				})),
+			}),
+			upcastPartial<IChatService>({}),
+			new MockChatSessionsService(),
+			upcastPartial<IMcpService>({}),
+			new NullLogService(),
+		));
+		const provider = languageFeaturesService.completionProvider.ordered(model).find(provider => provider._debugDisplayName === 'promptSlashCommands');
+		assert.ok(provider);
+
+		for (const name of names) {
+			model.setValue(`/${name}`);
+			const endColumn = model.getLineMaxColumn(1);
+			const result: CompletionList | null | undefined = await provider.provideCompletionItems(model, new Position(1, endColumn), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+			const expectedText = `/${name.replace(/:/g, ' ')} `;
+			const suggestion: CompletionItem | undefined = result?.suggestions.find(item => item.insertText === expectedText);
+			assert.ok(suggestion);
+			const replaceRange: Range = Range.lift(Range.isIRange(suggestion.range) ? suggestion.range : suggestion.range.replace);
+			model.applyEdits([{ range: replaceRange, text: suggestion.insertText }]);
+			assert.deepStrictEqual({
+				text: model.getValue(),
+				range: Range.lift(replaceRange),
+			}, {
+				text: expectedText,
+				range: new Range(1, 1, 1, endColumn),
+			});
+		}
+	});
 
 	test('matches later words in hyphenated skill names', () => {
 		const filterText = getPromptSlashCommandFilterText('daily-hiring-summary');
@@ -985,17 +1026,7 @@ suite('attached context completion ranking', () => {
 
 suite('computeCompletionRanges', () => {
 
-	let store: DisposableStore;
-
-	setup(() => {
-		store = new DisposableStore();
-	});
-
-	teardown(() => {
-		store.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Helper: builds the same regex patterns used in the product code
 	function variableNameDef() {
@@ -1205,17 +1236,7 @@ suite('computeCompletionRanges', () => {
 
 suite('isAtTriggerCharacterToken', () => {
 
-	let store: DisposableStore;
-
-	setup(() => {
-		store = new DisposableStore();
-	});
-
-	teardown(() => {
-		store.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const triggerChars = ['@', '#'];
 

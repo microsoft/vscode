@@ -7,7 +7,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -27,7 +27,7 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { getSessionOwnedGitHubPullRequestRefs, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestState } from '../../github/common/types.js';
@@ -44,6 +44,12 @@ const IMPRESSION_STORAGE_KEY_PREFIX = 'sessions.archiveNudge.impression.';
 const ARCHIVE_COUNT_STORAGE_KEY = 'sessions.archiveNudge.archiveCount';
 const COMPACT_AFTER_ARCHIVE_COUNT = 3;
 
+/** The chat whose input shows the suggestion, and the session the suggestion archives. */
+export interface ISessionArchiveNudgeTarget {
+	readonly session: ISession;
+	readonly chat: IChat;
+}
+
 interface ISessionArchiveNudgeState {
 	readonly session: ISession;
 	readonly hasWorktree: boolean;
@@ -59,6 +65,11 @@ interface ISessionArchiveNudgeImpression {
 	readonly lastRequestIds: Record<string, string | undefined>;
 	readonly shownAt: number;
 	readonly continued: boolean;
+	/**
+	 * Pull requests already suppressed by an earlier continuation. Another chat's suggestion records a new
+	 * impression without showing these again. Absent from impressions stored before this field existed.
+	 */
+	readonly continuedPullRequestKeys?: readonly string[];
 }
 
 export interface ISessionArchiveNudgeService {
@@ -94,7 +105,7 @@ type SessionArchiveNudgeClassification = {
 	comment: 'Tracks exposure to and interaction with the session archive suggestion after GitHub pull requests associated with the session have merged.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, matching session lifecycle events without exposing provider or resource details.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, dismissed, or used to archive the session.' };
-	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull requests from session artifacts and session-owned associations.' };
+	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull requests from the artifacts and session-owned associations of the chat showing the suggestion.' };
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the suggestion explained worktree cleanup.' };
 };
 
@@ -165,8 +176,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	}
 
 	hasContinued(session: ISession, pullRequestKeys: readonly string[], reader: IReader | undefined): boolean {
-		const impression = this._getImpression(session, reader);
-		return !!impression?.continued && pullRequestKeys.every(key => impression.pullRequestKeys.includes(key));
+		const continuedKeys = getContinuedPullRequestKeys(this._getImpression(session, reader));
+		return pullRequestKeys.length > 0 && pullRequestKeys.every(key => continuedKeys.has(key));
 	}
 
 	shouldShowCompact(reader: IReader | undefined): boolean {
@@ -190,6 +201,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 				lastRequestIds,
 				shownAt: Date.now(),
 				continued: false,
+				continuedPullRequestKeys: [...getContinuedPullRequestKeys(impression)],
 			} satisfies ISessionArchiveNudgeImpression, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 		if (!this._shown.has(state.session.sessionId)) {
@@ -286,6 +298,10 @@ export class SessionArchiveNudgeContribution {
 	constructor(@ISessionArchiveNudgeService _service: ISessionArchiveNudgeService) { }
 }
 
+function getContinuedPullRequestKeys(impression: ISessionArchiveNudgeImpression | undefined): ReadonlySet<string> {
+	return new Set([...(impression?.continuedPullRequestKeys ?? []), ...(impression?.continued ? impression.pullRequestKeys : [])]);
+}
+
 function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | undefined): boolean {
 	if (session.isArchived.read(reader) || session.loading.read(reader)) {
 		return false;
@@ -301,39 +317,69 @@ function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | 
 	return !connectionStatus || connectionStatus.kind === 'connected';
 }
 
-function getSessionPullRequests(session: ISession, reader: IReader): readonly { owner: string; repo: string; number: number }[] | undefined {
+/**
+ * The GitHub pull requests of `chat`: the artifacts it recorded, where unowned legacy records belong to the main
+ * chat, and the session-owned associations of its workspace, except those another chat recorded. `undefined` when
+ * any of them cannot be resolved.
+ */
+function getChatPullRequests(session: ISession, chat: IChat, reader: IReader): readonly { owner: string; repo: string; number: number }[] | undefined {
 	const pullRequests = new Map<string, { owner: string; repo: string; number: number }>();
-	function addPullRequest(pullRequest: { owner: string; repo: string; number: number }): boolean {
+	function normalize(pullRequest: { owner: string; repo: string; number: number }): { key: string; pullRequest: { owner: string; repo: string; number: number } } | undefined {
 		const { number } = pullRequest;
 		if (!Number.isSafeInteger(number) || number < 1) {
-			return false;
+			return undefined;
 		}
 		const owner = pullRequest.owner.toLowerCase();
 		const repo = pullRequest.repo.toLowerCase();
-		pullRequests.set(getPullRequestKey(owner, repo, number), { owner, repo, number });
-		return true;
+		return { key: getPullRequestKey(owner, repo, number), pullRequest: { owner, repo, number } };
 	}
+	const mainChat = session.mainChat.read(reader).resource;
+	const otherRecordIds = new Set<string>();
+	const otherPullRequestKeys = new Set<string>();
 	for (const artifact of session.artifacts?.read(reader) ?? []) {
+		const isOwnRecord = isEqual(artifact.chat ?? mainChat, chat.resource);
+		if (!isOwnRecord) {
+			otherRecordIds.add(artifact.id);
+		}
 		if (!artifact.isArtifact || artifact.kind !== SessionArtifactKind.PullRequest || artifact.isGitHub === false) {
 			continue;
 		}
-		const pullRequest = artifact.link && parseGitHubPullRequestUrl(artifact.link.toString());
-		if (!pullRequest) {
+		const parsed = artifact.link && parseGitHubPullRequestUrl(artifact.link.toString());
+		const normalized = parsed ? normalize(parsed) : undefined;
+		if (!isOwnRecord) {
+			// Another chat's pull request only matters for keeping its associations out of this chat.
+			if (normalized) {
+				otherPullRequestKeys.add(normalized.key);
+			}
+			continue;
+		}
+		if (!parsed) {
 			if (artifact.isGitHub || artifact.link?.authority.toLowerCase() === 'github.com') {
 				return undefined;
 			}
 			continue;
 		}
-		if (!addPullRequest(pullRequest)) {
+		if (!normalized) {
 			return undefined;
 		}
+		pullRequests.set(normalized.key, normalized.pullRequest);
 	}
-	for (const folder of session.workspace.read(reader)?.folders ?? []) {
+	const workspace = chat.workspace?.read(reader) ?? session.workspace.read(reader);
+	for (const folder of workspace?.folders ?? []) {
 		for (const ref of getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
-			const pullRequest = parseGitHubPullRequestUrl(ref.uri.toString());
-			if (!pullRequest || !addPullRequest(pullRequest)) {
+			// Providers echo every chat's records into the workspace associations; only the recording chat owns them.
+			if (ref.recordedReferenceId && otherRecordIds.has(ref.recordedReferenceId)) {
+				continue;
+			}
+			const parsed = parseGitHubPullRequestUrl(ref.uri.toString());
+			const normalized = parsed ? normalize(parsed) : undefined;
+			if (!normalized) {
 				return undefined;
 			}
+			if (otherPullRequestKeys.has(normalized.key) && !pullRequests.has(normalized.key)) {
+				continue;
+			}
+			pullRequests.set(normalized.key, normalized.pullRequest);
 		}
 	}
 	return [...pullRequests.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, pullRequest]) => pullRequest);
@@ -344,7 +390,7 @@ export class SessionArchiveNudge extends Disposable {
 	private readonly _state: IObservable<ISessionArchiveNudgeCandidate | undefined>;
 
 	constructor(
-		session: IObservable<ISession | undefined>,
+		target: IObservable<ISessionArchiveNudgeTarget | undefined>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -354,24 +400,24 @@ export class SessionArchiveNudge extends Disposable {
 		super();
 
 		const enabled = observableConfigValue<boolean>(SESSION_ARCHIVE_NUDGE_SETTING, false, configurationService);
-		const eligibleSession = derived(this, reader => {
+		const eligibleTarget = derived(this, reader => {
 			if (chatEntitlementService.sentimentObs.read(reader).hidden) {
 				return undefined;
 			}
-			const current = session.read(reader);
-			if (!current || !isSessionAvailableForArchiveNudge(current, reader)) {
+			const current = target.read(reader);
+			if (!current || !isSessionAvailableForArchiveNudge(current.session, reader)) {
 				return undefined;
 			}
-			if (!this._nudgeService.experimentTriggerPending.read(reader) && (!enabled.read(reader) || this._nudgeService.isDismissed(current, reader))) {
+			if (!this._nudgeService.experimentTriggerPending.read(reader) && (!enabled.read(reader) || this._nudgeService.isDismissed(current.session, reader))) {
 				return undefined;
 			}
 			return current;
 		});
-		const pullRequests = derivedOpts<ReturnType<typeof getSessionPullRequests>>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const current = eligibleSession.read(reader);
+		const pullRequests = derivedOpts<ReturnType<typeof getChatPullRequests>>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const current = eligibleTarget.read(reader);
 			// The shared model must not resolve github.com pull requests against an enterprise host.
-			const refs = current && !gitHubService.enterpriseHost ? getSessionPullRequests(current, reader) : undefined;
-			return current && refs && !this._nudgeService.hasContinued(current, refs.map(ref => getPullRequestKey(ref.owner, ref.repo, ref.number)), reader) ? refs : undefined;
+			const refs = current && !gitHubService.enterpriseHost ? getChatPullRequests(current.session, current.chat, reader) : undefined;
+			return current && refs && !this._nudgeService.hasContinued(current.session, refs.map(ref => getPullRequestKey(ref.owner, ref.repo, ref.number)), reader) ? refs : undefined;
 		});
 		const models = derived(this, reader => {
 			return pullRequests.read(reader)?.map(pullRequest => {
@@ -386,7 +432,7 @@ export class SessionArchiveNudge extends Disposable {
 			equalsFn: (a: ISessionArchiveNudgeCandidate | undefined, b: ISessionArchiveNudgeCandidate | undefined) =>
 				a?.session === b?.session && a?.hasWorktree === b?.hasWorktree && structuralEquals(a?.pullRequestKeys, b?.pullRequestKeys),
 		}, reader => {
-			const current = eligibleSession.read(reader);
+			const current = eligibleTarget.read(reader)?.session;
 			if (!current) {
 				return undefined;
 			}

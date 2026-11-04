@@ -16,12 +16,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getIconRegistry } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorGroupWatermark } from '../../../../browser/parts/editor/editorGroupWatermark.js';
@@ -41,6 +42,11 @@ suite('EditorGroupWatermark', () => {
 	let executedCommands: string[];
 	let commandError: Error | undefined;
 	let notificationReceived: Emitter<NotificationMessage>;
+	let contextChanged: Emitter<IContextKeyChangeEvent>;
+
+	function changeContext(...keys: string[]): void {
+		contextChanged.fire({ affectsSome: affected => keys.some(key => affected.has(key)), allKeysContainedIn: () => false });
+	}
 
 	function keybinding(keyCode: KeyCode): ResolvedKeybinding {
 		return new USLayoutResolvedKeybinding([new KeyCodeChord(!isMacintosh, false, false, isMacintosh, keyCode)], OS);
@@ -111,7 +117,9 @@ suite('EditorGroupWatermark', () => {
 				return keybindings.get(id);
 			}
 		});
+		contextChanged = disposables.add(new Emitter<IContextKeyChangeEvent>());
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override get onDidChangeContext() { return contextChanged.event; }
 			override contextMatchesRules() { return chatEnabled; }
 		});
 		instantiationService.stub(IWorkspaceContextService, new class extends TestContextService {
@@ -294,6 +302,42 @@ suite('EditorGroupWatermark', () => {
 		render();
 
 		assert.deepStrictEqual(rows().map(row => row.label), ['Show All Commands', 'Open Settings']);
+	});
+
+	test('hides and restores chat when its context condition changes after rendering', () => {
+		render();
+		chatEnabled = false;
+		changeContext('chatSetupHidden');
+		const disabledLabels = rows().map(row => row.label);
+		chatEnabled = true;
+		changeContext('chatSetupHidden');
+
+		assert.deepStrictEqual({ disabledLabels, enabledLabels: rows().map(row => row.label) }, {
+			disabledLabels: ['Show All Commands', 'Open Settings'],
+			enabledLabels: ['Open Chat', 'Show All Commands', 'Open Settings'],
+		});
+	});
+
+	test('drops chat cached from a previous session once its context condition no longer matches', () => {
+		instantiationService.get(IStorageService).store('editorGroupWatermark.whenConditions', JSON.stringify({ 'workbench.action.chat.open': true }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		chatEnabled = false;
+		render();
+		const cachedLabels = rows().map(row => row.label);
+		changeContext('chatSetupDisabledInWorkspace');
+
+		assert.deepStrictEqual({ cachedLabels, labels: rows().map(row => row.label) }, {
+			cachedLabels: ['Open Chat', 'Show All Commands', 'Open Settings'],
+			labels: ['Show All Commands', 'Open Settings'],
+		});
+	});
+
+	test('does not re-render for context changes that keep the visible shortcuts unchanged', () => {
+		render();
+		const before = [...container.querySelectorAll('.watermark-entry')];
+		changeContext('someUnrelatedKey');
+		changeContext('chatSetupHidden');
+
+		assert.deepStrictEqual([...container.querySelectorAll('.watermark-entry')].map((row, index) => row === before[index]), [true, true, true]);
 	});
 
 	test('respects the tips setting when disabled and re-enabled', async () => {

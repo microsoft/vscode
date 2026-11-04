@@ -459,6 +459,101 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroup(a.id)?.name, 'Renamed');
 	});
 
+	test('group appearance persists independently through nesting, renaming, deletion, and undo', () => {
+		const parent = service.createGroup('Parent');
+		const child = service.createGroup('Child', ['s1'], parent.id);
+		service.setGroupIcon(parent.id, 'rocket');
+		service.setGroupColor(parent.id, 'charts.blue');
+		service.setGroupIcon(child.id, 'beaker');
+		service.setGroupColor(child.id, 'charts.green');
+		service.renameGroup(child.id, 'Renamed');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const deleted = reloaded.deleteGroup(parent.id)!;
+		reloaded.restoreGroups(deleted);
+		assert.deepStrictEqual({
+			parent: reloaded.getGroup(parent.id),
+			child: reloaded.getGroup(child.id),
+			membership: reloaded.getGroupOfSession('s1'),
+		}, {
+			parent: { ...parent, icon: 'rocket', color: 'charts.blue' },
+			child: { ...child, name: 'Renamed', icon: 'beaker', color: 'charts.green' },
+			membership: child.id,
+		});
+	});
+
+	test('icon and color reset independently and unchanged appearance does not emit', () => {
+		const group = service.createGroup('Group');
+		const changes: { groupsChanged: boolean; members: string[] }[] = [];
+		disposables.add(service.onDidChange(event => changes.push({ groupsChanged: event.groupsChanged, members: [...event.membershipChanged] })));
+		service.setGroupIcon(group.id, 'rocket');
+		service.setGroupColor(group.id, 'charts.blue');
+		service.setGroupIcon(group.id, 'rocket');
+		service.setGroupColor(group.id, 'charts.blue');
+		service.setGroupIcon('missing', 'rocket');
+		service.setGroupColor('missing', 'charts.blue');
+		service.setGroupIcon(group.id, undefined);
+		const iconReset = service.getGroup(group.id);
+		service.setGroupColor(group.id, undefined);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual({
+			iconReset,
+			reloaded: reloaded.getGroup(group.id),
+			changes,
+		}, {
+			iconReset: { ...group, icon: undefined, color: 'charts.blue' },
+			reloaded: group,
+			changes: Array.from({ length: 4 }, () => ({ groupsChanged: true, members: [] })),
+		});
+	});
+
+	test('grouping-section appearance persists without custom groups and stays independent by identity', () => {
+		const ids = ['workspace:vscode', 'repository:microsoft/vscode', 'environment:host-a', 'environment:host-b'];
+		for (const [index, id] of ids.entries()) {
+			service.setSectionIcon(id, index === 0 ? 'folder' : 'rocket');
+			service.setSectionColor(id, index === 0 ? 'terminal.ansiBlue' : 'terminal.ansiGreen');
+		}
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		reloaded.setSectionIcon(ids[1], undefined);
+		reloaded.setSectionColor(ids[2], undefined);
+		const again = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual(ids.map(id => again.getSectionAppearance(id)), [
+			{ icon: 'folder', color: 'terminal.ansiBlue' },
+			{ color: 'terminal.ansiGreen' },
+			{ icon: 'rocket' },
+			{ icon: 'rocket', color: 'terminal.ansiGreen' },
+		]);
+	});
+
+	test('section appearance survives parent deletion and does not change order or memberships', () => {
+		const sectionId = 'environment:remote-host';
+		const parent = service.createGroup('Parent');
+		service.moveSection(sectionId, parent.id);
+		service.setSectionIcon(sectionId, 'server');
+		service.setSectionColor(sectionId, 'terminal.ansiCyan');
+		service.deleteGroup(parent.id);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual({
+			parent: reloaded.getGroupOfSection(sectionId),
+			appearance: reloaded.getSectionAppearance(sectionId),
+		}, { parent: undefined, appearance: { icon: 'server', color: 'terminal.ansiCyan' } });
+	});
+
+	test('section resets remove empty overrides, and unchanged updates do not emit', () => {
+		const events: boolean[] = [];
+		disposables.add(service.onDidChange(event => events.push(event.groupsChanged)));
+		service.setSectionIcon('workspace:Workspace', 'rocket');
+		service.setSectionColor('workspace:Workspace', 'terminal.ansiBlue');
+		service.setSectionIcon('workspace:Workspace', 'rocket');
+		service.setSectionColor('workspace:Workspace', 'terminal.ansiBlue');
+		service.setSectionIcon('workspace:Workspace', undefined);
+		service.setSectionColor('workspace:Workspace', undefined);
+		assert.deepStrictEqual({
+			appearance: service.getSectionAppearance('workspace:Workspace'),
+			stored: storageService.get('sessionsListControl.groups', StorageScope.PROFILE),
+			events,
+		}, { appearance: undefined, stored: undefined, events: [false, false, false, false] });
+	});
+
 	test('delete group removes group and membership', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
 		service.deleteGroup(a.id);
@@ -702,6 +797,132 @@ suite('SessionGroupsService', () => {
 		assert.deepStrictEqual({ beforeDelete, restored: outline(service) }, {
 			beforeDelete: ['Release', '  Urgent', '    A', '    B', '  Docs', '  Hotfixes'],
 			restored: ['Release', '  Urgent', '    A', '    B', '  Hotfixes', '  Docs'],
+		});
+	});
+
+	test('persists grouping sections and subgroups in one child order without changing session memberships', () => {
+		const parent = service.createGroup('Parent');
+		const child = service.createGroup('Child', [], parent.id);
+		service.moveSection('workspace:Alpha', parent.id);
+		service.moveSection('repository:microsoft/vscode', parent.id);
+		service.moveSection('environment:local', parent.id, { siblingId: 'workspace:Alpha', position: 'after' });
+		service.moveGroup(child.id, parent.id, { siblingId: 'repository:microsoft/vscode', position: 'after' });
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const state = (groups: SessionGroupsService) => ({
+			children: groups.getChildIds(parent.id),
+			subgroups: groups.getTree().getSubgroups(parent.id).map(group => group.id),
+			parents: ['workspace:Alpha', 'repository:microsoft/vscode', 'environment:local'].map(id => groups.getGroupOfSection(id)),
+			sessions: groups.getSessionIdsInGroup(parent.id),
+		});
+		const expected = {
+			children: ['repository:microsoft/vscode', child.id, 'workspace:Alpha', 'environment:local'],
+			subgroups: [child.id],
+			parents: [parent.id, parent.id, parent.id],
+			sessions: [],
+		};
+
+		assert.deepStrictEqual({ current: state(service), reloaded: state(reloaded) }, { current: expected, reloaded: expected });
+	});
+
+	test('refreshes indexed child lookups after group and section changes', () => {
+		loadGroups([
+			{ id: 'first', name: 'First', createdAt: 1 },
+			{ id: 'second', name: 'Second', createdAt: 2 },
+		]);
+		const state = (groups = service) => ['first', 'second'].map(id => ({
+			children: groups.getChildIds(id),
+			sections: groups.getSectionIdsInGroup(id),
+		}));
+		const empty = state();
+		const child = service.createGroup('Child', [], 'first');
+		service.moveSection('workspace:Alpha', 'first');
+		service.moveSection('environment:local', 'first');
+		const created = state();
+		service.moveGroup(child.id, 'second');
+		service.moveSection('workspace:Alpha', 'second');
+		const moved = state();
+		const deleted = service.deleteGroup('first')!;
+		const removed = state();
+		service.restoreGroups(deleted);
+		const restored = state();
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const expectedRestored = [
+			{ children: ['environment:local'], sections: ['environment:local'] },
+			{ children: ['workspace:Alpha', child.id], sections: ['workspace:Alpha'] },
+		];
+
+		assert.deepStrictEqual({ empty, created, moved, removed, restored, reloaded: state(reloaded) }, {
+			empty: [{ children: [], sections: [] }, { children: [], sections: [] }],
+			created: [
+				{ children: ['environment:local', 'workspace:Alpha', child.id], sections: ['workspace:Alpha', 'environment:local'] },
+				{ children: [], sections: [] },
+			],
+			moved: expectedRestored,
+			removed: [{ children: [], sections: [] }, expectedRestored[1]],
+			restored: expectedRestored,
+			reloaded: expectedRestored,
+		});
+	});
+
+	test('moves sections between groups and back to the top level, rejecting missing parents', () => {
+		const first = service.createGroup('First');
+		const second = service.createGroup('Second');
+		service.moveSection('workspace:Alpha', first.id);
+		service.moveSection('workspace:Alpha', second.id);
+		service.moveSection('workspace:Alpha', 'missing');
+		const moved = { parent: service.getGroupOfSection('workspace:Alpha'), first: service.getChildIds(first.id), second: service.getChildIds(second.id) };
+		service.moveSection('workspace:Alpha', undefined);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({ moved, removed: service.getGroupOfSection('workspace:Alpha'), reloaded: reloaded.getGroupOfSection('workspace:Alpha') }, {
+			moved: { parent: second.id, first: [], second: ['workspace:Alpha'] },
+			removed: undefined,
+			reloaded: undefined,
+		});
+	});
+
+	test('projects group ordering from mixed child ordering without treating sections as subgroups', () => {
+		loadGroups([
+			{ id: 'parent', name: 'Parent', createdAt: 1 },
+			{ id: 'a', name: 'A', createdAt: 2, parentId: 'parent' },
+			{ id: 'b', name: 'B', createdAt: 3, parentId: 'parent' },
+			{ id: 'c', name: 'C', createdAt: 4, parentId: 'parent' },
+		]);
+		service.moveSection('workspace:Alpha', 'parent', { siblingId: 'b', position: 'after' });
+		service.moveSection('environment:local', 'parent', { siblingId: 'c', position: 'before' });
+		service.moveGroup('a', 'parent', { siblingId: 'environment:local', position: 'before' });
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const state = (groups: SessionGroupsService) => ({
+			children: groups.getChildIds('parent'),
+			subgroups: groups.getTree().getSubgroups('parent').map(group => group.id),
+		});
+		const expected = { children: ['a', 'environment:local', 'c', 'b', 'workspace:Alpha'], subgroups: ['a', 'c', 'b'] };
+
+		assert.deepStrictEqual({ current: state(service), reloaded: state(reloaded) }, { current: expected, reloaded: expected });
+	});
+
+	test('deleting and restoring groups releases sections and restores only sections that have not moved elsewhere', () => {
+		const parent = service.createGroup('Parent');
+		const child = service.createGroup('Child', [], parent.id);
+		const other = service.createGroup('Other');
+		service.moveSection('workspace:Alpha', parent.id);
+		service.moveSection('repository:microsoft/vscode', child.id);
+		service.moveSection('environment:local', parent.id);
+		const ids = ['workspace:Alpha', 'repository:microsoft/vscode', 'environment:local'];
+		const deleted = service.deleteGroup(parent.id)!;
+		const released = ids.map(id => service.getGroupOfSection(id));
+		service.moveSection('workspace:Alpha', other.id);
+		service.restoreGroups(deleted);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({
+			released,
+			restored: ids.map(id => service.getGroupOfSection(id)),
+			reloaded: ids.map(id => reloaded.getGroupOfSection(id)),
+		}, {
+			released: [undefined, undefined, undefined],
+			restored: [other.id, child.id, parent.id],
+			reloaded: [other.id, child.id, parent.id],
 		});
 	});
 

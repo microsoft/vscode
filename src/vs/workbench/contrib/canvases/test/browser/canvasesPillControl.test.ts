@@ -86,4 +86,5 @@ suite('CanvasesPillControl', () => {
 			unsupported: [undefined],
 		});
 	});
+
 });

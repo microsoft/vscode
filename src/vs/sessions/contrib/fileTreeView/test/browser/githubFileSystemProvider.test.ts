@@ -77,6 +77,7 @@ suite('GitHubFileSystemProvider', () => {
 			override async signIn() { return assert.fail('Filesystem reads must not prompt for sign-in'); }
 		}());
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.map(changed.event, () => undefined);
 			override async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
 				const selected = selectedAccount;
 				acquisitions.push(signal);

@@ -338,6 +338,7 @@ const toolCallResultFields = {
 	pastTenseMessage: stringOrMarkdownValidator,
 	content: vOptionalProp(vArray(toolResultContentValidator)),
 	structuredContent: vOptionalProp(openMetaValidator),
+	resultMetadata: vOptionalProp(openMetaValidator),
 	error: vOptionalProp(vObj({
 		message: vString(),
 		code: vOptionalProp(vString()),
@@ -691,4 +692,3 @@ export function withCreateSessionImportMeta(meta: Readonly<Record<string, unknow
 export function withStagedCreateSessionImportMeta(meta: Readonly<Record<string, unknown>> | undefined, transferId: string): Record<string, unknown> {
 	return { ...meta, [AgentHostCreateSessionImportMetaKey]: { transferId } };
 }
-

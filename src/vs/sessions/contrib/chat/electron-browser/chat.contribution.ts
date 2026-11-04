@@ -46,6 +46,9 @@ import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/ch
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
+import './chatBackgroundTool.contribution.js';
+import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
@@ -395,6 +398,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentsWindowRequestActivity.ID, AgentsWindowRequestActivity, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
+// Desktop only: in browsers, capturing the window asks the user to pick a screen.
+registerWorkbenchContribution2(ScreenshotWindowToolContribution.ID, ScreenshotWindowToolContribution, WorkbenchPhase.Eventually);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's
 // OpenAI proxy, mirroring the registration in the workbench's

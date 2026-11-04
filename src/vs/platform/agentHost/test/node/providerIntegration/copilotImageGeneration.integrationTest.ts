@@ -99,14 +99,15 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			const stub = getAncillaryStub(request.method ?? 'GET', path, body);
 			if (stub) {
 				let content = stub.body.replaceAll('${capi}', endpoint);
-				if (path === '/models' && imageModelAvailable) {
-					const catalog: { data: object[] } = JSON.parse(content);
+				if ((path === '/models' || path === '/meta') && imageModelAvailable) {
+					const document = JSON.parse(content);
+					const catalog: { data: object[] } = path === '/meta' ? document.models : document;
 					catalog.data.push({
 						id: 'gpt-image-2.5-flare', name: 'Synthetic authorized image model',
 						capabilities: { type: 'image' }, supported_endpoints: ['/v1/images/generations'],
 						model_picker_enabled: false, policy: { state: 'enabled' },
 					});
-					content = JSON.stringify(catalog);
+					content = JSON.stringify(document);
 				}
 				response.writeHead(stub.status, stub.headers);
 				response.end(content);
@@ -234,19 +235,27 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 		const completed = await driveTurnWithModelToCompletion(connection, session, 'image-saved', 'Generate a red dot.', 'gpt-4o', 2);
 		// What the real SDK sent the model as the image tool's result.
 		const toolResult = requests.flatMap(request => request.messages).filter(message => message.role === 'tool').map(message => messageText(message.content)).join('\n');
-		const path = /^path: (?<path>.+)$/m.exec(toolResult)?.groups?.path;
+		const [resultText, hookGuidance] = toolResult.split('\n\nTool "image_generation" succeeded. Additional guidance from postToolUse hooks:\n');
+		const path = /^path: (?<path>.+)$/m.exec(resultText)?.groups?.path;
 		const location = path ? relative(directory, path).split(sep) : [];
 
 		assert.deepStrictEqual({
 			response: completed.responseText.trim(),
-			toolResult: toolResult.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replace(path ?? '<no path>', '<path>'),
+			toolResult: resultText.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replaceAll(path ?? '<no path>', '<path>'),
+			missingPresentationGuidance: [
+				'already displayed in the chat',
+				'listed as artifacts',
+				'Do not embed them again in Markdown',
+				'or register them with add_artifact_or_reference',
+			].filter(clause => !hookGuidance?.includes(clause)),
 			location: { insideHome: location[0] !== '..', folder: [location.at(-4), location.at(-2)], fileName: path && basename(path) },
 			savedImage: path ? (await readFile(path)).equals(Buffer.from(GENERATED_PNG, 'base64')) : false,
 			imageRequests,
 			unexpectedRequests,
 		}, {
 			response: 'IMAGE_SAVED',
-			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>',
+			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>\nsaved_to: <path>\nIf linking to the image, convert saved_to to a file:// URL with forward slashes and URL-encoded spaces.',
+			missingPresentationGuidance: [],
 			location: { insideHome: true, folder: ['session-state', 'images'], fileName: 'image-dc2f9147f39d1c93.png' },
 			savedImage: true,
 			imageRequests: ['POST /v1/images/generations'],

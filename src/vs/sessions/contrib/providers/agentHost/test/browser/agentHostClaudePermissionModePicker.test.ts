@@ -14,6 +14,7 @@ import { IActionListItem } from '../../../../../../platform/actionWidget/browser
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -98,6 +99,8 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as IActiveSession);
 	instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
 		override readonly activeSession = sessionObs;
+		override readonly mainWindowActiveSession = this.activeSession;
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	})());
 	instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -113,9 +116,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 		}
 	})());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IHoverService, {
-		setupDelayedHover: () => ({ dispose: () => { } }),
-	} as Partial<IHoverService> as IHoverService);
+	instantiationService.stub(IHoverService, { ...NullHoverService });
 
 	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
 	const container = document.createElement('div');

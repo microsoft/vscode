@@ -12,7 +12,7 @@ import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseUpLi
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
-import { autorun, IObservable } from '../../../base/common/observable.js';
+import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action, Separator } from '../../../base/common/actions.js';
@@ -30,15 +30,16 @@ import { IKeyboardEvent, StandardKeyboardEvent } from '../../../base/browser/key
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
-import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge } from '../dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -48,6 +49,10 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
+import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -99,6 +104,11 @@ export interface IChatCompositeBarDelegate {
 	onTabDragEnd?(): void;
 }
 
+/** The tab hover: the chat's title path, naming its harness when it differs from the main chat's. */
+function getChatTabHover(titlePath: string, harness: IHarnessPresentation | undefined): string {
+	return harness ? localize('chatTabHarnessHover', "{0} ({1})", titlePath, harness.label) : titlePath;
+}
+
 /**
  * A composite bar that displays the chats of a single chat group as tabs.
  * Selecting a tab activates that chat within the group; tabs can be dragged to
@@ -109,6 +119,8 @@ export interface IChatCompositeBarDelegate {
  */
 export class ChatCompositeBar extends Disposable {
 
+	private readonly _hoverDelegate = this._register(createInstantHoverDelegate());
+	private readonly _tabHoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly _container: HTMLElement;
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
@@ -160,6 +172,7 @@ export class ChatCompositeBar extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -194,6 +207,7 @@ export class ChatCompositeBar extends Disposable {
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
@@ -300,6 +314,14 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsContainer.setAttribute('aria-label', label);
 	}
 
+	/**
+	 * Presents a chat's harness, re-evaluating for `reader` as the provider learns its
+	 * harnesses (a restored session can render before its host advertises them).
+	 */
+	private _presentChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
+		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), getChatHarness(session, chat), reader);
+	}
+
 	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
 		this._cancelTabEditing();
 		this._tabDisposables.clear();
@@ -375,6 +397,10 @@ export class ChatCompositeBar extends Disposable {
 
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		const labelWidget = this._tabDisposables.add(new IconLabel(labelEl));
+		// Only a chat on another harness than the main chat's names it. A chat's harness never changes, and the
+		// tabs rebuild when the main chat does, so a tab of a single-harness session never reads it.
+		const marksHarness = !!session && getChatHarness(session, chat) !== getChatHarness(session, session.mainChat.get());
+		const harness = (reader: IReader | undefined) => session && marksHarness ? this._presentChatHarness(session, chat, reader) : undefined;
 		let titlePath = '';
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
@@ -388,7 +414,9 @@ export class ChatCompositeBar extends Disposable {
 			labelWidget.setLabel(title, description);
 			tab.classList.toggle('has-description', description.length > 0);
 			titlePath = [...ancestors, title].join(' / ');
-			const label = localize('chatTabAriaLabel', "{0}, {1}", titlePath, getSessionConversationStatusAriaLabel(status));
+			const statusLabel = localize('chatTabAriaLabel', "{0}, {1}", titlePath, getSessionConversationStatusAriaLabel(status));
+			const chatHarness = harness(reader);
+			const label = chatHarness ? localize('chatTabHarnessAriaLabel', "{0}, uses harness {1}", statusLabel, chatHarness.label) : statusLabel;
 			tab.setAttribute('aria-label', isRead ? label : localize('chatTabUnreadAriaLabel', "{0}, unread", label));
 		}));
 
@@ -409,7 +437,7 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
-		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath })));
+		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: getChatTabHover(titlePath, harness(undefined)), style: HoverStyle.Pointer }), this._tabHoverLifecycleOptions));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
 			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
 		}));
@@ -463,6 +491,7 @@ export class ChatCompositeBar extends Disposable {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
+				hoverDelegate: this._hoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: { args: [session, chat] },
 				toolbarOptions: { primaryGroup: () => true },
@@ -528,7 +557,11 @@ export class ChatCompositeBar extends Disposable {
 			}
 
 			EventHelper.stop(e, true);
-			if (isMainChat || !session) {
+			if (!session) {
+				return;
+			}
+			if (isMainChat) {
+				this._sessionsService.closeSession(session);
 				return;
 			}
 
@@ -582,9 +615,12 @@ export class ChatCompositeBar extends Disposable {
 			delegate.onTabDragStart?.(chat.resource);
 		}));
 
-		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, () => {
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, (e: DragEvent) => {
 			clearChatReferenceDragData();
 			this._delegate?.onTabDragEnd?.();
+			if (delegate) {
+				onDidEndSessionChatDrag(e, tab, delegate.session, chat.resource, chat.title.get());
+			}
 		}));
 
 		// The main chat's title is the session title, so its tab renames the session (as F2 does).
@@ -607,9 +643,26 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
+		const closeAction = this._tabDisposables.add(new Action(CLOSE_CHAT_COMMAND_ID, localize('chatTab.close', "Close"), undefined, true, async () => {
+			if (session) {
+				this._cancelTabEditing();
+				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat);
+			}
+		}));
+		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(MARK_SESSION_READ_COMMAND_ID, { session, chat });
+			}
+		}));
+		const markUnreadAction = this._tabDisposables.add(new Action(MARK_SESSION_UNREAD_COMMAND_ID, localize('chatTab.markUnread', "Mark as Unread"), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(MARK_SESSION_UNREAD_COMMAND_ID, { session, chat });
+			}
+		}));
+
 		// Delete permanently removes the chat (destructive). Only non-main chats
 		// can be deleted; the main chat lives and dies with its session.
-		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete..."), undefined, true, async () => {
 			if (delegate) {
 				await this._sessionsManagementService.deleteChat(delegate.session, chat.resource);
 			}
@@ -651,13 +704,18 @@ export class ChatCompositeBar extends Disposable {
 					const capabilities = getChatCapabilities(chat, session, undefined);
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
+					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(
+						!isMainChat && session ? [closeAction] : [],
 						[
-							...(canRename ? [renameAction] : []),
+							...(canSetReadState ? [chat.isRead.get() ? markUnreadAction : markReadAction] : []),
 							...(capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : []),
 						],
-						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
+						[
+							...(canRename ? [renameAction] : []),
+							...(capabilities.canDelete ? [deleteAction] : []),
+						],
 					);
 				},
 				getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id) ?? undefined,
@@ -751,10 +809,10 @@ export class ChatCompositeBar extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				finish(false);
-			} else {
-				// Don't let typing leak out to workbench shortcuts (e.g. Space).
-				e.stopPropagation();
 			}
+			// Other keys must bubble: clipboard and editing shortcuts (paste, copy,
+			// select all, undo) are workbench keybindings for plain inputs. The tab's
+			// own key handlers only react to keys targeting the tab itself.
 		}));
 
 		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
@@ -790,8 +848,12 @@ export class ChatCompositeBar extends Disposable {
 			tab.element.tabIndex = isActive ? 0 : -1;
 			tab.toolbar?.setFocusable(isActive);
 		}
-		this._updateScrollDimensions();
-		this._revealActiveTab();
+		// Measuring a hidden bar forces a synchronous layout of the whole window, including a large
+		// transcript that is about to be replaced, for nothing. `_setVisible` measures once it is shown.
+		if (this._visible) {
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}
 	}
 
 	private _revealActiveTab(): void {
@@ -805,6 +867,10 @@ export class ChatCompositeBar extends Disposable {
 		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
 		this._height = this._visible ? this._container.offsetHeight : 0;
+		if (this._visible && !wasVisible) {
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}
 		if (wasVisible !== this._visible) {
 			this._onDidChangeVisibility.fire(this._visible);
 		}

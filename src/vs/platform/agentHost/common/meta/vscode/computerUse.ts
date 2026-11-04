@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { escapeMarkdownSyntaxTokens } from '../../../../../base/common/htmlContent.js';
+import { localize } from '../../../../../nls.js';
 import {
+	COMPUTER_USE_ACTIVATION_META_KEY,
+	COMPUTER_USE_ACTIVATION_QUESTION_ID,
+	COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH,
 	COMPUTER_USE_SETUP_META_KEY,
 	computerUseActions,
 	computerUsePermissionActions,
 	computerUsePermissions,
 	computerUsePermissionStates,
 	computerUseSetupStates,
+	type ComputerUseActivationChoice,
+	type IComputerUseActivationCard,
 	type IComputerUseErrorV1,
 	type IComputerUseHelperAppV1,
 	type IComputerUseOperationV1,
@@ -18,7 +25,7 @@ import {
 	type IComputerUseSetupV1,
 	type IComputerUseStatusV1,
 } from '../../computerUse.js';
-import type { ChatInputRequest } from '../../state/protocol/channels-chat/state.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../state/protocol/channels-chat/state.js';
 
 /*
  * Validating readers for the VS Code Computer Use extension values: every field is checked, unknown keys are ignored,
@@ -166,4 +173,50 @@ export function withComputerUseSetupCard<T extends ChatInputRequest>(request: T,
 		...request,
 		_meta: { ...meta, [COMPUTER_USE_SETUP_META_KEY]: { setupId } satisfies IComputerUseSetupCard },
 	};
+}
+
+/** Reads what a request to turn on Computer Use shows, if it carries a valid {@link COMPUTER_USE_ACTIVATION_META_KEY}. */
+export function readComputerUseActivationCard(request: ChatInputRequest): IComputerUseActivationCard | undefined {
+	const card = asBag(asBag((request as ChatInputRequestWithMeta)._meta)?.[COMPUTER_USE_ACTIVATION_META_KEY]);
+	if (!card) {
+		return undefined;
+	}
+	const reason = boundedString(card.reason, COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH);
+	return reason ? { reason } : {};
+}
+
+/**
+ * The Markdown text of a request to turn on Computer Use, for the request itself and for cards that show it. `reason`
+ * is the agent's own words, so it is escaped to stay literal.
+ */
+export function getComputerUseActivationMessage(reason: string | undefined): string {
+	return reason
+		? localize('computerUseActivation.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
+		: localize('computerUseActivation.message', "Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.");
+}
+
+/** Returns a copy of `request` marked as a request to turn on Computer Use, preserving other metadata. */
+export function withComputerUseActivationCard<T extends ChatInputRequest>(request: T, card: IComputerUseActivationCard): T {
+	const meta = (request as ChatInputRequestWithMeta)._meta;
+	return {
+		...request,
+		_meta: { ...meta, [COMPUTER_USE_ACTIVATION_META_KEY]: card },
+	};
+}
+
+/** The answers that submit `choice` to a request to turn on Computer Use. */
+export function getComputerUseActivationAnswers(choice: ComputerUseActivationChoice): Record<string, ChatInputAnswer> {
+	return {
+		[COMPUTER_USE_ACTIVATION_QUESTION_ID]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: choice } },
+	};
+}
+
+/** Whether a response to a request to turn on Computer Use turns it on. */
+export function isComputerUseActivationAccepted(response: ChatInputResponseKind | undefined, answers: Record<string, ChatInputAnswer> | undefined): boolean {
+	const turnOn: ComputerUseActivationChoice = 'turnOn';
+	const answer = answers?.[COMPUTER_USE_ACTIVATION_QUESTION_ID];
+	return response === ChatInputResponseKind.Accept
+		&& answer?.state === ChatInputAnswerState.Submitted
+		&& answer.value.kind === ChatInputAnswerValueKind.Selected
+		&& answer.value.value === turnOn;
 }

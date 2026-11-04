@@ -9,6 +9,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { HoverStyle, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
@@ -19,14 +20,18 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { IMatch, matchesContiguousSubString } from '../../../../base/common/filters.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAICustomizationManagementSectionWidget } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
@@ -36,9 +41,10 @@ import { asTreeRenderer, customizationTreeStyles } from '../../../../workbench/c
 import { ExtensionIconWidget } from '../../../../workbench/contrib/extensions/browser/extensionsWidgets.js';
 import { ExtensionRuntimeActionType, ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../workbench/contrib/extensions/common/extensions.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../workbench/services/extensionManagement/common/extensionManagement.js';
-import { IExtensionManifestPropertiesService } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
+import { getSessionsWindowMissingFeatures, getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService, SessionsWindowLLMContributionPoint, SessionsWindowMissingFeature } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
 
 const $ = DOM.$;
 
@@ -46,7 +52,22 @@ const EXTENSION_ROW_HEIGHT = 52;
 const GROUP_HEADER_TEMPLATE_ID = 'agentsWindowExtensionsGroupHeader';
 const EXTENSION_ROW_TEMPLATE_ID = 'agentsWindowExtensionRow';
 
+type AgentsWindowExtensionEnablementChangedEvent = {
+	extensionId: string;
+	enabled: boolean;
+	aiFeatures: string;
+};
+
+type AgentsWindowExtensionEnablementChangedClassification = {
+	owner: 'alexr00';
+	comment: 'Logged when the user enables or disables an extension in the Agents window from the Extensions section of Agent Customizations, to learn which extensions users choose to run there.';
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension.' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user enabled or disabled the extension.' };
+	aiFeatures: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The comma-separated contribution points, from a fixed list, that add AI features to the Agents window, or empty when the extension has none.' };
+};
+
 export const enum AgentsWindowExtensionGroup {
+	Suggested = 'suggested',
 	Supported = 'supported',
 	Other = 'other',
 }
@@ -55,6 +76,7 @@ export interface IAgentsWindowExtensionEntry {
 	readonly type: 'extension';
 	readonly extension: IExtension;
 	readonly nameMatches: IMatch[] | undefined;
+	readonly group: AgentsWindowExtensionGroup;
 }
 
 export interface IAgentsWindowExtensionsGroup {
@@ -69,14 +91,17 @@ interface IAgentsWindowExtensionsGroupEntry extends ICustomizationGroupHeaderEnt
 type AgentsWindowExtensionsTreeEntry = IAgentsWindowExtensionsGroupEntry | IAgentsWindowExtensionEntry;
 
 /**
- * Returns the installed, non built-in extensions matching `query`, grouped by whether they
- * support the Agents window and sorted by display name. Built-in extensions are curated by the
- * product and cannot be enabled or disabled for the Agents window, so they are not listed.
+ * Returns the installed, non built-in extensions matching `query`, grouped into suggested extensions (the AI Features group), extensions
+ * that support the Agents window, and other extensions, each sorted by display name. Built-in extensions are
+ * curated by the product and cannot be enabled or disabled for the Agents window, so they are not listed.
  */
-export function groupAgentsWindowExtensions(extensions: readonly IExtension[], query: string, supportsAgentsWindow: (extension: IExtension) => boolean): IAgentsWindowExtensionsGroup[] {
+export function groupAgentsWindowExtensions(extensions: readonly IExtension[], query: string, supportsAgentsWindow: (extension: IExtension) => boolean, isSuggested: (extension: IExtension) => boolean): IAgentsWindowExtensionsGroup[] {
 	const trimmedQuery = query.trim();
-	const supported: IAgentsWindowExtensionEntry[] = [];
-	const other: IAgentsWindowExtensionEntry[] = [];
+	const groups = new Map<AgentsWindowExtensionGroup, IAgentsWindowExtensionEntry[]>([
+		[AgentsWindowExtensionGroup.Suggested, []],
+		[AgentsWindowExtensionGroup.Supported, []],
+		[AgentsWindowExtensionGroup.Other, []],
+	]);
 	for (const extension of extensions) {
 		if (extension.isBuiltin || !extension.local || extension.state !== ExtensionState.Installed) {
 			continue;
@@ -85,13 +110,47 @@ export function groupAgentsWindowExtensions(extensions: readonly IExtension[], q
 		if (trimmedQuery && !nameMatches && ![extension.identifier.id, extension.publisherDisplayName, extension.description].some(text => !!text && !!matchesContiguousSubString(trimmedQuery, text))) {
 			continue;
 		}
-		(supportsAgentsWindow(extension) ? supported : other).push({ type: 'extension', extension, nameMatches });
+		const group = isSuggested(extension) ? AgentsWindowExtensionGroup.Suggested : supportsAgentsWindow(extension) ? AgentsWindowExtensionGroup.Supported : AgentsWindowExtensionGroup.Other;
+		groups.get(group)!.push({ type: 'extension', extension, nameMatches, group });
 	}
 	const compare = (a: IAgentsWindowExtensionEntry, b: IAgentsWindowExtensionEntry) => a.extension.displayName.localeCompare(b.extension.displayName);
-	return [
-		{ group: AgentsWindowExtensionGroup.Supported, entries: supported.sort(compare) },
-		{ group: AgentsWindowExtensionGroup.Other, entries: other.sort(compare) },
-	];
+	return [...groups].map(([group, entries]) => ({ group, entries: entries.sort(compare) }));
+}
+
+function getGroupLabel(group: AgentsWindowExtensionGroup): string {
+	switch (group) {
+		case AgentsWindowExtensionGroup.Suggested:
+			return localize('agentsWindowExtensions.aiFeaturesGroup', "AI Features");
+		case AgentsWindowExtensionGroup.Supported:
+			return localize('agentsWindowExtensions.supportedGroup', "Supported");
+		case AgentsWindowExtensionGroup.Other:
+			return localize('agentsWindowExtensions.otherGroup', "Other Extensions");
+	}
+}
+
+/**
+ * Describes a group. Extensions in the AI Features and Other Extensions groups are disabled by default, unless they are
+ * enabled automatically, which leaves their global state, either because they could be useful or because
+ * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} lists them.
+ */
+function getGroupDescription(group: IAgentsWindowExtensionsGroup, autoEnablesListed: boolean): string {
+	const hasAutomaticallyEnabled = group.entries.some(entry => entry.extension.enablementState === EnablementState.EnabledGlobally);
+	switch (group.group) {
+		case AgentsWindowExtensionGroup.Suggested:
+			return !hasAutomaticallyEnabled
+				? localize('agentsWindowExtensions.aiFeaturesGroupDescription', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they are disabled by default and might not work as expected.")
+				: autoEnablesListed
+					? localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabledListed', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. They are disabled by default, unless they are enabled automatically.")
+					: localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabled', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. Those that don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically.");
+		case AgentsWindowExtensionGroup.Supported:
+			return localize('agentsWindowExtensions.supportedGroupDescription', "Extensions that support the Agents window. They are enabled by default.");
+		case AgentsWindowExtensionGroup.Other:
+			return !hasAutomaticallyEnabled
+				? localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected.")
+				: autoEnablesListed
+					? localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabledListed', "Extensions that haven't declared support for the Agents window. They might not work as expected. They are disabled by default, unless they are enabled automatically.")
+					: localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabled', "Extensions that haven't declared support for the Agents window. They might not work as expected. Those that add AI features and don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically. The others are disabled by default.");
+	}
 }
 
 function getRuntimeStateLabel(extension: IExtension): string | undefined {
@@ -103,6 +162,80 @@ function getRuntimeStateLabel(extension: IExtension): string | undefined {
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Labels the button that applies a pending change: restarting extensions restarts the extension host.
+ */
+function getRuntimeActionLabel(action: ExtensionRuntimeActionType | undefined): string | undefined {
+	switch (action) {
+		case ExtensionRuntimeActionType.RestartExtensions:
+			return localize('agentsWindowExtensions.restartExtensions', "Restart Extensions");
+		case ExtensionRuntimeActionType.ReloadWindow:
+			return localize('agentsWindowExtensions.reloadWindow', "Reload Window");
+		default:
+			return undefined;
+	}
+}
+
+function getMissingFeatureLabel(feature: SessionsWindowMissingFeature): string {
+	switch (feature) {
+		case SessionsWindowMissingFeature.Views:
+			return localize('agentsWindowExtensions.missingFeature.views', "views");
+		case SessionsWindowMissingFeature.Debugging:
+			return localize('agentsWindowExtensions.missingFeature.debugging', "debuggers");
+		case SessionsWindowMissingFeature.StatusBar:
+			return localize('agentsWindowExtensions.missingFeature.statusBar', "status bar items");
+		case SessionsWindowMissingFeature.Walkthroughs:
+			return localize('agentsWindowExtensions.missingFeature.walkthroughs', "walkthroughs");
+	}
+}
+
+/**
+ * Warns that an extension might not work as expected because it contributes things that the Agents window doesn't support.
+ */
+export function getMissingFeaturesWarning(features: readonly SessionsWindowMissingFeature[]): string | undefined {
+	if (features.length === 0) {
+		return undefined;
+	}
+	return localize('agentsWindowExtensions.missingFeaturesWarning', "Contributes {0}, which are not supported in the Agents window.", features.map(getMissingFeatureLabel).join(', '));
+}
+
+/**
+ * Names a contribution point that makes an extension worth enabling in the Agents window, like the Agent Customizations section it adds to.
+ */
+function getSuggestedContributionLabel(point: SessionsWindowLLMContributionPoint): string {
+	switch (point) {
+		case 'languageModelTools':
+		case 'languageModelToolSets':
+			return localize('agentsWindowExtensions.contribution.tools', "Tools");
+		case 'mcpServerDefinitionProviders':
+			return localize('agentsWindowExtensions.contribution.mcpServers', "MCP Servers");
+		case 'chatSkills':
+			return localize('agentsWindowExtensions.contribution.skills', "Skills");
+		case 'chatAgents':
+			return localize('agentsWindowExtensions.contribution.agents', "Agents");
+		case 'chatInstructions':
+			return localize('agentsWindowExtensions.contribution.instructions', "Instructions");
+		case 'chatPromptFiles':
+			return localize('agentsWindowExtensions.contribution.prompts', "Prompts");
+		case 'chatPlugins':
+			return localize('agentsWindowExtensions.contribution.plugins', "Plugins");
+	}
+}
+
+/**
+ * Names what an extension contributes that makes it worth enabling in the Agents window, without duplicates.
+ */
+export function getSuggestedContributionLabels(manifest: IExtensionManifest): string[] {
+	return [...new Set(getSessionsWindowSuggestedContributions(manifest).map(getSuggestedContributionLabel))];
+}
+
+/**
+ * Extensions in the AI Features group show the AI features they add, so users know why they might want to enable them.
+ */
+function getEntryContributionLabels(entry: IAgentsWindowExtensionEntry): string[] {
+	return entry.group === AgentsWindowExtensionGroup.Suggested && entry.extension.local ? getSuggestedContributionLabels(entry.extension.local.manifest) : [];
 }
 
 class AgentsWindowExtensionsDelegate implements IListVirtualDelegate<AgentsWindowExtensionsTreeEntry> {
@@ -121,7 +254,9 @@ interface IExtensionRowTemplateData {
 	readonly name: HighlightedLabel;
 	readonly publisher: HTMLElement;
 	readonly description: HTMLElement;
-	readonly runtimeState: HTMLElement;
+	readonly warning: HTMLElement;
+	readonly contributions: HTMLElement;
+	readonly runtimeAction: Button;
 	readonly toggle: CustomizationToggle;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -130,10 +265,16 @@ interface IExtensionRowTemplateData {
 class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry, IExtensionRowTemplateData> {
 	readonly templateId = EXTENSION_ROW_TEMPLATE_ID;
 
+	// The restart buttons of neighboring rows show their hovers without delay once one is shown.
+	private readonly runtimeActionHoverLifecycleOptions: IHoverLifecycleOptions = { groupId: generateUuid() };
+
 	constructor(
 		private readonly isEnabled: (extension: IExtension) => boolean,
 		private readonly canChangeEnablement: (extension: IExtension) => boolean,
 		private readonly setEnabled: (extension: IExtension, enabled: boolean) => void,
+		private readonly getWarning: (extension: IExtension) => string | undefined,
+		private readonly runRuntimeAction: (action: ExtensionRuntimeActionType | undefined) => void,
+		private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IExtensionRowTemplateData {
@@ -145,16 +286,26 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 		const nameRow = DOM.append(details, $('.agents-window-extension-name-row'));
 		const name = templateDisposables.add(new HighlightedLabel(DOM.append(nameRow, $('span.agents-window-extension-name'))));
 		const publisher = DOM.append(nameRow, $('span.agents-window-extension-publisher'));
+		// The row's accessible name includes the warning and the contributions.
+		const warning = DOM.append(nameRow, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
+		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
+		const contributions = DOM.append(nameRow, $('span.agents-window-extension-contributions', { 'aria-hidden': 'true' }));
 		const description = DOM.append(details, $('span.agents-window-extension-description'));
-		const runtimeState = DOM.append(container, $('span.agents-window-extension-runtime-state.inline-badge'));
 
-		// Rows are activated with Space or Enter, so the switch stays out of the tab order and must not steal tree focus.
+		// Rows are activated with Space or Enter, so the button and the switch stay out of the tab order and must not steal
+		// tree focus. Keyboard users restart extensions with the same button next to the section title, and the row's
+		// accessible name says that a restart is required.
+		const runtimeAction = templateDisposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
+		runtimeAction.element.classList.add('agents-window-extension-runtime-action');
+		runtimeAction.element.tabIndex = -1;
+		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(runtimeAction.element, event => DOM.EventHelper.stop(event, true)));
+
 		const toggle = templateDisposables.add(new CustomizationToggle({ ariaLabel: '' }));
 		toggle.setTabIndex(-1);
 		container.appendChild(toggle.domNode);
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 
-		return { container, icon, name, publisher, description, runtimeState, toggle, templateDisposables, elementDisposables: new DisposableStore() };
+		return { container, icon, name, publisher, description, warning, contributions, runtimeAction, toggle, templateDisposables, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(entry: IAgentsWindowExtensionEntry, _index: number, templateData: IExtensionRowTemplateData): void {
@@ -169,10 +320,26 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 		templateData.description.textContent = extension.description;
 		templateData.description.style.display = extension.description ? '' : 'none';
 
-		const runtimeStateLabel = getRuntimeStateLabel(extension);
-		templateData.runtimeState.textContent = runtimeStateLabel ?? '';
-		templateData.runtimeState.title = extension.runtimeState?.reason ?? '';
-		templateData.runtimeState.style.display = runtimeStateLabel ? '' : 'none';
+		const warning = this.getWarning(extension);
+		if (warning) {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.warning, { content: warning }));
+		}
+		templateData.warning.style.display = warning ? '' : 'none';
+
+		const contributionLabels = getEntryContributionLabels(entry);
+		DOM.reset(templateData.contributions, ...contributionLabels.map(label => $('span.inline-badge', undefined, label)));
+		templateData.contributions.style.display = contributionLabels.length ? '' : 'none';
+
+		const runtimeAction = extension.runtimeState?.action;
+		const runtimeActionLabel = getRuntimeActionLabel(runtimeAction);
+		templateData.runtimeAction.label = runtimeActionLabel ?? '';
+		templateData.runtimeAction.element.style.display = runtimeActionLabel ? '' : 'none';
+		if (runtimeActionLabel) {
+			templateData.elementDisposables.add(templateData.runtimeAction.onDidClick(() => this.runRuntimeAction(runtimeAction)));
+			if (extension.runtimeState?.reason) {
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.runtimeAction.element, { content: extension.runtimeState.reason, style: HoverStyle.Pointer }, this.runtimeActionHoverLifecycleOptions));
+			}
+		}
 
 		templateData.container.classList.toggle('disabled', !enabled);
 		templateData.toggle.checked = enabled;
@@ -198,6 +365,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 	private readonly element: HTMLElement;
 	private readonly runtimeActionButton: Button;
+	private readonly description: HTMLElement;
 	private readonly searchInput: InputBox;
 	private readonly treeContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<AgentsWindowExtensionsTreeEntry>;
@@ -220,6 +388,8 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService extensionService: IExtensionService,
@@ -233,8 +403,9 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		const titleRow = DOM.append(header, $('.agents-window-extensions-title-row'));
 		DOM.append(titleRow, $('h2.agents-window-extensions-title')).textContent = localize('agentsWindowExtensions.title', "Extensions");
 		this.runtimeActionButton = this._register(new Button(titleRow, { ...defaultButtonStyles, secondary: true, small: true }));
-		this._register(this.runtimeActionButton.onDidClick(() => this.runRuntimeAction()));
-		DOM.append(header, $('p.agents-window-extensions-description')).textContent = localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
+		this._register(this.runtimeActionButton.onDidClick(() => this.runRuntimeAction(this.runtimeAction)));
+		this.description = DOM.append(header, $('p.agents-window-extensions-description'));
+		this.updateDescription();
 
 		const searchContainer = DOM.append(this.element, $('.agents-window-extensions-search'));
 		this.searchInput = this._register(new InputBox(searchContainer, contextViewService, {
@@ -261,6 +432,9 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 					extension => this.isEnabled(extension),
 					extension => this.canChangeEnablement(extension),
 					(extension, enabled) => this.setEnabled(extension, enabled),
+					extension => this.getWarning(extension),
+					action => this.runRuntimeAction(action),
+					hoverService,
 				)),
 			],
 			{
@@ -315,14 +489,23 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.AgentsWindowExtensions)) {
 				this.updateSearchAriaLabel();
 			}
+			if (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE)) {
+				this.updateDescription();
+				// Group descriptions depend on how extensions are enabled automatically.
+				this.scheduleRender();
+			}
 		}));
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
 	}
 
 	setVisible(visible: boolean): void {
 		this.visible = visible;
-		if (visible && this.renderPending) {
-			this.render();
+		if (visible) {
+			// Navigating to the section dismisses the badge on its entry points.
+			this.extensionSuggestionsService.dismissBadge();
+			if (this.renderPending) {
+				this.render();
+			}
 		}
 		this.layoutTree();
 	}
@@ -341,6 +524,8 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 	private scheduleRender(): void {
 		if (this.visible) {
+			// Suggestions that appear while the section is visible don't need a badge either.
+			this.extensionSuggestionsService.dismissBadge();
 			this.render();
 		} else {
 			this.renderPending = true;
@@ -349,11 +534,13 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 	private render(): void {
 		this.renderPending = false;
-		const installed = groupAgentsWindowExtensions(this.extensionsWorkbenchService.local, '', extension => this.supportsAgentsWindow(extension));
+		const suggested = new Set(this.extensionSuggestionsService.suggestedExtensions.get());
+		const isSuggested = (extension: IExtension) => suggested.has(extension);
+		const installed = groupAgentsWindowExtensions(this.extensionsWorkbenchService.local, '', extension => this.supportsAgentsWindow(extension), isSuggested);
 		this.updateRuntimeAction(installed.flatMap(group => group.entries.map(entry => entry.extension)));
 
 		const groups = this.searchQuery.trim()
-			? groupAgentsWindowExtensions(this.extensionsWorkbenchService.local, this.searchQuery, extension => this.supportsAgentsWindow(extension))
+			? groupAgentsWindowExtensions(this.extensionsWorkbenchService.local, this.searchQuery, extension => this.supportsAgentsWindow(extension), isSuggested)
 			: installed;
 		const visibleGroups = groups.filter(group => group.entries.length > 0);
 		if (visibleGroups.length === 0) {
@@ -372,18 +559,16 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 		this.emptyState.style.display = 'none';
 		this.treeContainer.style.display = '';
+		const autoEnablesListed = Array.isArray(this.configurationService.getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE));
 		const children: IObjectTreeElement<AgentsWindowExtensionsTreeEntry>[] = visibleGroups.map(group => {
 			const collapsed = this.collapsedGroups.has(group.group);
 			const element: IAgentsWindowExtensionsGroupEntry = {
 				type: 'group-header',
 				id: `agents-window-extensions-group-${group.group}`,
 				group: group.group,
-				label: group.group === AgentsWindowExtensionGroup.Supported
-					? localize('agentsWindowExtensions.supportedGroup', "Supported")
-					: localize('agentsWindowExtensions.otherGroup', "Other Extensions"),
-				description: group.group === AgentsWindowExtensionGroup.Supported
-					? localize('agentsWindowExtensions.supportedGroupDescription', "Extensions that support the Agents window. They are enabled by default.")
-					: localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected."),
+				label: getGroupLabel(group.group),
+				// Describes all installed extensions in the group, so the description doesn't change while searching.
+				description: getGroupDescription(installed.find(installedGroup => installedGroup.group === group.group) ?? group, autoEnablesListed),
 				icon: Codicon.extensions,
 				count: group.entries.length,
 				isFirst: false,
@@ -412,6 +597,15 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		return !!extension.local && this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.local.manifest, extension.isBuiltin);
 	}
 
+	/**
+	 * Warns about extensions that haven't declared support for the Agents window and contribute things that it doesn't support.
+	 */
+	private getWarning(extension: IExtension): string | undefined {
+		return extension.local && !this.supportsAgentsWindow(extension)
+			? getMissingFeaturesWarning(getSessionsWindowMissingFeatures(extension.local.manifest))
+			: undefined;
+	}
+
 	private isEnabled(extension: IExtension): boolean {
 		return this.extensionEnablementService.isEnabledEnablementState(extension.enablementState);
 	}
@@ -424,6 +618,12 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		try {
 			// The Agents window has a dedicated workspace, so workspace enablement only applies to the Agents window.
 			await this.extensionsWorkbenchService.setEnablement(extension, enabled ? EnablementState.EnabledWorkspace : EnablementState.DisabledWorkspace);
+			this.telemetryService.publicLog2<AgentsWindowExtensionEnablementChangedEvent, AgentsWindowExtensionEnablementChangedClassification>('agentsWindowExtensionEnablementChanged', {
+				extensionId: ExtensionIdentifier.toKey(extension.identifier.id),
+				enabled,
+				// Sorted like the suggested contributions of agentsWindowAutoEnableCandidateEnabled, so the events can be joined.
+				aiFeatures: extension.local ? getSessionsWindowSuggestedContributions(extension.local.manifest).sort().join(',') : '',
+			});
 			status(this.isEnabled(extension)
 				? localize('agentsWindowExtensions.enabledStatus', "{0} enabled in the Agents window", extension.displayName)
 				: localize('agentsWindowExtensions.disabledStatus', "{0} disabled in the Agents window", extension.displayName));
@@ -441,22 +641,29 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		this.runtimeAction = actions.has(ExtensionRuntimeActionType.ReloadWindow) ? ExtensionRuntimeActionType.ReloadWindow
 			: actions.has(ExtensionRuntimeActionType.RestartExtensions) ? ExtensionRuntimeActionType.RestartExtensions
 				: undefined;
-		this.runtimeActionButton.label = this.runtimeAction === ExtensionRuntimeActionType.ReloadWindow
-			? localize('agentsWindowExtensions.reloadWindow', "Reload Window")
-			: localize('agentsWindowExtensions.restartExtensions', "Restart Extensions");
+		this.runtimeActionButton.label = getRuntimeActionLabel(this.runtimeAction) ?? '';
 		this.runtimeActionButton.element.style.display = this.runtimeAction ? '' : 'none';
 	}
 
-	private async runRuntimeAction(): Promise<void> {
+	private async runRuntimeAction(action: ExtensionRuntimeActionType | undefined): Promise<void> {
 		try {
-			if (this.runtimeAction === ExtensionRuntimeActionType.ReloadWindow) {
+			if (action === ExtensionRuntimeActionType.ReloadWindow) {
 				await this.hostService.reload();
-			} else if (this.runtimeAction === ExtensionRuntimeActionType.RestartExtensions) {
+			} else if (action === ExtensionRuntimeActionType.RestartExtensions) {
 				await this.extensionsWorkbenchService.updateRunningExtensions();
 			}
 		} catch (error) {
 			this.notificationService.error(error);
 		}
+	}
+
+	private updateDescription(): void {
+		const autoEnable = this.configurationService.getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
+		this.description.textContent = autoEnable === true
+			? localize('agentsWindowExtensions.descriptionAutoEnabled', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they could be useful there and don't rely on features that are unavailable in the Agents window. Changes only apply to the Agents window.")
+			: Array.isArray(autoEnable) && autoEnable.length > 0
+				? localize('agentsWindowExtensions.descriptionAutoEnabledListed', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they are enabled automatically. Changes only apply to the Agents window.")
+				: localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
 	}
 
 	private updateSearchAriaLabel(): void {
@@ -475,8 +682,14 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 			? localize('agentsWindowExtensions.enabled', "Enabled")
 			: localize('agentsWindowExtensions.disabled', "Disabled");
 		const runtimeStateLabel = getRuntimeStateLabel(extension);
-		return runtimeStateLabel
+		const label = runtimeStateLabel
 			? localize('agentsWindowExtensions.rowAriaLabelWithRuntimeState', "{0}, {1}, {2}, {3}", extension.displayName, extension.publisherDisplayName, state, runtimeStateLabel)
 			: localize('agentsWindowExtensions.rowAriaLabel', "{0}, {1}, {2}", extension.displayName, extension.publisherDisplayName, state);
+		const warning = this.getWarning(extension);
+		const labelWithWarning = warning ? localize('agentsWindowExtensions.rowAriaLabelWithWarning', "{0}. Warning: {1}", label, warning) : label;
+		const contributionLabels = getEntryContributionLabels(entry);
+		return contributionLabels.length
+			? localize('agentsWindowExtensions.rowAriaLabelWithContributions', "{0}. Contributes {1}", labelWithWarning, contributionLabels.join(', '))
+			: labelWithWarning;
 	}
 }

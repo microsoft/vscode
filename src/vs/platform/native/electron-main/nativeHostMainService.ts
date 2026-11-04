@@ -401,6 +401,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.toggleFullScreen();
 	}
 
+	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.handleTitleDoubleClick();
+	}
+
 	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
 		const point = screen.getCursorScreenPoint();
 		const display = screen.getDisplayNearestPoint(point);
@@ -948,8 +953,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getFreeDiskSpace(_windowId: number | undefined, path: string): Promise<number> {
-		const { bavail, bsize } = await fs.promises.statfs(path);
-		return bavail * bsize;
+		return Promises.getFreeDiskSpace(path);
 	}
 
 	async getOSProperties(): Promise<IOSProperties> {

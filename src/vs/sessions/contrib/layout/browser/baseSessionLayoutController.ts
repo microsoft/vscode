@@ -7,6 +7,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, IReader, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
@@ -33,12 +34,16 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../workb
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IUntitledTextEditorService } from '../../../../workbench/services/untitled/common/untitledTextEditorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -291,6 +296,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IEditorService protected readonly _editorService: IEditorService,
 		@IEditorGroupsService protected readonly _editorGroupsService: IEditorGroupsService,
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionChangesService protected readonly _sessionChangesService: ISessionChangesService,
 		@IChangesViewService protected readonly _changesViewService: IChangesViewService,
@@ -304,7 +310,7 @@ export abstract class BaseLayoutController extends Disposable {
 		super();
 
 		this._chatLayoutContext = this._chatLayoutEnabled
-			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._sessionsService.activeSession))
+			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._sessionsService.mainWindowActiveSession))
 			: undefined;
 
 		// [B3] Restore persisted state (with one-time legacy migration).
@@ -314,7 +320,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
 		if (this._chatLayoutContext) {
 			this._register(runOnChange(this._chatLayoutContext.state, (current, previous) => {
-				const session = this._sessionsService.activeSession.get();
+				const session = this._sessionsService.mainWindowActiveSession.get();
 				if (previous.presentation.active && current.presentation.active
 					&& previous.owner && current.owner && session
 					&& isEqual(previous.owner.sessionResource, current.owner.sessionResource)
@@ -324,7 +330,7 @@ export abstract class BaseLayoutController extends Disposable {
 					this._onActiveSessionSwitched(session, session);
 					const key = this._ownerKeyForChat(previous.owner.sessionResource, previous.owner.chatResource, session.mainChat.get().resource);
 					if (key) {
-						this._saveWorkingSet(key);
+						this._saveOutgoingWorkingSet(key);
 					}
 				}
 			}));
@@ -334,7 +340,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this.activeSessionResourceObs = derivedOpts<URI | undefined>({
 			equalsFn: isEqual
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.resource;
 		});
 
@@ -370,7 +376,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
@@ -389,7 +395,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession || e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			if ((this.multipleChatsVisibleObs.get()
 				&& (!activeSession || !this._isPanelVisibilitySharedAcrossChats(activeSession)))
 				|| this._isCustomViewVisible()) {
@@ -408,7 +414,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 			if (ownerKey) {
 				this._panelViewBySession.set(ownerKey, e.composite.getId());
@@ -419,7 +425,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelViewPerSession) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
@@ -439,7 +445,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			if (activeSession && this._chatLayoutSuspended()) {
 				return;
 			}
@@ -462,7 +468,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 			if (ownerKey) {
 				this._editorPartHiddenBySession.set(ownerKey, !e.visible);
@@ -485,7 +491,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._chatLayoutSuspended(reader)) {
 				return lastValue ?? { session: undefined, key: undefined, owner: undefined };
 			}
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const chat = session?.activeChat.read(reader);
 			const key = session && chat
 				? this._ownerKeyForChat(session.resource, chat.resource, session.mainChat.read(reader).resource, reader)
@@ -534,7 +540,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// editors during that window. Saving here synchronously — before those
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
-		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+		this._register(runOnChange(this._sessionsService.mainWindowActiveSession, (session, previousSession) => {
 			if (this._workingSetAdoptingReplacement && !isEqual(this._workingSetAdoptingReplacement, session?.resource)) {
 				this._workingSetAdoptingReplacement = undefined;
 			}
@@ -544,7 +550,7 @@ export abstract class BaseLayoutController extends Disposable {
 				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !wasReplaced) {
 					const ownerKey = this._ownerKeyFor(previousSession);
 					if (ownerKey) {
-						this._saveWorkingSet(ownerKey);
+						this._saveOutgoingWorkingSet(ownerKey);
 					}
 				}
 			}
@@ -630,12 +636,7 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
-		this._register(this._sessionManagementService.onDidReplaceNewDraftSession(({ from }) => {
-			if (!this._chatLayoutEnabled) {
-				return;
-			}
-			this._forgetPeerChatState(this._chatLayoutOwnerKeys.forgetSession(from.resource));
-		}));
+		this._register(this._sessionManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onSessionReplaced(from, to)));
 
 		this._register(this._layoutService.onWillToggleSidePane(() => {
 			this._togglingSidePane = true;
@@ -744,7 +745,7 @@ export abstract class BaseLayoutController extends Disposable {
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.action.agentToggleSidePanel',
+					id: TOGGLE_SIDE_PANEL_COMMAND_ID,
 					title: {
 						...localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
 						mnemonicTitle: localize({ key: 'miSidePanel', comment: ['&& denotes a mnemonic'] }, "Side Pa&&nel"),
@@ -759,9 +760,13 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
-					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
-						CustomViewVisibleContext.negate()
+					// In a chat window it toggles the window's editor, whatever the main window shows.
+					precondition: ContextKeyExpr.or(
+						ChatWindowLayoutCommandsContext,
+						ContextKeyExpr.and(
+							ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
+							CustomViewVisibleContext.negate()
+						)
 					),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
@@ -791,6 +796,13 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			run(accessor: ServicesAccessor): void {
+				// In a chat window, whichever key runs it: the window's editor, never the side panel of the main window.
+				const chatWindow = accessor.get(IChatWindowService).activeWindow;
+				if (chatWindow) {
+					toggleChatWindowEditorAsSidePanel(chatWindow);
+					return;
+				}
+
 				const nowVisible = accessor.get(IAgentWorkbenchLayoutService).toggleSidePane();
 
 				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);
@@ -811,10 +823,10 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	protected _onSessionReplaced(from: ISession, to: ISession): void {
-		// `onDidReplaceSession` fires only when an untitled draft is atomically
-		// replaced by its committed session on submit, so the committed session
-		// inherits the draft's on-screen layout.
-		const activeSession = this._sessionsService.activeSession.get();
+		// `onDidReplaceSession` and `onDidReplaceNewDraftSession` fire when a draft is
+		// replaced (on submit by its committed session, or pre-send by another draft),
+		// so the incoming session inherits the outgoing draft's on-screen layout.
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
 		if (!isEqual(from.resource, to.resource)) {
 			this._replacedSessionResources.add(from.resource);
@@ -1143,7 +1155,7 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveState(): void {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
 		const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 
@@ -1334,6 +1346,33 @@ export abstract class BaseLayoutController extends Disposable {
 				this._hideEditorPartForWorkingSet();
 			}
 		});
+	}
+
+	private _saveOutgoingWorkingSet(sessionResource: URI): void {
+		this._discardEmptyUntitledEditorsWithPath();
+		this._saveWorkingSet(sessionResource);
+	}
+
+	/**
+	 * Discards empty untitled editors that are bound to a file path (for example a link to a
+	 * file that does not exist). Such editors are always dirty, so applying a working set keeps
+	 * them open and they would otherwise be captured into every session's working set and
+	 * reappear after being closed. Discarding disposes the inputs, which are skipped when the
+	 * working set is serialized. Untitled editors with content are never discarded.
+	 */
+	private _discardEmptyUntitledEditorsWithPath(): void {
+		for (const group of this._editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				const resource = editor.resource;
+				if (!resource || !this._untitledTextEditorService.isUntitledWithAssociatedResource(resource)) {
+					continue;
+				}
+				const model = this._untitledTextEditorService.get(resource);
+				if (model?.isResolved() && model.textEditorModel.getValueLength() === 0) {
+					model.revert().catch(onUnexpectedError);
+				}
+			}
+		}
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {

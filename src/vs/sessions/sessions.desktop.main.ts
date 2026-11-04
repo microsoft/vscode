@@ -28,6 +28,8 @@ registerOpenAgentsWindowCommand();
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
 import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
+import './contrib/chatWindow/electron-browser/chatWindowTitleDoubleClick.contribution.js';
+import './contrib/inboxOne/electron-browser/inboxCanvasHost.js';
 import './contrib/sessionInputBanners/electron-browser/sessionDiskSpace.contribution.js';
 
 //#endregion
@@ -199,6 +201,7 @@ import '../workbench/contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import '../workbench/contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/editor/electron-browser/browserEmptyState.contribution.js';
 
 // Splash
 import '../workbench/contrib/splash/electron-browser/splash.contribution.js';
@@ -243,6 +246,7 @@ import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelp
 
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
+import './contrib/openAgentsWindow/electron-browser/openAgentsWindowKeybindingTip.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
@@ -257,6 +261,7 @@ import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js
 import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
+import './contrib/providers/remoteAgentHost/electron-browser/remotes.contribution.js';
 // Change Preferred Remote Agent Location (Chat: ... command)
 import './contrib/providers/remoteAgentHost/electron-browser/remoteAgentHostLocationPreferenceCommand.js';
 import './contrib/providers/remoteAgentHost/electron-browser/forgetSSHHostKeyCommand.js';

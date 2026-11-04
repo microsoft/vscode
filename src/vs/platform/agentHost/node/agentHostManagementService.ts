@@ -7,7 +7,7 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -59,12 +59,23 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._missionControl?.environmentId;
 	}
 
+	async getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._missionControl?.environmentName;
+	}
+
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	manageHostSandboxCertificate(...args: Parameters<IAgentHostManagementService['manageHostSandboxCertificate']>): Promise<void> {
+		if (!this._agentService.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable');
+		}
+		return this._runMutation(() => this._agentService.manageHostSandboxCertificate!(...args));
 	}
 
 	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
@@ -86,6 +97,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Sandbox certificate removal is unavailable');
 		}
 		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
+	}
+
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.refreshSandboxCertificate) {
+			throw new Error('Sandbox certificate refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshSandboxCertificate!(chat, scopeId));
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
@@ -135,6 +153,34 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host plugin uninstall is unavailable');
 		}
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
+	}
+
+	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI) {
+		if (!this._agentService.listPluginInstallations) {
+			throw new Error('Agent Host plugin installation inventory is unavailable');
+		}
+		return this._agentService.listPluginInstallations(provider, session, chat);
+	}
+
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+		if (!this._agentService.setPluginEnabled) {
+			throw new Error('Agent Host plugin enablement is unavailable');
+		}
+		return this._runMutation(() => this._agentService.setPluginEnabled!(provider, plugin, enabled));
+	}
+
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		if (!this._agentService.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable.');
+		}
+		return this._agentService.listAgentExtensions(session, chat);
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		if (!this._agentService.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable.');
+		}
+		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session, chat));
 	}
 
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
@@ -252,6 +298,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
+	}
+
+	async setSystemNetworkOnline(online: boolean): Promise<void> {
+		this._logService.info(`[AgentHost] Network is ${online ? 'online' : 'offline'}`);
+		this._systemWake.setNetworkOnline(online);
 	}
 
 	async reportMacAccessibilityTrustChange(): Promise<void> {

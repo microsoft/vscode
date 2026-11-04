@@ -11,21 +11,11 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../common/model/chatModel.js';
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
 import { CustomizationMigrationTelemetryService, parseCustomizationMigrationAgentResult } from '../../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 suite('CustomizationMigrationTelemetryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

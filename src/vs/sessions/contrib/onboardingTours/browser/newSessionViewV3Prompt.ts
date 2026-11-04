@@ -54,6 +54,14 @@ const DEFAULT_PROMPT_TEMPLATE = localize('sessions.onboarding.newSessionViewV3.p
 const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
+
+/** Lets another tour reuse the prompt runner, reporting its own scenario id. */
+export interface INewSessionPromptRunnerOptions {
+	/** The scenario reported in prompt telemetry. Defaults to the V3 tour. */
+	readonly scenarioId?: string;
+	/** A fixed prompt experience, instead of the V3 developer setting or treatment. */
+	readonly variation?: Exclude<NewSessionViewV3ConfiguredVariation, 'unknown'>;
+}
 export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
 export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate' | 'noComposer';
 
@@ -266,15 +274,20 @@ export class NewSessionViewV3PromptRunner {
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _logService: ILogService,
 		gitHubLookupTimeouts: Partial<IGitHubLookupTimeouts> = {},
+		private readonly _options: INewSessionPromptRunnerOptions = {},
 	) {
 		this._gitHubLookupTimeouts = { ...DEFAULT_GITHUB_LOOKUP_TIMEOUTS, ...gitHubLookupTimeouts };
 	}
 
+	private get _scenarioId(): string {
+		return this._options.scenarioId ?? NEW_SESSION_VIEW_V3_TOUR_ID;
+	}
+
 	async run(token: CancellationToken): Promise<boolean> {
-		this._logService.info(`${LOG_PREFIX} Starting V3 prompt resolution.`);
+		this._logService.info(`${LOG_PREFIX} Starting prompt resolution for '${this._scenarioId}'.`);
 		this._impressionId = generateUuid();
 		this._renderedPromptOptions = [];
-		const configuredVariation = await this._resolveConfiguredVariation();
+		const configuredVariation = this._options.variation ?? await this._resolveConfiguredVariation();
 		if (token.isCancellationRequested) {
 			this._logService.trace(`${LOG_PREFIX} Prompt resolution was cancelled after resolving the configured variation.`);
 			return false;
@@ -1200,7 +1213,7 @@ export class NewSessionViewV3PromptRunner {
 			timedOutStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical lookup stage that was still running when the total lookup budget expired, or none.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptStrategyEvent, OnboardingPromptStrategyClassification>('onboarding.promptStrategy', {
-			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			scenarioId: this._scenarioId,
 			impressionId: this._impressionId,
 			configuredVariation,
 			effectiveStrategy,
@@ -1221,7 +1234,7 @@ export class NewSessionViewV3PromptRunner {
 		};
 		type OnboardingPromptOptionInteractionClassification = {
 			owner: 'benibenj';
-			comment: 'Reports privacy-safe interactions with V3 onboarding prompt options without collecting prompt or repository content.';
+			comment: 'Reports privacy-safe interactions with onboarding prompt options without collecting prompt or repository content.';
 			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that showed the prompt options.' };
 			impressionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier generated for this prompt impression, used only to join this event with the strategy event of the same impression.' };
 			interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an option was selected or the prompt-option widget was closed.' };
@@ -1230,7 +1243,7 @@ export class NewSessionViewV3PromptRunner {
 			optionKindsShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The comma separated categorical kinds of the prompt options that were rendered, in slot order.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptOptionInteractionEvent, OnboardingPromptOptionInteractionClassification>('onboarding.promptOptionInteraction', {
-			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			scenarioId: this._scenarioId,
 			impressionId: this._impressionId,
 			interaction,
 			option: option ? getPromptOptionTelemetryKind(option) : 'none',

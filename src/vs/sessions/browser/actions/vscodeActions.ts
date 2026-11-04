@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
@@ -15,7 +16,6 @@ import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.j
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
@@ -36,12 +36,12 @@ export class OpenInVSCodeAction extends Action2 {
 			id: OpenInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -82,6 +82,7 @@ export class OpenInVSCodeAction extends Action2 {
 			return;
 		}
 
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- opens the remote folder in a new window from its wrapped host URI
 		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);

@@ -396,7 +396,7 @@ export class ProjectBarPart extends Part {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => event,
 					getActions: () => [
-						new Action('projectbar.customize', localize('projectbar.customize', "Customize"), undefined, true, () => this.showCustomizeQuickPick(index)),
+						new Action('projectbar.customize', localize('projectbar.customize', "Customize..."), undefined, true, () => this.showCustomizeQuickPick(index)),
 						new Separator(),
 						new Action('projectbar.removeFolder', localize('projectbar.removeFolder', "Remove Folder"), undefined, true, () => this.removeFolderEntry(index))
 					]

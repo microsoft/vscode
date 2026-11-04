@@ -10,6 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 
+export const GENERATED_IMAGE_PRESENTATION_CONTEXT = 'The generated images are already displayed in the chat and listed as artifacts. Do not embed them again in Markdown or register them with add_artifact_or_reference.';
+
 /** The session folder subdirectory the Copilot CLI saves generated images in. */
 const GENERATED_IMAGES_DIRECTORY = 'images';
 

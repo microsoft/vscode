@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { restore, stub } from 'sinon';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
-import { decodeBase64 } from '../../../../../base/common/buffer.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -32,12 +34,21 @@ import { IWorkbenchGitHubService } from '../../../../services/github/common/gith
 import { IGitHubUploadService } from '../../browser/githubUploadService.js';
 import { IssueFormService } from '../../browser/issueFormService.js';
 import { IssueWebReporter } from '../../browser/issueReporterService.js';
-import { IIssueSubmissionHost, IssueReporterData, IssueSource } from '../../common/issue.js';
+import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IIssueSubmissionHost, IssueReporterAttachment, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { internalIssueReporterUrl, parseGitHubRepository } from '../../common/issueReporterTarget.js';
 import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => restore());
+
+	function capturedScreenshot(screenshot: IIssueReporterScreenshot, id = 'screenshot'): IssueReporterAttachment {
+		return { id, kind: 'screenshot', screenshot };
+	}
+
+	function attachedFile(file: IIssueReporterFileAttachment): IssueReporterAttachment {
+		return { id: file.filePath, kind: 'file', file };
+	}
 
 	function getProductIssueRepository(): string {
 		const repository = parseGitHubRepository(product.reportIssueUrl!);
@@ -81,25 +92,53 @@ suite('IssueFormService', () => {
 	}
 
 	function createSubmissionService(withScreenshot = false, failUploads = false, media?: {
-		screenshots: ReturnType<IIssueSubmissionHost['getScreenshots']>;
-		recordings: ReturnType<IIssueSubmissionHost['getRecordings']>;
+		attachments: readonly IssueReporterAttachment[];
+		contents?: Uint8Array;
 	}) {
 		const instantiationService = createInstantiationService();
 		const opened: string[] = [];
 		const repositories: string[] = [];
 		const uploads: { repository: string; names: string[] }[] = [];
+		const uploadTokens: string[] = [];
 		const mediaUploads: { repository: string; name: string; contentType: string }[] = [];
 		const fileReads: URI[] = [];
+		const payloads: { name: string; contentType: string; bytes: number[] }[] = [];
+		const uploadErrors: (string | undefined)[] = [];
+		const uploadErrorDetails: (string | undefined)[] = [];
+		const progress: { id: string; state: string }[] = [];
+		const uploading: boolean[] = [];
+		const failures = { remaining: failUploads ? Infinity : 0, message: 'Upload rejected' };
+		const loggedFailures: Error[] = [];
 		const errors = { logged: [] as string[], shown: [] as string[] };
+		const controls: {
+			read?: () => Promise<void>;
+			repository?: () => Promise<void>;
+			upload?: () => Promise<void>;
+			clipboard?: () => Promise<void>;
+			progress?: (state: string) => void;
+		} = {};
+		const clipboardWrites: string[] = [];
+		instantiationService.stub(IClipboardService, {
+			writeText: async value => {
+				clipboardWrites.push(value);
+				await controls.clipboard?.();
+			},
+		});
 		instantiationService.stub(ILogService, new class extends NullLogService {
-			override error(message: string | Error): void { errors.logged.push(String(message)); }
+			override error(message: string | Error, error?: Error): void {
+				errors.logged.push(String(message));
+				if (error) {
+					loggedFailures.push(error);
+				}
+			}
 		}());
 		instantiationService.stub(IDialogService, { error: async message => { errors.shown.push(message); } });
 		instantiationService.stub(IOpenerService, { open: async resource => { opened.push(resource.toString()); return true; } });
 		instantiationService.stub(IFileService, {
 			readFile: async resource => {
 				fileReads.push(resource);
-				const value = decodeBase64(resource.path.endsWith('.webm') ? issueReporterVideoFixtures.webm : resource.path.endsWith('.mov') ? issueReporterVideoFixtures.mov : issueReporterVideoFixtures.mp4);
+				await controls.read?.();
+				const value = media?.contents ? VSBuffer.wrap(media.contents) : decodeBase64(resource.path.endsWith('.webm') ? issueReporterVideoFixtures.webm : resource.path.endsWith('.mov') ? issueReporterVideoFixtures.mov : issueReporterVideoFixtures.mp4);
 				return new class extends mock<IFileContent>() { override readonly value = value; }();
 			},
 		});
@@ -107,22 +146,31 @@ suite('IssueFormService', () => {
 			resolveRepositoryId: async (owner, repository) => {
 				const id = `${owner}/${repository}`;
 				repositories.push(id);
+				await controls.repository?.();
 				return id;
 			},
-			uploadViaMobileApi: async (_token, repository, files) => {
+			uploadViaMobileApi: async (token, repository, files) => {
+				uploadTokens.push(token);
 				uploads.push({ repository, names: files.map(file => file.name) });
 				mediaUploads.push(...files.map(file => ({ repository, name: file.name, contentType: file.contentType })));
-				if (failUploads) {
-					throw new Error('Upload rejected');
+				payloads.push(...files.map(file => ({ name: file.name, contentType: file.contentType, bytes: [...file.bytes] })));
+				await controls.upload?.();
+				if (failures.remaining > 0) {
+					failures.remaining--;
+					throw new Error(failures.message);
 				}
 				return files.map(file => ({ fileName: file.name, contentType: file.contentType, assetUrl: `https://github.com/attachments/${repository}/${file.name}` }));
 			},
 		});
+		const attachments = media?.attachments ?? (withScreenshot ? [capturedScreenshot({ dataUrl: 'data:image/png;base64,aGVsbG8=' })] : []);
 		const host = new class extends mock<IIssueSubmissionHost>() {
-			override getScreenshots() { return media?.screenshots ?? (withScreenshot ? [{ dataUrl: 'data:image/png;base64,aGVsbG8=' }] : []); }
-			override getRecordings() { return media?.recordings ?? []; }
-			override setUploading() { }
-			override setAttachmentUploadState() { }
+			override getAttachments() { return attachments; }
+			override setUploading(value: boolean) { uploading.push(value); }
+			override setAttachmentUploadState(attachment: IssueReporterAttachment, upload: IIssueReporterAttachmentUpload) {
+				progress.push({ id: attachment.id, state: upload.state });
+				controls.progress?.(upload.state);
+			}
+			override setAttachmentUploadError(message: string | undefined, details?: string) { uploadErrors.push(message); uploadErrorDetails.push(details); }
 		}();
 		const data: IssueReporterData = {
 			styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
@@ -130,15 +178,159 @@ suite('IssueFormService', () => {
 			issueSource: IssueSource.VSCode,
 			privateUri: URI.parse(internalIssueReporterUrl),
 		};
-		return { service: store.add(instantiationService.createInstance(IssueFormService)), host, data, opened, repositories, uploads, errors, mediaUploads, fileReads };
+		return { service: store.add(instantiationService.createInstance(IssueFormService)), host, data, opened, repositories, uploads, uploadTokens, errors, mediaUploads, fileReads, payloads, uploadErrors, uploadErrorDetails, loggedFailures, progress, uploading, failures, controls, clipboardWrites };
 	}
+
+	for (const hasAttachments of [false, true]) {
+		for (const lookupFails of [false, true]) {
+			test(`cancels a ${hasAttachments ? 'media' : 'text-only'} submission during ${lookupFails ? 'rejected' : 'successful'} session lookup without logging or opening`, async () => {
+				const { service, host, data, opened, uploads, errors, uploadErrors, uploading } = createSubmissionService(hasAttachments);
+				const token = new DeferredPromise<string>();
+				data.getGitHubAccessToken = () => token.p;
+				const cancellation = new AbortController();
+				const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal);
+				const rejected = assert.rejects(submission, isCancellationError);
+				cancellation.abort(new CancellationError());
+				if (lookupFails) {
+					await token.error(new Error('Late authentication failure'));
+				} else {
+					await token.complete('late-token');
+				}
+				await rejected;
+				assert.deepStrictEqual({ opened, uploads, errors, uploadErrors, uploading, token: data.githubAccessToken }, {
+					opened: [], uploads: [], errors: { logged: [], shown: [] }, uploadErrors: [undefined], uploading: [true, false], token: 'test-token',
+				});
+			});
+		}
+	}
+
+	for (const phase of ['read', 'repository', 'upload'] as const) {
+		test(`does not resume attachment submission after cancellation during ${phase}`, async () => {
+			const { service, host, data, controls, opened, uploads, errors, uploadErrors, progress } = createSubmissionService(false, false, {
+				attachments: [attachedFile({ filePath: '/owned/report.json', name: 'report.json', mimeType: 'application/json' })],
+			});
+			const started = new DeferredPromise<void>();
+			const gate = new DeferredPromise<void>();
+			controls[phase] = () => {
+				void started.complete();
+				return gate.p;
+			};
+			const cancellation = new AbortController();
+			const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal);
+			const rejected = assert.rejects(submission, isCancellationError);
+			await started.p;
+			cancellation.abort(new CancellationError());
+			await gate.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				opened, uploads: uploads.length, errors, uploadErrors, completed: progress.filter(item => item.state === 'done'),
+			}, { opened: [], uploads: phase === 'upload' ? 1 : 0, errors: { logged: [], shown: [] }, uploadErrors: [undefined], completed: [] });
+		});
+	}
+
+	test('checks cancellation immediately before starting a media upload', async () => {
+		const { service, host, data, controls, uploads, opened, errors } = createSubmissionService(true);
+		const cancellation = new AbortController();
+		controls.progress = state => {
+			if (state === 'uploading') {
+				cancellation.abort(new CancellationError());
+			}
+		};
+		await assert.rejects(service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal), isCancellationError);
+		assert.deepStrictEqual({ uploads, opened, errors }, { uploads: [], opened: [], errors: { logged: [], shown: [] } });
+	});
+
+	test('checks cancellation on cached media results before opening the preview', async () => {
+		const { service, host, data, controls, uploads, opened, errors } = createSubmissionService(true);
+		await service.submitIssue(host, data, 'First preview', 'Description');
+		const cancellation = new AbortController();
+		controls.progress = state => {
+			if (state === 'done') {
+				cancellation.abort(new CancellationError());
+			}
+		};
+		await assert.rejects(service.submitIssue(host, data, 'Cancelled retry', 'Description', cancellation.signal), isCancellationError);
+		assert.deepStrictEqual({ uploads: uploads.length, previews: opened.map(url => new URL(url).searchParams.get('title')), errors }, {
+			uploads: 1, previews: ['First preview'], errors: { logged: [], shown: [] },
+		});
+	});
+
+	for (const cached of [false, true]) {
+		test(`cancellation of ${cached ? 'cached' : 'new'} issue-data uploads does not fall through to confirmation or opening`, async () => {
+			const { service, host, data, controls, uploads, opened, errors, clipboardWrites } = createSubmissionService();
+			const body = `Description\n\n<details><summary>Diagnostics</summary>${'x'.repeat(8000)}</details>`;
+			if (cached) {
+				await service.submitIssue(host, data, 'First preview', body);
+			}
+			const started = new DeferredPromise<void>();
+			const gate = new DeferredPromise<void>();
+			controls[cached ? 'repository' : 'upload'] = () => {
+				void started.complete();
+				return gate.p;
+			};
+			const confirmation = stub(service, 'showClipboardDialog').resolves(true);
+			const cancellation = new AbortController();
+			const submission = service.submitIssue(host, data, 'Cancelled', body, cancellation.signal);
+			const rejected = assert.rejects(submission, isCancellationError);
+			await started.p;
+			cancellation.abort(new CancellationError());
+			await gate.complete();
+			await rejected;
+			assert.deepStrictEqual({ uploads: uploads.length, opened: opened.length, errors, clipboardWrites, confirmations: confirmation.callCount }, {
+				uploads: 1, opened: cached ? 1 : 0, errors: { logged: [], shown: [] }, clipboardWrites: [], confirmations: 0,
+			});
+		});
+	}
+
+	for (const phase of ['confirmation', 'clipboard'] as const) {
+		test(`cancellation during ${phase} never opens a clipboard-fallback preview`, async () => {
+			const { service, host, data, controls, opened, errors, clipboardWrites } = createSubmissionService();
+			const started = new DeferredPromise<void>();
+			const gate = new DeferredPromise<void>();
+			const wait = () => {
+				void started.complete();
+				return gate.p;
+			};
+			stub(service, 'showClipboardDialog').callsFake(async () => {
+				if (phase === 'confirmation') {
+					await wait();
+				}
+				return true;
+			});
+			if (phase === 'clipboard') {
+				controls.clipboard = wait;
+			}
+			const cancellation = new AbortController();
+			const submission = service.submitIssue(host, data, 'Cancelled', 'x'.repeat(8000), cancellation.signal);
+			const rejected = assert.rejects(submission, isCancellationError);
+			await started.p;
+			cancellation.abort(new CancellationError());
+			await gate.complete();
+			await rejected;
+			assert.deepStrictEqual({ opened, errors, clipboardWrites: clipboardWrites.length }, {
+				opened: [], errors: { logged: [], shown: [] }, clipboardWrites: phase === 'clipboard' ? 1 : 0,
+			});
+		});
+	}
+
+	test('service disposal cancels a pending submission without discarding authentication failures as success', async () => {
+		const { service, host, data, opened, errors } = createSubmissionService();
+		const token = new DeferredPromise<string>();
+		data.getGitHubAccessToken = () => token.p;
+		const submission = service.submitIssue(host, data, 'Cancelled', 'Description');
+		const rejected = assert.rejects(submission, isCancellationError);
+		service.dispose();
+		await token.complete('late-token');
+		await rejected;
+		assert.deepStrictEqual({ opened, errors }, { opened: [], errors: { logged: [], shown: [] } });
+	});
 
 	test('uploads all supported imported image formats with matching MIME types and extensions', async () => {
 		const canvas = mainWindow.document.createElement('canvas');
 		canvas.width = 48;
 		canvas.height = 32;
 		const sources = [issueReporterImageFixture, canvas.toDataURL('image/jpeg'), issueReporterGifFixture, issueReporterWebpFixture, issueReporterAvifFixture];
-		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { screenshots: sources.map(dataUrl => ({ dataUrl })), recordings: [] });
+		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { attachments: sources.map((dataUrl, index) => capturedScreenshot({ dataUrl }, String(index))) });
 		const productRepository = getProductIssueRepository();
 		await service.submitIssue(host, data, 'Imported images', 'Description');
 		assert.deepStrictEqual(mediaUploads, [
@@ -152,7 +344,7 @@ suite('IssueFormService', () => {
 
 	test('uploads an annotated import as PNG without reusing the unannotated upload', async () => {
 		const screenshot: { dataUrl: string; annotatedDataUrl?: string } = { dataUrl: issueReporterGifFixture };
-		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { screenshots: [screenshot], recordings: [] });
+		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { attachments: [capturedScreenshot(screenshot)] });
 		const productRepository = getProductIssueRepository();
 		await service.submitIssue(host, data, 'Before annotation', 'Description');
 		screenshot.annotatedDataUrl = issueReporterImageFixture;
@@ -163,10 +355,29 @@ suite('IssueFormService', () => {
 		]);
 	});
 
+	test('keeps distinct capture filenames when their image bytes match', async () => {
+		const { service, host, data, mediaUploads } = createSubmissionService(false, false, {
+			attachments: [capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'first'), capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'second')],
+		});
+		await service.submitIssue(host, data, 'Matching captures', 'Description');
+		assert.deepStrictEqual(mediaUploads.map(file => file.name), ['screenshot-1.png', 'screenshot-2.png']);
+	});
+
+	test('does not reuse a differently named capture upload after an earlier capture is removed', async () => {
+		const attachments = [capturedScreenshot({ dataUrl: issueReporterGifFixture }, 'first'), capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'second')];
+		const { service, host, data, mediaUploads, opened } = createSubmissionService(false, false, { attachments });
+		await service.submitIssue(host, data, 'Before removal', 'Description');
+		attachments.shift();
+		await service.submitIssue(host, data, 'After removal', 'Description');
+		assert.deepStrictEqual({
+			uploads: mediaUploads.map(file => file.name),
+			lastPreview: new URL(opened.at(-1)!).searchParams.get('body')?.includes('![screenshot-1.png]('),
+		}, { uploads: ['screenshot-1.gif', 'screenshot-2.png', 'screenshot-1.png'], lastPreview: true });
+	});
+
 	test('keeps imported videos and their cached uploads isolated by repository and preserves query overrides', async () => {
 		const { service, host, data, opened, mediaUploads } = createSubmissionService(false, false, {
-			screenshots: [],
-			recordings: ['mp4', 'webm', 'mov'].map(extension => ({ filePath: `/owned/import.${extension}` })),
+			attachments: ['mp4', 'webm', 'mov'].map(extension => attachedFile({ filePath: `/owned/import.${extension}`, name: `original.${extension}`, mimeType: extension === 'mov' ? 'video/quicktime' : `video/${extension}` })),
 		});
 		const productRepository = getProductIssueRepository();
 		const privateUri = URI.parse('https://github.com/owner/private-reports/issues/new?labels=internal&assignees=maintainer');
@@ -181,9 +392,9 @@ suite('IssueFormService', () => {
 			}),
 		}, {
 			mediaUploads: ['owner/private-reports', productRepository].flatMap(repository => [
-				{ repository, name: 'recording-1.mp4', contentType: 'video/mp4' },
-				{ repository, name: 'recording-2.webm', contentType: 'video/webm' },
-				{ repository, name: 'recording-3.mov', contentType: 'video/quicktime' },
+				{ repository, name: 'original.mp4', contentType: 'video/mp4' },
+				{ repository, name: 'original.webm', contentType: 'video/webm' },
+				{ repository, name: 'original.mov', contentType: 'video/quicktime' },
 			]),
 			previews: [
 				{ path: '/owner/private-reports/issues/new', labels: 'internal', assignees: 'maintainer', template: null, privateLinks: true },
@@ -194,9 +405,207 @@ suite('IssueFormService', () => {
 	});
 
 	test('does not read or upload imported videos for a fail-closed private destination', async () => {
-		const { service, host, data, fileReads, mediaUploads, opened } = createSubmissionService(false, false, { screenshots: [], recordings: [{ filePath: '/owned/import.mp4' }] });
+		const { service, host, data, fileReads, mediaUploads, opened } = createSubmissionService(false, false, { attachments: [attachedFile({ filePath: '/owned/import.mp4', name: 'original.mp4', mimeType: 'video/mp4' })] });
 		const openedPreview = await service.submitIssue(host, { ...data, issueRepository: 'owner/missing', privateUri: undefined }, 'Private report', 'Private diagnostics');
 		assert.deepStrictEqual({ openedPreview, fileReads, mediaUploads, opened }, { openedPreview: false, fileReads: [], mediaUploads: [], opened: [] });
+	});
+
+	for (const [name, mimeType, contentType] of [
+		['vscode-recording.mp4', 'video/mp4;codecs=avc1', 'video/mp4'],
+		['vscode-recording.webm', 'video/webm;codecs=vp9', 'video/webm'],
+		['imported.mp4', ' VIDEO/MP4 ; codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4'],
+		['notes.txt', 'text/plain; charset=utf-8', 'text/plain'],
+	]) {
+		test(`uploads ${mimeType} with a bare MIME type for the upload policy`, async () => {
+			const file = { filePath: `/owned/${name}`, name, mimeType };
+			const contents = new Uint8Array([0, 255, 42, 10]);
+			const { service, host, data, controls, payloads, uploadErrors } = createSubmissionService(false, false, {
+				attachments: [attachedFile(file)],
+				contents,
+			});
+			controls.upload = async () => {
+				if (payloads.at(-1)?.contentType !== contentType) {
+					throw new Error('Policy request failed 422: {"message":"Validation Failed","errors":[{"resource":"RepositoryFile","code":"custom","field":"content_type","message":"content_type is not included in the list"}]}');
+				}
+			};
+
+			const result = await service.submitIssue(host, data, 'Captured recording', 'Description');
+
+			assert.deepStrictEqual({
+				result,
+				payloads,
+				storedMimeType: file.mimeType,
+				error: uploadErrors.at(-1),
+			}, {
+				result: true,
+				payloads: [{ name, contentType, bytes: [...contents] }],
+				storedMimeType: mimeType,
+				error: undefined,
+			});
+		});
+	}
+
+	test('uploads original generic bytes, MIME and filename with an escaped Markdown link', async () => {
+		const name = 'bundle [a](b)\\&<x>.zip';
+		const { service, host, data, payloads, opened } = createSubmissionService(false, false, {
+			attachments: [attachedFile({ filePath: '/owned/unique.bin', name, mimeType: 'application/x-original' })],
+			contents: new Uint8Array([0, 255, 42, 10]),
+		});
+		await service.submitIssue(host, data, 'File report', 'Description');
+		const body = new URL(opened[0]).searchParams.get('body')!;
+		const link = body.slice(body.lastIndexOf('](') + 2, body.lastIndexOf(')'));
+		assert.deepStrictEqual({
+			payloads,
+			linkLabel: body.includes('[bundle \\[a\\]\\(b\\)\\\\&amp;&lt;x&gt;.zip]('),
+			imageSyntax: body.includes('!['),
+			originalLinkName: decodeURIComponent(link).endsWith(name),
+			unsafeLinkCharacters: /[()<>\\\s]/.test(link),
+		}, {
+			payloads: [{ name, contentType: 'application/x-original', bytes: [0, 255, 42, 10] }],
+			linkLabel: true, imageSyntax: false, originalLinkName: true, unsafeLinkCharacters: false,
+		});
+	});
+
+	test('matches upload progress identities to the ordered attachments', async () => {
+		const { service, host, data, progress } = createSubmissionService(false, false, {
+			attachments: [attachedFile({ filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' }), capturedScreenshot({ dataUrl: issueReporterImageFixture })],
+		});
+		await service.submitIssue(host, data, 'Progress', 'Description');
+		assert.deepStrictEqual(progress, [
+			{ id: '/owned/report.zip', state: 'pending' }, { id: 'screenshot', state: 'pending' },
+			{ id: '/owned/report.zip', state: 'uploading' }, { id: '/owned/report.zip', state: 'done' },
+			{ id: 'screenshot', state: 'uploading' }, { id: 'screenshot', state: 'done' },
+		]);
+	});
+
+	test('uploads pasted A and B before capture C and preserves that order in Markdown and feedback', async () => {
+		const attachments = [
+			attachedFile({ filePath: '/owned/A.png', name: 'A.png', mimeType: 'image/png' }),
+			attachedFile({ filePath: '/owned/B.png', name: 'B.png', mimeType: 'image/png' }),
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'C'),
+		];
+		const { service, host, data, mediaUploads, opened, progress } = createSubmissionService(false, false, { attachments });
+		await service.submitIssue(host, data, 'Chronological attachments', 'Description');
+		const body = new URL(opened[0]).searchParams.get('body')!;
+		assert.deepStrictEqual({
+			uploads: mediaUploads.map(upload => upload.name),
+			markdown: [...body.matchAll(/!\[(?<name>[^\]]+)\]\(/g)].map(match => match.groups?.name),
+			feedback: progress.filter(item => item.state === 'done').map(item => item.id),
+		}, {
+			uploads: ['A.png', 'B.png', 'screenshot-1.png'],
+			markdown: ['A.png', 'B.png', 'screenshot-1.png'],
+			feedback: ['/owned/A.png', '/owned/B.png', 'C'],
+		});
+	});
+
+	test('keeps mixed file, capture and recording order through cached retries', async () => {
+		const attachments = [
+			attachedFile({ filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' }),
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'capture'),
+			attachedFile({ filePath: '/owned/recording.mp4', name: 'recording.mp4', mimeType: 'video/mp4' }),
+			attachedFile({ filePath: '/owned/final.png', name: 'final.png', mimeType: 'image/png' }),
+		];
+		const { service, host, data, uploads, opened, progress } = createSubmissionService(false, false, { attachments });
+		await service.submitIssue(host, data, 'Mixed attachments', 'Description');
+		await service.submitIssue(host, data, 'Mixed attachments', 'Description');
+		assert.deepStrictEqual({
+			uploads: uploads.flatMap(upload => upload.names),
+			bodyOrder: opened.map(url => [...new URL(url).searchParams.get('body')!.matchAll(/https:\/\/github\.com\/attachments\/[^/]+\/[^/]+\/(?<name>[^)\s]+)/g)].map(match => match.groups?.name)),
+			retry: progress.slice(-8).filter(item => item.state === 'done').map(item => item.id),
+		}, {
+			uploads: ['report.zip', 'screenshot-1.png', 'recording.mp4', 'final.png'],
+			bodyOrder: [['report.zip', 'screenshot-1.png', 'recording.mp4', 'final.png'], ['report.zip', 'screenshot-1.png', 'recording.mp4', 'final.png']],
+			retry: ['/owned/report.zip', 'capture', '/owned/recording.mp4', '/owned/final.png'],
+		});
+	});
+
+	test('reports a rejected ZIP concisely while preserving the original 422 in logs and details', async () => {
+		const attachment = attachedFile({ filePath: '/owned/test.zip', name: 'test.zip', mimeType: 'application/zip' });
+		const { service, host, data, failures, uploadErrors, uploadErrorDetails, loggedFailures, progress, opened, payloads } = createSubmissionService(false, true, { attachments: [attachment], contents: new Uint8Array([80, 75]) });
+		failures.message = 'Policy request failed 422:\n{\n"message":"Invalid content type",\n"documentation_url":"https://docs.github.com/rest",\n"status":"422"\n}';
+		const result = await service.submitIssue(host, data, 'ZIP report', 'Description');
+		assert.deepStrictEqual({
+			result, opened, primary: uploadErrors.at(-1), details: uploadErrorDetails.at(-1), logged: loggedFailures.map(error => error.message),
+			done: progress.filter(item => item.state === 'done'), attachments: host.getAttachments(), payloads,
+		}, {
+			result: false, opened: [], primary: 'Could not upload test.zip. Try again, or remove this file and attach it on GitHub.',
+			details: failures.message, logged: [failures.message], done: [], attachments: [attachment],
+			payloads: [{ name: 'test.zip', contentType: 'application/zip', bytes: [80, 75] }],
+		});
+	});
+
+	test('reports a failed upload without opening preview and permits retry with the same attachment', async () => {
+		const attachment = { filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' };
+		const { service, host, data, failures, uploadErrors, opened, uploading } = createSubmissionService(false, false, { attachments: [attachedFile(attachment)] });
+		failures.remaining = 1;
+		const failed = await service.submitIssue(host, data, 'Retry', 'Description');
+		const first = { result: failed, opened: opened.length, error: uploadErrors.at(-1) };
+		const retried = await service.submitIssue(host, data, 'Retry', 'Description');
+		assert.deepStrictEqual({ first, retried, opened: opened.length, error: uploadErrors.at(-1), uploading, remaining: host.getAttachments() }, {
+			first: { result: false, opened: 0, error: 'Could not upload report.zip. Try again, or remove this file and attach it on GitHub.' }, retried: true, opened: 1, error: undefined, uploading: [true, false, true, false], remaining: [attachedFile(attachment)],
+		});
+	});
+
+	test('uploads changed file bytes instead of reusing a path-only cached asset', async () => {
+		const media = {
+			attachments: [attachedFile({ filePath: '/owned/notes.txt', name: 'notes.txt', mimeType: 'text/plain' })],
+			contents: new Uint8Array([65, 66, 67]),
+		};
+		const { service, host, data, payloads } = createSubmissionService(false, false, media);
+		await service.submitIssue(host, data, 'Original', 'Description');
+		media.contents = new Uint8Array([88, 89, 90]);
+		await service.submitIssue(host, data, 'Updated', 'Description');
+		await service.submitIssue(host, data, 'Updated again', 'Description');
+		assert.deepStrictEqual(payloads, [
+			{ name: 'notes.txt', contentType: 'text/plain', bytes: [65, 66, 67] },
+			{ name: 'notes.txt', contentType: 'text/plain', bytes: [88, 89, 90] },
+		]);
+	});
+
+	test('refreshes a GitHub session on retry without losing attachments or changing private destination', async () => {
+		const attachment = { filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' };
+		const { service, host, data, opened, uploadTokens, repositories, fileReads } = createSubmissionService(false, false, { attachments: [attachedFile(attachment)] });
+		let token = '';
+		data.githubAccessToken = '';
+		data.issueRepository = 'microsoft/vscode-internalbacklog';
+		data.getGitHubAccessToken = async () => token;
+		const signedOut = await service.submitIssue(host, data, 'Private report', 'Private description');
+		const readsBeforeSignIn = fileReads.length;
+		token = 'new-session-token';
+		const signedIn = await service.submitIssue(host, data, 'Private report', 'Private description');
+		assert.deepStrictEqual({
+			signedOut, signedIn, readsBeforeSignIn, uploadTokens, repositories,
+			destinations: opened.map(url => new URL(url).pathname), retained: host.getAttachments(),
+		}, {
+			signedOut: false, signedIn: true, readsBeforeSignIn: 0, uploadTokens: ['new-session-token'],
+			repositories: ['microsoft/vscode-internalbacklog'], destinations: ['/microsoft/vscode-internalbacklog/issues/new'], retained: [attachedFile(attachment)],
+		});
+	});
+
+	test('reports session lookup failure without reusing stale credentials or losing attachments', async () => {
+		const attachment = { filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' };
+		const { service, host, data, opened, uploadTokens, uploadErrors, uploading } = createSubmissionService(false, false, { attachments: [attachedFile(attachment)] });
+		data.getGitHubAccessToken = async () => { throw new Error('Authentication provider unavailable'); };
+		const result = await service.submitIssue(host, data, 'Report', 'Description');
+		assert.deepStrictEqual({
+			result, opened, uploadTokens, token: data.githubAccessToken, error: uploadErrors.at(-1),
+			uploading, retained: host.getAttachments(),
+		}, {
+			result: false, opened: [], uploadTokens: [], token: '',
+			error: 'Could not access your GitHub session. Try signing in again, or remove the attachments and add them on GitHub.',
+			uploading: [true, false], retained: [attachedFile(attachment)],
+		});
+	});
+
+	test('does not silently skip an unreadable screenshot or mark later attachments as uploaded', async () => {
+		const { service, host, data, opened, uploads, uploadErrors, uploadErrorDetails, progress } = createSubmissionService(false, false, {
+			attachments: [capturedScreenshot({ dataUrl: 'not-a-data-url' }), attachedFile({ filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' })],
+		});
+		const result = await service.submitIssue(host, data, 'Invalid screenshot', 'Description');
+		assert.deepStrictEqual({ result, opened, uploads, progress, error: uploadErrors.at(-1), details: uploadErrorDetails.at(-1) }, {
+			result: false, opened: [], uploads: [], progress: [{ id: 'screenshot', state: 'pending' }, { id: '/owned/report.zip', state: 'pending' }],
+			error: 'Could not upload Screenshot 1. Try again, or remove this file and attach it on GitHub.', details: 'The screenshot could not be read.',
+		});
 	});
 
 	test('rejects an unavailable destination before upload or open and reports the failure', async () => {
@@ -297,13 +706,12 @@ suite('IssueFormService', () => {
 
 	for (const useToken of [false, true]) {
 		test(`explicitly private diagnostics stay private ${useToken ? 'after upload failure' : 'without authentication'}`, async () => {
-			const { service, host, data, opened, repositories } = createSubmissionService(true, true);
+			const { service, host, data, opened, repositories, uploadErrors } = createSubmissionService(true, true);
 			const result = await service.submitIssue(host, {
 				...data, uri: URI.parse(internalIssueReporterUrl), githubAccessToken: useToken ? 'test-token' : '',
 			}, 'Private title', 'Private diagnostics');
-			const url = new URL(opened[0]);
-			assert.deepStrictEqual({ result, path: url.pathname, title: url.searchParams.get('title'), repositories }, {
-				result: true, path: '/microsoft/vscode-internalbacklog/issues/new', title: 'Private title',
+			assert.deepStrictEqual({ result, opened, error: !!uploadErrors.at(-1), repositories }, {
+				result: false, opened: [], error: true,
 				repositories: useToken ? ['microsoft/vscode-internalbacklog'] : [],
 			});
 		});
@@ -373,6 +781,8 @@ suite('IssueFormService', () => {
 
 	test('external extension handlers receive no issue body or attachment uploads', async () => {
 		const { service, host, data, opened, repositories } = createSubmissionService(true);
+		let sessionLookups = 0;
+		data.getGitHubAccessToken = async () => { sessionLookups++; return 'unused'; };
 		await service.submitIssue(host, {
 			...data, issueRepository: 'owner/second', issueSource: IssueSource.Extension, extensionId: 'publisher.extension',
 			enabledExtensions: [{
@@ -380,7 +790,7 @@ suite('IssueFormService', () => {
 				version: '1', isTheme: false, isBuiltin: false, bugsUrl: 'https://example.com/feedback', repositoryUrl: undefined,
 			}],
 		}, 'Title', 'Body');
-		assert.deepStrictEqual({ opened, repositories }, { opened: ['https://example.com/feedback'], repositories: [] });
+		assert.deepStrictEqual({ opened, repositories, sessionLookups }, { opened: ['https://example.com/feedback'], repositories: [], sessionLookups: 0 });
 	});
 
 	test('search uses the anonymous client with a ten-second deadline and returns its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
