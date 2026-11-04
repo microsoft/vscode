@@ -1947,6 +1947,10 @@ suite('AgentService (node dispatcher)', () => {
 		const archivedBefore = hosts[0].isArchived();
 		getStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		const archivedAfter = hosts[0].isArchived();
+		let stateLoads = 0;
+		const stateLoadListener = hosts[0].onDidLoadState(() => stateLoads++);
+		(getStateManager(service) as unknown as { _onDidResolveChatState: Emitter<string> })._onDidResolveChatState.fire(chat.toString());
+		stateLoadListener.dispose();
 		await service.subscribe(chat, 'second');
 		service.unsubscribe(chat, 'first');
 		const afterFirst = stops;
@@ -1959,6 +1963,7 @@ suite('AgentService (node dispatcher)', () => {
 			current,
 			context: { owner: context.owner.get().toString(), resource: context.resource.toString(), credentials: context.credentials },
 			archived: { before: archivedBefore, after: archivedAfter },
+			stateLoads,
 			afterFirst,
 			stops,
 		}, {
@@ -1966,6 +1971,7 @@ suite('AgentService (node dispatcher)', () => {
 			current: ['ahp-canvas:/preview'],
 			context: { owner: session.toString(), resource: session.toString(), credentials: undefined },
 			archived: { before: false, after: true },
+			stateLoads: 1,
 			afterFirst: 0,
 			stops: 2,
 		});

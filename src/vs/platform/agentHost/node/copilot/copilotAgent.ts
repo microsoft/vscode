@@ -3271,8 +3271,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	watchChatCanvases(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable {
 		this._canvasWatches.set(chat, host);
+		// The host drops canvases published before the chat's state loads, so republish them once it does.
+		const stateLoaded = host.onDidLoadState(() => {
+			if (this._canvasWatches.get(chat) === host) {
+				this._refreshCanvasWatch(chat);
+			}
+		});
 		this._refreshCanvasWatch(chat);
 		return toDisposable(() => {
+			stateLoaded.dispose();
 			if (this._canvasWatches.get(chat) === host) {
 				this._canvasWatches.delete(chat);
 			}

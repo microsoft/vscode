@@ -8305,7 +8305,7 @@ suite('CopilotAgent', () => {
 				afterTest(async () => { listener.dispose(); await disposeAgent(agent); });
 				const releaseAndObserve = async () => {
 					await agent.chats.releaseChat(chat, context);
-					const watch = agent.watchChatCanvases(chat, { published: () => [], isArchived: () => false, resolveContext: async () => context });
+					const watch = agent.watchChatCanvases(chat, { published: () => [], onDidLoadState: Event.None, isArchived: () => false, resolveContext: async () => context });
 					await settleCanvasContinuity(agent, chat);
 					const liveBeforeClient = hasLiveChat(agent, chat);
 					contributeActiveClient(agent, chat, context);
@@ -8335,6 +8335,30 @@ suite('CopilotAgent', () => {
 				});
 			});
 
+			test('republishes restored canvases once the chat\'s state loads', async () => {
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const { agent, signals, listener, chat, context, resource } = await openCanvas(sessionDataService, 'canvas-state-load');
+				afterTest(async () => { listener.dispose(); await disposeAgent(agent); });
+				await agent.chats.releaseChat(chat, context);
+				const stateLoaded = disposables.add(new Emitter<void>());
+				const watch = agent.watchChatCanvases(chat, { published: () => [], onDidLoadState: stateLoaded.event, isArchived: () => false, resolveContext: async () => context });
+				contributeActiveClient(agent, chat, context);
+				await settleCanvasContinuity(agent, chat);
+				// The host dropped everything published so far because the chat's state had not loaded yet.
+				signals.length = 0;
+
+				stateLoaded.fire();
+				watch.dispose();
+
+				assert.deepStrictEqual({
+					states: canvasStates(signals).map(signal => ({ resource: signal.resource.toString(), url: signal.state.url })),
+					membership: membership(signals),
+				}, {
+					states: [{ resource: resource.toString(), url: restoredCanvas.url }],
+					membership: [[resource.toString()]],
+				});
+			});
+
 			for (const trigger of ['observation', 'send'] as const) {
 				test(`restores canvases persisted by an earlier Agent Host process on ${trigger}`, async () => {
 					const sessionDataService = disposables.add(new TestSessionDataService());
@@ -8358,7 +8382,7 @@ suite('CopilotAgent', () => {
 					await second.agent.materializeChat(chat, context, providerData);
 
 					if (trigger === 'observation') {
-						const watch = second.agent.watchChatCanvases(chat, { published: () => [], isArchived: () => false, resolveContext: async () => context });
+						const watch = second.agent.watchChatCanvases(chat, { published: () => [], onDidLoadState: Event.None, isArchived: () => false, resolveContext: async () => context });
 						contributeActiveClient(second.agent, chat, context);
 						await settleCanvasContinuity(second.agent, chat);
 						watch.dispose();
@@ -8399,7 +8423,7 @@ suite('CopilotAgent', () => {
 					disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
 					await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: reason === 'an archived chat' ? 'previous-backing' : 'current-backing' }));
 
-					const watch = agent.watchChatCanvases(chat, { published: () => [], isArchived: () => reason === 'an archived chat', resolveContext: async () => context });
+					const watch = agent.watchChatCanvases(chat, { published: () => [], onDidLoadState: Event.None, isArchived: () => reason === 'an archived chat', resolveContext: async () => context });
 					contributeActiveClient(agent, chat, context);
 					await settleCanvasContinuity(agent, chat);
 					watch.dispose();

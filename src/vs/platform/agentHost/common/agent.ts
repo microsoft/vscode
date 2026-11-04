@@ -1832,6 +1832,8 @@ export interface IAgentChatCanvasWatchHost {
 	readonly published: () => readonly string[] | undefined;
 	/** Whether the chat or its session is archived; an archived chat's canvases are not restored. */
 	readonly isArchived: () => boolean;
+	/** Fires when the chat's state loads into the host, which drops canvases published while it was not loaded. */
+	readonly onDidLoadState: Event<void>;
 	/** The chat's current operation context, including credentials needed to resume its runtime. */
 	resolveContext(): Promise<IAgentChatContext>;
 }

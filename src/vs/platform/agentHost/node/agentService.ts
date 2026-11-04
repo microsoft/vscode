@@ -1519,6 +1519,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		// Not on removal: an evicted idle session restores with the same tool list.
 		this._register(this._stateManager.onDidDeleteSession(session => this._startedWorkspacelessSessions.delete(session)));
+		// A subscription can arrive before its chat's state loads, as on reconnect; watch the chat once the state exists.
+		this._register(this._stateManager.onDidResolveChatState(chat => this._watchChatUpdates(URI.parse(chat))));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
 				if (session === removed) {
@@ -11876,8 +11878,15 @@ export class AgentService extends Disposable implements IAgentService {
 			if (backgroundWork) {
 				watches.add(backgroundWork);
 			}
+			const canvasStateLoaded = watches.add(new Emitter<void>());
+			watches.add(this._stateManager.onDidResolveChatState(resolved => {
+				if (resolved === chat.toString()) {
+					canvasStateLoaded.fire();
+				}
+			}));
 			const canvases = provider.watchChatCanvases?.(chat, {
 				published: () => this._stateManager.getChatState(chat.toString())?.canvases?.map(canvas => canvas.resource),
+				onDidLoadState: canvasStateLoaded.event,
 				isArchived: () => {
 					const currentOwner = this._chatOwnership.getChatOwner(chat.toString());
 					return currentOwner !== undefined && this._isChatArchived(currentOwner, chat.toString());
