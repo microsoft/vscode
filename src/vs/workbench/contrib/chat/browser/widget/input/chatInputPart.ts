@@ -577,6 +577,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
+	private singleLine = false;
 	private inputEditorHeight: number = 0;
 	private ignoreInputEditorContentSizeChanges = false;
 	private _maxHeight: number | undefined;
@@ -651,6 +652,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorTrailingSpace = trailingSpace;
 		this.layoutForToolbarChange();
+	}
+
+	/**
+	 * Lays the input editor out exactly one line tall, whatever its content or minimum lines: longer
+	 * content scrolls inside it.
+	 */
+	setSingleLine(singleLine: boolean): void {
+		if (this.singleLine === singleLine) {
+			return;
+		}
+		this.singleLine = singleLine;
+		if (typeof this.cachedWidth === 'number') {
+			this._layout(this.cachedWidth);
+		}
 	}
 
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
@@ -5974,7 +5989,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			? this.previousInputEditorDimension.height
 			: this._inputEditor.getContentHeight();
 		const clampedContentHeight = Math.min(contentHeight, effectiveMaxHeight);
-		const inputEditorHeight = this.inputEditorMinHeight ? Math.min(Math.max(this.inputEditorMinHeight, clampedContentHeight), effectiveMaxHeight) : clampedContentHeight;
+		const inputEditorHeight = this.singleLine
+			? this.singleLineInputEditorHeight
+			: this.inputEditorMinHeight ? Math.min(Math.max(this.inputEditorMinHeight, clampedContentHeight), effectiveMaxHeight) : clampedContentHeight;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
