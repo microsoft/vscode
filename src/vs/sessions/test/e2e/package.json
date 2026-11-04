@@ -10,6 +10,6 @@
 		"test": "node test.cjs"
 	},
 	"dependencies": {
-		"@playwright/cli": "latest"
+		"@playwright/cli": "0.1.1"
 	}
 }

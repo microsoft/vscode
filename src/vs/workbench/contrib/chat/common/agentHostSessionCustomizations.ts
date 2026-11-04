@@ -27,6 +27,7 @@ import {
 	type ToolCallState,
 	type Turn,
 } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
 
 /**
@@ -286,6 +287,11 @@ export class CustomizationIndex {
 			this._add(customization, uri => getAgentHostCustomizationUri(uri, connection, customization.type === CustomizationType.Plugin ? customization : undefined));
 			for (const child of container?.children ?? []) {
 				this._add(child, uri => getAgentHostCustomizationUri(uri, connection));
+			}
+		}
+		for (const { skill, container } of getSkillCustomizations(customizations ?? [])) {
+			if (container.type === CustomizationType.McpServer) {
+				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection));
 			}
 		}
 		this._reuseResolvedPaths(previous);

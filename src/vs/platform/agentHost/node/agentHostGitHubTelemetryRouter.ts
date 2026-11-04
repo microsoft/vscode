@@ -68,11 +68,13 @@ export class AgentHostGitHubTelemetryRouter {
 			return true;
 		}
 
+		const isEngineSnapshot = eventName === 'engine.messages' || eventName === 'engine.messages.length';
 		const properties: TelemetryProps = {
 			...event.properties,
-			...(event.model_call_id && event.properties.modelCallId === undefined ? { modelCallId: event.model_call_id } : {}),
+			// Engine snapshots mint their own pairing UUID, independently of the SDK model-call ID.
+			...(!isEngineSnapshot && event.model_call_id && event.properties.modelCallId === undefined ? { modelCallId: event.model_call_id } : {}),
 			...additionalProperties,
-			...(eventName === 'engine.messages' || eventName === 'engine.messages.length' ? {
+			...(isEngineSnapshot ? {
 				sdkSessionId: notification.sessionId || undefined,
 				sdkAgentId: event.properties.agent_id || undefined,
 			} : {}),

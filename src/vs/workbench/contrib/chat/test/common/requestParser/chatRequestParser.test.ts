@@ -18,7 +18,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
 import { updateRanges } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -29,6 +29,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { isValidSlashCommandName } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import assert from 'assert';
@@ -383,6 +384,53 @@ suite('ChatRequestParser', () => {
 		const text = '/001-sample this is a test';
 		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
+	});
+
+	test('prompt slash command with Unicode punctuation and symbols', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptSlashCommandService.isValidSlashCommandName.callsFake(isValidSlashCommandName);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		// allow-any-unicode-next-line
+		const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+		const result = parser.parseChatRequest(testSessionUri, `/${name} arguments`);
+		const promptPart = result.parts.find((part): part is ChatRequestSlashPromptPart => part instanceof ChatRequestSlashPromptPart);
+
+		assert.deepStrictEqual({
+			name: promptPart?.name,
+			text: promptPart?.text,
+			trailing: result.parts.at(-1)?.text,
+		}, { name, text: `/${name}`, trailing: ' arguments' });
+	});
+
+	test('Unicode prompt subcommands round-trip colon and space forms', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const names = ['tool!', '\uFF160', 'cafe\u0301', '\u{1F680}'].map(name => `plugin:${name}`);
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake(isValidSlashCommandName);
+		promptsService.hasPromptSlashCommand.callsFake((name: string) => names.includes(name));
+		instantiationService.stub(IPromptsService, promptsService);
+		parser = instantiationService.createInstance(ChatRequestParser);
+
+		for (const name of names) {
+			for (const command of [name, name.replace(':', ' ')]) {
+				const result = parser.parseChatRequest(testSessionUri, `/${command} arguments`);
+				const promptPart = result.parts.find((part): part is ChatRequestSlashPromptPart => part instanceof ChatRequestSlashPromptPart);
+				assert.deepStrictEqual({
+					name: promptPart?.name,
+					text: promptPart?.text,
+					trailing: result.parts.at(-1)?.text,
+				}, { name, text: `/${command}`, trailing: ' arguments' });
+			}
+		}
 	});
 
 	test('prompt subcommand via space form resolves to colon-named prompt', () => {

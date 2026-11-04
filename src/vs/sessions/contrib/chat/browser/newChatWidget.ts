@@ -28,7 +28,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
@@ -804,7 +803,9 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
-		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		if (this.options.renderAquarium !== false) {
+			this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		}
 		const aquariumAction = this._register(new Action(
 			'sessions.aquarium.showAction',
 			localize('aquariumAction', "Aquarium"),
@@ -834,7 +835,10 @@ export class NewChatWidget extends Disposable {
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => [aquariumAction, petAction],
+				getActions: () => [
+					...(this.options.renderAquarium !== false ? [aquariumAction] : []),
+					...(this.options.renderChatPet !== false ? [petAction] : []),
+				],
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));
@@ -1242,6 +1246,10 @@ export class NewChatWidget extends Disposable {
 				return;
 			}
 			const environment = this._environment.get();
+			// Wait for the default environment instead of pinning a temporary Cloud-only provider.
+			if (!environment && isSessionEnvironmentPickerEnabled(this.configurationService)) {
+				return;
+			}
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
@@ -1757,7 +1765,10 @@ export class NewChatWidget extends Disposable {
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const matchesSelectedFolder = !selectedFolderUri || !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (session && provider && isAgentHostProvider(provider) && matchesSelectedFolder) {
-			const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+			const values = provider.getCreateSessionConfig(session.sessionId);
+			const config = values && provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const branchProperty = config && getSessionWorkspaceProperties(config.schema).baseBranch;
+			const branch = branchProperty && values?.[branchProperty.key];
 			if (typeof branch === 'string' && branch.trim()) {
 				return branch;
 			}
@@ -2090,6 +2101,14 @@ export class NewChatWidget extends Disposable {
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
+			return false;
+		}
+		const workspaceValid = await this._workspacePicker.validateSelectedWorkspace().catch(error => {
+			this.logService.error('Failed to validate workspace:', error);
+			this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
+			return false;
+		});
+		if (!workspaceValid || session !== this._session.get()) {
 			return false;
 		}
 		const feedbackItems = [...this._feedbackItems.get()];

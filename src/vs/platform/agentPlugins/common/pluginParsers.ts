@@ -18,6 +18,7 @@ import { CustomizationType, McpServerStatus, type AgentCustomization, type HookC
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
+import { toAgentCustomizationMeta } from '../../agentHost/common/meta/agentCustomizationMeta.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,9 @@ export interface INamedPluginResource {
 /** A parsed agent resource with the frontmatter metadata shared by providers. */
 export interface IAgentPluginResource extends INamedPluginResource {
 	readonly model?: string;
+	readonly models?: readonly string[];
+	readonly reasoningEffort?: string;
+	readonly modelPolicy?: 'preferred' | 'required';
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
@@ -386,6 +390,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.model ? { model: resource.model } : {}),
+		...(resource.models || resource.reasoningEffort || resource.modelPolicy ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy }) } : {}),
 		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
@@ -1258,6 +1263,9 @@ export async function readAgentComponents(
 				name: parsed.name || file.name,
 				...(parsed.description ? { description: parsed.description } : {}),
 				...(parsed.model ? { model: parsed.model } : {}),
+				...(parsed.models && parsed.models.length > 1 ? { models: parsed.models } : {}),
+				...(parsed.reasoningEffort ? { reasoningEffort: parsed.reasoningEffort } : {}),
+				...(parsed.modelPolicy ? { modelPolicy: parsed.modelPolicy } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
@@ -1280,7 +1288,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1289,11 +1297,15 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
-		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
+		const models = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).filter(Boolean);
+		const model = models?.[0];
+		const reasoningEffort = frontmatter?.getStringValue('reasoning-effort');
+		const policy = frontmatter?.getStringValue('model-policy');
+		const modelPolicy = policy === 'preferred' || policy === 'required' ? policy : undefined;
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, userInvocable, model, tools, disableModelInvocation };
+		return { name, description, userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
