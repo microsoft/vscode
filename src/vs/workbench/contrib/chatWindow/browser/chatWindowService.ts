@@ -6,6 +6,7 @@
 import { $, addDisposableListener, append, EventType, getActiveWindow } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -240,8 +241,9 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			return true;
 		}
 		this._closing = true;
-		// The chat part first: its editor closes, and does not move to the main window.
-		if (!this.chatPart.close() || !this.mainPart.close()) {
+		// The main part first: when an editor of it cannot move to the main window, the window stays as it was, its chat
+		// too. Then the chat part, whose editor closes, and does not move to the main window.
+		if (!this.mainPart.close() || !this.chatPart.close()) {
 			this._closing = false;
 			return false;
 		}
@@ -506,6 +508,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			auxiliaryWindow.window.document.title = content.title.read(reader);
 		}));
 
+		// Before what the window waits for as it opens: it may go away meanwhile.
+		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => {
+			window.didClose();
+			disposables.dispose();
+		}));
+
 		await chatPart.activeGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus });
 		await this._openEditors(options?.editors, mainPart);
 		showChatInsteadOfEmptyMainPart(mainPart, window, !rememberedLayout);
@@ -513,13 +521,13 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			window.getOrCreateTerminalsPart();
 		}
 
+		// The window went away while it opened, such as when the user closed it: it is not one of the chat windows.
+		if (disposables.isDisposed) {
+			throw new CancellationError();
+		}
 		this._windows.set([...this._windows.get(), window], undefined);
 		disposables.add(toDisposable(() => this._remove(window)));
 		disposables.add(window.onDidClose(() => this._remove(window)));
-		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => {
-			window.didClose();
-			disposables.dispose();
-		}));
 		// The window closes with the workbench, such as as it reloads, as editor windows do; it opens again as it restores.
 		disposables.add(Event.once(this._lifecycleService.onDidShutdown)(() => disposables.dispose()));
 

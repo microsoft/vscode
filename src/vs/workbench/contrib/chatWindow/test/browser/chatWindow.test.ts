@@ -220,7 +220,7 @@ suite('Chat window', () => {
 		await timeout(0);
 		assert.strictEqual(whileClosing, 0);
 
-		assert.deepStrictEqual(events, ['close chat', 'close main', 'will close', 'close window', 'closed']);
+		assert.deepStrictEqual(events, ['close main', 'close chat', 'will close', 'close window', 'closed']);
 	});
 
 	test('the end of its chat closes the window, and closing it again does nothing', () => {
@@ -229,15 +229,15 @@ suite('Chat window', () => {
 		onDidEnd.fire();
 		window.close();
 
-		assert.deepStrictEqual(events, ['close chat', 'close main', 'will close', 'close window', 'closed']);
+		assert.deepStrictEqual(events, ['close main', 'close chat', 'will close', 'close window', 'closed']);
 	});
 
-	test('the window stays open when its main part cannot close, such as for an editor that cannot move to the main window', () => {
-		const { window, events } = createWindow({ vetoMain: true });
+	test('the window stays open, its chat too, when its main part cannot close, such as for an editor that cannot move to the main window', () => {
+		const { window, chat, chatInput, events } = createWindow({ vetoMain: true });
 
 		const closed = window.close();
 
-		assert.deepStrictEqual({ closed, events }, { closed: false, events: ['close chat', 'close main'] });
+		assert.deepStrictEqual({ closed, events, chatShows: chat.group.contains(chatInput) }, { closed: false, events: ['close main'], chatShows: true });
 	});
 
 	test('its parts closing as its window unloads neither close it again nor change its layout', async () => {
@@ -267,7 +267,7 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ created, closedPart: window.terminalsPart.get(), events }, {
 			created: true,
 			closedPart: undefined,
-			events: ['create terminals', 'close chat', 'close main', 'will close', 'close terminals', 'close window', 'closed'],
+			events: ['create terminals', 'close main', 'close chat', 'will close', 'close terminals', 'close window', 'closed'],
 		});
 	});
 
@@ -278,7 +278,7 @@ suite('Chat window', () => {
 		window.close();
 		window.willUnload();
 
-		assert.deepStrictEqual(events, ['create terminals', 'close chat', 'close main', 'will close', 'close terminals']);
+		assert.deepStrictEqual(events, ['create terminals', 'close main', 'will close', 'close terminals']);
 	});
 
 	test('focusing it focuses its window, and its chat while the chat shows, else its main part', () => {
@@ -300,7 +300,7 @@ suite('Chat window', () => {
 		split.fireCloseEditor(chatInput);
 		await timeout(0);
 
-		assert.deepStrictEqual({ afterMove, events }, { afterMove: [], events: ['close chat', 'close main', 'will close', 'close window', 'closed'] });
+		assert.deepStrictEqual({ afterMove, events }, { afterMove: [], events: ['close main', 'close chat', 'will close', 'close window', 'closed'] });
 	});
 
 	test('the chat\'s editor merged into the main part is still the window: closing it there closes the window, and moving it out of the window from there takes the chat out', async () => {
@@ -319,7 +319,7 @@ suite('Chat window', () => {
 
 		assert.deepStrictEqual({ afterMerge, closed: closed.events, movedOut: movedOut.events }, {
 			afterMerge: [],
-			closed: ['close chat', 'close main', 'will close', 'close window', 'closed'],
+			closed: ['close main', 'close chat', 'will close', 'close window', 'closed'],
 			movedOut: ['moved out'],
 		});
 	});
