@@ -19,7 +19,7 @@ import { AICustomizationManagementCommands, AICustomizationManagementOpenEditorT
 import { isCustomizationDiscoveryAvailable } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup, SessionCanvasMenuGroup } from '../../../browser/menus.js';
 import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
@@ -140,7 +140,7 @@ const discoverCanvasEntries: readonly IDiscoverCanvasEntry[] = [{
 }, {
 	key: 'discover:browse',
 	commandId: DISCOVER_SESSION_CANVASES_COMMAND_ID,
-	title: localize('sessionCanvases.discoverCanvases', "Discover More Canvases"),
+	title: localize('sessionCanvases.browseCanvases', "Browse Canvases"),
 	icon: Codicon.search,
 	run: async accessor => {
 		const commandService = accessor.get(ICommandService);
@@ -185,7 +185,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				);
 				registrations.set(key, registration);
 			}
-			registration.update(definitionLabels[index], '1_available', index, inActivityBar);
+			registration.update(definitionLabels[index], SessionCanvasMenuGroup.Available, index, inActivityBar);
 		}
 		for (let index = 0; index < targets.length; index++) {
 			const target = targets[index];
@@ -202,7 +202,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				);
 				registrations.set(key, registration);
 			}
-			registration.update(targetLabels[index], '2_open', index, inActivityBar);
+			registration.update(targetLabels[index], SessionCanvasMenuGroup.Running, index, inActivityBar);
 		}
 		if (registryService.supportsCanvases.read(reader)) {
 			for (let index = 0; index < discoverCanvasEntries.length; index++) {
@@ -213,7 +213,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 					registration = new CanvasMenuActionRegistration(entry.commandId, entry.run, Menus.SessionsEditorTabsBarAddTabCanvas, entry.icon);
 					registrations.set(entry.key, registration);
 				}
-				registration.update(entry.title, '3_discover', index, inActivityBar);
+				registration.update(entry.title, SessionCanvasMenuGroup.Discover, index, inActivityBar);
 			}
 		}
 		for (const key of [...registrations.keys()]) {

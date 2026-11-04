@@ -14,10 +14,10 @@ import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor, ExtensionBlockingOrigin } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
-import { areSameExtensions, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { areSameExtensions, getExtensionBlockedMessage, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage, TargetPlatform, isApplicationScopedExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService, IFileContent } from '../../../../platform/files/common/files.js';
@@ -84,6 +84,11 @@ export class PromptExtensionInstallFailureAction extends Action {
 	 * Whether installing again from the prompt opens the extension in the Extensions editor, like {@link InstallAction.opensExtensionEditor}.
 	 */
 	opensExtensionEditor = true;
+
+	/**
+	 * Whether installing again from the prompt also enables the extension, like {@link InstallAction.enablesExtension}.
+	 */
+	enablesExtension = false;
 
 	constructor(
 		private readonly extension: IExtension,
@@ -234,6 +239,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		const installAction = this.instantiationService.createInstance(InstallAction, options);
 		try {
 			installAction.opensExtensionEditor = this.opensExtensionEditor;
+			installAction.enablesExtension = this.enablesExtension;
 			installAction.extension = this.extension;
 			return await installAction.run();
 		} finally {
@@ -449,6 +455,12 @@ export class InstallAction extends ExtensionAction {
 	 */
 	opensExtensionEditor = true;
 
+	/**
+	 * Whether installing also enables the extension when it is disabled once installed, such as in windows that disable
+	 * extensions by default. The extensions service enables it before installing completes.
+	 */
+	enablesExtension = false;
+
 	constructor(
 		options: InstallOptions,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -655,11 +667,12 @@ export class InstallAction extends ExtensionAction {
 
 	private async install(extension: IExtension): Promise<IExtension | undefined> {
 		try {
-			return await this.extensionsWorkbenchService.install(extension, this.options);
+			return await this.extensionsWorkbenchService.install(extension, this.enablesExtension ? { ...this.options, enable: true } : this.options);
 		} catch (error) {
 			const promptFailure = this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, this.options, extension.latestVersion, InstallOperation.Install, error);
 			try {
 				promptFailure.opensExtensionEditor = this.opensExtensionEditor;
+				promptFailure.enablesExtension = this.enablesExtension;
 				await promptFailure.run();
 			} finally {
 				promptFailure.dispose();
@@ -720,6 +733,13 @@ export class InstallDropdownAction extends ButtonWithDropDownExtensionAction {
 	 */
 	set opensExtensionEditor(opensExtensionEditor: boolean) {
 		this.extensionActions.forEach(a => (<InstallAction>a).opensExtensionEditor = opensExtensionEditor);
+	}
+
+	/**
+	 * Whether installing also enables the extension. See {@link InstallAction.enablesExtension}.
+	 */
+	set enablesExtension(enablesExtension: boolean) {
+		this.extensionActions.forEach(a => (<InstallAction>a).enablesExtension = enablesExtension);
 	}
 
 	constructor(
@@ -803,6 +823,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			!this.extension
 			|| !this.server
 			|| !this.extension.local
+			|| !!this.extension.blockingInfo
 			|| this.extension.state !== ExtensionState.Installed
 			|| this.extension.type !== ExtensionType.User
 			|| this.extension.enablementState === EnablementState.DisabledByEnvironment || this.extension.enablementState === EnablementState.DisabledByTrustRequirement || this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace
@@ -1109,6 +1130,9 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (this.extension.isBuiltin) {
 			return;
 		}
+		if (this.extension.blockingInfo) {
+			return;
+		}
 		if (this.extension.deprecationInfo?.disallowInstall) {
 			return;
 		}
@@ -1320,7 +1344,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
-			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || extension.deprecationInfo?.disallowInstall]);
+			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || !!extension.blockingInfo || extension.deprecationInfo?.disallowInstall]);
 			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) === true]);
 			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
@@ -1554,6 +1578,9 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.extension.isBuiltin) {
+			return;
+		}
+		if (this.extension.blockingInfo) {
 			return;
 		}
 		if (this.extension.state !== ExtensionState.Installed) {
@@ -2768,6 +2795,23 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 
 export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };
 
+function getExtensionBlockedStatusMessage(extension: IExtension): IMarkdownString | undefined {
+	if (extension.blockingInfo && extension.state === ExtensionState.Uninstalled) {
+		return getExtensionBlockedMessage(extension.blockingInfo);
+	}
+	if (extension.blockingInfo) {
+		return new MarkdownString(extension.blockingInfo.origin === ExtensionBlockingOrigin.Policy
+			? localize('updates blocked by organization policy', "Updates for this extension are blocked by your organization's policy.")
+			: localize('updates blocked by marketplace', "Updates for this extension have been blocked by the Extension Marketplace."));
+	}
+	if (extension.installedBlockingInfo) {
+		return new MarkdownString(extension.installedBlockingInfo.origin === ExtensionBlockingOrigin.Policy
+			? localize('installed version blocked by organization policy', "The installed version is blocked by your organization's policy. Switch to a permitted version.")
+			: localize('installed version blocked by marketplace', "The installed version has been blocked by the Extension Marketplace. Switch to a permitted version."));
+	}
+	return undefined;
+}
+
 export class ExtensionStatusAction extends ExtensionAction {
 
 	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-status`;
@@ -2835,6 +2879,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (this.extension.isMalicious) {
 			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('malicious tooltip', "This extension was reported to be problematic.")) }, true);
+			return;
+		}
+
+		const blockedMessage = getExtensionBlockedStatusMessage(this.extension);
+		if (blockedMessage) {
+			this.updateStatus({ icon: warningIcon, message: blockedMessage }, true);
 			return;
 		}
 

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { retry, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -415,7 +415,9 @@ suite('AgentsWindowExtensionsWidget', () => {
 		const prettier = anExtension('pub.prettier', { displayName: 'Prettier', description: 'Opinionated code styling' });
 		// Installed extensions report that they are installing while they are updated.
 		const updating = anExtension('pub.updating', { displayName: 'Updating Formatter', state: ExtensionState.Installing });
-		const local = [prettier, updating, anExtension('pub.unrelated', { displayName: 'Unrelated' })];
+		// Extensions that are installed for the first time are installed extensions while they are installing, but aren't installed yet.
+		const downloading = anExtension('pub.downloading', { displayName: 'Downloading Formatter', state: ExtensionState.Installing, installed: false });
+		const local = [prettier, updating, downloading, anExtension('pub.unrelated', { displayName: 'Unrelated' })];
 		const queries: IQueryOptions[] = [];
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
@@ -428,6 +430,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 					prettier,
 					updating,
 					anExtension('pub.black', { displayName: 'Black Formatter', publisher: 'Microsoft', state: ExtensionState.Uninstalled, installed: false, marketplace: { installCount: 500, rating: 4.4, ratingCount: 10, verified: true } }),
+					downloading,
 					anExtension('pub.blocked', { displayName: 'Blocked Formatter', state: ExtensionState.Uninstalled, installed: false }),
 					anExtension('pub.builtInFormatter', { displayName: 'Built-in Formatter', state: ExtensionState.Uninstalled, installed: false, isBuiltin: true }),
 				]);
@@ -453,8 +456,9 @@ suite('AgentsWindowExtensionsWidget', () => {
 			labels: [
 				'Other Extensions, 1 extensions. Extensions that haven\'t declared support for the Agents window. They are disabled by default and might not work as expected.',
 				'Prettier, Publisher, Disabled',
-				'Marketplace, 2 extensions. Extensions from the Marketplace that aren\'t installed. Installing one here also installs it in VS Code, and enables it in the Agents window.',
+				'Marketplace, 3 extensions. Extensions from the Marketplace that aren\'t installed. Installing one here also installs it in VS Code, and enables it in the Agents window.',
 				'Black Formatter, Microsoft, Verified publisher, 500 installs, Rated 4.5 out of 5, Not installed',
+				'Downloading Formatter, Publisher, Installing',
 				'Blocked Formatter, Publisher, Can\'t be installed: Your organization does not allow this extension.',
 			],
 		});
@@ -466,7 +470,6 @@ suite('AgentsWindowExtensionsWidget', () => {
 	async function installFromMarketplace(preRelease: boolean, install: (row: HTMLElement) => void) {
 		const container = createContainer();
 		const marketplaceTools = anExtension('pub.tools', { displayName: 'Tools', state: ExtensionState.Uninstalled, installed: false, preRelease });
-		const installedTools = anExtension('pub.tools', { displayName: 'Tools', contributes: { languageModelTools: [{}] } });
 		const local: IExtension[] = [];
 		const onChange = disposables.add(new Emitter<IExtension | undefined>());
 		const calls: string[] = [];
@@ -482,13 +485,13 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override async open(extension: IExtension | string) { calls.push(`open ${typeof extension === 'string' ? extension : extension.identifier.id}`); }
 			override async install(extension: IExtension | URI | string, options?: InstallExtensionOptions) {
 				assert.ok(typeof extension !== 'string' && !URI.isUri(extension));
-				calls.push(`install ${extension.identifier.id}${options?.installPreReleaseVersion ? ' (pre-release)' : ''}`);
-				local.push(installedTools);
-				onChange.fire(installedTools);
+				calls.push(`install ${extension.identifier.id}${options?.installPreReleaseVersion ? ' (pre-release)' : ''}${options?.enable ? ' and enable' : ''}`);
+				// Like the extensions service, which enables extensions that are disabled by default as it installs them when requested.
+				const installed = anExtension('pub.tools', { displayName: 'Tools', contributes: { languageModelTools: [{}] }, enablementState: options?.enable ? EnablementState.EnabledWorkspace : EnablementState.DisabledWorkspace });
+				local.push(installed);
+				onChange.fire(installed);
+				// Returns the Marketplace extension, so the Install action doesn't wait for the installed extension to run.
 				return marketplaceTools;
-			}
-			override async setEnablement(extension: IExtension | IExtension[], enablementState: EnablementState) {
-				calls.push(`${enablementState === EnablementState.EnabledWorkspace ? 'enable' : 'disable'} ${(Array.isArray(extension) ? extension[0] : extension).identifier.id}`);
 			}
 		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
@@ -524,11 +527,12 @@ suite('AgentsWindowExtensionsWidget', () => {
 		}, 100, 30);
 		const button = row.querySelector<HTMLElement>('.action-label.install')!.textContent;
 		install(row);
-		await retry(async () => assert.ok(calls.some(call => call.startsWith('enable'))), 100, 30);
+		// Installing finishes once the extension is installed and enabled.
+		await retry(async () => assert.ok(events.length), 100, 30);
 		return { button, menus, calls, events };
 	}
 
-	test('installs a Marketplace extension with Enter without opening the Extensions editor, and enables it in the Agents window once installed', async () => {
+	test('installs a Marketplace extension with Enter without opening the Extensions editor, and enables it in the Agents window as it installs it', async () => {
 		const result = await installFromMarketplace(false, row => {
 			row.click();
 			row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
@@ -538,12 +542,13 @@ suite('AgentsWindowExtensionsWidget', () => {
 			// Installs the release version, the only one it has, even though pre-releases are preferred.
 			button: 'Install',
 			menus: [],
-			calls: ['install pub.tools', 'enable pub.tools'],
+			// The extensions service enables it, so it is enabled even if the section closes while it installs.
+			calls: ['install pub.tools and enable'],
 			events: [{ eventName: 'agentsWindowExtensionEnablementChanged', data: { extensionId: 'pub.tools', enabled: true, aiFeatures: 'languageModelTools', trigger: 'install' } }],
 		});
 	});
 
-	test('installs another version of a Marketplace extension from the menu of its Install button, and enables it in the Agents window once installed', async () => {
+	test('installs another version of a Marketplace extension from the menu of its Install button, and enables it in the Agents window as it installs it', async () => {
 		const result = await installFromMarketplace(true, row => {
 			row.querySelector<HTMLElement>('.action-dropdown-item .dropdown-label')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 		});
@@ -552,34 +557,41 @@ suite('AgentsWindowExtensionsWidget', () => {
 			button: 'Install Pre-Release',
 			// Like the Extensions view, the menu lists every version, including the button's.
 			menus: [['Install Pre-Release Version', 'Install Release Version']],
-			calls: ['install pub.tools', 'enable pub.tools'],
+			calls: ['install pub.tools and enable'],
 			events: [{ eventName: 'agentsWindowExtensionEnablementChanged', data: { extensionId: 'pub.tools', enabled: true, aiFeatures: 'languageModelTools', trigger: 'install' } }],
 		});
 	});
+
+	interface IMarketplaceSectionOptions {
+		readonly marketplaceStatus?: () => ExtensionGalleryManifestStatus;
+		readonly onDidChangeMarketplaceStatus?: Event<ExtensionGalleryManifestStatus>;
+		/** Resolves that the Marketplace extension can be installed, right away unless given. */
+		readonly canInstall?: () => Promise<true>;
+	}
 
 	/**
 	 * Renders the section without installed extensions, where each Marketplace search finds a Tools extension, as a new object
 	 * like the extensions workbench service returns.
 	 */
-	function renderMarketplaceSection(queries: IQueryOptions[], marketplaceStatus?: () => ExtensionGalleryManifestStatus, onDidChangeMarketplaceStatus?: Event<ExtensionGalleryManifestStatus>) {
+	function renderMarketplaceSection(queries: IQueryOptions[], options: IMarketplaceSectionOptions = {}) {
 		const container = createContainer();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
 			override readonly local = [];
 			override readonly onChange = Event.None;
-			override async queryGallery(options: IQueryOptions | CancellationToken) {
-				assert.ok(!CancellationToken.isCancellationToken(options));
-				queries.push(options);
+			override async queryGallery(query: IQueryOptions | CancellationToken) {
+				assert.ok(!CancellationToken.isCancellationToken(query));
+				queries.push(query);
 				return singlePagePager([anExtension('pub.tools', { displayName: 'Tools', state: ExtensionState.Uninstalled, installed: false })]);
 			}
-			override async canInstall() { return true as const; }
+			override async canInstall() { return options.canInstall ? options.canInstall() : true as const; }
 			override canSetLanguage() { return false; }
 		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
 			override isEnabledEnablementState() { return false; }
 			override canChangeWorkspaceEnablement() { return true; }
 		});
-		stubSectionServices(instantiationService, marketplaceStatus, onDidChangeMarketplaceStatus);
+		stubSectionServices(instantiationService, options.marketplaceStatus, options.onDidChangeMarketplaceStatus);
 		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
 		widget.setVisible(true);
 		return { container, widget };
@@ -688,11 +700,31 @@ suite('AgentsWindowExtensionsWidget', () => {
 		assert.deepStrictEqual([unfocused, focused, searchedAgain, refocused].map(({ tabIndex }) => tabIndex), [-1, 0, -1, 0]);
 	});
 
+	test('puts the Install button of the focused Marketplace row in the tab order once it knows that the extension can be installed', async () => {
+		const queries: IQueryOptions[] = [];
+		const installable = new DeferredPromise<true>();
+		const { container, widget } = renderMarketplaceSection(queries, { canInstall: () => installable.p });
+		const installButton = (row: HTMLElement) => row.querySelector<HTMLElement>('.action-label.install:not(.installing)');
+
+		widget.setSearchQuery('tools');
+		const row = await waitForRow(container, 'Tools,', row => !!installButton(row));
+		row.click();
+		await timeout(0);
+		const whileResolving = { disabled: installButton(row)!.classList.contains('disabled'), tabIndex: installButton(row)!.tabIndex };
+		await installable.complete(true);
+		await retry(async () => assert.ok(!installButton(row)!.classList.contains('disabled')), 100, 30);
+
+		assert.deepStrictEqual({ whileResolving, resolved: { disabled: false, tabIndex: installButton(row)!.tabIndex } }, {
+			whileResolving: { disabled: true, tabIndex: -1 },
+			resolved: { disabled: false, tabIndex: 0 },
+		});
+	});
+
 	test('explains why a private Marketplace can\'t be searched, and searches it once the user signs in', async () => {
 		const queries: IQueryOptions[] = [];
 		const onDidChangeMarketplaceStatus = disposables.add(new Emitter<ExtensionGalleryManifestStatus>());
 		let marketplaceStatus = ExtensionGalleryManifestStatus.RequiresSignIn;
-		const { container, widget } = renderMarketplaceSection(queries, () => marketplaceStatus, onDidChangeMarketplaceStatus.event);
+		const { container, widget } = renderMarketplaceSection(queries, { marketplaceStatus: () => marketplaceStatus, onDidChangeMarketplaceStatus: onDidChangeMarketplaceStatus.event });
 		const searchBox = () => {
 			const inputBox = container.querySelector<HTMLElement>('.monaco-inputbox')!;
 			return { placeholder: inputBox.querySelector('input')!.placeholder, message: ['info', 'warning', 'error'].find(type => inputBox.classList.contains(type)) };
@@ -716,7 +748,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 		});
 	});
 
-	test('uninstalls an extension from its menu once the user confirms, unless the user chose not to be asked again, and offers to restart extensions while it keeps running', async () => {
+	test('uninstalls an extension from its menu once the user confirms, unless the user chose not to be asked again, and offers to restart extensions while the extensions it uninstalled keep running', async () => {
 		const container = createContainer();
 		const anInstalledExtension = (name: string, displayName: string) => new class extends mock<IExtension>() {
 			override readonly identifier = { id: `pub.${name}` };
@@ -732,9 +764,11 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override state = ExtensionState.Installed;
 			override runtimeState: ExtensionRuntimeState | undefined = undefined;
 		}();
+		// An extension pack, which doesn't run itself, and an extension in it.
 		const tools = anInstalledExtension('tools', 'Tools');
+		const toolsServer = anInstalledExtension('toolsServer', 'Tools Server');
 		const theme = anInstalledExtension('theme', 'Theme');
-		const local: IExtension[] = [tools, theme];
+		const local: IExtension[] = [tools, toolsServer, theme];
 		const onChange = disposables.add(new Emitter<IExtension | undefined>());
 		// Cancels the first time, then confirms and chooses not to be asked again.
 		const answers = [{ confirmed: false }, { confirmed: true, checkboxChecked: true }];
@@ -747,14 +781,16 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override readonly onChange = onChange.event;
 			override async uninstall(extension: IExtension) {
 				calls.push(`uninstall ${extension.identifier.id}`);
-				const uninstalled = extension === tools ? tools : theme;
-				local.splice(local.indexOf(uninstalled), 1);
-				uninstalled.state = ExtensionState.Uninstalled;
-				if (uninstalled === tools) {
-					// It is running, so it keeps running until extensions restart.
-					tools.runtimeState = { action: ExtensionRuntimeActionType.RestartExtensions, reason: 'Please restart extensions to complete the uninstallation of this extension.' };
+				// Like the extensions service, uninstalls the extensions of a pack with it.
+				for (const uninstalled of extension === tools ? [tools, toolsServer] : [theme]) {
+					local.splice(local.indexOf(uninstalled), 1);
+					uninstalled.state = ExtensionState.Uninstalled;
 				}
-				onChange.fire(uninstalled);
+				if (extension === tools) {
+					// The extension in the pack is running, so it keeps running until extensions restart.
+					toolsServer.runtimeState = { action: ExtensionRuntimeActionType.RestartExtensions, reason: 'Please restart extensions to complete the uninstallation of this extension.' };
+				}
+				onChange.fire(extension);
 			}
 		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {

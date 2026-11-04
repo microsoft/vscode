@@ -314,7 +314,7 @@ suite('ChatConfiguration defaults', () => {
 			}, {
 				explicit: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'explicitOverride' },
 				others: [SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'remote-agent-host'],
-				virtual: localChatSessionType,
+				virtual: SessionType.AgentHostCopilot,
 			});
 		});
 
@@ -1015,7 +1015,7 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('virtual workspace defaults implicit new chats to local', () => {
+	test('virtual workspace follows the Copilot harness default and rejects other local harnesses', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
@@ -1038,17 +1038,19 @@ suite('ChatConfiguration defaults', () => {
 			explicitOverride: resolveSessionType(configurationService, chatSessionsService, currentStorageService, workspace, true, { explicitOverride: SessionType.AgentHostClaude }),
 			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace),
 			localRememberedUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, workspace),
+			claudeUsable: isNewChatSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService, workspace),
 		}, {
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 			remembered: SessionType.AgentHostClaude,
-			rememberedAware: localChatSessionType,
-			currentAware: localChatSessionType,
-			resolvedRemembered: { sessionType: localChatSessionType },
-			resolvedCurrent: { sessionType: localChatSessionType },
-			resolvedPreferMigration: { sessionType: localChatSessionType },
+			rememberedAware: SessionType.AgentHostCopilot,
+			currentAware: SessionType.AgentHostCopilot,
+			resolvedRemembered: { sessionType: SessionType.AgentHostCopilot },
+			resolvedCurrent: { sessionType: SessionType.AgentHostCopilot },
+			resolvedPreferMigration: { sessionType: SessionType.AgentHostCopilot },
 			explicitOverride: { sessionType: SessionType.AgentHostClaude },
 			localVisible: true,
 			localRememberedUsable: true,
+			claudeUsable: false,
 		});
 	});
 
@@ -1318,7 +1320,7 @@ suite('ChatConfiguration defaults', () => {
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, true, true),
 		}, {
 			localEnabled: true,
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 		});
 	});
 
@@ -1334,14 +1336,12 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.deepStrictEqual({
 			explicit: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: SessionType.AgentHostClaude }),
-			virtual: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode')), true),
 			remembered: resolveSessionTypeWithReason(configurationService, chatSessionsService, rememberedStorageService, localWorkspace, true),
 			current: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostClaude }),
 			copilotPreference: resolveSessionTypeWithReason(preferenceConfigurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 			computed: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true),
 		}, {
 			explicit: { sessionType: SessionType.AgentHostClaude, selectionReason: 'explicitOverride' },
-			virtual: { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' },
 			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
 			current: { sessionType: SessionType.AgentHostClaude, selectionReason: 'currentSession' },
 			copilotPreference: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },

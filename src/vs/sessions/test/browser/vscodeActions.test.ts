@@ -71,6 +71,19 @@ suite('Web Open in Editor', () => {
 			await instantiationService.invokeFunction(accessor => new OpenInVSCodeAction().run(accessor));
 
 			assert.deepStrictEqual(calls, [{ ...expected, openExternal: true }]);
+
+			calls.length = 0;
+			const clickedChat = upcastPartial<IChat>({
+				resource: URI.parse('test:/nested-chat'),
+				workspace: constObservable(workspace),
+			});
+			await instantiationService.invokeFunction(accessor => new OpenInVSCodeAction().run(accessor, { session, chat: clickedChat }));
+
+			assert.deepStrictEqual(calls, [{
+				...expected,
+				query: connection.type === RemoteAgentHostEntryType.SSH ? 'windowId=_blank&session=test%3A%2Fnested-chat' : expected.query,
+				openExternal: true,
+			}]);
 		});
 	}
 });

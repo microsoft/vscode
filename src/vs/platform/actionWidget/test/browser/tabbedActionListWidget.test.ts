@@ -10,7 +10,7 @@ import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextViewDelegate, IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -256,6 +256,30 @@ suite('TabbedActionListWidget', () => {
 			managedHovers: [{ action: 'workflow', content: 'Compare Models', nativeTitle: null }],
 			searchTitle: 'Search Models',
 		});
+	});
+
+	test('tab bar action behavior is disposed when the popup closes', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let renderedButton: HTMLElement | undefined;
+		let disposed = false;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [{
+				id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', run: () => { },
+				render: button => {
+					renderedButton = button;
+					return toDisposable(() => disposed = true);
+				},
+			}],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const attached = renderedButton === contextView.getContextViewElement().querySelector('[data-id="comparison"]');
+		widget.hide();
+		assert.deepStrictEqual({ attached, disposed }, { attached: true, disposed: true });
 	});
 
 	test('a disabled tab bar action explains why and does not run', () => {

@@ -39,6 +39,8 @@ export const enum CopilotCliConfigKey {
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
 	RuntimePath = 'runtimePath',
+	/** Copilot runtime policy helper executable. An empty path disables it. */
+	PolicyHelper = 'policyHelper',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
@@ -103,6 +105,22 @@ export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shel
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
 
 export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
+
+export const AgentHostCopilotPolicyHelperSettingId = 'chat.agentHost.copilot.policyHelper';
+
+/** Policy helper executable for the Copilot runtime, subject to device and server policy precedence. */
+export interface ICopilotPolicyHelperConfig {
+	readonly path: string;
+	readonly args?: readonly string[];
+}
+
+/** Normalizes policy helper arguments and treats invalid or empty paths as unset. */
+export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPolicyHelperConfig | undefined {
+	if (!copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value) || !value.path.trim()) {
+		return undefined;
+	}
+	return { path: value.path, args: value.args ?? [] };
+}
 
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
@@ -259,6 +277,25 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.copilotRuntimePath.title', "Copilot Runtime Path"),
 		description: localize('agentHost.config.copilotRuntimePath.description', "Absolute path to a local Copilot runtime executable. Empty uses the bundled runtime."),
 		default: '',
+	}),
+	[CopilotCliConfigKey.PolicyHelper]: schemaProperty<ICopilotPolicyHelperConfig>({
+		type: 'object',
+		title: localize('agentHost.config.copilotPolicyHelper.title', "Copilot Policy Helper"),
+		description: localize('agentHost.config.copilotPolicyHelper.description', "Policy helper executable for the Copilot runtime. Device and server policies take precedence. An empty path disables it. Changes restart the runtime after active turns and subagents finish."),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.config.copilotPolicyHelper.path.title', "Path"),
+				description: localize('agentHost.config.copilotPolicyHelper.path.description', "Absolute path to the policy helper executable."),
+			},
+			args: {
+				type: 'array',
+				items: { type: 'string', title: localize('agentHost.config.copilotPolicyHelper.args.item.title', "Argument") },
+				title: localize('agentHost.config.copilotPolicyHelper.args.title', "Arguments"),
+				description: localize('agentHost.config.copilotPolicyHelper.args.description', "Arguments passed to the policy helper executable."),
+			},
+		},
+		required: ['path'],
 	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',

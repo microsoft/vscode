@@ -15,7 +15,7 @@ import { localize } from '../../../../../../nls.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -25,7 +25,10 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { getVirtualWorkspaceScheme } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -162,6 +165,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
@@ -201,6 +205,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._initialized = true;
 		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
 		this._register(this._agentHostFileSystemService.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, this._agentHostService));
+		// Files of an open virtual workspace that local sessions report are this window's own, so it reads them directly.
+		const virtualWorkspaceScheme = this._isLocalAgentHost ? getVirtualWorkspaceScheme(this._workspaceContextService.getWorkspace()) : undefined;
+		if (virtualWorkspaceScheme) {
+			this._register(registerLocalAgentHostWindowScheme(virtualWorkspaceScheme));
+		}
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -329,6 +338,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
+			when: this._isLocalAgentHost && !this._isSessionsWindow && agent.provider !== 'copilotcli' ? VirtualWorkspaceContext.negate().serialize() : undefined,
 			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,

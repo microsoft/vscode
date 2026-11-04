@@ -29,11 +29,13 @@ import { INotificationService } from '../../../platform/notification/common/noti
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { defaultKeybindingLabelStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { EditorAddTabControl } from '../../../workbench/browser/parts/editor/editorAddTabControl.js';
+import { GroupIdentifier, IEditorCommandsContext } from '../../../workbench/common/editor.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 import { SessionsEmptyStateLayout } from './sessionsEmptyStateLayout.js';
 
 /** The parts of an editor group that the empty-group Add Tab UI depends on. */
 export interface IEmptyEditorGroup {
+	readonly id: GroupIdentifier;
 	readonly element: HTMLElement;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly isEmpty: boolean;
@@ -91,7 +93,10 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			store.add(addDisposableListener(container, EventType.DBLCLICK, e => EventHelper.stop(e, true)));
 		}
 
-		store.add(this.instantiationService.createInstance(EditorAddTabControl, addTabContainer, this.dropdownMenuId, contextKeyService, undefined));
+		// The entries run with the group they are in, as those of a tabs bar do: they act on its window, which a click in a
+		// window that does not have focus yet runs before it does.
+		const context: IEditorCommandsContext = { groupId: this.group.id };
+		store.add(this.instantiationService.createInstance(EditorAddTabControl, addTabContainer, this.dropdownMenuId, contextKeyService, { context }));
 
 		const actionRunner = store.add(new ActionRunner());
 		store.add(actionRunner.onWillRun(e => this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: TELEMETRY_SOURCE })));
@@ -107,6 +112,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('addTabWatermark', "Add Tab"),
 			actionRunner,
+			context,
 			actionViewItemProvider: action => this.instantiationService.createInstance(SessionsWatermarkActionViewItem, action, lookupKeybinding),
 		}));
 		const layout = store.add(new SessionsEmptyStateLayout(watermarkContainer, [listContainer]));
@@ -205,6 +211,7 @@ export class SessionsWatermarkActionViewItem extends BaseActionViewItem {
 				anchor: row,
 				getActions: () => action.actions,
 				getActionRunner: () => this.actionRunner,
+				getActionsContext: () => this._context,
 				lookupKeybinding: this.lookupKeybinding,
 				openKeys: [KeyCode.Enter, KeyCode.Space, KeyCode.RightArrow],
 				closeKeys: [KeyCode.LeftArrow],
