@@ -207,6 +207,9 @@ export interface ISessionsService {
 	/** All rendered panes, including standalone children, in binding order rather than visual grid order. */
 	readonly visibleSessionPanes: IObservable<readonly (IActiveSession | undefined)[]>;
 
+	/** The id of the active pane of the grid, as {@link getSessionPaneId} gives it; `undefined` while its new-session slot is. */
+	readonly activePaneId: IObservable<string | undefined>;
+
 	/** Whether the initial persisted visible-session restore has settled. */
 	readonly initialRestoreComplete: IObservable<boolean>;
 
@@ -386,6 +389,9 @@ export interface ISessionsService {
 	 */
 	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void;
 
+	/** Moves focus into the grid's active pane: its session's chat, or the new-session composer. */
+	focusActiveSession(): void;
+
 	/** No sessions: chats of chat windows show as chat editors there, not as sessions of this service. */
 	readonly windowSessions: IObservable<readonly IActiveSession[]>;
 
@@ -418,6 +424,11 @@ export interface ISessionsService {
 	openNextSession(): Promise<void>;
 }
 
+/** The id of a pane of the grid: the chat it shows of its own, else its session. */
+export function getSessionPaneId(pane: IActiveSession | undefined): string | undefined {
+	return pane?.scopedChatResource?.toString() ?? pane?.sessionId;
+}
+
 export const ISessionsService = createDecorator<ISessionsService>('sessionsService');
 
 export class SessionsService extends Disposable implements ISessionsService {
@@ -432,6 +443,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _gridRequest = observableValue<SessionGridRequest | undefined>(this, undefined);
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 	readonly visibleSessionPanes: IObservable<readonly (IActiveSession | undefined)[]>;
+	readonly activePaneId: IObservable<string | undefined>;
 
 	/** Remembers the single most recently closed chat or session for {@link reopenLastClosedItem}. */
 	private readonly _closedItems: ClosedItemHistory;
@@ -517,6 +529,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.visibleSessionPanes = this._visibility.gridSessions;
+		this.activePaneId = this._visibility.activeSession.map(getSessionPaneId);
 		this.activeSession = this._visibility.activeSession;
 		this.windowSessions = constObservable([]);
 		this.mainWindowActiveSession = this._visibility.mainWindowActiveSession;
@@ -1980,6 +1993,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		} finally {
 			navigation.cancel();
 		}
+	}
+
+	focusActiveSession(): void {
+		this.sessionsPartService.focusSession(this.activeSession.get());
 	}
 
 	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void {

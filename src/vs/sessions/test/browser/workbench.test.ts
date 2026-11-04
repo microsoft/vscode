@@ -513,7 +513,7 @@ suite('Sessions - Workbench', () => {
 					}
 				},
 			},
-			sessionsService: { activeSession: { get: () => undefined } },
+			sessionsService: { focusActiveSession: () => { focusedSessions++; } },
 			// captures
 			resizes,
 			distributions,

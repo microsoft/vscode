@@ -78,7 +78,8 @@ import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOpt
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IActiveSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -374,14 +375,14 @@ function hasArchivedListContent(session: ISession): boolean {
 }
 
 /** Whether the chat is the open chat of the active session. */
-function isOpenChat(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader | undefined): boolean {
-	const active = activeSession?.read(reader);
-	return active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource);
+function isOpenChat(session: ISession, chat: IChat, mainWindowShown: IObservable<IShownChat | undefined> | undefined, reader: IReader | undefined): boolean {
+	const shown = mainWindowShown?.read(reader);
+	return shown?.session.sessionId === session.sessionId && isEqual(shown.chat.resource, chat.resource);
 }
 
 /** The open chat's live Branch Changes, else the session aggregate. Keep in sync with the session hover's main chat counts. */
-function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
-	if (isOpenChat(session, chat, activeSession, reader)) {
+function getSessionListChatDiffStats(session: ISession, chat: IChat, mainWindowShown: IObservable<IShownChat | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	if (isOpenChat(session, chat, mainWindowShown, reader)) {
 		const chatStats = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
 		if (chatStats !== undefined) {
 			return chatStats.insertions > 0 || chatStats.deletions > 0 ? chatStats : undefined;
@@ -1676,7 +1677,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
-			activeSession?: IObservable<IActiveSession | undefined>;
+			/** The chat the main window shows, whose row is the open one. */
+			mainWindowShown?: IObservable<IShownChat | undefined>;
 			/** Sessions whose collapsed child rows should contribute active status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			getAdditionalContextKeys?: SessionContextKeyProvider;
@@ -2145,9 +2147,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			const showsMainChatDiffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1;
-			rowObservesMainChatBranchChanges = !!showsMainChatDiffStats && isOpenChat(element, element.mainChat.read(reader), this.options.activeSession, reader);
+			rowObservesMainChatBranchChanges = !!showsMainChatDiffStats && isOpenChat(element, element.mainChat.read(reader), this.options.mainWindowShown, reader);
 			const diffStats = showsMainChatDiffStats
-				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
+				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.mainWindowShown, reader)
 				: getSessionDiffStats(element, reader);
 			const mainChat = element.mainChat.read(reader);
 			const timeDate = this.options.showMetadataWhileActive?.(element) ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
@@ -4688,11 +4690,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return (this.options.compact?.() ?? false) && !IsPhoneLayoutContext.getValue(this.contextKeyService);
 	}
 
+	/** The chat the main window shows, which its row reflects as the open one. */
+	private readonly _mainWindowShown: IObservable<IShownChat | undefined>;
+
 	constructor(
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
@@ -4725,6 +4731,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 	) {
 		super();
+		const mainWindowHost = getMainWindowHost(sessionHostService);
+		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
@@ -4827,7 +4835,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				onDidFinishRename: () => this.tree.domFocus(),
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
-				activeSession: this._sessionsService.activeSession,
+				mainWindowShown: this._mainWindowShown,
 				externalApplicationBadgeMode,
 				externalApplicationBadgeShowFrom,
 				reportExternalApplicationBadgeModeExperimentTrigger,
@@ -5496,12 +5504,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
-			activeSession?.activeChat.read(reader);
+			const shown = this._mainWindowShown.read(reader);
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
 					this.update();
-					this.syncActiveChatSelection(activeSession);
+					this.syncActiveChatSelection(shown);
 				}
 			});
 		}));
@@ -5518,7 +5525,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
-		this.syncActiveChatSelection(this._sessionsService.mainWindowActiveSession.get());
+		this.syncActiveChatSelection(this._mainWindowShown.get());
 	}
 
 	/**
@@ -5591,7 +5598,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshPending = false;
 			this.refreshSessions();
 		}
-		const activeSession = this._sessionsService.mainWindowActiveSession.get();
+		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
 			this.sessions
@@ -6458,15 +6465,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	private syncActiveChatSelection(activeSession: IActiveSession | undefined): void {
-		if (!activeSession) {
+	private syncActiveChatSelection(shown: IShownChat | undefined): void {
+		if (!shown) {
 			return;
 		}
-		const session = this.sessions.find(candidate => candidate.sessionId === activeSession.sessionId);
+		const session = this.sessions.find(candidate => candidate.sessionId === shown.session.sessionId);
 		if (!session) {
 			return;
 		}
-		const activeChat = activeSession.activeChat.get();
+		const activeChat = shown.chat;
 		const chatRow = this.findChatRow(session, activeChat.resource);
 		if (!chatRow) {
 			if (this.tree.hasElement(session)) {
@@ -7007,7 +7014,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.reveal(element, 0.5);
 		this.tree.setFocus([element]);
 		const [rowSession, rowChat] = isSessionChatItem(element) ? [element.session, element.chat] : [session, session.mainChat.get()];
-		if (isOpenChat(rowSession, rowChat, this._sessionsService.activeSession, undefined)) {
+		if (isOpenChat(rowSession, rowChat, this._mainWindowShown, undefined)) {
 			this.tree.setSelection([element]);
 		}
 		return true;
@@ -7343,7 +7350,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return false;
 		}
 		const sessionRowRepresentsSession = getSessionListChats(session).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
-		if (!request.chat && sessionRowRepresentsSession && this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+		if (!request.chat && sessionRowRepresentsSession && this._mainWindowShown.get()?.session.sessionId !== session.sessionId) {
 			this.markRead(session);
 		}
 		this.invokeOpenRequest(request);
@@ -9883,6 +9890,7 @@ export class SessionsFlatList extends Disposable {
 		container: HTMLElement,
 		private readonly options: ISessionsFlatListOptions,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -9996,7 +10004,7 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			if (this.options.markSessionReadOnOpen !== false && this._sessionsService.activeSession.get()?.sessionId !== element.sessionId) {
+			if (this.options.markSessionReadOnOpen !== false && getMainWindowHost(this._sessionHostService).session.get()?.sessionId !== element.sessionId) {
 				this._sessionsManagementService.markRead(element);
 			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;

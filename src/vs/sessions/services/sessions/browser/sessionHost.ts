@@ -13,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChat } from '../common/session.js';
-import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
+import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
 
 export const enum SessionHostKind {
 	/** The main window of the Agents window. */
@@ -181,6 +181,13 @@ export function getMainWindowHost(sessionHostService: ISessionHostService): ISes
 		throw new Error('The main window has no session host');
 	}
 	return host;
+}
+
+/** The chat `host` shows, with its session, once it shows both. */
+export function shownChatOf(host: ISessionHost, reader?: IReader): IShownChat | undefined {
+	const session = reader ? host.session.read(reader) : host.session.get();
+	const chat = reader ? host.chat.read(reader) : host.chat.get();
+	return session && chat ? { session, chat } : undefined;
 }
 
 /** The menu options of the toolbars and button bars a host creates, so their commands act on the host. */

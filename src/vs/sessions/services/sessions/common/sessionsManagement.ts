@@ -205,6 +205,12 @@ export interface IChatDeletedEvent {
  */
 export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
 
+/** A chat a host shows, with its session. */
+export interface IShownChat {
+	readonly session: IHostSession;
+	readonly chat: IChat;
+}
+
 /**
  * An active session extends {@link ISession} with the currently focused chat.
  */

@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { ActiveSessionHost, getWindowHost, ISessionHost, SessionHostKind } from '../../browser/sessionHost.js';
+import { ActiveSessionHost, getMainWindowHost, getWindowHost, ISessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
@@ -142,6 +142,30 @@ suite('SessionHost', () => {
 				byId: SessionHostKind.ChatWindow,
 			},
 			closed: undefined,
+		});
+	});
+
+	test('the main window host is the one host of the main window, not a pane in it or a chat window', () => {
+		const { service, mainHost } = createService();
+		const pane = host(SessionHostKind.Pane, mainHost, constObservable(sessionB));
+		disposables.add(service.registerHost(pane));
+		const chatWindow = host(SessionHostKind.ChatWindow, undefined, constObservable(sessionAInWindow), { windowId: CHAT_WINDOW_ID });
+		disposables.add(service.registerHost(chatWindow));
+		const describeShown = (value: ISessionHost) => {
+			const shown = shownChatOf(value);
+			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
+		};
+
+		assert.deepStrictEqual({
+			isMainHost: getMainWindowHost(service) === mainHost,
+			sameEachTime: getMainWindowHost(service) === getMainWindowHost(service),
+			main: describeShown(getMainWindowHost(service)),
+			chatWindow: describeShown(chatWindow),
+		}, {
+			isMainHost: true,
+			sameEachTime: true,
+			main: { session: sessionA.resource.toString(), chat: mainChat.resource.toString() },
+			chatWindow: { session: sessionAInWindow.resource.toString(), chat: sideChat.resource.toString() },
 		});
 	});
 
