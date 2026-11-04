@@ -29,6 +29,10 @@ type ExtensionMessage =
 	| { readonly type: 'find'; readonly query: string; readonly again: boolean; readonly previous: boolean }
 	| { readonly type: 'findClose' };
 
+// Quick input shows one prompt at a time, so a new one would close the one shown, e.g. in a diff of
+// two encrypted versions
+let passwordPrompts: Promise<unknown> = Promise.resolve();
+
 export function activate(context: vscode.ExtensionContext): void {
 	new PdfPreviewManager(context.extensionUri, context.subscriptions);
 }
@@ -48,8 +52,10 @@ class PdfPreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	constructor(private readonly _extensionRoot: vscode.Uri, subscriptions: vscode.Disposable[]) {
 		this._pageEntry.name = vscode.l10n.t("PDF Page");
+		this._pageEntry.tooltip = vscode.l10n.t("Go to Page");
 		this._pageEntry.command = 'pdfPreview.goToPage';
 		this._zoomEntry.name = vscode.l10n.t("PDF Zoom");
+		this._zoomEntry.tooltip = vscode.l10n.t("Select Zoom Level");
 		this._zoomEntry.command = 'pdfPreview.selectZoom';
 
 		const findAgain = (preview: PdfPreview, previous: boolean) => this._findQuery ? preview.post({ type: 'find', query: this._findQuery, again: true, previous }) : this._find(preview);
@@ -228,7 +234,7 @@ class PdfPreview {
 		switch (message.type) {
 			case 'ready':
 				// A new webview, e.g. after the editor was hidden, shows no document yet
-				this.pageCount = 0;
+				this._clear();
 				void this._load();
 				break;
 			case 'loaded':
@@ -243,13 +249,15 @@ class PdfPreview {
 			case 'password': {
 				this._passwordPrompt?.cancel();
 				const prompt = this._passwordPrompt = new vscode.CancellationTokenSource();
-				const password = await vscode.window.showInputBox({
+				const answer = passwordPrompts.then(() => prompt.token.isCancellationRequested ? undefined : vscode.window.showInputBox({
 					password: true,
 					ignoreFocusOut: true,
 					prompt: message.incorrect
 						? vscode.l10n.t("The password is incorrect. Enter the password of {0}.", basename(this._resource))
 						: vscode.l10n.t("Enter the password of {0}.", basename(this._resource)),
-				}, prompt.token);
+				}, prompt.token));
+				passwordPrompts = answer.catch(() => undefined);
+				const password = await answer;
 				prompt.dispose();
 				// The load tells the webview whether the answer is for the document it shows
 				return this.post(password === undefined
@@ -257,9 +265,18 @@ class PdfPreview {
 					: { type: 'password', password, load: message.load });
 			}
 			case 'error':
-				return this.post({ type: 'message', text: invalidMessage() });
+				this._clear();
+				this.post({ type: 'message', text: vscode.l10n.t("The file is not a valid PDF document.") });
+				break;
 		}
 		this._onDidChange();
+	}
+
+	private _clear(): void {
+		this.pageCount = 0;
+		this.pageLabels = null;
+		this.outline = [];
+		this.findResult = undefined;
 	}
 
 	private async _load(): Promise<void> {
@@ -268,21 +285,22 @@ class PdfPreview {
 		if (load !== this._loads) {
 			return; // A newer read started meanwhile
 		}
-		if (isCompletePdf(data)) {
-			// A prompt for the password of the previous version is no longer needed
-			this._passwordPrompt?.cancel();
-			// Send a copy: a Node.js buffer would be sent as JSON, and a view would send all of the
-			// buffer it is part of
-			this.post({ type: 'load', data: new Uint8Array(data) });
-		} else if (!this.pageCount) {
-			// Otherwise keep showing the previous document, e.g. while the file is being written
-			this.post({ type: 'message', text: invalidMessage() });
+		if (this.pageCount && !isCompletePdf(data)) {
+			return; // Keep showing the document while the file is being written
 		}
+		// A prompt for the password of the previous version is no longer needed
+		this._passwordPrompt?.cancel();
+		// Send a copy: a Node.js buffer would be sent as JSON, and a view would send all of the
+		// buffer it is part of
+		this.post({ type: 'load', data: new Uint8Array(data) });
 	}
 
 	private _scheduleReload(): void {
 		clearTimeout(this._reloadTimer);
-		this._reloadTimer = setTimeout(() => void this._load(), 100);
+		// A hidden preview reads the file when it is shown again
+		if (this._panel.visible) {
+			this._reloadTimer = setTimeout(() => void this._load(), 100);
+		}
 	}
 
 	private _dispose(): void {
@@ -296,15 +314,11 @@ class PdfPreview {
 
 /**
  * Whether `data` has the PDF signature in its first and the end of file marker in its last 1024
- * bytes, like PDF readers require. A file that is still being written lacks the marker.
+ * bytes. A file that is still being written lacks the marker.
  */
 function isCompletePdf(data: Uint8Array): boolean {
 	const text = (start: number, end?: number) => String.fromCharCode(...data.subarray(start, end));
 	return text(0, 1024 + 5).includes('%PDF-') && text(-1024).includes('%%EOF');
-}
-
-function invalidMessage(): string {
-	return vscode.l10n.t("The file is not a valid PDF document.");
 }
 
 function basename(resource: vscode.Uri): string {

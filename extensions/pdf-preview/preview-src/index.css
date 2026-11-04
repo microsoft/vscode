@@ -21,6 +21,12 @@
 .textLayer .highlight {
 	--highlight-bg-color: var(--vscode-editor-findMatchHighlightBackground);
 	--highlight-selected-bg-color: var(--vscode-editor-findMatchBackground);
+	outline: 1px dotted var(--vscode-editor-findMatchHighlightBorder, transparent);
+}
+
+/* The find colors of some themes are opaque: blend them with the page so that they don't cover its text */
+body:not(.vscode-high-contrast) .textLayer {
+	mix-blend-mode: multiply;
 }
 
 .textLayer .highlight.selected {

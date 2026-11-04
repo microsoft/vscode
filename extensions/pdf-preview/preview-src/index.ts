@@ -79,12 +79,18 @@ async function load(data: Uint8Array, id: number): Promise<void> {
 		const pdfDocument = await task.promise;
 		// Restore the position after a reload or after the editor was hidden
 		const location = vscode.getState()?.location;
-		eventBus.on('pagesinit', () => {
+		const restore = () => {
 			viewer.currentScaleValue = 'auto';
 			if (location) {
 				// The new version of the file may have fewer pages
 				linkService.setHash(location.replace(/^page=\d+/, page => `page=${Math.min(Number(page.slice(5)), pdfDocument.numPages)}`));
 			}
+		};
+		eventBus.on('pagesinit', () => {
+			restore();
+			// Until all pages are known, pages have the size of the first one, so like the viewer of
+			// pdf.js, restore the position again when some pages have another size
+			void viewer.pagesPromise?.then(() => location && !viewer.hasEqualPageSizes && id === latestLoad && restore());
 		}, { once: true });
 		viewer.setDocument(pdfDocument);
 		linkService.setDocument(pdfDocument);
@@ -124,9 +130,15 @@ async function getPageNumber(pdfDocument: PDFDocumentProxy, destination: Destina
 	return typeof page === 'number' ? page + 1 : await pdfDocument.getPageIndex(page as Parameters<PDFDocumentProxy['getPageIndex']>[0]) + 1;
 }
 
+let view = '';
 eventBus.on('updateviewarea', ({ location }: { location: { pageNumber: number; pdfOpenParams: string } }) => {
 	vscode.setState({ location: location.pdfOpenParams.slice(1) });
-	vscode.postMessage({ type: 'view', page: location.pageNumber, scale: viewer.currentScale });
+	// Scrolling within a page changes neither the page nor the zoom
+	const current = `${location.pageNumber} ${viewer.currentScale}`;
+	if (current !== view) {
+		view = current;
+		vscode.postMessage({ type: 'view', page: location.pageNumber, scale: viewer.currentScale });
+	}
 });
 for (const event of ['updatefindmatchescount', 'updatefindcontrolstate']) {
 	eventBus.on(event, ({ matchesCount }: { matchesCount: { current: number; total: number } }) => vscode.postMessage({ type: 'find', ...matchesCount }));
