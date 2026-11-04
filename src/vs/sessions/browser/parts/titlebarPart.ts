@@ -39,10 +39,17 @@ const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
 /**
+ * The most a window in full screen may be less tall than its screen: on a display with a camera notch, macOS shows it
+ * below the notch, whose area is about as tall as the menu bar.
+ */
+const FULLSCREEN_NOTCH_ALLOWANCE = 64;
+
+/**
  * Whether the window hosting the title bar is in full screen, where the
  * traffic lights are hidden. The full-screen state of an auxiliary window is
- * only trusted when the window also spans the width of its screen, so that a wrong
- * state never removes the space reserved for visible traffic lights.
+ * only trusted when the window also covers its screen, but for the area of a
+ * camera notch above it, so that a wrong state never removes the space
+ * reserved for visible traffic lights.
  */
 function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
 	if (!isFullscreen(targetWindow)) {
@@ -53,9 +60,7 @@ function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
 		return true;
 	}
 
-	// Across the width of its screen: in full screen on a display with a camera notch, the window is below the notch, so
-	// less tall than its screen.
-	return targetWindow.outerWidth >= targetWindow.screen.width;
+	return targetWindow.outerWidth >= targetWindow.screen.width && targetWindow.outerHeight >= targetWindow.screen.height - FULLSCREEN_NOTCH_ALLOWANCE;
 }
 
 /**
