@@ -25,6 +25,7 @@ import { IOpenNewSessionOptions, ISessionsService } from '../../../../services/s
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { INewSessionComposer, INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { prepareNewVoiceSession, SessionsVoiceActiveSessionContribution, SessionsVoiceBridgeContribution, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsVoiceBridgeContribution - input ownership', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -433,7 +434,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = Event.None;
 		}();
-		return new NewChatVoiceTargetService(sessionsService, chatWidgetService);
+		return new NewChatVoiceTargetService(focusedSessionHostServiceOf(sessionsService.activeSession), chatWidgetService);
 	}
 
 	test('disconnects when a fresh welcome composer takes over a connected voice session', () => {

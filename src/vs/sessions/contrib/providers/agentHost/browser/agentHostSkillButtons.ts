@@ -17,7 +17,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
 import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
@@ -34,12 +34,12 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
-		this._register(bindIsAgentHostSessionContextKey(contextKeyService, sessionsService.activeSession, sessionsProvidersService));
+		this._register(bindIsAgentHostSessionContextKey(contextKeyService, getFocusedSessionChatSource(focusedSessionHostService).session, sessionsProvidersService));
 	}
 }
 

@@ -29,9 +29,8 @@ import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '..
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IHostSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
@@ -387,7 +386,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -401,7 +400,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		const providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 

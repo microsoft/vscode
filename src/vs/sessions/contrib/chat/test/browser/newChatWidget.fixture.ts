@@ -120,6 +120,7 @@ import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -726,7 +727,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override async getSlashCommands() { return []; }
 			}());
 			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
-				sessionsService,
+				focusedSessionHostServiceOf(sessionsService.activeSession),
 				new class extends mock<IChatWidgetService>() {
 					override readonly onDidChangeFocusedSession = Event.None;
 				}(),

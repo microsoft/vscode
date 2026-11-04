@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
+import { ISessionsService } from '../../browser/sessionsService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
 /**
@@ -77,4 +78,13 @@ export function focusedSessionHostServiceOf(session: IObservable<IActiveSession 
 		chat: derived(reader => session.read(reader)?.activeChat?.read(reader)),
 	});
 	return upcastPartial<IFocusedSessionHostService>({ focusedHost: constObservable(host), getFocusedHost: () => host });
+}
+
+/**
+ * Stubs the focused host on `instantiationService` from the active session of the `ISessionsService` it has, for tests
+ * of focus-following services that model focus with that active session.
+ */
+export function stubFocusedSessionHostFromSessionsService(instantiationService: TestInstantiationService): void {
+	const sessionsService = instantiationService.get(ISessionsService) as Partial<ISessionsService> | undefined;
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(sessionsService?.activeSession ?? constObservable(undefined)));
 }

@@ -34,6 +34,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,6 +82,7 @@ suite('Agents Window workspace handoff', () => {
 			},
 		});
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onWillSendRequest: onWillSend.event,
 			resolveWorkspace: folder => {

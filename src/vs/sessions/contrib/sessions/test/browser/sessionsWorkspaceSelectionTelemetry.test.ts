@@ -27,6 +27,7 @@ import { ISendRequestOptions } from '../../../../services/sessions/common/sessio
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS } from '../../browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../browser/sessionsWorkspaceSelectionTelemetry.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsWorkspaceSelectionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +50,7 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 		}));
 		instantiationService.stub(INewSessionComposerService, composerService);
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession }));
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidSendRequest: requestSent.event }));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({ publicLog2: (name, data) => { events.push({ name, data }); } }));

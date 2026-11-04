@@ -25,6 +25,7 @@ import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../s
 import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
@@ -156,6 +157,7 @@ suite('SessionsWindowNotifier', () => {
 		const notifier = store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
+			focusedSessionHostServiceOf(sessions.activeSession),
 			host,
 			new TestConfigurationService(configuration),
 			chat,
@@ -284,6 +286,7 @@ suite('SessionsWindowNotifier', () => {
 		store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
+			focusedSessionHostServiceOf(sessions.activeSession),
 			host,
 			new TestConfigurationService({
 				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
@@ -330,7 +333,7 @@ suite('SessionsWindowNotifier', () => {
 		const chatService = new TestChatService();
 		chatService.model = upcastPartial<IChatModel>({ requestNeedsInput: constObservable({ title: 'Question' }) });
 		store.add(new TestSessionsWindowNotifier(
-			management, sessions, host,
+			management, sessions, focusedSessionHostServiceOf(sessions.activeSession), host,
 			new TestConfigurationService({ [ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused }),
 			chatService, new TestChatWidgetService(),
 			new class extends mock<ISessionComparisonService>() {
@@ -464,6 +467,7 @@ suite('SessionsWindowNotifier', () => {
 		store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
+			focusedSessionHostServiceOf(sessions.activeSession),
 			host,
 			new TestConfigurationService({
 				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
@@ -496,6 +500,7 @@ suite('SessionsWindowNotifier', () => {
 		store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
+			focusedSessionHostServiceOf(sessions.activeSession),
 			host,
 			new TestConfigurationService({
 				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
@@ -529,6 +534,7 @@ suite('SessionsWindowNotifier', () => {
 		store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
+			focusedSessionHostServiceOf(sessions.activeSession),
 			host,
 			new TestConfigurationService({
 				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
@@ -566,7 +572,7 @@ suite('SessionsWindowNotifier', () => {
 		const sessions = new TestSessionsService();
 		host.toastResult = { supported: true, clicked: true };
 		store.add(new TestSessionsWindowNotifier(
-			store.add(new TestSessionsManagementService([parent])), sessions, host,
+			store.add(new TestSessionsManagementService([parent])), sessions, focusedSessionHostServiceOf(sessions.activeSession), host,
 			new TestConfigurationService({
 				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.Always,
 				[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.Always,
@@ -608,7 +614,7 @@ suite('SessionsWindowNotifier', () => {
 		const host = new TestHostService();
 		host.hasFocus = true;
 		store.add(new TestSessionsWindowNotifier(
-			store.add(new TestSessionsManagementService([parent])), sessions, host,
+			store.add(new TestSessionsManagementService([parent])), sessions, focusedSessionHostServiceOf(sessions.activeSession), host,
 			new TestConfigurationService({ [ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused }),
 			new TestChatService(), new TestChatWidgetService(),
 			new class extends mock<ISessionComparisonService>() {
@@ -647,8 +653,9 @@ suite('SessionsWindowNotifier', () => {
 		const host = new TestHostService();
 		host.toastResult = { supported: true, clicked: true };
 		const configuration = new TestConfigurationService({ [ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.Always });
+		const noSessions = new TestSessionsService();
 		store.add(new TestSessionsWindowNotifier(
-			store.add(new TestSessionsManagementService([parent])), new TestSessionsService(), host, configuration, chatService, widgets,
+			store.add(new TestSessionsManagementService([parent])), noSessions, focusedSessionHostServiceOf(noSessions.activeSession), host, configuration, chatService, widgets,
 			new class extends mock<ISessionComparisonService>() {
 				override readonly comparisons = constObservable([upcastPartial<ISessionComparison>({
 					id: 'comparison', participants: [upcastPartial<ISessionComparisonParticipant>({ sessionResource: parent.resource, chatResource: chat.resource })],
@@ -676,6 +683,7 @@ suite('SessionsWindowNotifier', () => {
 		store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
+			focusedSessionHostServiceOf(sessions.activeSession),
 			host,
 			new TestConfigurationService({
 				[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.Always,

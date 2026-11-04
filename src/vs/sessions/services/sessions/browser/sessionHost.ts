@@ -129,6 +129,14 @@ export interface IFocusedSessionHostService {
 
 export const IFocusedSessionHostService = createDecorator<IFocusedSessionHostService>('focusedSessionHostService');
 
+/** The session and chat of the focused host, for window-independent consumers that follow focus. */
+export function getFocusedSessionChatSource(focusedSessionHostService: IFocusedSessionHostService): ISessionChatSource {
+	return {
+		session: derived(reader => focusedSessionHostService.focusedHost.read(reader).session.read(reader)),
+		chat: derived(reader => focusedSessionHostService.focusedHost.read(reader).chat.read(reader)),
+	};
+}
+
 /** The window host a host is in: itself for a window host. */
 export function getWindowHost(host: ISessionHost): ISessionHost {
 	let current = host;

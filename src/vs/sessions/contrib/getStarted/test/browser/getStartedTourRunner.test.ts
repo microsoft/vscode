@@ -37,6 +37,7 @@ import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { GetStartedItemId } from '../../common/getStartedChecklist.js';
 import { GetStartedTourRunner } from '../../browser/getStartedTourRunner.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 interface IRunnerScenario {
 	readonly sessions: readonly ISession[];
@@ -114,6 +115,7 @@ suite('GetStartedTourRunner', () => {
 				return { session: undefined, trustDeclined: false };
 			}
 		}());
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] { return [...scenario.sessions]; }
 		}());

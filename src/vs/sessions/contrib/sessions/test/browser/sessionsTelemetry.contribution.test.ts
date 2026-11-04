@@ -39,6 +39,7 @@ import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.c
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -280,6 +281,7 @@ suite('SessionsTelemetryContribution', () => {
 		disposables.add(new SessionsTelemetryContribution(
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			telemetryService,
 			new class extends mock<IUriIdentityService>() {
 				override readonly extUri = extUri;

@@ -22,6 +22,7 @@ import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessi
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -199,7 +200,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			uriIdentityService,
 			workspaceContextService,
 			workspaceEditing,

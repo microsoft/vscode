@@ -27,6 +27,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +47,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessionPanes;
 		}());
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 	}
 
 	/**

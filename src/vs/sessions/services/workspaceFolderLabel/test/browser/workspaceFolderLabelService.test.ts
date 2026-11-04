@@ -16,6 +16,7 @@ import { IChat, ISession } from '../../../sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
+import { focusedSessionHostServiceOf } from '../../../sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,7 +68,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return [session];
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService);
 		const workspaceFolder = new WorkspaceFolder({ uri: workingDirectory, name: 'vscode-tools (add-sandeep-to-readme-26eb9789)', index: 0 });
 
 		assert.deepStrictEqual({
@@ -109,7 +110,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return basename(resource);
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService);
 
 		assert.strictEqual(service.getWorkspaceFolderLabel(new WorkspaceFolder({ uri: workingDirectory, name: 'feature', index: 0 })), 'vscode-tools');
 	});

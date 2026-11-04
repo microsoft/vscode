@@ -16,6 +16,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { IChat } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -54,7 +55,7 @@ suite('NewChatVoiceTargetService', () => {
 			}
 		}();
 
-		const service = store.add(new NewChatVoiceTargetService(sessionsService, chatWidgetService));
+		const service = store.add(new NewChatVoiceTargetService(focusedSessionHostServiceOf(sessionsService.activeSession), chatWidgetService));
 
 		// Keep the derived live so it recomputes on dependency changes.
 		let current: URI | undefined;

@@ -19,6 +19,7 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
@@ -381,6 +382,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -394,7 +396,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._trackVisibleEditorResources();
 
 		this.activeFeedbackSessionResource = derived(this, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			return !activeSession || !activeSession.isCreated.read(reader)
 				? AGENT_FEEDBACK_NEW_SESSION_RESOURCE
 				: activeSession.resource;
@@ -406,7 +408,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// every comment widget on each tick.
 		const feedbackScopeKey = derived(this, reader => {
 			const scope = this.activeFeedbackSessionResource.read(reader).toString();
-			const workspace = this._sessionsService.activeSession.read(reader)?.workspace.read(reader);
+			const workspace = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader)?.workspace.read(reader);
 			return `${scope}|${workspaceFoldersKey(workspace) ?? ''}`;
 		});
 		this._register(runOnChange(feedbackScopeKey, () => this._onDidChangeFeedbackScope.fire()));
@@ -416,7 +418,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// workspace change, so the comments stay bound to the last known one and a
 		// draft swap (which briefly drops the workspace) does not discard them.
 		this._newSessionWorkspaceKey = derived(this, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession || activeSession.isCreated.read(reader)) {
 				return undefined;
 			}
@@ -535,7 +537,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	private _trackVisibleEditorResources(): void {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (!activeSession) {
 			return;
 		}
@@ -556,7 +558,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * thousands of resources is open.
 	 */
 	private _resolveSession(sessionResource: URI): ISession | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
 			return activeSession;
 		}
@@ -572,7 +574,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
-		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
+		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._focusedSessionHostService.focusedHost.get().session.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
@@ -584,9 +586,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	getChatChanges(sessionResource: URI): readonly ISessionFileChange[] {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
-			return activeSession.activeChat.get().changes.get();
+			return this._focusedSessionHostService.focusedHost.get().chat.get()?.changes.get() ?? [];
 		}
 		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
 	}
@@ -601,7 +603,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		if (!hostSession) {
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 			if (!activeSession || !activeSession.isCreated.get()) {
 				return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
 			}

@@ -52,6 +52,7 @@ import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { createNewSessionViewV3Tour } from '../../browser/tours/newSessionViewV3Tour.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentsWindowInvitationOnboarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -144,7 +145,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			override trace(message: string): void { traces.push(message); }
 		}());
 		const runner = store.add(new AgentsWindowInvitationOnboarding(
-			onboarding, configuration, context, upcastPartial<ISessionsService>({ activeSession, initialRestoreComplete, navigationRequest }),
+			onboarding, configuration, context, upcastPartial<ISessionsService>({ activeSession, initialRestoreComplete, navigationRequest }), focusedSessionHostServiceOf(activeSession),
 			lifecycle, views, entitlement, log, assignment,
 		));
 		return {

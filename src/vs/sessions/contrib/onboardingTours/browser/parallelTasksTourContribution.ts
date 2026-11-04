@@ -12,6 +12,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
@@ -30,6 +31,7 @@ export class ParallelTasksTourContribution extends Disposable implements IWorkbe
 	constructor(
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IStorageService storageService: IStorageService,
 		@IViewsService viewsService: IViewsService,
 	) {
@@ -43,7 +45,7 @@ export class ParallelTasksTourContribution extends Disposable implements IWorkbe
 		})));
 		this._register(sessionsManagementService.onDidStartSession(session => this._startedSessionId.set(session.sessionId, undefined)));
 		this._register(autorun(reader => {
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			const startedSessionId = this._startedSessionId.read(reader);
 			const eligible = sessionsService.initialRestoreComplete.read(reader)
 				&& createdSessionCount.read(reader) < SESSION_COUNT_LIMIT
