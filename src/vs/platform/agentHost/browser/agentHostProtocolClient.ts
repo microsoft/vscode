@@ -955,6 +955,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
 			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion || error instanceof InitialAuthenticationError) {
+				const transportClosed = this._state.kind === AgentHostClientState.Reconnecting && !this._state.reconnect.transportConnected;
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
 					this._state.outbox.length = 0;
@@ -964,6 +965,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 				this._rejectPendingRequests(protocolError);
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
+				if (transportClosed) {
+					this._handleClose(protocolError);
+				}
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
@@ -1256,6 +1260,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase: 'reconnect', outcome: 'failed', timestamp: Date.now(), error: getConnectionDiagnosticError(err) });
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
+			const transportWasConnected = reconnect.transportConnected;
 			reconnect.transportConnected = false;
 			this._cancelLivenessTimers();
 			this._closeTransportChannels();
@@ -1264,6 +1269,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				reconnect.outbox.length = 0;
 				reconnect.gate.error(err);
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: err });
+				if (!transportWasConnected) {
+					this._handleClose(err);
+				}
 				return;
 			}
 			transport?.dispose();
