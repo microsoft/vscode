@@ -136,6 +136,7 @@ export const Menus = {
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
+	ChangesFilesViewAndPosition: new MenuId('SessionsChangesFilesViewAndPosition'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of

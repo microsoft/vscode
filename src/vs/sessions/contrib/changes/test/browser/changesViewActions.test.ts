@@ -714,8 +714,12 @@ suite('Changes View Actions', () => {
 		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
 		const getLabels = (menuId: MenuId, contextKeyService: ContextKeyService) => menuService.getMenuActions(menuId, contextKeyService)
 			.map(([group, actions]) => [group, actions.map(action => action.label)] as const);
+		let withFileListContext: ContextKeyService | undefined;
 		const render = (fileListAvailable: boolean) => {
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			if (fileListAvailable) {
+				withFileListContext = contextKeyService;
+			}
 			for (const [key, value] of Object.entries({
 				[IsSessionsWindowContext.key]: true,
 				[ActiveEditorContext.key]: SessionChangesEditor.ID,
@@ -745,13 +749,14 @@ suite('Changes View Actions', () => {
 				tabRow: getLabels(Menus.SessionsEditorTitle, contextKeyService),
 			};
 		};
-		const moreActions = [
-			['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Diff View']],
-			['secondary/z_filesView', ['Files View']],
-		] as const;
-		assert.deepStrictEqual({ withFileList: render(true), withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions, tabRow: [] },
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions, tabRow: [] },
+		const diffActions = ['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Diff View']] as const;
+		// With its own files list, such as in a chat window: how the list shows and where, not the side pane's Files View
+		const withFileList = render(true);
+		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
+		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
+			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
 		});
 	});
 
