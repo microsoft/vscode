@@ -54,6 +54,8 @@ import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication } from './copilotEntraAuthentication.js';
+import { ICopilotAccountService } from './copilotAccountService.js';
+import { readCopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
@@ -1170,7 +1172,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
 	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
-		this._entraAuthentication?.authenticationRequired.read(reader) ?? this._authenticationRequired.read(reader));
+		this._entraAuthentication ? this._entraAuthentication.authenticationRequired.read(reader) : this._authenticationRequired.read(reader));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
@@ -1491,11 +1493,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
+		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
 	) {
 		super();
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
-		if (this._configurationService.copilotM365EnabledAtStartup) {
-			this._entraAuthentication = this._register(this._instantiationService.createInstance(CopilotEntraAuthentication));
+		this._entraAuthentication = this._accountService.authentication;
+		if (this._entraAuthentication) {
+			this._register(autorun(reader => {
+				const state = this._accountService.state.read(reader);
+				this._capiModels = [];
+				this._managedModelPolicy = undefined;
+				this._setAutoTierMetadata(undefined);
+				this._freeLongContextModels.clear();
+				this._publishModels();
+				if (state.kind === 'ready') {
+					void this._scheduleModelRefresh();
+				} else {
+					this._publishModelCatalogStatus(state.kind === 'error' ? 'error' : 'pending');
+				}
+			}));
 			this._register(this._entraAuthentication.onDidRevoke(() => {
 				this._clearLegacySessions({
 					errorType: 'authentication',
@@ -1829,6 +1845,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (chat && this._credentialSources.has(chat.toString())) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot runtime is unavailable');
 		}
+		if (this._entraAuthentication) {
+			this._accountService.requireReady();
+			return CopilotGitHubSessionCredentials.fromClientAuthentication(undefined);
+		}
 		const credentials = this._githubCredentials.forSession();
 		return this._getEnterpriseHost() && !scoped?.workspace
 			? CopilotGitHubSessionCredentials.fromClientAuthentication(credentials.token)
@@ -1939,6 +1959,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _ensureClientForSession(): Promise<CopilotClient> {
+		if (this._entraAuthentication) {
+			this._accountService.requireReady();
+		}
 		while (true) {
 			const client = await this._ensureClient();
 			const authentication = this._clientStartupAuthentication;
@@ -2572,11 +2595,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[] {
+		if (this._entraAuthentication) {
+			return [...this._accountService.getProtectedResources(reader), this._gitHubEndpointService.getRepoResource()];
+		}
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
 			this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
-			...this._entraAuthentication?.getProtectedResources(reader) ?? [],
 		];
 	}
 
@@ -3667,7 +3692,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
-		const authenticated = this._automationAuthenticationReady.read(reader) && this.authenticationRequired.read(reader) === undefined;
+		const accountReady = this._entraAuthentication ? this._accountService.state.read(reader).kind === 'ready' : this._automationAuthenticationReady.read(reader);
+		const authenticated = accountReady && this.authenticationRequired.read(reader) === undefined;
+		if (this._entraAuthentication) {
+			return authenticated;
+		}
 		if (authenticated) {
 			return true;
 		}
@@ -3684,6 +3713,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return true;
 		}
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
+			return false;
+		}
+		if (this._entraAuthentication) {
 			return false;
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
@@ -3822,6 +3854,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
+		if (readCopilotAccountOperation(params)) {
+			if (!this._entraAuthentication || !connectionToken) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft account setup requires an enabled, live connection.');
+			}
+			try {
+				await this._accountService.authenticate(this._ensureClient(), params, connectionToken);
+			} catch (error) {
+				if (classifyCopilotClientOperationFailure(error) !== undefined) {
+					await this._stopClient().catch(stopError => this._logService.error('[Copilot] Failed to stop unavailable account setup runtime', stopError));
+				}
+				throw error;
+			}
+			return true;
+		}
 		if (await this._entraAuthentication?.authenticate(params, connectionToken)) {
 			if (!params.token) {
 				await this._clientStopping;
@@ -4159,6 +4205,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const tokenAtRefreshStart = this._githubCredentials.token;
+		if (this._entraAuthentication) {
+			await this._refreshAccountModels();
+			return;
+		}
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
 			this._managedModelPolicy = undefined;
@@ -4219,6 +4269,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _publishModelCatalogStatus(status: AgentModelCatalogStatus): void {
 		this._configurationService.publishRootTransientValues?.({ [agentModelCatalogStatusKey(this.id)]: status });
+	}
+
+	private async _refreshAccountModels(): Promise<void> {
+		const context = this._accountService.state.get();
+		if (context.kind !== 'ready') {
+			this._publishModelCatalogStatus('pending');
+			return;
+		}
+		try {
+			const client = await this._ensureClient();
+			const catalog = await this._listModels(client, undefined, [], context.choice.selectionId);
+			const modelPolicy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, { selectionId: context.choice.selectionId });
+			if (this._accountService.state.get() !== context || this._shutdownPromise) {
+				return;
+			}
+			this._setAutoTierMetadata(catalog.autoTierMetadata);
+			this._capiModels = catalog.models;
+			this._managedModelPolicy = modelPolicy;
+			this._freeLongContextModels.clear();
+			for (const model of catalog.freeLongContextModels) {
+				this._freeLongContextModels.add(model);
+			}
+			this._publishModels();
+			this._publishModelCatalogStatus('ready');
+		} catch (error) {
+			if (this._accountService.state.get() === context && !this._shutdownPromise) {
+				this._logService.error('[Copilot] Failed to list models for the selected account', error);
+				await this._handleClientOperationFailure(error, 'modelRefresh');
+				if (this._accountService.state.get() === context) {
+					this._publishModelCatalogStatus('error');
+				}
+			}
+		}
 	}
 
 	/**
@@ -4386,6 +4469,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _stopClient(): Promise<void> {
+		const accountRelease = this._entraAuthentication ? this._accountService.reset() : undefined;
 		this._managedSettingsResolver.invalidate();
 		this._prewarmedSessionMetadata = undefined;
 		// Any parked restart is satisfied by this stop: the next `_ensureClient`
@@ -4401,6 +4485,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				: this._clientStopping;
 		}
 		const stopping = (async () => {
+			if (accountRelease) {
+				await accountRelease.catch(error => this._logService.error('[Copilot] Failed to release account context before stopping runtime', error));
+			}
 			const clientStarting = this._clientStarting;
 			if (clientStarting) {
 				try {
@@ -5715,13 +5802,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'imported chat' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+		const accountContext = this._accountService.state.get();
+		if (this._entraAuthentication && accountContext.kind !== 'ready') {
+			return undefined;
+		}
 		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
 		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : reason === 'prewarm session metadata' ? 'sessionMetadataScan' : undefined;
 		const timing = phase && this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
 			const listed = await this._retryAfterClosedConnection('listSessions', listSessions);
-			const sessions = listed.filter(session => !this._customizationInstallations.isPolicySessionId(session.sessionId));
+			if (this._entraAuthentication && this._accountService.state.get() !== accountContext) {
+				timing?.complete('unavailable');
+				return undefined;
+			}
+			const sessions = listed.filter(session => !this._customizationInstallations.isPolicySessionId(session.sessionId) && !this._accountService.isAuthenticationSession(session.sessionId));
 			timing?.complete('success', { scannedSessionCount: sessions.length });
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;
@@ -5878,9 +5973,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
-	private async _listModels(client: CopilotClient, gitHubToken: string, previousModels = this._capiModels): Promise<ICopilotModelCatalog> {
+	private async _listModels(client: CopilotClient, gitHubToken: string | undefined, previousModels = this._capiModels, selectionId?: string): Promise<ICopilotModelCatalog> {
 		this._logService.info('[Copilot] Listing models...');
-		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, auto } = await client.rpc.models.list(selectionId ? { selectionId } : this._getEnterpriseHost() ? {} : { gitHubToken });
 		const promotions = auto ? collectAutoTierPromotions(auto.tiers) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && previousModels.some(model => !this._fallbackAutoModels.has(model))) {

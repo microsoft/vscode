@@ -215,6 +215,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 	}
 
 	updateRootConfig(): void { }
+	prepareRootConfigUpdate(patch: Record<string, unknown>): Record<string, unknown> { return patch; }
 
 	persistRootConfig(): void { }
 

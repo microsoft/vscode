@@ -1798,6 +1798,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			rootConfigEmitter.fire();
 		},
 		persistRootConfig: () => { /* no-op */ },
+		prepareRootConfigUpdate: patch => patch,
 		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);

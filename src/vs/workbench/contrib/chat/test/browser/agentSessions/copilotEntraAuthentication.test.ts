@@ -210,6 +210,32 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		assert.deepStrictEqual(result?._meta, authenticationAccountMeta({ providerId: 'microsoft', accountId: 'opaque-account', label: selected.account.label }));
 	});
 
+	test('uses the host-selected Microsoft identity without requiring a GitHub default account', async () => {
+		const f = fixture();
+		f.defaults.currentDefaultAccount = null;
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, {
+			logPrefix: '[test]', microsoftAccountId: selected.account.id,
+			authenticate: async request => { forwarded.push(request); },
+		}));
+		assert.deepStrictEqual(forwarded.map(request => ({ token: request.token, account: request._meta })), [{
+			token: selected.accessToken, account: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id }),
+		}]);
+	});
+
+	test('keeps cumulative-resource clients unchanged while explicit account setup waits for selection', async () => {
+		const f = fixture();
+		const forwarded: string[] = [];
+		const agents = [{ provider: 'unrelated-provider', displayName: 'Provider', description: '', models: [], protectedResources: [resource] }];
+		for (const copilotAccountChoice of [true, false]) {
+			await f.instantiation.invokeFunction(authenticateProtectedResources, agents, {
+				logPrefix: '[test]', copilotAccountChoice, authenticate: async request => { forwarded.push(request.resource); },
+			});
+		}
+		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource]);
+	});
+
 	test('same-token deduplication retains the replacement session identity for sign-out', async () => {
 		const cache = new AgentHostAuthTokenCache();
 		const calls: string[] = [];

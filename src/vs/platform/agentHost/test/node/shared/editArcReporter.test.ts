@@ -604,6 +604,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,
 		updateRootConfig: () => { },
 		persistRootConfig: () => { },
+		prepareRootConfigUpdate: patch => patch,
 		whenIdle: async () => { },
 		setEnabled(value) {
 			enabled = value;

@@ -367,14 +367,16 @@ export interface IAgentConfigurationService {
 
 	registerProviderConfiguration?(registration: IAgentCustomizationSettingsRegistration): void;
 	getRootConfigValues?(): Readonly<Record<string, unknown>>;
-	publishRootTransientValues?(patch: Readonly<Record<string, unknown>>): void;
+	publishRootTransientValues?(patch: Readonly<Record<string, unknown>>, readOnly?: boolean): void;
+	/** Rejects client writes to host-owned transient values and preserves them across replacements. */
+	prepareRootConfigUpdate(patch: Record<string, unknown>, replace: boolean): Record<string, unknown>;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
 	readonly copilotM365EnabledAtStartup: boolean;
 	private _rootConfigWrite = Promise.resolve();
-	private readonly _rootTransientValueKeys = new Set<string>();
+	private readonly _rootTransientValueKeys = new Map<string, boolean>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 	/** Sessions and chats whose sandbox selection a client made last; a policy allowing bypass keeps their `off`. */
 	private readonly _sessionSandboxUserSelections = new Set<ProtocolURI>();
@@ -1291,7 +1293,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 
 		const values = { ...(this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] }) };
-		for (const key of this._rootTransientValueKeys) {
+		for (const key of this._rootTransientValueKeys.keys()) {
 			delete values[key];
 		}
 		for (const key of getProviderBackedRootConfigKeys(this._stateManager.rootState)) {
@@ -1345,14 +1347,28 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return this._stateManager.rootState.config?.values ?? {};
 	}
 
-	publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
+	publishRootTransientValues(patch: Readonly<Record<string, unknown>>, readOnly = false): void {
 		for (const key of Object.keys(patch)) {
-			this._rootTransientValueKeys.add(key);
+			this._rootTransientValueKeys.set(key, readOnly || this._rootTransientValueKeys.get(key) === true);
 		}
 		this._stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { ...patch },
 		});
+	}
+
+	prepareRootConfigUpdate(patch: Record<string, unknown>, replace: boolean): Record<string, unknown> {
+		const readOnlyKeys = [...this._rootTransientValueKeys].filter(([, readOnly]) => readOnly).map(([key]) => key);
+		for (const key of readOnlyKeys) {
+			if (Object.hasOwn(patch, key)) {
+				throw new Error(`Root configuration '${key}' is owned by the agent host.`);
+			}
+		}
+		if (!replace) {
+			return patch;
+		}
+		const values = this.getRootConfigValues();
+		return { ...patch, ...Object.fromEntries(readOnlyKeys.filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]])) };
 	}
 
 	/**

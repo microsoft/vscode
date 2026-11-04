@@ -617,6 +617,9 @@ export interface IAgentHostAuthenticationOptions {
 	readonly challengeReason?: AuthRequiredReason;
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
+	/** Exact Microsoft identity from the host's current shared account context. */
+	readonly microsoftAccountId?: string;
+	readonly copilotAccountChoice?: boolean;
 	readonly isCurrent?: () => boolean;
 	/** Returns true after renewing a connection-owned credential, or false to use normal provider recovery. */
 	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<boolean>;
@@ -765,6 +768,9 @@ export async function authenticateProtectedResources(
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
 		for (const resource of agent.protectedResources ?? []) {
+			if (options.copilotAccountChoice && isCopilotEntraResource(resource)) {
+				continue;
+			}
 			await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, resolvedOptions);
 		}
 	}
@@ -993,11 +999,11 @@ async function resolveSessionForProtectedResource(
 	defaultAccountService: IDefaultAccountService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession'>,
+	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession' | 'microsoftAccountId'>,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
 	if (isCopilotEntraResource(resource)) {
-		return resolveCopilotEntraSession(authenticationService, defaultAccountService, resource, rejectedSession);
+		return resolveCopilotEntraSession(authenticationService, defaultAccountService, resource, rejectedSession, options.microsoftAccountId);
 	}
 	const resolution = await resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
@@ -1062,8 +1068,8 @@ function isCurrentCopilotEntraAccount(defaultAccount: IDefaultAccount | null, id
 	return defaultAccount?.authenticationProvider.id === 'microsoft' && defaultAccount.sessionId === identity.id;
 }
 
-async function resolveCopilotEntraSession(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, resource: ProtectedResourceMetadata, rejectedSession: RejectedAuthenticationSession | null): Promise<AuthenticationSessionResolution> {
-	const identity = await resolveCopilotEntraIdentity(authenticationService, defaultAccountService.currentDefaultAccount, resource);
+async function resolveCopilotEntraSession(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, resource: ProtectedResourceMetadata, rejectedSession: RejectedAuthenticationSession | null, accountId?: string): Promise<AuthenticationSessionResolution> {
+	const identity = await resolveCopilotEntraIdentity(authenticationService, defaultAccountService.currentDefaultAccount, resource, accountId);
 	if (!identity) {
 		return { kind: 'signedOut', accountMismatch: true };
 	}
@@ -1073,7 +1079,7 @@ async function resolveCopilotEntraSession(authenticationService: IAuthentication
 		clientId: copilotEntraClientId,
 		silent: true,
 	}, true);
-	if (!isCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity)) {
+	if (!accountId && !isCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity)) {
 		return { kind: 'signedOut', accountMismatch: true };
 	}
 	const selection = selectAuthenticationSession(sessions.filter(session => rejectedSession === null || session.accessToken !== rejectedSession.accessToken), resource.scopes_supported ?? [], {
@@ -1085,8 +1091,8 @@ async function resolveCopilotEntraSession(authenticationService: IAuthentication
 		: { kind: 'signedOut' };
 }
 
-async function resolveCopilotEntraIdentity(authenticationService: IAuthenticationService, defaultAccount: IDefaultAccount | null | undefined, resource: ProtectedResourceMetadata): Promise<AuthenticationSession | undefined> {
-	if (defaultAccount?.authenticationProvider.id !== 'microsoft') {
+async function resolveCopilotEntraIdentity(authenticationService: IAuthenticationService, defaultAccount: IDefaultAccount | null | undefined, resource: ProtectedResourceMetadata, accountId?: string): Promise<AuthenticationSession | undefined> {
+	if (!accountId && defaultAccount?.authenticationProvider.id !== 'microsoft') {
 		return undefined;
 	}
 	const providerId = await authenticationService.getOrActivateProviderIdForServer(URI.parse(copilotEntraAuthorizationServer), URI.parse(resource.resource));
@@ -1094,23 +1100,27 @@ async function resolveCopilotEntraIdentity(authenticationService: IAuthenticatio
 		return undefined;
 	}
 	const sessions = await authenticationService.getSessions(providerId, undefined, { silent: true, clientId: copilotEntraClientId }, true);
-	return sessions.find(session => session.id === defaultAccount.sessionId);
+	return sessions.find(session => accountId ? session.account.id === accountId : session.id === defaultAccount?.sessionId);
 }
 
 async function createCopilotEntraSession(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<AuthenticationSession> {
-	const identity = await resolveCopilotEntraIdentity(authenticationService, defaultAccountService.currentDefaultAccount, resource);
+	const identity = await resolveCopilotEntraIdentity(authenticationService, defaultAccountService.currentDefaultAccount, resource, options.microsoftAccountId);
 	throwIfAuthenticationStale(options);
 	if (!identity) {
 		throw new Error(localize('agentHost.microsoftAccountRequired', "Sign in with the intended Microsoft account before retrying."));
 	}
-	assertCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity);
+	if (!options.microsoftAccountId) {
+		assertCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity);
+	}
 	const session = await authenticationService.createSession('microsoft', resource.scopes_supported ?? [], {
 		account: identity.account,
 		authorizationServer: URI.parse(copilotEntraAuthorizationServer),
 		clientId: copilotEntraClientId,
 	});
 	throwIfAuthenticationStale(options);
-	assertCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity);
+	if (!options.microsoftAccountId) {
+		assertCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity);
+	}
 	if (session.account.id !== identity.account.id) {
 		throw new Error(localize('agentHost.microsoftAccountChanged', "The Microsoft account changed. Retry with the original account."));
 	}

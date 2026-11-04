@@ -25,7 +25,7 @@ interface IEntraAuthority {
 	readonly connection: CancellationToken;
 }
 
-const discoveryResource: ProtectedResourceMetadata = {
+export const copilotEntraDiscoveryMetadata: ProtectedResourceMetadata = {
 	resource: copilotEntraDiscoveryResource,
 	authorization_servers: [copilotEntraAuthorizationServer],
 	scopes_supported: ['User.Read'],
@@ -73,7 +73,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		const authority = this._authority.read(reader);
 		const requirements = this._requirements.read(reader);
 		return [
-			...(authority ? [discoveryResource] : []),
+			...(authority ? [copilotEntraDiscoveryMetadata] : []),
 			...requirements.map(requirement => requirement.resource).filter(resource => !authority || resource.resource !== copilotEntraDiscoveryResource),
 		];
 	}
@@ -92,6 +92,37 @@ export class CopilotEntraAuthentication extends Disposable {
 		return this.acceptCredential(params, connection);
 	}
 
+	/** Accepts an explicit identity handoff before starting the runtime login flow. */
+	authorizeDiscovery(params: AuthenticateParams, connection: CancellationToken): string {
+		if (!params.token || params.target || connection.isCancellationRequested || this._store.isDisposed) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		const account = validateEntraCredential(params, copilotEntraDiscoveryMetadata);
+		validateEntraAccount(account.accountId, this._authority.get()?.accountId);
+		if (!this._authority.get()) {
+			this.setAuthority(account, connection);
+		}
+		return account.accountId;
+	}
+
+	validateSelection(params: AuthenticateParams, resource: ProtectedResourceMetadata): void {
+		const authority = this._authority.get();
+		if (!params.token || params.target || !authority || authority.connection.isCancellationRequested) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		validateEntraAccount(validateEntraCredential(params, resource).accountId, authority.accountId);
+	}
+
+	private setAuthority({ accountId, label }: IAgentAuthenticationAccount, connection: CancellationToken): void {
+		const authority: IEntraAuthority = { accountId, connection, ...(label !== undefined ? { username: label } : {}) };
+		this._authority.set(authority, undefined);
+		this._connectionListener.value = connection.onCancellationRequested(() => {
+			if (this._authority.get() === authority) {
+				this.revoke();
+			}
+		});
+	}
+
 	private acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean {
 		const authority = this._authority.get();
 		const isDiscovery = params.resource === copilotEntraDiscoveryResource;
@@ -99,13 +130,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		const account = validateEntraCredential(params, resource);
 		validateEntraAccount(account.accountId, authority?.accountId);
 		if (isDiscovery && !authority) {
-			const identity: IEntraAuthority = { accountId: account.accountId, connection, ...(account.label !== undefined ? { username: account.label } : {}) };
-			this._authority.set(identity, undefined);
-			this._connectionListener.value = connection.onCancellationRequested(() => {
-				if (this._authority.get() === identity) {
-					this.revoke();
-				}
-			});
+			this.setAuthority(account, connection);
 		} else if (!authority || authority.connection.isCancellationRequested) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
@@ -240,7 +265,7 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 
 function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
 	if (request.kind === 'identity') {
-		return discoveryResource;
+		return copilotEntraDiscoveryMetadata;
 	}
 	if (request.tenant !== undefined && request.tenant !== 'organizations') {
 		return undefined;
