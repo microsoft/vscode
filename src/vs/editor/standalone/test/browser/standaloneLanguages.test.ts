@@ -199,6 +199,11 @@ suite('TokenizationSupport2Adapter', () => {
 				{ startIndex: 3, scopes: 'foo' },
 			],
 			[
+				new Token(0, 'foo', languageId),
+				new Token(5, 'bar', languageId),
+				new Token(5, 'foo', languageId),
+			]
+			[
 				0, (0 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
 				5, (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
 				5, (2 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK
