@@ -931,24 +931,26 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	/**
-	 * The terminal a chat window shows `session` with: one of the session's terminals in its working directory that no
-	 * other chat window shows, or a new one there, created at `location`, in the chat window, rather than in the panel of
-	 * the main window and moved.
+	 * The terminals a chat window shows `session` with, in their order: the session's terminals in its working directory
+	 * that no other chat window shows, or a new one there, created at `location`, in the chat window, rather than in the
+	 * panel of the main window and moved. While the main window shows the session too, its panel keeps all but one of them.
 	 */
-	async getChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
+	async getChatWindowTerminals(session: IActiveSession, location?: ITerminalLocationOptions): Promise<readonly ITerminalInstance[]> {
 		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
 		const instances = await this._ensureTerminal(cwd, false, session, undefined, true, location);
-		const free = instances.find(instance => !this._chatWindowTerminalIds.has(instance.instanceId));
-		if (free || !instances.length) {
-			const terminal = free ?? instances[0];
-			// Taken at once, so that a chat window that asks meanwhile does not take it too.
-			if (terminal) {
-				this.setShownInChatWindow(terminal, true);
-			}
-			return terminal;
+		if (!instances.length) {
+			return [];
+		}
+		const free = instances.filter(instance => !this._chatWindowTerminalIds.has(instance.instanceId));
+		if (free.length) {
+			const taken = this._sessionsService.mainWindowActiveSession.get()?.sessionId === session.sessionId ? free.slice(0, 1) : free;
+			// Taken at once, so that a chat window that asks meanwhile does not take them too.
+			taken.forEach(terminal => this.setShownInChatWindow(terminal, true));
+			return taken;
 		}
 		// Each chat window of the session has terminals of its own: the session's terminals are all in other windows.
-		return this._createChatWindowTerminal(session, cwd, location);
+		const created = await this._createChatWindowTerminal(session, cwd, location);
+		return created ? [created] : [];
 	}
 
 	/** A new terminal of `session`, in its working directory, with its profile, created at `location`, in a chat window. */
@@ -1007,8 +1009,9 @@ class SessionsChatWindowTerminals extends ChatWindowTerminals {
 		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IChatWindowService chatWindowService: IChatWindowService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
-		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, terminalGroupService, editorGroupsService, chatWindowService);
+		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, terminalGroupService, editorGroupsService, chatWindowService, sessionsManagementService);
 	}
 }
 

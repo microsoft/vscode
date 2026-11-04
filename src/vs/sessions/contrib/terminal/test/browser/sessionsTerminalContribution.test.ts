@@ -1282,6 +1282,25 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({ shownForOther, disposed: disposedInstances.map(instance => instance.instanceId) }, { shownForOther: false, disposed: [taken.instanceId] });
 	});
 
+	test('a chat window shows the session with all its terminals that no other chat window shows, in their order; while the main window shows the session too, its panel keeps all but one of them', async () => {
+		const worktree = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:windowed', worktree, providerType: AgentSessionProviders.Background });
+		const [first] = await contribution.ensureTerminal(worktree, false, session);
+		const second = (await contribution.createChatWindowTerminal(session))!;
+		contribution.setShownInChatWindow(second, false);
+
+		const all = await contribution.getChatWindowTerminals(session);
+		all.forEach(instance => contribution.setShownInChatWindow(instance, false));
+		activeSessionObs.set(session, undefined);
+		await tick();
+		const whileMainShows = await contribution.getChatWindowTerminals(session);
+
+		assert.deepStrictEqual({ all: all.map(instance => instance.instanceId), whileMainShows: whileMainShows.map(instance => instance.instanceId) }, {
+			all: [first.instanceId, second.instanceId],
+			whileMainShows: [first.instanceId],
+		});
+	});
+
 	test('disposes the active terminal when its session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const session = makeAgentSession({
