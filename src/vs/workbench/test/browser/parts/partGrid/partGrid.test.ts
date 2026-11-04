@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { $, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, registerWindow } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
@@ -49,6 +49,16 @@ suite('Part Grid', () => {
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
+		// The tests move a synthetic pointer, which the grid follows through listeners on the document. A real pointer
+		// that rests over the test window (Linux Electron under Xvfb) gets pointer events of its own as the layout changes
+		// under it, and would move the grabber to the part under it. The window sees them first, in the capture phase.
+		for (const type of ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'pointermove', 'pointerdown', 'pointerup', 'mouseover', 'mouseout', 'mouseenter', 'mouseleave', 'mousemove', 'mousedown', 'mouseup']) {
+			disposables.add(addDisposableListener(mainWindow, type, e => {
+				if (e.isTrusted) {
+					e.stopImmediatePropagation();
+				}
+			}, true));
+		}
 	});
 
 	teardown(() => {
