@@ -31,6 +31,7 @@ import { EditorService } from '../../browser/editorService.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 class TestView implements IViewEditorView {
 
@@ -219,6 +220,22 @@ suite('View Editors', () => {
 			onlyUntitledView: true,
 			mainPart: true
 		});
+	});
+
+	test('a group that shows a header with menus, as the groups of a chat window\'s parts do, still hides its whole title area, header too, while it holds only a view that provides its title', async () => {
+		const { parts } = await createServices();
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const part = parts.createEditorPart({ container, groupViewOptions: { showHeader: true, menuIds: { headerPrimary: MenuId.for('test.viewEditor.headerPrimary') } } });
+		part.layout(800, 600, 0, 0);
+		disposables.add({ dispose: () => { part.close(); container.remove(); } });
+		const group = groupViewOf(parts, part.activeGroup);
+		const titleShown = () => group.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !group.element.classList.contains('title-provided-by-editor');
+
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const onlyTitledView = titleShown();
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+
+		assert.deepStrictEqual({ onlyTitledView, withSecondEditor: titleShown() }, { onlyTitledView: false, withSecondEditor: true });
 	});
 
 	test('a view opens other editors in the main part of its window, not beside itself', async () => {

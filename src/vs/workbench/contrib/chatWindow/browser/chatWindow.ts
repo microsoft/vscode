@@ -131,10 +131,10 @@ export interface IChatWindowLook {
 	paintChatBackground?(element: HTMLElement): IDisposable;
 	/**
 	 * Options of the main part of the window, such as how its tabs show, that override the user's settings there; also of
-	 * the part that holds its terminals.
+	 * its other parts, such as the chat part and the part that holds its terminals.
 	 */
 	readonly mainPartOptions?: IObservable<DeepPartial<IEditorPartOptions>>;
-	/** Options of the groups of the main part of the window, such as the menus of their title areas. */
+	/** Options of the groups of the main part of the window, such as the menus of their title areas; also of the chat part. */
 	readonly mainPartGroupViewOptions?: IEditorGroupViewOptions;
 }
 

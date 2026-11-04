@@ -502,12 +502,16 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const chatPartElement = append(host, $('.chat-window-chat-part'));
 		const look = provider.look;
 		const mainPart = this._editorGroupsService.createEditorPart({ container: mainPartElement, label: localize('chatWindow.mainPart', "Editor"), services, groupViewOptions: look.mainPartGroupViewOptions });
+		// The groups of the chat part look as those of the main part, such as an editor split beside the chat: the chat's own
+		// group shows no title area while it shows only the chat, whose view provides its title.
+		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services, state: options?.chatPart?.state, groupViewOptions: look.mainPartGroupViewOptions });
 		if (look.mainPartOptions) {
 			const mainPartOptions = look.mainPartOptions;
-			const enforced = disposables.add(new MutableDisposable());
-			disposables.add(autorun(reader => enforced.value = mainPart.enforcePartOptions(mainPartOptions.read(reader))));
+			for (const part of [mainPart, chatPart]) {
+				const enforced = disposables.add(new MutableDisposable());
+				disposables.add(autorun(reader => enforced.value = part.enforcePartOptions(mainPartOptions.read(reader))));
+			}
 		}
-		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services, state: options?.chatPart?.state });
 		chatPartElement.setAttribute('role', 'main');
 		const mainPartContextKeyService = this._editorGroupsService.getScopedInstantiationService(mainPart).invokeFunction(accessor => accessor.get(IContextKeyService));
 		disposables.add(bindChatWindowPartsVisible(windowContextKeyService, mainPartContextKeyService, state.layoutMode));
