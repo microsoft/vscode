@@ -7,13 +7,14 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatSendResult, IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatInteractivity, IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -234,5 +235,34 @@ suite.skip('agentHostSkillButtons - menu registration', () => {
 		assert.strictEqual(isAgentHostSkillButtonId('workbench.action.agentSessions.runSkill.merge'), true);
 		assert.strictEqual(isAgentHostSkillButtonId('github.copilot.sessions.commit'), false);
 		assert.strictEqual(isAgentHostSkillButtonId(''), false);
+	});
+});
+
+suite('agentHostSkillButtons - target', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a skill button runs its skill in the chat of the session it is given, such as the chat a chat window shows, not the active one', async () => {
+		const sessions = new FakeSessionsService();
+		const mainWindowSession = makeActiveSession('local-agent-host');
+		sessions.setActiveSession(mainWindowSession);
+		// The session of a chat window that shows another chat of a session than its main one.
+		const chatWindowSession = makeActiveSession('local-agent-host');
+		const otherChat = { ...chatWindowSession.mainChat.get(), resource: URI.parse('agent-host-chat:/session/other') } satisfies IChat;
+		(chatWindowSession.activeChat as ReturnType<typeof observableValue<IChat>>).set(otherChat, undefined);
+		const sent: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, sessions);
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override async acquireOrLoadSession() { return undefined; }
+			override async sendRequest(resource: URI, message: string) {
+				sent.push(`${resource.toString()} ${message}`);
+				return upcastPartial<ChatSendResult>({ kind: 'rejected' });
+			}
+		}());
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID)!.handler(accessor, chatWindowSession));
+
+		assert.deepStrictEqual(sent, ['agent-host-chat:/session/other /update-pr']);
 	});
 });

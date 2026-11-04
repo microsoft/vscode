@@ -18,6 +18,7 @@ import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/c
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
 import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
@@ -173,27 +174,28 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const sessionsService = accessor.get(ISessionsService);
+		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 			const chatService = accessor.get(IChatService);
 
-			const activeSession = sessionsService.activeSession.get();
-			if (!activeSession) {
+			// The session the button acts on, such as that of a chat window, else the active one; and the chat it shows.
+			const session = resolveSessionActionTarget(accessor, sessionArg);
+			if (!session) {
 				return;
 			}
+			const chatResource = session.activeChat.get().resource;
 
-			// `activeSession.resource.scheme` matches the chat session
+			// `session.resource.scheme` matches the chat session
 			// contribution `type` registered for the agent-host (e.g.
 			// `agent-host-copilotcli`), which is the agent id the chat
 			// service uses for routing. The `sessionType` field is the
 			// logical, user-facing id (e.g. `copilotcli`) that is shared
 			// between the Copilot CLI extension and the local/remote
 			// agent-host providers, so it is NOT a valid agent id here.
-			const agentId = activeSession.resource.scheme;
+			const agentId = session.resource.scheme;
 			const prompt = `/${spec.skill}`;
-			const ref = await chatService.acquireOrLoadSession(activeSession.resource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentHostSkillButton');
+			const ref = await chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentHostSkillButton');
 			try {
-				let result = await chatService.sendRequest(activeSession.resource, prompt, { agentIdSilent: agentId });
+				let result = await chatService.sendRequest(chatResource, prompt, { agentIdSilent: agentId });
 				if (ChatSendResult.isQueued(result)) {
 					result = await result.deferred;
 				}
