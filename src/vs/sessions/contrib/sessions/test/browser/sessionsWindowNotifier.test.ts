@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -108,6 +108,7 @@ function createSession(id: string, initialStatus: SessionStatus, workspaceLabel 
 		override readonly resource = URI.parse(`test:///${id}`);
 		override readonly title = observableValue(`title-${id}`, `Fix ${id}`);
 		override readonly status = status;
+		override readonly chats = constObservable<readonly IChat[]>([]);
 		override readonly workspace = observableValue<ISessionWorkspace | undefined>(`workspace-${id}`, new class extends mock<ISessionWorkspace>() {
 			override readonly label = workspaceLabel;
 		});
@@ -142,6 +143,7 @@ suite('SessionsWindowNotifier', () => {
 	function createNotifier(
 		session: ISession,
 		configuration: Record<string, ChatNotificationMode>,
+		comparisons = comparisonService(),
 	): { notifier: SessionsWindowNotifier; sessions: TestSessionsService; host: TestHostService } {
 		const management = new TestSessionsManagementService([session]);
 		const sessions = new TestSessionsService();
@@ -155,7 +157,7 @@ suite('SessionsWindowNotifier', () => {
 			new TestConfigurationService(configuration),
 			chat,
 			widgets,
-			comparisonService(),
+			comparisons,
 		));
 		store.add(management);
 		return { notifier, sessions, host };
@@ -348,6 +350,99 @@ suite('SessionsWindowNotifier', () => {
 			opened: ['test:/parent#waiting-one', 'test:/parent#waiting-two'],
 			parentStatus: SessionStatus.InProgress,
 		});
+	});
+
+	for (const existingPeer of [true, false]) {
+		test(`notifies ordinary peers ${existingPeer ? 'already present when a comparison arrives' : 'added after comparison tracking starts'}`, async () => {
+			const base = createSession('parent', SessionStatus.InProgress);
+			const attempt = upcastPartial<IChat>({
+				resource: URI.parse('test:/parent#attempt'), status: constObservable(SessionStatus.InProgress),
+			});
+			const peerStatus = observableValue('peerStatus', SessionStatus.InProgress);
+			const peer = upcastPartial<IChat>({
+				resource: URI.parse('test:/parent#peer'), status: peerStatus,
+				title: constObservable('Ordinary peer'), workspace: base.session.workspace,
+			});
+			const chats = observableValue<readonly IChat[]>('chats', existingPeer ? [attempt, peer] : [attempt]);
+			const parent = upcastPartial<ISession>({ ...base.session, chats });
+			const comparison = upcastPartial<ISessionComparison>({
+				id: 'comparison',
+				participants: [upcastPartial<ISessionComparison['participants'][number]>({ id: 'attempt', sessionResource: parent.resource, chatResource: attempt.resource })],
+			});
+			const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', existingPeer ? [] : [comparison]);
+			const { host, sessions } = createNotifier(parent, {
+				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
+				[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.WindowNotFocused,
+			}, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = comparisons;
+				override getComparisonForSession(): ISessionComparison | undefined { return comparisons.get()[0]; }
+			}());
+			host.toastResult = { supported: true, clicked: true };
+			transaction(tx => {
+				comparisons.set([comparison], tx);
+				chats.set([attempt, peer], tx);
+			});
+			for (const status of [SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed]) {
+				transaction(tx => {
+					peerStatus.set(status, tx);
+					base.status.set(status, tx);
+				});
+				await flushNotifications();
+			}
+			const notified = host.toasts.map(toast => ({ body: toast.body, dedupeKey: toast.dedupeKey }));
+			host.hasFocus = true;
+			const panes = [attempt, peer].map(chat => upcastPartial<IActiveSession>({
+				sessionId: parent.sessionId, resource: parent.resource, activeChat: constObservable(chat),
+			}));
+			sessions.visibleSessionPanes.set(panes, undefined);
+			sessions.activeSession.set(panes[0], undefined);
+			peerStatus.set(SessionStatus.NeedsInput, undefined);
+			await flushNotifications();
+			const afterFocus = host.toasts.length;
+			host.hasFocus = false;
+			chats.set([attempt], undefined);
+			peerStatus.set(SessionStatus.Error, undefined);
+			await flushNotifications();
+			assert.deepStrictEqual({
+				notified,
+				opened: sessions.opened.map(resource => resource.toString()),
+				afterFocus,
+				afterRemoval: host.toasts.length,
+			}, {
+				notified: [
+					{ body: 'Attention needed in vscode.', dedupeKey: 'chat-session:test:/parent#peer:needsInput' },
+					{ body: 'Failed in vscode.', dedupeKey: 'chat-session:test:/parent#peer:idle' },
+					{ body: 'Completed in vscode.', dedupeKey: 'chat-session:test:/parent#peer:idle' },
+				],
+				opened: Array(3).fill('test:/parent#peer'),
+				afterFocus: 3,
+				afterRemoval: 3,
+			});
+		});
+	}
+
+	test('preserves aggregate notifications until comparison chats are available and suppresses queued duplicates', async () => {
+		const base = createSession('unhydrated', SessionStatus.InProgress);
+		const chats = observableValue<readonly IChat[]>('chats', []);
+		const session = upcastPartial<ISession>({ ...base.session, chats });
+		const chatResource = session.resource.with({ fragment: 'attempt' });
+		const comparison = upcastPartial<ISessionComparison>({
+			id: 'comparison',
+			participants: [upcastPartial<ISessionComparison['participants'][number]>({ id: 'attempt', sessionResource: session.resource, chatResource })],
+		});
+		const { host } = createNotifier(session, {
+			[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
+			[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.WindowNotFocused,
+		}, new class extends mock<ISessionComparisonService>() {
+			override readonly comparisons = constObservable([comparison]);
+			override getComparisonForSession(): ISessionComparison { return comparison; }
+		}());
+		base.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+		base.status.set(SessionStatus.Completed, undefined);
+		chats.set([upcastPartial<IChat>({ resource: chatResource, status: constObservable(SessionStatus.Completed) })], undefined);
+		await flushNotifications();
+		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), ['chat-session:test:/unhydrated:needsInput']);
 	});
 
 	test('does not notify an inactive ordinary pane while the window is focused', async () => {

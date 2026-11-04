@@ -22,7 +22,7 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModelEvaluationTool, ModelEvaluationToolContribution } from '../../browser/modelEvaluationTools.js';
 
@@ -35,8 +35,8 @@ const launchInput = () => ({ prompt: 'Implement a scenario', attempts: [selectio
 suite('ModelEvaluationTools', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { supportsModelConfigurationForCreation?: boolean } = {}) {
-		const configuration = new TestConfigurationService({ [COMPARE_AGENTS_ENABLED_SETTING]: true });
+	function setup(options: { supportsModelConfigurationForCreation?: boolean; quickChat?: boolean } = {}) {
+		const configuration = new TestConfigurationService({ [COMPARE_AGENTS_ENABLED_SETTING]: true, [COMPARE_AGENTS_TOOLS_ENABLED_SETTING]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const workspace = upcastPartial<ISessionWorkspace>({
 			uri: project,
@@ -47,12 +47,14 @@ suite('ModelEvaluationTools', () => {
 				},
 			}],
 		});
+		const chatWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', workspace);
 		const chat = upcastPartial<IChat>({
-			resource: callerResource, workspace: constObservable(workspace), status: constObservable(SessionStatus.InProgress),
+			resource: callerResource, workspace: chatWorkspace, status: constObservable(SessionStatus.InProgress),
 		});
 		const caller = upcastPartial<ISession>({
 			sessionId: 'caller', resource: URI.parse('test:/parent'), providerId: 'local-agent-host',
 			sessionType: 'copilotcli', mainChat: constObservable(chat), chats: constObservable([chat]),
+			isQuickChat: constObservable(options.quickChat ?? false),
 		});
 		const type = { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, supportsWorktreeConfiguration: true, authRequirement: SessionTypeAuthRequirement.None };
 		const model = upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
@@ -67,6 +69,7 @@ suite('ModelEvaluationTools', () => {
 			sessionTypes: [type], getSessionTypes: () => [type],
 			isSessionConfigResolving: () => constObservable(false),
 			getSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: { isolation: 'worktree' } }),
+			getSessionOwnConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: { isolation: 'worktree' } }),
 			getComparisonPermissionOptionForSession: (_id, _type, resource) => {
 				permissionChats.push(resource);
 				return { id: permissionId, label: permissionId, description: '' };
@@ -98,7 +101,7 @@ suite('ModelEvaluationTools', () => {
 		store.add(providers.registerProvider(provider));
 		const entitlement = upcastPartial<IChatEntitlementService>({ sentiment: { hidden: false } });
 		return {
-			configuration, provider, providers, sessions, entitlement, comparisons, launches, comparisonService, availableSessions, chat, caller, model, permissionChats,
+			configuration, provider, providers, sessions, entitlement, comparisons, launches, comparisonService, availableSessions, chat, chatWorkspace, caller, model, permissionChats,
 			setPermission: (id: string) => permissionId = id,
 			tool: (name: ConstructorParameters<typeof ModelEvaluationTool>[0]) => new ModelEvaluationTool(name, comparisonService, sessions, providers, configuration, entitlement),
 		};
@@ -111,8 +114,9 @@ suite('ModelEvaluationTools', () => {
 		return tool.invoke({ callId: 'call', toolId: 'test', parameters, context: { sessionResource: callerResource } }, async () => 0, progress, token);
 	}
 
-	test('publishes every evaluator tool through a tool set only while comparison setup is enabled', async () => {
+	test('publishes every evaluator tool only after opt-in and while both feature gates are enabled', async () => {
 		const fixture = setup();
+		await fixture.configuration.setUserConfiguration(COMPARE_AGENTS_TOOLS_ENABLED_SETTING, undefined);
 		const registered = new Set<string>();
 		const published = new Set<string>();
 		const tools = new class extends mock<ILanguageModelToolsService>() {
@@ -137,13 +141,43 @@ suite('ModelEvaluationTools', () => {
 		instantiation.stub(IConfigurationService, fixture.configuration);
 		instantiation.stub(IChatEntitlementService, fixture.entitlement);
 		store.add(new ModelEvaluationToolContribution(tools, instantiation, fixture.configuration));
-		const enabled = { registered: [...registered], published: [...published] };
-		await fixture.configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, false);
-		fixture.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === COMPARE_AGENTS_ENABLED_SETTING }));
+		const states = [{ registered: [...registered], published: [...published] }];
+		for (const [setting, enabled] of [
+			[COMPARE_AGENTS_TOOLS_ENABLED_SETTING, true],
+			[COMPARE_AGENTS_ENABLED_SETTING, false],
+			[COMPARE_AGENTS_ENABLED_SETTING, true],
+			[COMPARE_AGENTS_TOOLS_ENABLED_SETTING, false],
+		] as const) {
+			await fixture.configuration.setUserConfiguration(setting, enabled);
+			fixture.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === setting }));
+			states.push({ registered: [...registered], published: [...published] });
+		}
 		const ids = ['vscode_getComparisonModels', 'vscode_createModelComparison', 'vscode_listModelComparisons', 'vscode_readModelComparison'];
-		assert.deepStrictEqual({ enabled, disabled: { registered: [...registered], published: [...published] } }, {
-			enabled: { registered: ids, published: ids }, disabled: { registered: [], published: [] },
-		});
+		assert.deepStrictEqual(states, [
+			{ registered: [], published: [] },
+			{ registered: ids, published: ids },
+			{ registered: [], published: [] },
+			{ registered: ids, published: ids },
+			{ registered: [], published: [] },
+		]);
+	});
+
+	test('disabling evaluator tools rejects all invocations including a previously prepared launch', async () => {
+		const fixture = setup();
+		const tool = fixture.tool('createModelComparison');
+		const input = launchInput();
+		await tool.prepareToolInvocation({ parameters: input, toolCallId: 'call', chatSessionResource: callerResource }, CancellationToken.None);
+		await fixture.configuration.setUserConfiguration(COMPARE_AGENTS_TOOLS_ENABLED_SETTING, false);
+		const results = await Promise.all([
+			invoke(tool, input),
+			invoke(fixture.tool('getComparisonModels'), {}),
+			invoke(fixture.tool('listModelComparisons'), {}),
+			invoke(fixture.tool('readModelComparison'), { comparisonId: 'comparison' }),
+		]);
+		assert.deepStrictEqual({
+			errors: results.map(result => result.toolResultError),
+			launches: fixture.launches,
+		}, { errors: Array(4).fill('Model comparison tools are disabled.'), launches: [] });
 	});
 
 	test('launches one scenario using the nested caller permissions and canonical project', async () => {
@@ -154,16 +188,56 @@ suite('ModelEvaluationTools', () => {
 		await invoke(tool, input);
 		const options = fixture.launches[0];
 		assert.deepStrictEqual({
+			waitsForApprovalObserver: tool.getToolData().canRequestPreApproval,
 			confirmed: !!prepared.confirmationMessages,
 			workspace: options.workspace?.toString(), branch: options.branch, prompt: options.prompt,
 			models: options.attempts.map(attempt => [attempt.harness.modelId, attempt.harness.modelConfiguration, attempt.harness.permissionId]),
 			judge: options.judgeHarness?.modelId,
 			nestedSource: fixture.permissionChats.every(resource => isEqual(resource, callerResource)),
 		}, {
-			confirmed: true, workspace: project.toString(), branch: 'main', prompt: input.prompt,
+			waitsForApprovalObserver: true, confirmed: true, workspace: project.toString(), branch: 'main', prompt: input.prompt,
 			models: [['model', { thinkingLevel: 'high' }, 'default'], ['model', { thinkingLevel: 'high' }, 'default']],
 			judge: 'model', nestedSource: true,
 		});
+	});
+
+	test('preserves a nested caller workspace under a quick-chat parent', async () => {
+		const fixture = setup({ quickChat: true });
+		const discovery = await invoke(fixture.tool('getComparisonModels'), {});
+		const result = await invoke(fixture.tool('createModelComparison'), launchInput(), true);
+		assert.deepStrictEqual({
+			discoveryError: discovery.toolResultError,
+			creationError: result.toolResultError,
+			workspace: fixture.launches[0].workspace?.toString(),
+			branch: fixture.launches[0].branch,
+			judge: fixture.launches[0].judgeHarness?.modelId,
+		}, { discoveryError: undefined, creationError: undefined, workspace: project.toString(), branch: 'main', judge: 'model' });
+	});
+
+	test('keeps quick-chat callers without a workspace folderless', async () => {
+		const fixture = setup({ quickChat: true });
+		fixture.chatWorkspace.set(undefined, undefined);
+		await invoke(fixture.tool('createModelComparison'), { ...launchInput(), judge: undefined }, true);
+		assert.deepStrictEqual({
+			workspace: fixture.launches[0].workspace, judge: fixture.launches[0].judgeHarness,
+		}, { workspace: undefined, judge: undefined });
+	});
+
+	test('uses session-wide worktree support but exact caller permissions for a chat with its own schema', async () => {
+		const fixture = setup();
+		fixture.provider.getSessionConfig = () => ({
+			schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Permissions', enum: ['default'], chatMutable: true } } },
+			values: { autoApprove: 'default' },
+		});
+		const discovery = await invoke(fixture.tool('getComparisonModels'), {});
+		const result = await invoke(fixture.tool('createModelComparison'), launchInput(), true);
+		assert.deepStrictEqual({
+			discoveryError: discovery.toolResultError,
+			creationError: result.toolResultError,
+			workspace: fixture.launches[0].workspace?.toString(),
+			permissions: fixture.launches[0].attempts.map(attempt => attempt.harness.permissionId),
+			nestedSource: fixture.permissionChats.every(resource => isEqual(resource, callerResource)),
+		}, { discoveryError: undefined, creationError: undefined, workspace: project.toString(), permissions: ['default', 'default'], nestedSource: true });
 	});
 
 	test('rejects stale approvals, recursive launch, and invocation without preparation', async () => {

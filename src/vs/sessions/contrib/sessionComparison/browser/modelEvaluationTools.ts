@@ -27,7 +27,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { createSessionComparisonHarness, isFixedSessionComparisonModel } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getManifestSessionStatus, ReadSessionComparisonTool } from './sessionComparisonTool.js';
 
@@ -108,12 +108,13 @@ export class ModelEvaluationTool implements IToolImpl {
 			id: `vscode_${this.name}`,
 			toolReferenceName: this.name,
 			canBeReferencedInPrompt: true,
+			canRequestPreApproval: this.name === 'createModelComparison',
 			icon: Codicon.compareChanges,
 			displayName: definition.displayName,
 			userDescription: definition.displayName,
 			modelDescription: definition.description,
 			source: ToolDataSource.Internal,
-			when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${COMPARE_AGENTS_ENABLED_SETTING}`, true)),
+			when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${COMPARE_AGENTS_ENABLED_SETTING}`, true), ContextKeyExpr.equals(`config.${COMPARE_AGENTS_TOOLS_ENABLED_SETTING}`, true)),
 			runsInWorkspace: false,
 			agentHostPreferences: { defer: 'auto' },
 			inputSchema: definition.schema,
@@ -213,6 +214,7 @@ export class ModelEvaluationTool implements IToolImpl {
 
 	private checkEnabled(): void {
 		if (this.configuration.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING) !== true
+			|| this.configuration.getValue<boolean>(COMPARE_AGENTS_TOOLS_ENABLED_SETTING) !== true
 			|| this.configuration.getValue<boolean>('chat.disableAIFeatures') === true || this.entitlement.sentiment.hidden) {
 			throw new EvaluationInputError('Model comparison tools are disabled.');
 		}
@@ -236,8 +238,8 @@ export class ModelEvaluationTool implements IToolImpl {
 			|| provider.isDevContainerRequested?.(caller.session.sessionId)) {
 			throw new EvaluationInputError('The calling host cannot create model comparisons.');
 		}
-		const folderless = input.workspaceMode === 'folderless' || caller.session.isQuickChat?.get() === true;
 		const sourceWorkspace = caller.chat.workspace.get();
+		const folderless = input.workspaceMode === 'folderless' || (!sourceWorkspace && caller.session.isQuickChat?.get() === true);
 		const workspace = folderless ? undefined : sourceWorkspace?.folders[0]?.root;
 		if (!folderless && (!workspace || sourceWorkspace?.folders.length !== 1)) {
 			throw new EvaluationInputError('The calling chat must have one resolved project workspace, or request folderless mode.');
@@ -245,7 +247,7 @@ export class ModelEvaluationTool implements IToolImpl {
 		if (provider.isSessionConfigResolving(caller.session.sessionId, caller.chat.resource).get()) {
 			throw new EvaluationInputError('The calling chat configuration is still resolving. Retry after it becomes available.');
 		}
-		const config = provider.getSessionConfig(caller.session.sessionId, caller.chat.resource);
+		const config = provider.getSessionOwnConfig(caller.session.sessionId);
 		if (workspace && (!config || !getSessionWorkspaceProperties(config.schema).isolation?.schema.enum?.includes('worktree'))) {
 			throw new EvaluationInputError('The calling host does not support isolated comparison worktrees.');
 		}
@@ -374,9 +376,10 @@ export class ModelEvaluationToolContribution extends Disposable implements IWork
 		super();
 		const registrations = this._register(new DisposableStore());
 		const enabled = observableConfigValue(COMPARE_AGENTS_ENABLED_SETTING, false, configuration);
+		const toolsEnabled = observableConfigValue(COMPARE_AGENTS_TOOLS_ENABLED_SETTING, false, configuration);
 		this._register(autorun(reader => {
 			registrations.clear();
-			if (!enabled.read(reader)) {
+			if (!enabled.read(reader) || !toolsEnabled.read(reader)) {
 				return;
 			}
 			const toolSet = registrations.add(tools.createToolSet(ToolDataSource.Internal, 'vscode_modelEvaluation', 'modelEvaluation', {
