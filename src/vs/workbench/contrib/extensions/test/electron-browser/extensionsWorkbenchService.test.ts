@@ -36,7 +36,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ExtensionType, ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, ExtensionIdentifier, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../../platform/environment/common/environment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
@@ -62,7 +62,7 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
-import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
@@ -1870,6 +1870,126 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
+	});
+
+	test('installInServer waits for pending gallery manifest and installs from gallery', async () => {
+		const local = aLocalExtension('testext', { version: '1.0.0' }, { targetPlatform: TargetPlatform.UNDEFINED });
+		const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.0' });
+
+		const manifestDeferred = new DeferredPromise<IExtensionGalleryManifest | null>();
+		let galleryEnabled = false;
+
+		instantiationService.stub(IProgressService, {
+			withProgress: (_options: any, task: any) => task({ report() { } })
+		});
+
+		instantiationService.stub(IExtensionGalleryManifestService, {
+			onDidChangeExtensionGalleryManifest: Event.None,
+			onDidChangeExtensionGalleryManifestStatus: Event.None,
+			get extensionGalleryManifestStatus() {
+				return galleryEnabled ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.Unavailable;
+			},
+			async getExtensionGalleryManifest() {
+				return manifestDeferred.p;
+			}
+		});
+
+		instantiationService.stub(IExtensionGalleryService, {
+			isEnabled: () => galleryEnabled,
+			getExtensions: async () => [gallery],
+			isExtensionCompatible: async () => true,
+		});
+
+		let installedFromGallery = false;
+		let installedFromVsix = false;
+		const localExtensionManagementService = createExtensionManagementService([local]);
+		const remoteExtensionManagementService = <IProfileAwareExtensionManagementService>{
+			...createExtensionManagementService(),
+			installFromGallery: async () => {
+				installedFromGallery = true;
+				return local;
+			},
+			install: async () => {
+				installedFromVsix = true;
+				return local;
+			},
+		};
+
+		const serverService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, remoteExtensionManagementService);
+		instantiationService.stub(IExtensionManagementServerService, serverService);
+
+		testObject = await aWorkbenchService();
+
+		const ext = testObject.local[0];
+		assert.ok(ext);
+		assert.ok(!ext.gallery);
+
+		const installPromise = testObject.installInServer(ext, serverService.remoteExtensionManagementServer!);
+
+		// Before manifest resolves, install is waiting for the manifest and hasn't fallen back to VSIX
+		assert.strictEqual(installedFromGallery, false);
+		assert.strictEqual(installedFromVsix, false);
+
+		// Resolve manifest
+		galleryEnabled = true;
+		manifestDeferred.complete({} as IExtensionGalleryManifest);
+
+		await installPromise;
+
+		assert.strictEqual(installedFromGallery, true);
+		assert.strictEqual(installedFromVsix, false);
+	});
+
+	test('installInServer falls back to local vsix when gallery has no manifest', async () => {
+		const local = aLocalExtension('testext', { version: '1.0.0' }, { targetPlatform: TargetPlatform.UNDEFINED });
+
+		instantiationService.stub(IProgressService, {
+			withProgress: (_options: any, task: any) => task({ report() { } })
+		});
+
+		instantiationService.stub(IExtensionGalleryManifestService, {
+			onDidChangeExtensionGalleryManifest: Event.None,
+			onDidChangeExtensionGalleryManifestStatus: Event.None,
+			extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Unavailable,
+			async getExtensionGalleryManifest() {
+				return null;
+			}
+		});
+
+		instantiationService.stub(IExtensionGalleryService, {
+			isEnabled: () => false,
+			getExtensions: async () => [],
+		});
+
+		let installedFromGallery = false;
+		let installedFromVsix = false;
+		const localExtensionManagementService = createExtensionManagementService([local]);
+		const remoteExtensionManagementService = <IProfileAwareExtensionManagementService>{
+			...createExtensionManagementService(),
+			installFromGallery: async () => {
+				installedFromGallery = true;
+				return local;
+			},
+			install: async () => {
+				installedFromVsix = true;
+				return local;
+			},
+		};
+
+		const serverService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, remoteExtensionManagementService);
+		instantiationService.stub(IExtensionManagementServerService, serverService);
+
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'zip', async () => URI.file('test.vsix'));
+		instantiationService.stub(IFileService, 'del', async () => { });
+
+		testObject = await aWorkbenchService();
+
+		const ext = testObject.local[0];
+		assert.ok(ext);
+		await testObject.installInServer(ext, serverService.remoteExtensionManagementServer!);
+
+		assert.strictEqual(installedFromGallery, false);
+		assert.strictEqual(installedFromVsix, true);
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
