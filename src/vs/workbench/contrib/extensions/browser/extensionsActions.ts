@@ -85,6 +85,11 @@ export class PromptExtensionInstallFailureAction extends Action {
 	 */
 	opensExtensionEditor = true;
 
+	/**
+	 * Whether installing again from the prompt also enables the extension, like {@link InstallAction.enablesExtension}.
+	 */
+	enablesExtension = false;
+
 	constructor(
 		private readonly extension: IExtension,
 		private readonly options: InstallOptions | undefined,
@@ -234,6 +239,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		const installAction = this.instantiationService.createInstance(InstallAction, options);
 		try {
 			installAction.opensExtensionEditor = this.opensExtensionEditor;
+			installAction.enablesExtension = this.enablesExtension;
 			installAction.extension = this.extension;
 			return await installAction.run();
 		} finally {
@@ -449,6 +455,12 @@ export class InstallAction extends ExtensionAction {
 	 */
 	opensExtensionEditor = true;
 
+	/**
+	 * Whether installing also enables the extension when it is disabled once installed, such as in windows that disable
+	 * extensions by default. The extensions service enables it before installing completes.
+	 */
+	enablesExtension = false;
+
 	constructor(
 		options: InstallOptions,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -655,11 +667,12 @@ export class InstallAction extends ExtensionAction {
 
 	private async install(extension: IExtension): Promise<IExtension | undefined> {
 		try {
-			return await this.extensionsWorkbenchService.install(extension, this.options);
+			return await this.extensionsWorkbenchService.install(extension, this.enablesExtension ? { ...this.options, enable: true } : this.options);
 		} catch (error) {
 			const promptFailure = this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, this.options, extension.latestVersion, InstallOperation.Install, error);
 			try {
 				promptFailure.opensExtensionEditor = this.opensExtensionEditor;
+				promptFailure.enablesExtension = this.enablesExtension;
 				await promptFailure.run();
 			} finally {
 				promptFailure.dispose();
@@ -720,6 +733,13 @@ export class InstallDropdownAction extends ButtonWithDropDownExtensionAction {
 	 */
 	set opensExtensionEditor(opensExtensionEditor: boolean) {
 		this.extensionActions.forEach(a => (<InstallAction>a).opensExtensionEditor = opensExtensionEditor);
+	}
+
+	/**
+	 * Whether installing also enables the extension. See {@link InstallAction.enablesExtension}.
+	 */
+	set enablesExtension(enablesExtension: boolean) {
+		this.extensionActions.forEach(a => (<InstallAction>a).enablesExtension = enablesExtension);
 	}
 
 	constructor(
