@@ -322,8 +322,9 @@ class DropOverlay extends Themable {
 		const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
 
 		// Content that handles drops takes the drop, except for editors and
-		// groups, which split the group: they cannot go into it, such as
-		// behind a chat. Inputs take drops through the overlay's holes.
+		// groups: editors go into the group in its center, as tabs, and split
+		// it at its edges; groups only split it, also from its center. Inputs
+		// take drops through the overlay's holes.
 		const overContent = isContentDropTargetEvent(e, this.groupView.element);
 		if (
 			(this.enableDropIntoEditor && isDragIntoEditorEvent(e)) ||
@@ -364,7 +365,7 @@ class DropOverlay extends Themable {
 		// editor group splitting support based on setting and
 		// keymodifiers used.
 		const { x, y } = getDropAreaPosition(e, this.groupView);
-		this.positionOverlay(x, y, isDraggingGroup, this.isSplittingEnabled(e), overContent);
+		this.positionOverlay(x, y, isDraggingGroup, this.isSplittingEnabled(e), overContent && isDraggingGroup, overContent);
 		if (this.container) {
 			this.updateInputClipPath(this.container);
 		}
@@ -610,7 +611,11 @@ class DropOverlay extends Themable {
 		return isSplittingEnabled(e, this.groupView, this.supportsSplitting);
 	}
 
-	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean, enableSplitting: boolean, splitsOnly: boolean): void {
+	/**
+	 * @param splitsOnly the group only splits, also from its center
+	 * @param splitsEvenly a split gives the new group half of the group, as over content that handles drops
+	 */
+	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean, enableSplitting: boolean, splitsOnly: boolean, splitsEvenly: boolean): void {
 		const preferSplitVertically = this.groupView.groupsView.partOptions.openSideBySideDirection === 'right';
 
 		const editorControlWidth = this.groupView.element.clientWidth;
@@ -659,7 +664,7 @@ class DropOverlay extends Themable {
 		setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
 
 		// Remember as current split direction
-		this.currentDropOperation = { splitDirection, splitEvenly: splitsOnly && typeof splitDirection === 'number' };
+		this.currentDropOperation = { splitDirection, splitEvenly: splitsEvenly && typeof splitDirection === 'number' };
 	}
 
 	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {

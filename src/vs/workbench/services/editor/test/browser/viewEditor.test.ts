@@ -22,7 +22,7 @@ import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { ViewEditorInput } from '../../../../browser/parts/editor/viewEditorInput.js';
 import { ViewEditorPane } from '../../../../browser/parts/editor/viewEditorPane.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../browser/parts/editor/viewEditorRegistry.js';
-import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -460,12 +460,11 @@ suite('View Editors', () => {
 		});
 	});
 
-	test('an editor dropped on a part holding a view that handles drops, such as a chat, splits the part, also over the center: it goes into a new group with its own tab row, not behind the view', async () => {
+	test('an editor dropped on the center of a view that handles drops, such as a chat, goes into its group as the active tab; on an edge, it splits the part into a new group', async () => {
 		const { parts, part } = await createServices();
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
 		disposables.add(registerContentDropTarget(views[0].element));
 		const group = groupViewOf(parts, part.activeGroup);
-		const titleShownIn = (view: IEditorGroupView) => view.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !view.element.classList.contains('title-provided-by-editor');
 		// Where the view is in its group, which can be taller than the view, such as in a browser
 		const bounds = views[0].element.getBoundingClientRect();
 
@@ -479,15 +478,25 @@ suite('View Editors', () => {
 		};
 
 		const center = await dragFile('/center.txt', bounds.left + bounds.width / 2 + 10, bounds.top + bounds.height / 2);
-		const newGroup = part.groups.find(other => other.id !== group.id && other.contains(center));
-		const afterCenter = { groups: part.groups.length, inNewGroup: !!newGroup, newGroupTitle: !!newGroup && titleShownIn(groupViewOf(parts, newGroup)), viewGroupTitleIsTheView: !titleShownIn(group) };
+		const afterCenter = { groups: part.groups.length, inViewGroup: group.contains(center), active: group.activeEditor === center };
 
 		const edge = await dragFile('/edge.txt', bounds.left + 2, bounds.top + bounds.height / 2);
 		const afterEdge = { groups: part.groups.length, inNewGroup: part.groups.some(other => other.id !== group.id && other.contains(edge)), inMain: parts.mainPart.groups.some(group => group.contains(edge)) };
 
-		assert.deepStrictEqual({ afterCenter, afterEdge }, {
-			afterCenter: { groups: 2, inNewGroup: true, newGroupTitle: true, viewGroupTitleIsTheView: true },
-			afterEdge: { groups: 3, inNewGroup: true, inMain: false }
+		// The view's own editor dropped on its center stays where it is
+		const view = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor !== center)!;
+		const editorsBefore = group.getEditors(EditorsOrder.SEQUENTIAL);
+		editorTransfer.setData([new DraggedEditorIdentifier({ editor: view, groupId: group.id })], DraggedEditorIdentifier.prototype);
+		// Where the view is now, beside the group the edge drop split off
+		const now = group.element.getBoundingClientRect();
+		await drop(group, now.left + now.width / 2, now.top + now.height / 2);
+		editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+		const ownEditor = { groups: part.groups.length, unchanged: JSON.stringify(group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.toString())) === JSON.stringify(editorsBefore.map(editor => editor.resource?.toString())) };
+
+		assert.deepStrictEqual({ afterCenter, afterEdge, ownEditor }, {
+			afterCenter: { groups: 1, inViewGroup: true, active: true },
+			afterEdge: { groups: 2, inNewGroup: true, inMain: false },
+			ownEditor: { groups: 2, unchanged: true }
 		});
 	});
 
@@ -496,12 +505,13 @@ suite('View Editors', () => {
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
 		disposables.add(registerContentDropTarget(views[0].element));
 		const viewGroup = groupViewOf(parts, part.activeGroup);
-		const dragFile = async (path: string, edge: 'left' | 'top') => {
+		const dragFile = async (path: string, edge: 'left' | 'bottom') => {
 			const file = disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
 			await parts.mainPart.activeGroup.openEditor(file, { pinned: true });
 			editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: parts.mainPart.activeGroup.id })], DraggedEditorIdentifier.prototype);
+			// On the view, at an edge it shares with its group, which can be taller than the view, such as in a browser
 			const bounds = views[0].element.getBoundingClientRect();
-			await drop(viewGroup, edge === 'left' ? bounds.left + 2 : bounds.left + bounds.width / 2, edge === 'left' ? bounds.top + bounds.height / 2 : bounds.top + 2);
+			await drop(viewGroup, edge === 'left' ? bounds.left + 2 : bounds.left + bounds.width / 2, edge === 'left' ? bounds.top + bounds.height / 2 : bounds.bottom - 2);
 			editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 			return part.groups.find(group => group.contains(file))!;
 		};
@@ -510,10 +520,10 @@ suite('View Editors', () => {
 		const left = await dragFile('/left.txt', 'left');
 		part.setSize(left, { width: 0, height: part.getSize(left).height });
 		const viewHeight = part.getSize(viewGroup).height;
-		const top = await dragFile('/top.txt', 'top');
+		const below = await dragFile('/below.txt', 'bottom');
 
-		const heights = { top: part.getSize(top).height, view: part.getSize(viewGroup).height };
-		assert.deepStrictEqual({ even: Math.abs(heights.top - heights.view) <= 1, total: heights.top + heights.view }, { even: true, total: viewHeight });
+		const heights = { below: part.getSize(below).height, view: part.getSize(viewGroup).height };
+		assert.deepStrictEqual({ even: Math.abs(heights.below - heights.view) <= 1, total: heights.below + heights.view }, { even: true, total: viewHeight });
 	});
 
 	test('the view\'s drag handle lets what contains it add to its drag, and does not start one from a text field in it', async () => {
