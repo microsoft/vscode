@@ -9,13 +9,15 @@ on:
     branches:
       - main
     # The inputs of the install (see build/npm/installStateHash.ts), of the native builds (see
-    # nativeBuildInputFiles in build/azure-pipelines/common/cacheKeys.ts) and of Electron
+    # NATIVE_BUILD_INPUTS in workspace_image/image.ts) and of Electron
     paths:
       - '**/pnpm-lock.yaml'
       - '**/pnpm-workspace.yaml'
-      - '**/.npmrc'
       - '**/.pnpmfile.mjs'
+      - package.json
+      - remote/package.json
       - .nvmrc
+      - extensions/copilot/.nvmrc
       - build/npm/**
       - build/checksums/electron.txt
       - build/.cachesalt

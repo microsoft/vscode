@@ -44,12 +44,32 @@ const SEED_TAG = 'workspace-image';
 /** _O_SHORT_LIVED of the C runtime of Windows, which Node.js doesn't name */
 const O_SHORT_LIVED = 0x1000;
 /**
- * The files besides the dependencies that decide how they are built: nativeBuildInputFiles of
- * build/azure-pipelines/common/cacheKeys.ts, which build/lib/test/workspaceImage.test.ts compares
- * with. Installing on top of an image doesn't build its native modules again, so a job only uses an
- * image whose commit has the same files as its own.
+ * The inputs of computeNodeModulesBaseCacheKey in build/azure-pipelines/common/cacheKeys.ts, without
+ * the roots of the distro, which build/lib/test/workspaceImage.test.ts compares with: the files, and
+ * the fields of `package.json` files. They decide how the dependencies are built, and installing on
+ * top of an image doesn't build its native modules again, so a job only uses an image whose commit
+ * has the same inputs as its own.
  */
-export const NATIVE_BUILD_INPUTS: readonly string[] = ['build/.cachesalt', '.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
+export const NATIVE_BUILD_INPUTS: { readonly files: readonly string[]; readonly packageJsonFields: Readonly<Record<string, readonly string[]>> } = {
+	files: [
+		'build/.cachesalt',
+		'.pnpmfile.mjs',
+		'build/.pnpmfile.mjs',
+		'remote/.pnpmfile.mjs',
+		'build/npm/pnpm/nativeBuildEnv.ts',
+		'.nvmrc',
+		'extensions/copilot/.nvmrc',
+		'pnpm-workspace.yaml',
+		'build/pnpm-workspace.yaml',
+		'remote/pnpm-workspace.yaml',
+		'remote/web/pnpm-workspace.yaml',
+		'extensions/copilot/pnpm-workspace.yaml',
+	],
+	packageJsonFields: {
+		'package.json': ['nativeBuild', 'packageManager'],
+		'remote/package.json': ['nativeBuild'],
+	},
+};
 
 const started = performance.now();
 
@@ -183,10 +203,16 @@ async function locate(name: string, branch: string): Promise<Artifact> {
 	throw new Error(`No ${name} of ${branch}`);
 }
 
-/** The IDs of the git objects of files in commits, in one request: '' for a missing file */
-async function objectIds(commits: readonly string[], files: readonly string[]): Promise<string[][]> {
+interface GitObject {
+	readonly oid: string;
+	readonly text?: string | null;
+	readonly isTruncated?: boolean;
+}
+
+/** The git objects of files in commits, in one request, with the text of the files in `texts`: undefined for a missing file */
+async function gitObjects(commits: readonly string[], files: readonly string[], texts: ReadonlySet<string>): Promise<(GitObject | undefined)[][]> {
 	const [owner, name] = (process.env.GITHUB_REPOSITORY ?? '').split('/');
-	const fields = commits.flatMap((commit, i) => files.map((file, j) => `f${i}_${j}: object(expression: ${JSON.stringify(`${commit}:${file}`)}) { oid }`));
+	const fields = commits.flatMap((commit, i) => files.map((file, j) => `f${i}_${j}: object(expression: ${JSON.stringify(`${commit}:${file}`)}) { oid${texts.has(file) ? ' ... on Blob { text isTruncated }' : ''} }`));
 	const response = await fetch(process.env.GITHUB_GRAPHQL_URL ?? 'https://api.github.com/graphql', {
 		method: 'POST',
 		headers: { ...githubHeaders(), 'Content-Type': 'application/json' },
@@ -195,11 +221,22 @@ async function objectIds(commits: readonly string[], files: readonly string[]): 
 	if (!response.ok) {
 		throw new Error(`POST graphql: HTTP ${response.status}`);
 	}
-	const { data, errors } = await response.json() as { data?: { repository: Record<string, { oid: string } | null> }; errors?: { message: string }[] };
+	const { data, errors } = await response.json() as { data?: { repository: Record<string, GitObject | null> }; errors?: { message: string }[] };
 	if (!data?.repository || errors?.length) {
 		throw new Error(`POST graphql: ${errors?.map(error => error.message).join('; ') ?? 'no repository'}`);
 	}
-	return commits.map((_, i) => files.map((_, j) => data.repository[`f${i}_${j}`]?.oid ?? ''));
+	return commits.map((_, i) => files.map((_, j) => data.repository[`f${i}_${j}`] ?? undefined));
+}
+
+/** The JSON of a field of a `package.json` file, as computeNodeModulesBaseCacheKey hashes it */
+function packageJsonField(file: string, object: GitObject | undefined, field: string): string {
+	if (!object) {
+		return 'null';
+	}
+	if (typeof object.text !== 'string' || object.isTruncated) {
+		throw new Error(`Could not read ${file}`);
+	}
+	return JSON.stringify(JSON.parse(object.text)[field] ?? null);
 }
 
 /**
@@ -212,12 +249,20 @@ async function checkNativeBuildInputs(imageCommit: string): Promise<void> {
 	if (!jobCommit) {
 		throw new Error('No GITHUB_SHA');
 	}
-	const [image, job] = await objectIds([imageCommit, jobCommit], NATIVE_BUILD_INPUTS);
-	const changed = NATIVE_BUILD_INPUTS.filter((_, i) => image[i] !== job[i]);
+	const { files, packageJsonFields } = NATIVE_BUILD_INPUTS;
+	const packageJsonFiles = Object.keys(packageJsonFields);
+	const [image, job] = await gitObjects([imageCommit, jobCommit], [...files, ...packageJsonFiles], new Set(packageJsonFiles));
+	const changed = files.filter((_, i) => image[i]?.oid !== job[i]?.oid);
+	packageJsonFiles.forEach((file, j) => {
+		const i = files.length + j;
+		if (image[i]?.oid !== job[i]?.oid) {
+			changed.push(...packageJsonFields[file].filter(field => packageJsonField(file, image[i], field) !== packageJsonField(file, job[i], field)).map(field => `${field} of ${file}`));
+		}
+	});
 	if (changed.length) {
-		throw new Error(`The native modules of the image are built from other files than those of ${jobCommit}: ${changed.join(', ')}`);
+		throw new Error(`The native modules of the image are built from other inputs than those of ${jobCommit}: ${changed.join(', ')}`);
 	}
-	log(`checked the ${NATIVE_BUILD_INPUTS.length} native build inputs`);
+	log(`checked the ${files.length} files and ${Object.values(packageJsonFields).flat().length} package.json fields of the native build inputs`);
 }
 
 /** The signed URL of an artifact, which expires after a minute */

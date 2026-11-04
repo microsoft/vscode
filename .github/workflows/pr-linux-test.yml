@@ -361,8 +361,9 @@ jobs:
         run: pnpm run compile
 
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # A workspace image holds them already (PLAYWRIGHT_BROWSERS_PATH).
       - name: Restore Playwright browsers
-        if: ${{ env.BROWSER_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && steps.image.outputs.used != 'true' }}
         uses: ./.github/actions/restore-playwright
         with:
           browsers: --only-shell chromium

@@ -1,7 +1,7 @@
 name: Workspace images (validation)
 
-# Temporary, for the draft pull request: builds the workspace images of this branch, runs some test
-# jobs of pull requests with them, and brings each image to a dependency change. Remove it, and the
+# Temporary, for the draft pull request: builds the workspace images of this branch, runs every test
+# job of pull requests with them, and brings each image to a dependency change. Remove it, and the
 # workflow_call trigger of pr-workspace-images.yml if unused, before merging.
 on:
   push:
@@ -31,12 +31,12 @@ jobs:
     with:
       workspace_image_branch: ${{ github.ref_name }}
       electron_unit_affected: true
-      electron_affected: false
-      agent_host_e2e_affected: false
-      electron_smoke_affected: false
+      electron_affected: true
+      agent_host_e2e_affected: true
+      electron_smoke_affected: true
       browser_unit_affected: true
-      browser_affected: false
-      remote_affected: false
+      browser_affected: true
+      remote_affected: true
 
   macos-tests:
     name: macOS
@@ -46,11 +46,13 @@ jobs:
     with:
       workspace_image_branch: ${{ github.ref_name }}
       electron_unit_affected: true
-      electron_affected: false
-      electron_smoke_affected: false
+      electron_affected: true
+      electron_smoke_affected: true
       browser_unit_affected: true
-      browser_affected: false
-      remote_affected: false
+      browser_affected: true
+      remote_affected: true
+      node_integration_tests: true
+      agent_host_e2e_tests: true
 
   windows-tests:
     name: Windows
@@ -60,12 +62,13 @@ jobs:
     with:
       workspace_image_branch: ${{ github.ref_name }}
       electron_unit_affected: true
-      electron_affected: false
-      agent_host_e2e_affected: false
-      electron_smoke_affected: false
+      electron_affected: true
+      agent_host_e2e_affected: true
+      electron_smoke_affected: true
       browser_unit_affected: true
-      browser_affected: false
-      remote_affected: false
+      browser_affected: true
+      remote_affected: true
+      node_integration_tests: true
 
   # Brings an image to the commit with a dependency change in two install roots, the workspace and
   # remote/web, the way the test jobs do, and checks that it installed them

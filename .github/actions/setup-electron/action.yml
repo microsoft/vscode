@@ -21,8 +21,9 @@ runs:
   using: composite
   steps:
     # `pnpm run electron` prepares .build/electron from these inputs, including the root package.json,
-    # which it packages, and the pnpm-lock.yaml that pins @vscode/gulp-electron. A workspace image
-    # holds the Electron that it prepared (see .github/workflows/workspace_image/README.md).
+    # which it packages and which holds the Electron version, and the pnpm-lock.yaml that pins
+    # @vscode/gulp-electron. A workspace image holds the Electron that it prepared (see
+    # .github/workflows/workspace_image/README.md).
     - name: Check the prepared Electron
       id: prepared
       if: inputs.lookup-only != 'true'
@@ -33,7 +34,7 @@ runs:
           echo "current=true" >> "$GITHUB_OUTPUT"
         fi
       env:
-        STAMP: ${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('.npmrc', 'build/checksums/electron.txt', 'product.json', 'package.json', 'pnpm-lock.yaml', 'build/lib/electron.ts', 'build/lib/electronVersion.ts', 'build/pnpm-lock.yaml', 'resources/darwin/*.icns', 'resources/win32/code.ico') }}
+        STAMP: ${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('build/checksums/electron.txt', 'product.json', 'package.json', 'pnpm-lock.yaml', 'build/lib/electron.ts', 'build/lib/electronVersion.ts', 'build/pnpm-lock.yaml', 'resources/darwin/*.icns', 'resources/win32/code.ico') }}
 
     - name: Prepare Electron cache path
       if: runner.os != 'Windows'
@@ -113,7 +114,7 @@ runs:
       shell: bash
       run: echo "$STAMP" > .build/electron.stamp
       env:
-        STAMP: ${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('.npmrc', 'build/checksums/electron.txt', 'product.json', 'package.json', 'pnpm-lock.yaml', 'build/lib/electron.ts', 'build/lib/electronVersion.ts', 'build/pnpm-lock.yaml', 'resources/darwin/*.icns', 'resources/win32/code.ico') }}
+        STAMP: ${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('build/checksums/electron.txt', 'product.json', 'package.json', 'pnpm-lock.yaml', 'build/lib/electron.ts', 'build/lib/electronVersion.ts', 'build/pnpm-lock.yaml', 'resources/darwin/*.icns', 'resources/win32/code.ico') }}
 
     - name: Save Electron cache
       if: inputs.lookup-only != 'true' && inputs.save-cache == 'true' && steps.prepared.outputs.current != 'true' && steps.restore.outputs.cache-hit != 'true'
