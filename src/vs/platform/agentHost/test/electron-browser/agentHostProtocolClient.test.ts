@@ -5939,6 +5939,71 @@ suite('AgentHostProtocolClient', () => {
 			await connectPromise;
 		}
 
+		test('initial rejection followed immediately by close rejects requests gated on recovery', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transports[0], 'initialize', 0);
+			const error = { code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'Server accepts ^0.8.0' };
+			const rejected = assertRemoteProtocolError(connecting, error);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialize.id, error });
+			transports[0].fireClose();
+			const gated = assertRemoteProtocolError(client.resourceList(URI.file('/workspace')), error).then(() => true);
+			await rejected;
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				settled: await raceTimeout(gated, 100),
+				transports: transports.length,
+			}, { state: AgentHostClientState.Incompatible, settled: true, transports: 1 });
+		});
+
+		for (const initiallyConnected of [false, true]) {
+			test(`protocol mismatch during fresh reconnect initialization is terminal (initiallyConnected=${initiallyConnected})`, async function () {
+				this.timeout(10_000);
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+				const connecting = client.connect();
+				if (initiallyConnected) {
+					await completeHandshake(transports[0], connecting);
+					transports[0].fireClose();
+				} else {
+					const failed = assert.rejects(connecting, /Transport unavailable/);
+					transports[0].connectDeferred.error(new Error('Transport unavailable'));
+					await failed;
+				}
+				const replacement = await waitForTransport(transports, 1);
+				const error = {
+					code: AhpErrorCodes.UnsupportedProtocolVersion,
+					message: 'Server accepts ^0.8.0',
+					data: { supportedVersions: ['0.8.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+				};
+				const pending = assertRemoteProtocolError(client.resourceList(URI.file('/workspace')), error);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Client not found' } });
+				const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, error });
+				await pending;
+				await timeout(50);
+
+				assert.deepStrictEqual({
+					state: client.connectionState,
+					error: client.connectionError?.code,
+					transports: transports.length,
+					nextRetry: client.nextReconnectAt,
+				}, { state: AgentHostClientState.Incompatible, error: error.code, transports: 2, nextRetry: undefined });
+
+				const upgrading = client.triggerVscodeUpgrade('_vscodeUpgrade');
+				const upgrade = await waitForRequestAtWithin(replacement, '_vscodeUpgrade', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: upgrade.id, result: { ok: false, error: 'Offline' } });
+				assert.deepStrictEqual(await upgrading, { ok: false, error: 'Offline' });
+				replacement.fireClose();
+				await timeout(50);
+				assert.strictEqual(transports.length, 2);
+			});
+		}
+
 		/**
 		 * Connects a client whose host's `multipleChatProviders` gate is off at the handshake (no capability), then turns
 		 * the gate on through a root config action, as this client's own mirror does. Returns the requests each transport sent.

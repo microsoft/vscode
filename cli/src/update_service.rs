@@ -24,6 +24,7 @@ use crate::{
 pub struct UpdateService {
 	client: BoxedHttp,
 	log: log::Logger,
+	endpoint: Option<String>,
 }
 
 /// Describes a specific release, can be created manually or returned from the update service.
@@ -69,7 +70,24 @@ fn get_update_endpoint() -> Result<String, CodeError> {
 
 impl UpdateService {
 	pub fn new(log: log::Logger, http: BoxedHttp) -> Self {
-		UpdateService { client: http, log }
+		UpdateService {
+			client: http,
+			log,
+			endpoint: None,
+		}
+	}
+
+	#[cfg(test)]
+	pub(crate) fn with_endpoint(mut self, endpoint: &str) -> Self {
+		self.endpoint = Some(endpoint.to_string());
+		self
+	}
+
+	fn get_update_endpoint(&self) -> Result<String, CodeError> {
+		match &self.endpoint {
+			Some(endpoint) => Ok(endpoint.clone()),
+			None => get_update_endpoint(),
+		}
 	}
 
 	pub async fn get_release_by_semver_version(
@@ -79,7 +97,7 @@ impl UpdateService {
 		quality: options::Quality,
 		version: &str,
 	) -> Result<Release, AnyError> {
-		let update_endpoint = get_update_endpoint()?;
+		let update_endpoint = self.get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -116,7 +134,7 @@ impl UpdateService {
 		target: TargetKind,
 		quality: options::Quality,
 	) -> Result<Release, AnyError> {
-		let update_endpoint = get_update_endpoint()?;
+		let update_endpoint = self.get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -147,7 +165,7 @@ impl UpdateService {
 
 	/// Gets the download stream for the release.
 	pub async fn get_download_stream(&self, release: &Release) -> Result<SimpleResponse, AnyError> {
-		let update_endpoint = get_update_endpoint()?;
+		let update_endpoint = self.get_update_endpoint()?;
 		let download_segment = release
 			.target
 			.download_segment(release.platform)

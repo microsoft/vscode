@@ -600,6 +600,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._state.kind;
 	}
 
+	get connectionError(): ProtocolError | undefined {
+		return this._state.kind === AgentHostClientState.Incompatible || this._state.kind === AgentHostClientState.Closed
+			? this._state.error
+			: undefined;
+	}
+
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
 	get nextReconnectAt(): number | undefined {
 		return this._state.kind === AgentHostClientState.Reconnecting
@@ -952,6 +958,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
 					this._state.outbox.length = 0;
+				} else if (this._state.kind === AgentHostClientState.Reconnecting) {
+					this._state.reconnect.outbox.length = 0;
+					this._state.reconnect.gate.error(protocolError);
 				}
 				this._rejectPendingRequests(protocolError);
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
@@ -1250,6 +1259,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			reconnect.transportConnected = false;
 			this._cancelLivenessTimers();
 			this._closeTransportChannels();
+			if (err instanceof ProtocolError && err.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+				this._rejectPendingRequests(err);
+				reconnect.outbox.length = 0;
+				reconnect.gate.error(err);
+				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: err });
+				return;
+			}
 			transport?.dispose();
 			if (!this._checkReconnectState(reconnect)) {
 				return;

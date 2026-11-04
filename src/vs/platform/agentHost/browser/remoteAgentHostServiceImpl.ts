@@ -515,7 +515,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return existingConnection;
 		}
 		const entry = this._entries.get(normalizedAddress);
-		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && !this._pendingConnects.has(normalizedAddress)) {
+		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status)
+			&& (entry.store.isDisposed || !this._pendingConnects.has(normalizedAddress))) {
 			throw new Error(entry.status.message);
 		}
 		const reconnectFailure = this._failedReconnects.get(normalizedAddress);
@@ -731,6 +732,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			} finally {
 				if (this._pendingConnects.get(address) === attempt) {
 					this._pendingConnects.delete(address);
+					// Terminal notifications can add waiters before the attempt leaves this map.
+					const entry = this._entries.get(address);
+					if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status)) {
+						this._rejectPendingConnectionWait(address, new Error(entry.status.message));
+					}
 					this._onDidChangePendingConnections.fire();
 				}
 				void pendingConnect.complete();
@@ -868,6 +874,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return;
 			}
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
+			if (RemoteAgentHostConnectionStatus.isIncompatible(entry.status)) {
+				const { message, supportedByClient, offeredByServer } = entry.status;
+				// The rejection stays terminal, but the closed transport can no longer carry an upgrade.
+				entry.status = RemoteAgentHostConnectionStatus.incompatible(message, supportedByClient, offeredByServer);
+				entry.connected = false;
+				entry.client = undefined;
+				disposeEntry(entry);
+				this._rejectPendingConnectionWait(address, new Error(message));
+				this._onDidChangeConnections.fire();
+				return;
+			}
 			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
@@ -927,13 +944,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					break;
 				case 'incompatible': {
 					const wasReconnecting = RemoteAgentHostConnectionStatus.isReconnecting(entry.status);
+					const error = client.connectionError;
+					const supportedVersions = getAgentHostSupportedProtocolVersions();
+					const message = error?.message ?? 'Authentication failed during connection initialization.';
 					observer?.('failed');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
+					entry.status = RemoteAgentHostConnectionStatus.fromConnectError(error, supportedVersions)
+						?? RemoteAgentHostConnectionStatus.incompatible(message, supportedVersions);
 					entry.lastConnectionError = undefined;
 					this._reconnectAttempts.delete(address);
 					if (wasReconnecting) {
-						this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
+						this._rejectPendingConnectionWait(address, error ?? new Error(message));
 					}
 					this._onDidChangeConnections.fire();
 					break;
@@ -961,7 +982,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
 		} catch (err) {
-			if (!isCurrentEntry()) {
+			if (!isCurrentEntry() || (store.isDisposed && RemoteAgentHostConnectionStatus.isIncompatible(entry.status))) {
 				if (!store.isDisposed) {
 					disposeEntry(entry);
 				}

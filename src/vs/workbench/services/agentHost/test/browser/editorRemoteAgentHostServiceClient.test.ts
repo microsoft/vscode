@@ -24,11 +24,14 @@ import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentHostDebugLogsArtifact } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { AhpErrorCodes, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, type ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -39,6 +42,7 @@ import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestSe
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IHostService } from '../../../host/browser/host.js';
 
 class TestRemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 	readonly isConnected = true;
@@ -400,6 +404,112 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			calls: [{ session: session.toString(), chat: chat.toString(), progressToken: 'export-progress' }, { progressToken: 'export-progress' }],
 			result: artifact,
 		});
+	});
+
+	suite('incompatible remote startup', () => {
+		async function createService() {
+			const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+				call: async <T>() => undefined as T,
+				listen: () => Event.None,
+			})));
+			await remoteAgentService.environmentReady.complete(null);
+			const enabled = observableValue('enabled', true);
+			const onState = disposables.add(new Emitter<AgentHostClientState>());
+			const started = new DeferredPromise<void>();
+			const connect = sinon.stub().callsFake(async () => { await started.complete(); });
+			const reload = sinon.stub().resolves();
+			const notification = new NoOpNotification();
+			const close = sinon.spy(notification, 'close');
+			const notifications = new TestNotificationService();
+			const prompt = sinon.stub(notifications, 'prompt').returns(notification);
+			const protocolClient = {
+				connectionError: new ProtocolError(AhpErrorCodes.UnsupportedProtocolVersion, 'Server accepts ^0.8.0', { supportedVersions: ['0.8.0'] }),
+				onDidClose: Event.None,
+				onDidChangeConnectionState: onState.event,
+				connect,
+				dispose: () => { },
+			};
+			const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+				[IRemoteAgentService, remoteAgentService],
+				[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
+				[IAgentHostEnablementService, { _serviceBrand: undefined, enabled, managedSandboxEnforced: constObservable(false) }],
+				[ILogService, new NullLogService()],
+				[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+				[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+				[IAgentHostFileSystemService, upcastPartial<IAgentHostFileSystemService>({ registerAuthority: () => Disposable.None })],
+				[INotificationService, notifications],
+				[IHostService, upcastPartial<IHostService>({ reload })],
+			)));
+			instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+			instantiationService.set(IInstantiationService, instantiationService);
+			const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+			await started.p;
+			const exits: number[] = [];
+			disposables.add(service.onAgentHostExit(code => exits.push(code)));
+			return { service, enabled, onState, connect, reload, prompt, close, exits, protocolClient };
+		}
+
+		test('reports incompatibility once, settles startup, and reloads only on request', async () => {
+			const fixture = await createService();
+			fixture.onState.fire(AgentHostClientState.Incompatible);
+			fixture.onState.fire(AgentHostClientState.Incompatible);
+			fixture.service.startAgentHost();
+			const notification = fixture.prompt.firstCall?.args;
+			assert.deepStrictEqual({
+				prompts: fixture.prompt.callCount,
+				severity: notification?.[0],
+				message: notification?.[1],
+				choices: notification?.[2].map(choice => choice.label),
+				connects: fixture.connect.callCount,
+				reloads: fixture.reload.callCount,
+				authenticationPending: fixture.service.authenticationPending.get(),
+				exits: fixture.exits,
+			}, {
+				prompts: 1,
+				severity: Severity.Error,
+				message: 'The remote Agent Host is incompatible with this version of VS Code. Update the remote Agent Host or VS Code, then reload this window to reconnect. Server accepts ^0.8.0',
+				choices: ['Reload Window'],
+				connects: 1,
+				reloads: 0,
+				authenticationPending: false,
+				exits: [0],
+			});
+			await notification![2][0].run();
+			fixture.service.dispose();
+			assert.deepStrictEqual({ reloads: fixture.reload.callCount, closed: fixture.close.callCount }, { reloads: 1, closed: 1 });
+		});
+
+		test('does not mislabel compatible connections or authentication failures as protocol mismatches', async () => {
+			const fixture = await createService();
+			fixture.onState.fire(AgentHostClientState.Connected);
+			fixture.protocolClient.connectionError = new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required');
+			fixture.onState.fire(AgentHostClientState.Incompatible);
+			assert.deepStrictEqual({ prompts: fixture.prompt.callCount, exits: fixture.exits, connects: fixture.connect.callCount }, { prompts: 0, exits: [], connects: 1 });
+		});
+
+		test('does not surface late errors after AI is disabled or the service is disposed', async () => {
+			const fixture = await createService();
+			fixture.enabled.set(false, undefined);
+			fixture.onState.fire(AgentHostClientState.Incompatible);
+			fixture.service.dispose();
+			fixture.onState.fire(AgentHostClientState.Incompatible);
+			assert.deepStrictEqual({ prompts: fixture.prompt.callCount, reloads: fixture.reload.callCount }, { prompts: 0, reloads: 0 });
+		});
+
+		for (const stop of ['disable', 'dispose'] as const) {
+			test(`closes a shown notification and ignores stale reload after ${stop}`, async () => {
+				const fixture = await createService();
+				fixture.onState.fire(AgentHostClientState.Incompatible);
+				const reload = fixture.prompt.firstCall.args[2][0];
+				if (stop === 'disable') {
+					fixture.enabled.set(false, undefined);
+				} else {
+					fixture.service.dispose();
+				}
+				await reload.run();
+				assert.deepStrictEqual({ closed: fixture.close.callCount, reloads: fixture.reload.callCount }, { closed: 1, reloads: 0 });
+			});
+		}
 	});
 
 	suite('sandbox certificate delegation', () => {

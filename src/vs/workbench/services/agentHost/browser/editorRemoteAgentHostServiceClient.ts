@@ -11,12 +11,13 @@
 
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
@@ -35,6 +36,7 @@ import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/a
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/errors.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -43,6 +45,8 @@ import { IAgentHostFileSystemService } from '../common/agentHostFileSystemServic
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import { IHostService } from '../../host/browser/host.js';
+import { localize } from '../../../../nls.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
 const LOG_PREFIX = '[AgentHost:remote]';
@@ -88,6 +92,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	};
 	private _connectStarted = false;
 	private _useHostProxy = false;
+	private readonly _incompatibleNotification = this._register(new MutableDisposable());
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -100,6 +105,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService requestService: IRequestService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 
@@ -158,14 +165,40 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}));
 		this._register(this._protocolClient.onDidChangeConnectionState(state => {
 			if (state === AgentHostClientState.Connected) {
+				this._incompatibleNotification.clear();
 				this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient?.clientId}`);
 				this._onAgentHostStart.fire();
+			} else if (state === AgentHostClientState.Incompatible) {
+				const error = this._protocolClient?.connectionError;
+				if (error?.code !== AhpErrorCodes.UnsupportedProtocolVersion || this._incompatibleNotification.value) {
+					return;
+				}
+				this.setAuthenticationPending(false);
+				this._onAgentHostExit.fire(0);
+				if (agentHostEnablementService.enabled.get()) {
+					const notification = this._notificationService.prompt(
+						Severity.Error,
+						localize('remoteAgentHost.incompatible', "The remote Agent Host is incompatible with this version of VS Code. Update the remote Agent Host or VS Code, then reload this window to reconnect. {0}", error.message),
+						[{
+							label: localize('remoteAgentHost.reloadWindow', "Reload Window"),
+							run: async () => {
+								if (!this._store.isDisposed && agentHostEnablementService.enabled.get() && this._incompatibleNotification.value) {
+									await this._hostService.reload();
+								}
+							},
+						}],
+						{ sticky: true },
+					);
+					this._incompatibleNotification.value = toDisposable(() => notification.close());
+				}
 			}
 		}));
 
 		this._register(autorun(reader => {
 			if (agentHostEnablementService.enabled.read(reader)) {
 				this.startAgentHost();
+			} else {
+				this._incompatibleNotification.clear();
 			}
 		}));
 	}
