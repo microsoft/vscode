@@ -6,9 +6,10 @@
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { detectImageMimeType } from '../../../../../../base/common/image.js';
-import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
@@ -19,7 +20,7 @@ import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../c
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import type { ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
-import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 
 /** Renders a chat message (plain string or markdown) as plain text. */
 function stringifyChatMessage(message: string | IMarkdownString | undefined): string {
@@ -52,7 +53,7 @@ function stringifyToolInput(rawInput: unknown): string {
  * their `name`, so a path-like label is collapsed to the URI's basename to
  * avoid leaking the tree into the imported transcript.
  */
-function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlineReference'], name: string | undefined): string {
+function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlineReference'], name: string | undefined, resourceUris: IAgentHostResourceUriMapper): string {
 	let uri: URI | undefined;
 	let label = name;
 	let isSymbol = false;
@@ -80,7 +81,18 @@ function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlin
 	if (!label || (!isSymbol && /[\\/]/.test(label))) {
 		label = basename(uri);
 	}
-	return `[${label}](${uri.toString()})`;
+	return markdownResourceLink(label, uri, resourceUris);
+}
+
+/**
+ * Renders a link to a client resource for an imported turn. The label is
+ * escaped so names containing `]` or `\` keep the link intact, and the target
+ * is written as the host's resource, which is how link targets in agent-host
+ * history are read back (e.g. a `vscode-remote:` resource becomes the host's
+ * `file:` resource).
+ */
+function markdownResourceLink(label: string, uri: URI, resourceUris: IAgentHostResourceUriMapper): string {
+	return `[${escapeMarkdownLinkLabel(label)}](${resourceUris.toAgentHost(uri).toString()})`;
 }
 
 /**
@@ -95,7 +107,7 @@ function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlin
  * that has no backend counterpart after import, so only the summary is carried.
  * Phase presentations retain their textual output without a child-chat identity.
  */
-function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSerialized): ResponsePart {
+function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSerialized, stats: IImportedConversationStats | undefined): ResponsePart {
 	const invocationMessage = stringifyChatMessage(part.invocationMessage);
 	const resultDetails = IChatToolInvocation.resultDetails(part);
 	const subagentData = part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData : undefined;
@@ -109,11 +121,15 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 			for (const item of resultDetails.output) {
 				if (item.type === 'embed' && item.isText) {
 					outputText += item.value;
+				} else if (stats) {
+					stats.droppedToolOutputs++;
 				}
 			}
 		}
 		isError = !!resultDetails.isError;
 		resultInput = resultDetails.input;
+	} else if (resultDetails && isToolResultOutputDetails(resultDetails) && stats) {
+		stats.droppedToolOutputs++;
 	}
 	isError ||= phaseStatus === 'failed' || phaseStatus === 'cancelled';
 	// Fall back to the sub-agent summary when the generic result details are empty.
@@ -168,17 +184,62 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 }
 
 /**
+ * Response parts that carry no content of their own: control markers and
+ * transient UI state. They are not imported and not reported as skipped.
+ */
+const nonContentResponsePartKinds: ReadonlySet<string> = new Set(['undoStop', 'codeblockUri', 'voiceProgress', 'clearToPreviousToolInvocation']);
+
+/**
+ * Renders the files a run of edit groups changed as one line of links, each
+ * file once, so the moved turn still shows what was edited. The edits
+ * themselves cannot move: an agent-host turn records file edits only for its
+ * own tool calls. The line is set apart as its own paragraph because adjacent
+ * markdown parts are concatenated when the history is written; otherwise it
+ * could join the end of surrounding text, such as a closing code fence.
+ */
+function editedFilesToMarkdown(files: readonly URI[], resourceUris: IAgentHostResourceUriMapper): string {
+	const links = files.map(uri => markdownResourceLink(basename(uri), uri, resourceUris));
+	return `\n\n${localize('chat.importConversation.editedFiles', "Edited {0}", links.join(', '))}\n\n`;
+}
+
+/**
  * Collects a request's response stream into agent-host {@link ResponsePart}s:
  * markdown parts become {@link ResponsePartKind.Markdown}, reasoning parts
- * become {@link ResponsePartKind.Reasoning}, and tool invocations become
- * completed {@link ResponsePartKind.ToolCall} parts, all in stream order. Other
- * progress kinds are skipped.
+ * become {@link ResponsePartKind.Reasoning}, tool invocations become
+ * completed {@link ResponsePartKind.ToolCall} parts, and each run of file
+ * edits becomes a markdown summary of the files it changed, all in stream
+ * order. Other progress kinds are skipped and counted in `stats`.
+ *
+ * `turnEditedFiles` holds the files already edited in the turn this response
+ * belongs to (a continuation shares its turn's), so a file edited again in a
+ * later run is counted in `stats` once per turn.
  */
-function responsePartsFromRequest(request: IChatRequestModel): ResponsePart[] {
+function responsePartsFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper, stats: IImportedConversationStats | undefined, turnEditedFiles: ResourceSet): ResponsePart[] {
 	const responseParts: ResponsePart[] = [];
 	const response = request.response;
+	const editedFiles = new ResourceMap<URI>();
+	const flushEditedFiles = () => {
+		if (editedFiles.size) {
+			responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: editedFilesToMarkdown([...editedFiles.values()], resourceUris) });
+			editedFiles.clear();
+		}
+	};
 	if (response) {
 		for (const part of response.entireResponse.value) {
+			if (part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') {
+				editedFiles.set(part.uri, part.uri);
+				if (!turnEditedFiles.has(part.uri)) {
+					turnEditedFiles.add(part.uri);
+					if (stats) {
+						stats.editedFiles++;
+					}
+				}
+				continue;
+			}
+			if (nonContentResponsePartKinds.has(part.kind)) {
+				continue;
+			}
+			flushEditedFiles();
 			if (part.kind === 'markdownContent') {
 				const content = part.content.value;
 				if (content) {
@@ -199,15 +260,18 @@ function responsePartsFromRequest(request: IChatRequestModel): ResponsePart[] {
 			} else if (part.kind === 'inlineReference') {
 				// A file/symbol chip interleaved with the response text; render it
 				// as a markdown link so it survives instead of leaving a gap.
-				const content = inlineReferenceToMarkdown(part.inlineReference, part.name);
+				const content = inlineReferenceToMarkdown(part.inlineReference, part.name, resourceUris);
 				if (content) {
 					responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
 				}
 			} else if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
-				responseParts.push(toolCallResponsePart(part));
+				responseParts.push(toolCallResponsePart(part, stats));
+			} else if (stats) {
+				stats.skippedResponseParts++;
+				stats.skippedResponsePartKinds.add(part.kind);
 			}
-			// Other progress kinds are not yet imported.
 		}
+		flushEditedFiles();
 	}
 	return responseParts;
 }
@@ -237,6 +301,28 @@ function turnOutcomeFromRequest(request: IChatRequestModel): { state: TurnState;
 }
 
 /**
+ * What a conversation import carried over in summarized form or could not
+ * carry over at all, collected while converting so the move can report it.
+ */
+export interface IImportedConversationStats {
+	turns: number;
+	/** Files whose edits were summarized as links, counted once per turn. */
+	editedFiles: number;
+	skippedResponseParts: number;
+	/** Kinds of the skipped response parts. These are code-defined progress kinds. */
+	readonly skippedResponsePartKinds: Set<string>;
+	skippedAttachments: number;
+	/** Kinds of the skipped attachments. These are code-defined variable kinds. */
+	readonly skippedAttachmentKinds: Set<string>;
+	/** Tool result items other than text, which a moved tool call cannot keep. */
+	droppedToolOutputs: number;
+}
+
+export function createImportedConversationStats(): IImportedConversationStats {
+	return { turns: 0, editedFiles: 0, skippedResponseParts: 0, skippedResponsePartKinds: new Set(), skippedAttachments: 0, skippedAttachmentKinds: new Set(), droppedToolOutputs: 0 };
+}
+
+/**
  * Options for {@link importedTurnsFromChatModel}.
  */
 export interface IImportedTurnsOptions {
@@ -244,6 +330,8 @@ export interface IImportedTurnsOptions {
 	readonly resourceUris?: IAgentHostResourceUriMapper;
 	/** Resolves the language model identifier a request was sent with to the target's model selection. */
 	readonly resolveModel?: (languageModelIdentifier: string) => ModelSelection | undefined;
+	/** Collects what the import summarized or skipped. */
+	readonly stats?: IImportedConversationStats;
 }
 
 /**
@@ -333,16 +421,20 @@ function variableToAttachment(variable: IChatRequestVariableEntry, resourceUris:
 	return undefined;
 }
 
-function attachmentsFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper): MessageAttachment[] | undefined {
+function attachmentsFromRequest(request: IChatRequestModel, resourceUris: IAgentHostResourceUriMapper, stats: IImportedConversationStats | undefined): MessageAttachment[] | undefined {
 	const attachments: MessageAttachment[] = [];
 	for (const variable of request.variableData?.variables ?? []) {
+		let attachment: MessageAttachment | undefined;
 		try {
-			const attachment = variableToAttachment(variable, resourceUris);
-			if (attachment) {
-				attachments.push(attachment);
-			}
+			attachment = variableToAttachment(variable, resourceUris);
 		} catch {
 			// A resource this host cannot address is left out rather than failing the import.
+		}
+		if (attachment) {
+			attachments.push(attachment);
+		} else if (stats) {
+			stats.skippedAttachments++;
+			stats.skippedAttachmentKinds.add(variable.kind);
 		}
 	}
 	return attachments.length ? attachments : undefined;
@@ -479,11 +571,16 @@ function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo
  */
 export function importedTurnsFromChatModel(model: IChatModel, options?: IImportedTurnsOptions): Turn[] {
 	const resourceUris = options?.resourceUris ?? identityAgentHostResourceUriMapper;
+	const stats = options?.stats;
 	const turns: Turn[] = [];
+	let turnEditedFiles = new ResourceSet();
 	// Every response's usage per turn, its own first, combined once the turn is complete.
 	const turnUsages = new Map<Turn, (UsageInfo | undefined)[]>();
 	for (const request of model.getRequests()) {
-		const responseParts = responsePartsFromRequest(request);
+		if (!request.isSystemInitiated) {
+			turnEditedFiles = new ResourceSet();
+		}
+		const responseParts = responsePartsFromRequest(request, resourceUris, stats, turnEditedFiles);
 		const outcome = turnOutcomeFromRequest(request);
 		if (outcome.error) {
 			responseParts.push({ kind: ResponsePartKind.Error, error: outcome.error });
@@ -507,8 +604,11 @@ export function importedTurnsFromChatModel(model: IChatModel, options?: IImporte
 			}
 			continue;
 		}
-		const attachments = attachmentsFromRequest(request, resourceUris);
+		const attachments = attachmentsFromRequest(request, resourceUris, stats);
 		const messageModel = request.modelId ? options?.resolveModel?.(request.modelId) : undefined;
+		if (stats) {
+			stats.turns++;
+		}
 		const agent = agentFromRequest(request, resourceUris);
 		const turn: Turn = {
 			id: generateUuid(),
