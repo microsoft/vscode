@@ -69,7 +69,6 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
@@ -2663,7 +2662,7 @@ suite('Sessions - Chat View', () => {
 			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
-			{},
+			{ session: sessionsService.activeSession },
 			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
@@ -2673,7 +2672,6 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
-			new SessionContext(sessionsService.activeSession),
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
@@ -2713,7 +2711,7 @@ suite('Sessions - Chat View', () => {
 					override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 				}();
 				const widget = disposables.add(new NewChatInSessionWidget(
-					{},
+					{ session: sessionsService.activeSession },
 					new TestConfigurationService(),
 					instantiationService,
 					new class extends mock<ILogService>() { }(),
@@ -2723,7 +2721,6 @@ suite('Sessions - Chat View', () => {
 					new class extends mock<IFileDialogService>() { }(),
 					new class extends mock<ISessionsManagementService>() { }(),
 					sessionsService,
-					new SessionContext(sessionsService.activeSession),
 					disposables.add(new InMemoryStorageService()),
 					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),

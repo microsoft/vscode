@@ -426,6 +426,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	_createdSessionId: string | undefined;
 	readonly _workspacePicker: Pick<WorkspacePicker, 'isNoWorkspaceSelected' | 'selectedFolderUri' | 'whenWorkspaceRestored'>;
+	readonly _paneSession: IObservable<IActiveSession | undefined>;
 	readonly sessionsService: {
 		readonly activeSession: IObservable<IActiveSession | undefined>;
 		readonly initialRestoreComplete: IObservable<boolean>;
@@ -908,6 +909,7 @@ suite('NewChatWidget', () => {
 						connect: async () => { throw new Error('tunnel relay connect timed out after 30000ms'); },
 					} : undefined,
 				},
+				_paneSession: session,
 				sessionsService: {
 					activeSession: session,
 					initialRestoreComplete: constObservable(true),
@@ -1952,6 +1954,7 @@ suite('NewChatWidget', () => {
 					get selectedFolderUri() { return selectedFolderUri; },
 					whenWorkspaceRestored: token => raceCancellationError(workspaceRestored, token),
 				},
+				_paneSession: activeSession,
 				sessionsService: {
 					activeSession,
 					initialRestoreComplete,

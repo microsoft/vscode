@@ -230,7 +230,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
-		options = { ...options, hostVisible: this._isVisibleObs };
+		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
