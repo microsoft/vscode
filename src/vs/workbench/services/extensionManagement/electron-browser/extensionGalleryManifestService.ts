@@ -60,6 +60,8 @@ function isExtensionGalleryManifestResponse(candidate: unknown): candidate is Ex
 		&& isExtensionQueryCapabilityValues(extensionQuery.flags);
 }
 
+const REJECTION_REFRESH_COOLDOWN = 60 * 1000;
+
 class MarketplaceAuthRequiredError extends Error {
 	constructor(readonly statusCode: number, readonly authenticated = false) {
 		super('Marketplace requires authentication.');
@@ -74,6 +76,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private hasPublishedSnapshot = false;
 	private channelUpdate: Promise<void> = Promise.resolve();
 	private authorizationRefresh: Promise<void> | undefined;
+	private rejectedTokenRefresh: { readonly accessToken: string; nextRefreshAfter: number } | undefined;
 	private accountResolution: Promise<void> | undefined;
 	private accountResolutionGeneration = 0;
 	private authorizationAccountId: string | undefined;
@@ -263,6 +266,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		const authorizationChanged = this.extensionGalleryAccessToken !== nextAccessToken || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl;
 		if (this.authorizationAccountId !== accountId || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl || !nextAccessToken) {
 			this.previousAuthorization = undefined;
+			this.rejectedTokenRefresh = undefined;
 		} else if (authorizationChanged && this.extensionGalleryAccessToken && this.authorizationAccountId && nextServiceIndexUrl) {
 			this.previousAuthorization = { accessToken: this.extensionGalleryAccessToken, accountId: this.authorizationAccountId, serviceIndexUrl: nextServiceIndexUrl };
 		}
@@ -309,8 +313,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	override async refreshAccessToken(targetUrl: string, rejectedAccessToken: string): Promise<boolean> {
+		const accountId = this.authorizationAccountId;
+		const serviceIndexUrl = this.extensionGalleryServiceIndexUrl;
 		const currentToken = await super.getAccessToken(targetUrl);
-		if (!currentToken || !this.authorizationAccountId || !this.galleryAccountService.canRefreshAccessToken) {
+		if (!currentToken || !accountId || accountId !== this.authorizationAccountId
+			|| serviceIndexUrl !== this.extensionGalleryServiceIndexUrl || !this.galleryAccountService.canRefreshAccessToken) {
 			return false;
 		}
 		if (currentToken !== rejectedAccessToken) {
@@ -318,16 +325,26 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				&& this.previousAuthorization.accountId === this.authorizationAccountId
 				&& this.previousAuthorization.serviceIndexUrl === this.extensionGalleryServiceIndexUrl;
 		}
-		const accountId = this.authorizationAccountId;
-		await this.refreshAuthorization();
-		await this.channelUpdate;
-		const nextToken = await super.getAccessToken(targetUrl);
-		if (nextToken === rejectedAccessToken && this.authorizationAccountId === accountId) {
-			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
-			await this.channelUpdate;
+		if (!this.authorizationRefresh && this.rejectedTokenRefresh
+			&& (this.rejectedTokenRefresh.accessToken === rejectedAccessToken || performance.now() < this.rejectedTokenRefresh.nextRefreshAfter)) {
 			return false;
 		}
-		return !!nextToken && nextToken !== rejectedAccessToken && this.authorizationAccountId === accountId;
+		// Hold the budget through snapshot publication, then start the cooldown on completion.
+		const attempt = this.authorizationRefresh ? undefined : { accessToken: rejectedAccessToken, nextRefreshAfter: Number.POSITIVE_INFINITY };
+		if (attempt) {
+			this.rejectedTokenRefresh = attempt;
+		}
+		try {
+			await this.refreshAuthorization();
+			await this.channelUpdate;
+			const nextToken = await super.getAccessToken(targetUrl);
+			return !!nextToken && nextToken !== rejectedAccessToken && this.authorizationAccountId === accountId
+				&& this.extensionGalleryServiceIndexUrl === serviceIndexUrl;
+		} finally {
+			if (attempt && this.rejectedTokenRefresh === attempt) {
+				attempt.nextRefreshAfter = performance.now() + REJECTION_REFRESH_COOLDOWN;
+			}
+		}
 	}
 
 	private async refreshAuthorization(serviceIndexUrl = this.extensionGalleryServiceIndexUrl): Promise<void> {
@@ -358,6 +375,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		this.resolutionTokenSource.value?.cancel();
 		this.setAuthorization(undefined, undefined);
 		this.previousAuthorization = undefined;
+		this.rejectedTokenRefresh = undefined;
 		super.dispose();
 	}
 
