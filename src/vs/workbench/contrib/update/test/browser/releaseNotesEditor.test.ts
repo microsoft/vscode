@@ -9,6 +9,7 @@ import { $, addDisposableListener, getWindow } from '../../../../../base/browser
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -42,6 +43,12 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { ITelemetryData, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IVisibleEditorPane } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -72,6 +79,12 @@ suite('Release notes editor Try This integration', () => {
 	let focused: boolean;
 	let focusCount: number;
 	let open: SinonStub<Parameters<IOpenerService['open']>, Promise<boolean>>;
+	let telemetry: CapturingTelemetryService<ITelemetryData>;
+	let editorChanges: Emitter<void>;
+	let windowChanges: Emitter<boolean>;
+	let visible: boolean;
+	let container: HTMLElement;
+	let disposedContainerReads: number;
 
 	setup(() => {
 		markdown = `# Release Notes\n[Try](${uri})`;
@@ -79,6 +92,10 @@ suite('Release notes editor Try This integration', () => {
 		messages = [];
 		focused = true;
 		focusCount = 0;
+		visible = false;
+		disposedContainerReads = 0;
+		editorChanges = store.add(new Emitter<void>());
+		windowChanges = store.add(new Emitter<boolean>());
 		availability = { kind: 'ready' };
 		run = async () => ({ kind: 'opened' });
 		whenExtensionsRegistered = async () => true;
@@ -88,8 +105,22 @@ suite('Release notes editor Try This integration', () => {
 		const onDispose = store.add(new Emitter<void>());
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		telemetry = new CapturingTelemetryService<ITelemetryData>();
+		instantiationService.stub(ITelemetryService, telemetry);
+		instantiationService.stub(IHostService, { onDidChangeFocus: windowChanges.event, onDidChangeActiveWindow: Event.None });
+		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
+		instantiationService.stub(IRequestService, { request: async () => ({ res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(markdown)) }) });
+		container = $('div');
+		store.add(toDisposable(() => container.remove()));
+		let webviewDisposed = false;
 		const webview = new class extends mock<IOverlayWebview>() {
-			override readonly container = $('div');
+			override get container() {
+				if (webviewDisposed) {
+					disposedContainerReads++;
+					throw new Error('OverlayWebview has been disposed');
+				}
+				return container;
+			}
 			override readonly onMessage = onMessage.event;
 			override readonly onDidDispose = onDispose.event;
 			override readonly onDidClickLink = onClick.event;
@@ -100,7 +131,10 @@ suite('Release notes editor Try This integration', () => {
 			override setTitle(): void { }
 			override async postMessage(message: object): Promise<boolean> { messages.push(message); return true; }
 			override focus(): void { focusCount++; }
-			override dispose(): void { onDispose.fire(); }
+			override dispose(): void {
+				webviewDisposed = true;
+				onDispose.fire();
+			}
 		};
 		input = store.add(new WebviewInput({ viewType: 'releaseNotes', providedId: undefined, name: 'Release Notes', iconPath: undefined }, webview, new TestThemeService()));
 		activeEditor = input;
@@ -109,7 +143,12 @@ suite('Release notes editor Try This integration', () => {
 			openWebview: () => input,
 			revealWebview: () => undefined,
 		});
-		instantiationService.stub(IEditorService, { get activeEditor() { return activeEditor; } });
+		instantiationService.stub(IEditorService, {
+			get activeEditor() { return activeEditor; },
+			get visibleEditorPanes() { return visible ? [upcastPartial<IVisibleEditorPane>({ input })] : []; },
+			onDidActiveEditorChange: editorChanges.event,
+			onDidVisibleEditorsChange: Event.None,
+		});
 		instantiationService.stub(IEditorGroupsService, { activeGroup: new class extends mock<IEditorGroup>() { } });
 		instantiationService.stub(ICodeEditorService, {
 			getActiveCodeEditor: () => new class extends mock<ICodeEditor>() {
@@ -145,6 +184,72 @@ suite('Release notes editor Try This integration', () => {
 	function documentId(): string {
 		return /const documentId = "(?<id>[^"]+)"/.exec(html[html.length - 1])!.groups!.id;
 	}
+
+	function showPane(): void {
+		container.style.cssText = 'position:fixed;top:0;left:0;width:500px;height:300px';
+		container.tabIndex = 0;
+		mainWindow.document.body.appendChild(container);
+		container.focus();
+		visible = true;
+		editorChanges.fire();
+	}
+
+	function present(id = documentId(), depth = 0): void {
+		onMessage.fire({ message: { type: 'releaseNotesTelemetrySample', documentId: id, contents: [], tryouts: [], depth, isScrollable: true } });
+	}
+
+	test('official openings record their revision, but readiness in a hidden pane is not exposure and local previews emit nothing', async () => {
+		await manager.show('1.146.0', false, 'command');
+		onMessage.fire({ message: { type: 'releaseNotesReady', documentId: documentId() } });
+		const official = telemetry.events.map(event => ({
+			name: event.eventName,
+			version: event.data.notesVersion,
+			source: event.data.source,
+			outcome: event.data.outcome,
+			hasRevision: typeof event.data.notesRevision === 'string' && /^[a-f0-9]{64}$/.test(event.data.notesRevision),
+		}));
+		await manager.show('1.146.0', true);
+		assert.deepStrictEqual({ official, eventsAfterPreview: telemetry.events.length }, {
+			official: [{ name: 'releaseNotes.openResult', version: '1.146', source: 'command', outcome: 'rendered', hasRevision: true }],
+			eventsAfterPreview: 1,
+		});
+	});
+
+	test('visible notes wait for a presented sample, then close without retaining editor or focus listeners', async () => {
+		await manager.show('1.146.0', false);
+		showPane();
+		messages.length = 0;
+		onMessage.fire({ message: { type: 'releaseNotesReady', documentId: documentId() } });
+		const beforePresentation = telemetry.events.filter(event => event.eventName === 'releaseNotes.shown').length;
+		const requests = messages.filter(message => Reflect.get(message, 'type') === 'releaseNotesTelemetryMeasure').length;
+		present(documentId(), 75);
+		const shown = telemetry.events.filter(event => event.eventName === 'releaseNotes.shown').map(event => event.data.initialDepthBucket);
+		input.dispose();
+		editorChanges.fire();
+		windowChanges.fire(false);
+		await timeout(300);
+		assert.deepStrictEqual({
+			beforePresentation, requests, shown, disposedContainerReads,
+			editorListeners: editorChanges.hasListeners(), windowListeners: windowChanges.hasListeners(),
+		}, { beforePresentation: 0, requests: 1, shown: [75], disposedContainerReads: 0, editorListeners: false, windowListeners: false });
+	});
+
+	test('a failed replacement preserves tracking and interaction attribution for the current notes', async () => {
+		await manager.show('1.146.0', false);
+		showPane();
+		present();
+		const originalDocument = documentId();
+		const originalView = telemetry.events.find(event => event.eventName === 'releaseNotes.shown')?.data.viewInstanceId;
+		markdown = '# Replacement\n```text\ncode\n```';
+		whenExtensionsRegistered = async () => { throw new Error('test render failure'); };
+		await assert.rejects(manager.show('1.147.0', false), /test render failure/);
+		onMessage.fire({ message: { type: 'showReleaseNotes', documentId: originalDocument, value: false } });
+		assert.deepStrictEqual({
+			htmlWrites: html.length,
+			interactionViews: telemetry.events.filter(event => event.eventName === 'releaseNotes.interaction').map(event => event.data.viewInstanceId),
+			openResults: telemetry.events.filter(event => event.eventName === 'releaseNotes.openResult').map(event => event.data.outcome),
+		}, { htmlWrites: 1, interactionViews: [originalView], openResults: ['rendered', 'failed'] });
+	});
 
 	test('preserves the CSP and only extends the existing command allowlist with the dispatcher', async () => {
 		markdown += '\n<script>untrustedScript()</script>';
