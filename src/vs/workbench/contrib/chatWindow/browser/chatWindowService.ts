@@ -32,7 +32,7 @@ import { IChatWindow, IChatWindowChatPart, IChatWindowContent, IChatWindowEditor
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
-import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
+import { bindChatWindowPartsVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid } from './chatWindowGrid.js';
 import { ChatWindowPartFactory } from './chatWindowPartFactory.js';
 import { ChatWindowsRestoration } from './chatWindowsRestoration.js';
@@ -460,7 +460,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services, state: options?.chatPart?.state });
 		chatPartElement.setAttribute('role', 'main');
-		disposables.add(bindMainPartVisible(windowContextKeyService, state.layoutMode));
+		const mainPartContextKeyService = this._editorGroupsService.getScopedInstantiationService(mainPart).invokeFunction(accessor => accessor.get(IContextKeyService));
+		disposables.add(bindChatWindowPartsVisible(windowContextKeyService, mainPartContextKeyService, state.layoutMode));
 		let unloading = false;
 		disposables.add(auxiliaryWindow.onUnload(() => unloading = true));
 		// What shows in its other parts, such as terminals, leaves the window as it unloads, before its parts close.

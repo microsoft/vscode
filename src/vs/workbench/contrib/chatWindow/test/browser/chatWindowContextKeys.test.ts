@@ -8,8 +8,9 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { LayoutModeContext, SplitLayoutContext, TerminalsPositionContext, TerminalsVisibleContext } from '../../../../common/contextkeys.js';
+import { LayoutModeContext, MainEditorAreaVisibleContext, SplitLayoutContext, TerminalsPositionContext, TerminalsVisibleContext } from '../../../../common/contextkeys.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from '../../browser/chatWindowContextKeys.js';
+import { bindChatWindowPartsVisible } from '../../browser/chatWindowParts.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 
 suite('Chat window context keys', () => {
@@ -65,6 +66,26 @@ suite('Chat window context keys', () => {
 			initial: [[false, 'fullWidth'], [false, 'underChat'], [undefined, undefined]],
 			changed: [[true, 'fullWidth'], [false, 'underEditor'], [undefined, undefined]],
 			unbound: [undefined, undefined],
+		});
+	});
+
+	test('the parts of a window show as the window shows them, whatever the main window\'s editor area: its main part as its mode says, its other parts, such as the one holding its terminals, always', () => {
+		// The main window's editor area is hidden.
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		MainEditorAreaVisibleContext.bindTo(contextKeyService).set(false);
+		const windowContext = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+		const mainPartContext = disposables.add(windowContext.createScoped(document.createElement('div')));
+		const terminalsPartContext = disposables.add(windowContext.createScoped(document.createElement('div')));
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.ChatOnly);
+		disposables.add(bindChatWindowPartsVisible(windowContext, mainPartContext, layoutMode));
+		const read = () => ({ mainPart: mainPartContext.getContextKeyValue(MainEditorAreaVisibleContext.key), terminalsPart: terminalsPartContext.getContextKeyValue(MainEditorAreaVisibleContext.key), mainWindow: contextKeyService.getContextKeyValue(MainEditorAreaVisibleContext.key) });
+
+		const chatOnly = read();
+		layoutMode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ chatOnly, sideBySide: read() }, {
+			chatOnly: { mainPart: false, terminalsPart: true, mainWindow: false },
+			sideBySide: { mainPart: true, terminalsPart: true, mainWindow: false },
 		});
 	});
 });

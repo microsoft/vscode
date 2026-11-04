@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MainEditorAreaVisibleContext } from '../../../common/contextkeys.js';
@@ -82,10 +82,19 @@ export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target:
 }
 
 /**
- * Binds on the context of a chat window's main part whether it shows, as the main window binds it for its own editor
- * area, so that the editors in it show their title actions as in the main window's.
+ * Binds whether the parts of a chat window show, as the main window binds it for its own editor area, so that the editors
+ * in them show their title actions and can close as in the main window's: on the window's context, its parts show as the
+ * window shows them, whether the main window's editor area shows or not, such as the part holding its terminals, which
+ * shows also while only the chat shows; on its main part's own context, the main part shows as the window's mode says.
  */
-export function bindMainPartVisible(contextKeyService: IContextKeyService, layoutMode: IObservable<ChatWindowLayoutMode>): IDisposable {
-	const visible = MainEditorAreaVisibleContext.bindTo(contextKeyService);
-	return autorun(reader => visible.set(layoutMode.read(reader) !== ChatWindowLayoutMode.ChatOnly));
+export function bindChatWindowPartsVisible(windowContextKeyService: IContextKeyService, mainPartContextKeyService: IContextKeyService, layoutMode: IObservable<ChatWindowLayoutMode>): IDisposable {
+	const partsVisible = MainEditorAreaVisibleContext.bindTo(windowContextKeyService);
+	partsVisible.set(true);
+	const mainPartVisible = MainEditorAreaVisibleContext.bindTo(mainPartContextKeyService);
+	const binding = autorun(reader => mainPartVisible.set(layoutMode.read(reader) !== ChatWindowLayoutMode.ChatOnly));
+	return toDisposable(() => {
+		binding.dispose();
+		mainPartVisible.reset();
+		partsVisible.reset();
+	});
 }
