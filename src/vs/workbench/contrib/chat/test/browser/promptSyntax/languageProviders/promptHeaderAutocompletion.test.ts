@@ -256,6 +256,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'handoffs', result: 'handoffs: $0' },
 				{ label: 'hooks', result: 'hooks:\n  ${1|SessionStart,SessionEnd,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop,ErrorOccurred|}:\n    - type: command\n      command: "$2"' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
+				{ label: 'model-policy', result: 'model-policy: ${0:preferred}' },
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'reasoning-effort', result: 'reasoning-effort: ${0:low}' },
 				{ label: 'target', result: 'target: ${0:vscode}' },

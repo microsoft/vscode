@@ -66,13 +66,15 @@ The view service:
 - owns the active session and visible-session arrangement;
 - opens sessions and chats;
 - presents new-session and peer-chat composers;
-- owns Back/Forward navigation across session chats, the new-session composer, and custom views, along with focus and visible-session restoration.
+- owns Back/Forward navigation across session chats, the new-session composer, custom views, and native window canvases, along with focus and visible-session restoration.
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
-Navigation and the recent-sessions picker share MRU ordering. Singleton composer and custom-view entries participate only in the current window's navigation, not persisted session recency or the picker. Back/Forward moves through that order without promoting entries.
+Navigation and the recent-sessions picker share MRU ordering. Singleton composer, custom-view, and window-canvas entries participate only in the current window's navigation, not persisted session recency or the picker. Back/Forward moves through that order without promoting entries and skips unavailable destinations.
 
 Explicit opens carry navigation intent even when the destination is already visible. Async session/chat opens commit only their final destination and honor cancellation; intermediate selections and history traversal do not promote entries. Custom-view opening state distinguishes explicit opens, history traversal, and restoration while the rendered descriptor remains a derived projection.
+
+`IWindowCanvasService` distinguishes foreground navigation requests from committed canvas destinations and background editor restoration. Session navigation leaves the canvas destination without closing its editor or discarding its window-owned content; Back reveals that same content through the canvas service. Canvas and session opens supersede pending foreground navigation in either direction. The canvas editor may remain visible beside a session, so editor visibility alone does not determine the navigation destination.
 
 Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
 
@@ -205,6 +207,8 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 ### Operations
 
 Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+
+The window-scoped worktree cleanup service owns confirmed batch submission and observable operation state independently of the cleanup editor. Closing the editor detaches its measurement and status observation, not confirmed submission; reopening reconnects to the window's outstanding operations and reconciles provider status. The provider owns durable removal after accepting a request. Unsubmitted candidates are not persisted across window shutdown. A missing inventory entry or failed existence check does not establish removal; completion requires the owning host to confirm absence.
 
 `onDidDeleteChat` reports `{ session, sessionResource, chatResource }` only after the provider confirms success. The immutable resource pair is captured before the asynchronous provider operation. Consumers remove that exact chat's state rather than infer deletion from a potentially incomplete chat catalogue.
 

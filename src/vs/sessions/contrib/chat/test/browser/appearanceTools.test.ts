@@ -190,7 +190,7 @@ suite('Sessions - Appearance tools', () => {
 			let items: string[] = [];
 			const executed: unknown[][] = [];
 			t.instantiationService.stub(ISessionsChatBackgroundService, upcastPartial<ISessionsChatBackgroundService>({
-				getBackground: () => undefined,
+				getConfiguredBackground: () => undefined,
 				getRecentBackgroundImages: () => [URI.file('/backgrounds/recent.png')],
 				getConfiguredBackgroundImage: () => undefined,
 			}));
@@ -212,7 +212,7 @@ suite('Sessions - Appearance tools', () => {
 			results.push({ name: scenario.name, items, executed });
 		}
 
-		const backgroundTypes = ['No Background', 'Codicons', 'Image...'];
+		const backgroundTypes = ['No Background', 'Codicons', 'Koi Light', 'Koi Dark', 'Image...'];
 		const recentImages = ['--- recently used', 'recent.png'];
 		assert.deepStrictEqual(results, [{
 			name: 'available',

@@ -45,6 +45,10 @@ Your response should include:
 - References to specific documentation files when applicable
 - Additional context or insights from the telemetry data
 
+# Confidentiality
+
+Query results are internal data. Don't put them in pull requests, issues, comments or commit messages in this public repository; describe the conclusion without numbers instead (see "Public Content" in [copilot-instructions.md](../copilot-instructions.md)).
+
 # Troubleshooting
 
 If the connection to the Kusto cluster is timing out consistently, stop and ask the user to check whether they are connected to Azure VPN.

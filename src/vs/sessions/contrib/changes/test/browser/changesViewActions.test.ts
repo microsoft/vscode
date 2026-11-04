@@ -13,10 +13,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { Context, ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -33,7 +36,7 @@ import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../work
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -43,16 +46,25 @@ import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISess
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../codeReview/browser/codeReview.contributions.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
 // any suite runs instead of being registered by this suite.
 const { changesViewWhen } = await import('../../browser/changes.contribution.js');
+
+function contextWith(values: Record<string, unknown>): Context {
+	const context = new Context(1, null);
+	for (const [key, value] of Object.entries(values)) {
+		context.setValue(key, value);
+	}
+	return context;
+}
 
 function getToggledExpression(toggled: ContextKeyExpression | ICommandActionToggleInfo | undefined): ContextKeyExpression | undefined {
 	return toggled && hasKey(toggled, { condition: true }) ? toggled.condition : toggled;
@@ -546,12 +558,12 @@ suite('Changes View Actions', () => {
 		concurrent.picker.dispose();
 	});
 
-	test('collapse all diffs is contributed to the tab-level editor overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('collapse all diffs is contributed to the More Actions menu of the Changes editor header', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the tab-level editor overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the More Actions menu of the Changes editor header');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -562,7 +574,7 @@ suite('Changes View Actions', () => {
 			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 10,
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
@@ -572,12 +584,87 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the tab-level editor overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Toggle Files of the changed files list of the Changes editor is a primary action of its header, with the workbench\'s command', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID)!;
+		const visible = (values: Record<string, unknown>) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[MultiDiffEditorFileListAvailableContext.key]: true,
+				...values,
+			})) {
+				context.setValue(key, value);
+			}
+			return item.when?.evaluate(context) ?? true;
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			changesEditor: visible({}),
+			editorAreaHidden: visible({ [MainEditorAreaVisibleContext.key]: false }),
+			withoutFileList: visible({ [MultiDiffEditorFileListAvailableContext.key]: false }),
+			otherEditor: visible({ [ActiveEditorContext.key]: 'workbench.editors.textEditor' }),
+			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			tabRowItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).filter(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID).length,
+		}, { group: 'navigation', changesEditor: true, editorAreaHidden: false, withoutFileList: false, otherEditor: false, icon: Codicon.listFlat.id, tabRowItems: 0 });
+	});
+
+	test('Changes editor header shows Run Code Review, the More Actions menu of its diff actions, then Toggle Files only where its host enables the list, and its tab row none of them', () => {
+		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
+		const getLabels = (menuId: MenuId, contextKeyService: ContextKeyService) => menuService.getMenuActions(menuId, contextKeyService)
+			.map(([group, actions]) => [group, actions.map(action => action.label)] as const);
+		const render = (fileListAvailable: boolean) => {
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[AuxiliaryBarVisibleContext.key]: true,
+				[SessionIsCreatedContext.key]: true,
+				[SessionHasChangesContext.key]: true,
+				[SessionWorkspaceIsVirtualContext.key]: false,
+				[MultiDiffEditorFileListAvailableContext.key]: fileListAvailable,
+			})) {
+				contextKeyService.createKey(key, value);
+			}
+			// The header renders the groups of its secondary menu that start with `secondary/` in its More Actions menu, then
+			// its layout menu behind a separator.
+			const secondary = getLabels(Menus.SessionsEditorHeaderSecondary, contextKeyService);
+			const layout = getLabels(Menus.SessionsEditorHeaderLayout, contextKeyService).flatMap(([, labels]) => labels);
+			return {
+				headerRow: [
+					...secondary.filter(([group]) => !group.startsWith('secondary/')).flatMap(([, labels]) => labels),
+					'More Actions',
+					...(layout.length ? ['|', ...layout] : []),
+				],
+				moreActions: secondary.filter(([group]) => group.startsWith('secondary/')),
+				tabRow: getLabels(Menus.SessionsEditorTitle, contextKeyService),
+			};
+		};
+		const moreActions = [
+			['secondary/1_diff', ['Collapse All Diffs', 'Word Wrap', 'Diff View']],
+			['secondary/z_filesView', ['Files View']],
+		] as const;
+		assert.deepStrictEqual({ withFileList: render(true), withoutFileList: render(false) }, {
+			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions, tabRow: [] },
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions, tabRow: [] },
+		});
+	});
+
+	test('expand all diffs is contributed to the More Actions menu of the Changes editor header', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the tab-level editor overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the More Actions menu of the Changes editor header');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -589,7 +676,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 10,
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
@@ -615,7 +702,7 @@ suite('Changes View Actions', () => {
 			desktopTitle: typeof desktop.title === 'string' ? desktop.title : desktop.title.value,
 			desktopGroup: desktop.group,
 			desktopOrder: desktop.order,
-			desktopInEditorHeader: !!getSubmenu(Menus.SessionsEditorHeaderLayout),
+			desktopInEditorHeader: getSubmenu(Menus.SessionsEditorHeaderSecondary)?.group,
 			desktopHasTextDiffGate: desktopWhen.includes(TextCompareEditorActiveContext.key),
 			desktopHasChangesGate: desktopWhen.includes(SessionChangesEditor.ID),
 			desktopHasMultiDiffGate: desktopWhen.includes(MultiDiffEditor.ID),
@@ -630,7 +717,7 @@ suite('Changes View Actions', () => {
 			desktopTitle: 'Diff View',
 			desktopGroup: '1_diff',
 			desktopOrder: 30,
-			desktopInEditorHeader: false,
+			desktopInEditorHeader: 'secondary/1_diff',
 			desktopHasTextDiffGate: true,
 			desktopHasChangesGate: true,
 			desktopHasMultiDiffGate: true,
@@ -711,15 +798,15 @@ suite('Changes View Actions', () => {
 			};
 		}).sort((a, b) => a.id.localeCompare(b.id));
 
-		const diffEditorItem = (group: string, order: number) => ({
+		const diffEditorItem = (group: string, order: number, hasChangesGate = true, hasMultiDiffGate = true) => ({
 			id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
 			title: 'Word Wrap',
 			group,
 			order,
 			hasSessionsGate: true,
 			hasTextDiffGate: false,
-			hasChangesGate: true,
-			hasMultiDiffGate: true,
+			hasChangesGate,
+			hasMultiDiffGate,
 			hasTextEditorGate: false,
 			hasLayoutGate: true,
 			checkedWhenEditorOn: false,
@@ -745,11 +832,13 @@ suite('Changes View Actions', () => {
 		};
 		assert.deepStrictEqual({
 			desktopHeaderLayout: summarize(getItems(Menus.SessionsEditorHeaderLayout)),
+			desktopHeader: summarize(getItems(Menus.SessionsEditorHeaderSecondary)),
 			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
 			desktopHeaderLayout: [],
-			desktopEditorTitle: [diffEditorItem('1_diff', 20), textEditorItem],
+			desktopHeader: [diffEditorItem('secondary/1_diff', 20, true, false)],
+			desktopEditorTitle: [diffEditorItem('1_diff', 20, false, true), textEditorItem],
 			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
 		});
 	});
@@ -874,7 +963,7 @@ suite('Changes View Actions', () => {
 	test('Changes accessibility help describes Files View and its selection state', () => {
 		const content = getChangesAccessibilityHelp();
 		assert.deepStrictEqual({
-			hasMenuLocation: content.includes('Use Files View in the editor title area\'s More Actions menu'),
+			hasMenuLocation: content.includes('Use Files View in the More Actions menu of the Changes editor\'s header row or of the editor title area'),
 			hasSelectionState: content.includes('Files View shows both options and marks the active one as selected'),
 		}, {
 			hasMenuLocation: true,
@@ -882,35 +971,38 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Changes accessibility help describes tab-level actions and the final Files View group', () => {
+	test('Changes accessibility help describes the header actions and the final Files View group', () => {
 		const content = getChangesAccessibilityHelp();
 		assert.deepStrictEqual({
-			hasToolbarLocation: content.includes('toolbar beside the editor tabs, before the separator and layout actions'),
+			hasToolbarLocation: content.includes('Run Code Review and the diff actions of the Changes editor are on the right of its header row'),
+			hasToggleFiles: content.includes('Toggle Files follows a separator at the end of the row'),
 			hasFilesViewGroup: content.includes('Files View submenu in the final group'),
 		}, {
 			hasToolbarLocation: true,
+			hasToggleFiles: true,
 			hasFilesViewGroup: true,
 		});
 	});
 
-	test('Changes header layout actions move to the tab-level overflow with Files View in its own final group', () => {
+	test('Files View is in its own final group of the More Actions menus of the Changes editor header and of the tab row', () => {
 		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
-		const overflowGroups = getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation');
+		const getGroupItems = (menuId: MenuId, group: string) => MenuRegistry.getMenuItems(menuId)
+			.filter(item => item.group === group)
+			.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id);
 		assert.deepStrictEqual({
-			oldHeaderItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
-				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
-			lastOverflowGroup: overflowGroups.at(-1),
-			filesViewGroupItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
-				.filter(item => item.group === 'z_filesView')
-				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
+			lastHeaderGroup: getGroups(Menus.SessionsEditorHeaderSecondary).at(-1),
+			headerFilesViewGroupItems: getGroupItems(Menus.SessionsEditorHeaderSecondary, 'secondary/z_filesView'),
+			lastOverflowGroup: getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation').at(-1),
+			filesViewGroupItems: getGroupItems(Menus.SessionsEditorTitle, 'z_filesView'),
 		}, {
-			oldHeaderItems: [],
+			lastHeaderGroup: 'secondary/z_filesView',
+			headerFilesViewGroupItems: [Menus.ChangesFilesView.id],
 			lastOverflowGroup: 'z_filesView',
 			filesViewGroupItems: [Menus.ChangesFilesView.id],
 		});
 	});
 
-	test('Files View submenu preserves editor title overflow visibility for Changes and single-file diffs', () => {
+	test('Files View submenu of the editor title overflow shows for single-file diffs, and for the Changes editor in its header', () => {
 		const submenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.ChangesFilesView);
@@ -951,13 +1043,17 @@ suite('Changes View Actions', () => {
 			visibleWithoutChangesPane: isVisible({ [AuxiliaryBarVisibleContext.key]: false }),
 			headerLayoutItems: getDirectViewModeItems(Menus.SessionsEditorHeaderLayout),
 			editorTitleItems: getDirectViewModeItems(Menus.SessionsEditorTitle),
+			visibleInChangesEditorHeader: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+				.filter(isISubmenuItem)
+				.find(item => item.submenu === Menus.ChangesFilesView)
+				?.when?.evaluate(contextWith({ [IsSessionsWindowContext.key]: true, [ActiveEditorContext.key]: SessionChangesEditor.ID, [DesktopLayoutContext.key]: true, [IsAuxiliaryWindowContext.key]: false, [IsTopRightEditorGroupContext.key]: true, [AuxiliaryBarVisibleContext.key]: true })),
 		}, {
 			title: 'Files View',
 			group: 'z_filesView',
 			order: 20,
 			visibleInListMode: true,
 			visibleInTreeMode: true,
-			visibleForChangesEditor: true,
+			visibleForChangesEditor: false,
 			visibleForUnrelatedEditor: false,
 			visibleOutsideSessions: false,
 			visibleInMobileLayout: false,
@@ -966,6 +1062,7 @@ suite('Changes View Actions', () => {
 			visibleWithoutChangesPane: false,
 			headerLayoutItems: [],
 			editorTitleItems: [],
+			visibleInChangesEditorHeader: true,
 		});
 	});
 
