@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
-import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
+import { Emitter, Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
@@ -15,21 +15,22 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { TestView } from '../../../base/test/browser/ui/grid/util.js';
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Part } from '../../../workbench/browser/part.js';
-import { IPartVisibilityChangeEvent, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
 import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
-import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { DockedEditorInput } from '../../browser/dockedEditorInput.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
-import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupOrientation, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
@@ -62,12 +63,33 @@ class TestPartView extends TestView implements ISerializableView {
 
 /** Minimal docked editor input for testing the desktop reveal policy. */
 class TestDockedEditorInput extends DockedEditorInput {
+	constructor() {
+		super(upcastPartial<IEditorGroupsService>({ parts: [] }), upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: BaseEvent.None, isVisible: () => true }));
+	}
 	override get typeId(): string { return 'test.dockedEditor'; }
 	override get resource(): undefined { return undefined; }
 }
 
 suite('Sessions - Workbench', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the editor parts of a window of content parts, such as a chat window, show while the editor part of the main window hides; those of an editor window follow it', () => {
+		// A chat window is built of content parts; an editor window has an editor part of its own.
+		const chatWindow = { vscodeWindowId: 2 } as Window & { vscodeWindowId: number };
+		const editorWindow = { vscodeWindowId: 3 } as Window & { vscodeWindowId: number };
+		const workbench: { isVisible(part: Parts, targetWindow?: Window): boolean } = Object.assign(Object.create(Workbench.prototype), {
+			_effectiveVisible: () => false,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			editorGroupService: { parts: [Object.assign(Object.create(ContentPart.prototype), { windowId: 2 }), { windowId: 3 }] },
+		});
+		assert.deepStrictEqual({
+			mainEditor: workbench.isVisible(Parts.EDITOR_PART, mainWindow),
+			mainEditorWithoutWindow: workbench.isVisible(Parts.EDITOR_PART),
+			chatWindowEditor: workbench.isVisible(Parts.EDITOR_PART, chatWindow),
+			chatWindowPanel: workbench.isVisible(Parts.PANEL_PART, chatWindow),
+			editorWindowEditor: workbench.isVisible(Parts.EDITOR_PART, editorWindow),
+		}, { mainEditor: false, mainEditorWithoutWindow: false, chatWindowEditor: true, chatWindowPanel: false, editorWindowEditor: false });
+	});
 
 	test('leaves native resize to the host window while retaining iOS and phone viewport listeners', () => {
 		const viewport = mainWindow.visualViewport;
@@ -622,7 +644,7 @@ suite('Sessions - Workbench', () => {
 			grid.appendChild(part);
 			return part;
 		};
-		const sessions = createPart('sessionspart agents-part-card agents-card-surface');
+		const sessions = createPart('sessionspart sessions-chat-surface agents-part-card agents-card-surface');
 		const sessionView = document.createElement('div');
 		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
 		sessions.appendChild(sessionView);
@@ -705,7 +727,7 @@ suite('Sessions - Workbench', () => {
 		const root = document.createElement('div');
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card agents-card-surface';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		const sessionView = document.createElement('div');
 		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
 		card.appendChild(sessionView);

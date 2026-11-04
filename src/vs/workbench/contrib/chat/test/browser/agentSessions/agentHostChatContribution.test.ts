@@ -7462,11 +7462,11 @@ suite('AgentHostChatContribution', () => {
 	// ---- Forking ---------------------------------------------------------
 
 	suite('forking', () => {
-		async function forkSession(requestedTitle: string | undefined, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string; activeTurnId?: string }) {
+		async function forkSession(requestedTitle: string | undefined, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string; activeTurnId?: string; sourceChat?: string }) {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'fork-source');
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
-			const sourceChat = buildDefaultChatUri(backendSession.toString());
+			const sourceChat = boundary?.sourceChat ?? buildDefaultChatUri(backendSession.toString());
 			const summary: SessionSummary = {
 				resource: backendSession.toString(),
 				provider: 'copilot',
@@ -7526,12 +7526,9 @@ suite('AgentHostChatContribution', () => {
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(chatSession);
-			const request = boundary?.beforeRequestId
-				? chatSession.history.find((item): item is IChatSessionRequestHistoryItem => item.type === 'request' && item.id === boundary.beforeRequestId)
+			const request: IChatSessionRequestHistoryItem | undefined = boundary?.beforeRequestId
+				? { type: 'request', id: boundary.beforeRequestId, prompt: 'Source request', participant: 'agent-host-copilot' }
 				: undefined;
-			if (boundary?.beforeRequestId) {
-				assert.ok(request);
-			}
 			const forkedItem = await chatSession.forkSession?.(request, CancellationToken.None, {
 				title: requestedTitle,
 				...(initialMessage ? { initialMessage } : {}),
@@ -7563,6 +7560,52 @@ suite('AgentHostChatContribution', () => {
 				turnId: 'source-turn-2',
 				prompt: 'Continue in a fork',
 			});
+		});
+
+		for (const sourceChat of [undefined, 'ahp-chat:/opaque-source-chat']) {
+			test(`a checkpoint before the active second request forks the completed first turn${sourceChat ? ' with an opaque chat URI' : ''}`, async () => {
+				const result = await forkSession(undefined, 'Fork', undefined, false, {
+					beforeRequestId: 'streaming-turn',
+					activeTurnId: 'streaming-turn',
+					sourceChat,
+				});
+				assert.deepStrictEqual({
+					source: result.call.options?.fork?.source.toString(),
+					turnId: result.call.options?.fork?.turnId,
+					initialMessage: result.call.options?.initialMessage,
+					disposedSessions: result.agentHostService.disposedSessions,
+					disposedChats: result.agentHostService.disposedChats,
+					dispatchedActions: result.agentHostService.dispatchedActions,
+				}, {
+					source: result.sourceChat,
+					turnId: 'source-turn',
+					initialMessage: undefined,
+					disposedSessions: [],
+					disposedChats: [],
+					dispatchedActions: [],
+				});
+			});
+		}
+
+		test('a checkpoint before the active first request cannot invent a completed boundary', async () => {
+			await assert.rejects(
+				forkSession(undefined, 'Fork', undefined, false, {
+					turnCount: 0,
+					beforeRequestId: 'streaming-turn',
+					activeTurnId: 'streaming-turn',
+				}),
+				/Cannot fork: no turns to fork from/,
+			);
+		});
+
+		test('an unknown checkpoint does not use the active request fallback', async () => {
+			await assert.rejects(
+				forkSession(undefined, 'Fork', undefined, false, {
+					beforeRequestId: 'missing-turn',
+					activeTurnId: 'streaming-turn',
+				}),
+				/Cannot fork: turn for request missing-turn not found in protocol state/,
+			);
 		});
 
 		test('prompt fork from an active first request cannot invent a completed boundary', async () => {

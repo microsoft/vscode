@@ -2,7 +2,14 @@
   "name": "code-oss-dev",
   "version": "1.146.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "05457c417e0e384f4d465f2acab6d21f43360868",
+  "distro": "db5ed1b9eedd37f415858594f54bfd0859e60a6b",
+  "nativeBuild": {
+    "runtime": "electron",
+    "target": "43.8.6",
+    "disturl": "https://electronjs.org/headers",
+    "msBuildId": "15893748",
+    "buildFromSource": true
+  },
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -23,7 +30,6 @@
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
     "postinstall": "node build/npm/postinstall.ts",
-    "install-fast": "node build/npm/fast-install.ts",
     "compile": "npm-run-all2 -lp compile-client compile-copilot",
     "compile-client": "pnpm run gulp compile",
     "compile-copilot": "pnpm -C extensions/copilot run compile",

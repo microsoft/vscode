@@ -21,6 +21,24 @@ import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTI
 import { Menus } from '../../../../browser/menus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { CustomViewVisibleContext } from '../../../../common/contextkeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
@@ -63,6 +81,54 @@ suite('BaseLayoutController', () => {
 		const { owner, restoring, applying } = harness.editorWorkingSetService.restoreState.get();
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
 	}
+
+	test('the side panel\'s command, run in a chat window, toggles the editor of that window, never the side panel of the main window, whatever key the user binds to it', () => {
+		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.SideBySide);
+		const chatWindow = new class extends mock<IChatWindow>() {
+			override readonly layoutMode = layoutMode;
+			override setLayoutMode(mode: ChatWindowLayoutMode) { layoutMode.set(mode, undefined); }
+			override showEditor() { layoutMode.set(ChatWindowLayoutMode.SideBySide, undefined); }
+		}();
+		const active: { window: IChatWindow | undefined } = { window: chatWindow };
+		const sidePaneToggles: boolean[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+			override get activeWindow() { return active.window; }
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override toggleSidePane() { sidePaneToggles.push(true); return true; }
+		}());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const run = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)!.handler(accessor));
+
+		run();
+		const hidden = layoutMode.get();
+		run();
+		const shown = layoutMode.get();
+		active.window = undefined;
+		run();
+
+		// A user's key for the command, such as Cmd+I in the Agents window, runs it in a chat window, where it is enabled even
+		// while the main window shows a custom view.
+		const chatWindowValues: Record<string, ContextKeyValue> = { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [LayoutModeContext.key]: ChatWindowLayoutMode.SideBySide, [CustomViewVisibleContext.key]: true };
+		const chatWindowContext: IContext = { getValue: <T extends ContextKeyValue>(key: string) => chatWindowValues[key] as T | undefined };
+		const userKeybinding = new ResolvedKeybindingItem(createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyI, OS), TOGGLE_SIDE_PANEL_COMMAND_ID, null, IsSessionsWindowContext, false, null, false);
+		const resolved = new KeybindingResolver([], [userKeybinding], () => { }).resolve(chatWindowContext, [], userKeybinding.chords[0]);
+		const precondition = CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID) && MenuRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)?.precondition;
+
+		assert.deepStrictEqual({
+			hidden, shown, sidePaneToggles,
+			resolved: resolved.kind === ResultKind.KbFound ? resolved.commandId : undefined,
+			enabledInChatWindow: precondition?.evaluate(chatWindowContext),
+		}, {
+			hidden: ChatWindowLayoutMode.ChatOnly,
+			shown: ChatWindowLayoutMode.SideBySide,
+			sidePaneToggles: [true],
+			resolved: TOGGLE_SIDE_PANEL_COMMAND_ID,
+			enabledInChatWindow: true,
+		});
+	});
 
 	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
 		disposables.add(BaseLayoutController.registerSidePaneToggleAction());

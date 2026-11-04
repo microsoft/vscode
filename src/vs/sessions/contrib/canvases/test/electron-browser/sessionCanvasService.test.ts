@@ -42,6 +42,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../browser/pinnedCanvases.js';
@@ -106,7 +107,8 @@ suite('SessionCanvasService', () => {
 		});
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', undefined);
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
+		// The harness's session is the main window's, which has focus.
+		const sessionsService = upcastPartial<ISessionsService>({ activeSession, mainWindowActiveSession: activeSession });
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
 		const definition: ISessionCanvasDefinition = {
@@ -176,6 +178,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
 			upcastPartial<ICustomViewService>({ activeCustomView }),
 			pinnedCanvases.service,
+			upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([]) }),
 		));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -856,7 +859,7 @@ suite('SessionCanvasService', () => {
 		}, {
 			submenuTitles: ['Canvas'],
 			titles: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			groups: ['2_open', '2_open', '2_open', '2_open', '2_open', '2_open'],
+			groups: ['1_running', '1_running', '1_running', '1_running', '1_running', '1_running'],
 			requiresChat: true,
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,
@@ -1274,7 +1277,7 @@ suite('SessionCanvasService', () => {
 		const canvasGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 1, contains: candidate => candidate === input });
 		let activeWindowId = 1;
 		const contextService = store.add(new SessionCanvasContextService(
-			upcastPartial<ISessionsService>({ activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) }),
+			upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), mainWindowActiveSession: constObservable(undefined) }),
 			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
 			upcastPartial<IEditorGroupsService>({
 				get activeGroup() { return upcastPartial<IEditorGroup>({ windowId: activeWindowId }); },
@@ -1285,6 +1288,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
 			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
 			createPinnedCanvases().service,
+			upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([]) }),
 		));
 		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
 		const mainWindow = contextService.getEditorGroup(owner, input, false)?.id;
@@ -1296,5 +1300,116 @@ suite('SessionCanvasService', () => {
 			auxiliaryNew: contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id,
 			restore: contextService.getEditorGroup(owner, input, true)?.id,
 		}, { mainWindow: undefined, auxiliaryOpen: 2, auxiliaryNew: 1, restore: 1 });
+	});
+
+	test('keeps a canvas opened from a chat window in the main part of that chat window, wherever focus is', () => {
+		const input = upcastPartial<CanvasInput>({});
+		const mainGroup = upcastPartial<IEditorGroup>({ id: 1, windowId: 1, contains: () => false });
+		const chatWindowGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 2, contains: () => false });
+		const chatWindowCanvasGroup = upcastPartial<IEditorGroup>({ id: 3, windowId: 2, contains: candidate => candidate === input });
+		const otherChatWindowGroup = upcastPartial<IEditorGroup>({ id: 4, windowId: 3, contains: () => false });
+		const chatWindows = new Map([
+			[2, upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: chatWindowGroup, groups: [chatWindowGroup, chatWindowCanvasGroup] }) })],
+			[3, upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: otherChatWindowGroup, groups: [otherChatWindowGroup] }) })],
+		]);
+		// The active group is in a chat window while focus may be in another window, such as the main window.
+		let activeGroupWindowId = 2;
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), mainWindowActiveSession: constObservable(undefined) }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<IEditorGroupsService>({
+				get activeGroup() { return upcastPartial<IEditorGroup>({ windowId: activeGroupWindowId }); },
+				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup, groups: [mainGroup], windowId: 1 }),
+			}),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
+			upcastPartial<IChatWindowService>({ getWindow: windowId => chatWindows.get(windowId) }),
+		));
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
+		const chatWindowOpen = contextService.getEditorGroup(owner, input, false)?.id;
+		const chatWindowNew = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
+		activeGroupWindowId = 3;
+		const otherChatWindow = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
+		activeGroupWindowId = 4;
+		const auxiliaryWindow = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
+
+		assert.deepStrictEqual({ chatWindowOpen, chatWindowNew, otherChatWindow, auxiliaryWindow }, { chatWindowOpen: 3, chatWindowNew: 2, otherChatWindow: 4, auxiliaryWindow: 1 });
+	});
+
+	test('a chat window presents the canvases of the chat it shows, in any of its groups, whichever session the main window shows; other windows and chats do not', () => {
+		const chatWindowChat = URI.parse('agent-host-chat:/session/main');
+		const chatWindows = new Map([
+			[2, upcastPartial<IChatWindow>({ chat: constObservable(chatWindowChat) })],
+		]);
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), mainWindowActiveSession: constObservable(undefined) }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<IEditorGroupsService>({}),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
+			upcastPartial<IChatWindowService>({ getWindow: windowId => chatWindows.get(windowId), windows: constObservable([...chatWindows.values()]) }),
+		));
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: chatWindowChat };
+		const otherChat = { ...owner, chat: URI.parse('agent-host-chat:/session/other') };
+		const group = (windowId: number) => upcastPartial<IEditorGroup>({ windowId });
+
+		assert.deepStrictEqual({
+			ownChatInItsWindow: contextService.canPresentInGroup(owner, group(2)),
+			otherChatInTheWindow: contextService.canPresentInGroup(otherChat, group(2)),
+			inAnotherWindow: contextService.canPresentInGroup(owner, group(3)),
+			ownChatOutsideWorkingSets: contextService.presentsOutsideWorkingSets(owner),
+			otherChatOutsideWorkingSets: contextService.presentsOutsideWorkingSets(otherChat),
+		}, { ownChatInItsWindow: true, otherChatInTheWindow: false, inAnotherWindow: false, ownChatOutsideWorkingSets: true, otherChatOutsideWorkingSets: false });
+	});
+
+	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable while another window has focus', () => {
+		const createSession = (name: string) => {
+			const chat = upcastPartial<IChat>({ resource: URI.parse(`agent-host-chat:/${name}/main`), canvases: constObservable([]) });
+			return upcastPartial<IActiveSession>({
+				providerId: 'local-agent-host',
+				resource: URI.parse(`agent-host-session:/${name}`),
+				activeChat: constObservable(chat),
+				chats: constObservable([chat]),
+				capabilities: constObservable<ISessionCapabilities>({ supportsCanvases: true, supportsMultipleChats: false }),
+			});
+		};
+		const mainWindowSession = createSession('main');
+		const chatWindowSession = createSession('chatWindow');
+		const otherSession = createSession('other');
+		// The session of the window with focus: the chat window's, then another window's.
+		const focusedSession = observableValue<IActiveSession | undefined>('activeSession', chatWindowSession);
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: focusedSession, mainWindowActiveSession: constObservable(mainWindowSession) }),
+			upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteChat: Event.None,
+				getSession: resource => [mainWindowSession, chatWindowSession, otherSession].find(session => session.resource.toString() === resource.toString()),
+			}),
+			upcastPartial<IEditorGroupsService>({}),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
+			upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([upcastPartial<IChatWindow>({ chat: constObservable(chatWindowSession.activeChat.get().resource) })]) }),
+		));
+		const ownerOf = (session: IActiveSession) => ({ providerId: session.providerId, session: session.resource, chat: session.activeChat.get().resource });
+		const presentable = () => ({
+			chatWindow: { visible: contextService.isOwnerVisible(ownerOf(chatWindowSession)), context: !!contextService.getContext(ownerOf(chatWindowSession)) },
+			mainWindow: { visible: contextService.isOwnerVisible(ownerOf(mainWindowSession)), context: !!contextService.getContext(ownerOf(mainWindowSession)) },
+			other: { visible: contextService.isOwnerVisible(ownerOf(otherSession)), context: !!contextService.getContext(ownerOf(otherSession)) },
+		});
+		const chatWindowFocused = presentable();
+		focusedSession.set(otherSession, undefined);
+		const otherWindowFocused = presentable();
+
+		const expected = { chatWindow: { visible: true, context: true }, mainWindow: { visible: true, context: true }, other: { visible: false, context: false } };
+		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, { chatWindowFocused: expected, otherWindowFocused: expected });
 	});
 });

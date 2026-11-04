@@ -369,6 +369,12 @@ export interface IChatResponseModel {
 	readonly usageObs: IObservable<IChatUsage | undefined>;
 	readonly completionTokenCount: number | undefined;
 	readonly completionTokenCountObs: IObservable<number | undefined>;
+	/**
+	 * Whether {@link usage}'s `completionTokens` is the latest model call's output.
+	 * False for a response restored from an older save, which only kept the
+	 * whole-response total ({@link completionTokenCount}).
+	 */
+	readonly lastCallCompletionTokensKnown: boolean;
 	/** Elapsed generation time in ms (excluding confirmation waits). Set on completion and serialized. */
 	readonly elapsedMs: number | undefined;
 	readonly codeBlockInfos: ICodeBlockInfo[] | undefined;
@@ -1587,6 +1593,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._completionTokenCountObs;
 	}
 
+	private _lastCallCompletionTokensKnown = true;
+	public get lastCallCompletionTokensKnown(): boolean {
+		return this._lastCallCompletionTokensKnown;
+	}
+
 	public get elapsedMs(): number | undefined {
 		return this._elapsedMs;
 	}
@@ -1861,7 +1872,23 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	setUsage(usage: IChatUsage): void {
 		this._parentUsage = usage;
+		this._lastCallCompletionTokensKnown = true;
 		this._setUsage(this._withSubagentCopilotCredits(usage), true);
+	}
+
+	/**
+	 * Restores saved usage. When the save recorded the latest call's output,
+	 * `usage.completionTokens` is that call's and `completionTokenCount` the
+	 * saved whole-response total. An older save only kept the total, so the
+	 * response is restored as before and marked as not knowing its latest call.
+	 */
+	restoreUsage(usage: IChatUsage, completionTokenCount: number | undefined, lastCallKnown: boolean): void {
+		this._parentUsage = usage;
+		this._setUsage(this._withSubagentCopilotCredits(usage), !lastCallKnown);
+		if (lastCallKnown && this._completionTokenCountObs.get() === undefined && completionTokenCount !== undefined) {
+			this._completionTokenCountObs.set(completionTokenCount, undefined);
+		}
+		this._lastCallCompletionTokensKnown = lastCallKnown;
 	}
 
 	/** Replaces settled history metadata without recreating the response or accumulating replayed usage. */
@@ -2000,7 +2027,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 
-	cancel(): void {
+	/** Cancels the response, as of `completedAt` when restoring a recorded cancellation. */
+	cancel(completedAt = Date.now()): void {
+		this._cancel(completedAt, completedAt);
+	}
+
+	/** Cancels a restored response whose cancellation time was not recorded. */
+	cancelWithoutTimestamp(): void {
+		this._cancel(Date.now(), undefined);
+	}
+
+	private _cancel(completedAt: number, completionTimestamp: number | undefined): void {
 		this._response.finalizeReasoningDuration();
 		// Transition any tool invocations that are still streaming partial
 		// input from the LM into the Cancelled state so that UI consumers
@@ -2016,9 +2053,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			}
 		}
 
-		const completedAt = Date.now();
 		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
-		this._completionTimestamp = completedAt;
+		this._completionTimestamp = completionTimestamp;
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
@@ -2084,7 +2120,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
 			promptTokens: this.usage?.promptTokens,
 			completionTokens: this.completionTokenCount,
-			lastCallCompletionTokens: this.usage?.modelTotals?.length ? this.usage.completionTokens : undefined,
+			lastCallCompletionTokens: this.usage && this._lastCallCompletionTokensKnown ? this.usage.completionTokens : undefined,
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
 			...(this.usage?.latestModelCall ? { latestModelCall: this.usage.latestModelCall } : {}),
@@ -2212,7 +2248,7 @@ interface ISerializableChatResponseData {
 	timeSpentWaiting?: number;
 	promptTokens?: number;
 	completionTokens?: number;
-	/** Last chat call's output, kept separate from whole-turn consumption on restore. */
+	/** Latest chat call's output, kept separate from whole-turn consumption on restore. Absent in older saves, where only the whole-turn total was kept. */
 	lastCallCompletionTokens?: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
@@ -3492,7 +3528,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number') {
-				request.response.setUsage({
+				request.response.restoreUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
 					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens ?? 0 : 0),
@@ -3504,7 +3540,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelTotals: raw.modelTotals,
 					sessionCopilotCredits: raw.sessionCopilotCredits,
 					sessionCopilotCreditsStatus: raw.sessionCopilotCreditsStatus,
-				});
+				}, raw.completionTokens, raw.lastCallCompletionTokens !== undefined);
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 				request.response.applyReference(revive(raw.usedContext));

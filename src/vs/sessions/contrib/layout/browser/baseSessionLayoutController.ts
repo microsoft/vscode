@@ -42,6 +42,8 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -308,7 +310,7 @@ export abstract class BaseLayoutController extends Disposable {
 		super();
 
 		this._chatLayoutContext = this._chatLayoutEnabled
-			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._sessionsService.activeSession))
+			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._sessionsService.mainWindowActiveSession))
 			: undefined;
 
 		// [B3] Restore persisted state (with one-time legacy migration).
@@ -318,7 +320,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
 		if (this._chatLayoutContext) {
 			this._register(runOnChange(this._chatLayoutContext.state, (current, previous) => {
-				const session = this._sessionsService.activeSession.get();
+				const session = this._sessionsService.mainWindowActiveSession.get();
 				if (previous.presentation.active && current.presentation.active
 					&& previous.owner && current.owner && session
 					&& isEqual(previous.owner.sessionResource, current.owner.sessionResource)
@@ -338,7 +340,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this.activeSessionResourceObs = derivedOpts<URI | undefined>({
 			equalsFn: isEqual
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.resource;
 		});
 
@@ -374,7 +376,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
@@ -393,7 +395,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession || e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			if ((this.multipleChatsVisibleObs.get()
 				&& (!activeSession || !this._isPanelVisibilitySharedAcrossChats(activeSession)))
 				|| this._isCustomViewVisible()) {
@@ -412,7 +414,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 			if (ownerKey) {
 				this._panelViewBySession.set(ownerKey, e.composite.getId());
@@ -423,7 +425,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelViewPerSession) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
@@ -443,7 +445,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			if (activeSession && this._chatLayoutSuspended()) {
 				return;
 			}
@@ -466,7 +468,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 			if (ownerKey) {
 				this._editorPartHiddenBySession.set(ownerKey, !e.visible);
@@ -489,7 +491,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._chatLayoutSuspended(reader)) {
 				return lastValue ?? { session: undefined, key: undefined, owner: undefined };
 			}
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const chat = session?.activeChat.read(reader);
 			const key = session && chat
 				? this._ownerKeyForChat(session.resource, chat.resource, session.mainChat.read(reader).resource, reader)
@@ -538,7 +540,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// editors during that window. Saving here synchronously — before those
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
-		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+		this._register(runOnChange(this._sessionsService.mainWindowActiveSession, (session, previousSession) => {
 			if (this._workingSetAdoptingReplacement && !isEqual(this._workingSetAdoptingReplacement, session?.resource)) {
 				this._workingSetAdoptingReplacement = undefined;
 			}
@@ -758,9 +760,13 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
-					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
-						CustomViewVisibleContext.negate()
+					// In a chat window it toggles the window's editor, whatever the main window shows.
+					precondition: ContextKeyExpr.or(
+						ChatWindowLayoutCommandsContext,
+						ContextKeyExpr.and(
+							ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
+							CustomViewVisibleContext.negate()
+						)
 					),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
@@ -790,6 +796,13 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			run(accessor: ServicesAccessor): void {
+				// In a chat window, whichever key runs it: the window's editor, never the side panel of the main window.
+				const chatWindow = accessor.get(IChatWindowService).activeWindow;
+				if (chatWindow) {
+					toggleChatWindowEditorAsSidePanel(chatWindow);
+					return;
+				}
+
 				const nowVisible = accessor.get(IAgentWorkbenchLayoutService).toggleSidePane();
 
 				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);
@@ -813,7 +826,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// `onDidReplaceSession` and `onDidReplaceNewDraftSession` fire when a draft is
 		// replaced (on submit by its committed session, or pre-send by another draft),
 		// so the incoming session inherits the outgoing draft's on-screen layout.
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
 		if (!isEqual(from.resource, to.resource)) {
 			this._replacedSessionResources.add(from.resource);
@@ -1142,7 +1155,7 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveState(): void {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
 		const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 

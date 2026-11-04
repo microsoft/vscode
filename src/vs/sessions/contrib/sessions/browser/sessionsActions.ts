@@ -31,7 +31,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
@@ -51,7 +51,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { OS } from '../../../../base/common/platform.js';
+import { isWeb, OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -404,7 +404,7 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 
 function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
 	const sessionsService = accessor.get(ISessionsService);
-	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get());
 	if (view) {
 		action(view);
 	}
@@ -707,7 +707,7 @@ registerAction2(class RenameChatAction extends Action2 {
 				return;
 			}
 		}
-		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session.sessionId)?.startChatTitleEditing(renameContext.chat.resource)) {
+		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session)?.startChatTitleEditing(renameContext.chat.resource)) {
 			return;
 		}
 		if (!renameContext && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
@@ -724,12 +724,12 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.list.openChatToSide',
-			title: localize2('openChatToSide', "Open to the Side"),
+			title: localize2('splitView', "Split View"),
 			f1: false,
 			menu: {
-				id: Menus.SessionChatItemContext,
+				id: Menus.SessionChatItemOpenIn,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 			},
 		});
 	}
@@ -743,6 +743,31 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		await sessionsService.openChatToSide(context.session, context.chat.resource);
+	}
+});
+
+registerAction2(class OpenSessionListChatInEditorWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.openInEditorWindow',
+			title: localize2('editorWindow', "Editor Window"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			menu: [Menus.SessionItemOpenIn, Menus.SessionChatItemOpenIn].map(id => ({
+				id,
+				group: '1_editor',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+			})),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISession[] | ISessionChatItem): Promise<void> {
+		const target = Array.isArray(context)
+			? context.length === 1 ? { session: context[0], chat: context[0].mainChat.get() } : undefined
+			: context;
+		if (target) {
+			await accessor.get(ICommandService).executeCommand(isWeb ? 'sessions.openInVSCode' : 'agents.openSessionInVSCode', target);
+		}
 	}
 });
 
@@ -1087,7 +1112,7 @@ registerAction2(class CloseChatAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const sessionView = accessor.get(ISessionsPartService).getSessionView(session.sessionId);
+		const sessionView = accessor.get(ISessionsPartService).getSessionView(session);
 		chat ??= sessionView?.getActiveChat() ?? session.activeChat.get();
 		if (!chat) {
 			return;
@@ -1900,7 +1925,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 					// active one) instead of in place; the dropdown's select handler
 					// does not forward the mouse event, so read the live modifier state.
 					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
-						const view = accessor.get(ISessionsPartService).getSessionView(target.sessionId);
+						const view = accessor.get(ISessionsPartService).getSessionView(target);
 						if (view) {
 							await view.openChatToSide(targetChat.resource);
 							return;
@@ -2058,7 +2083,7 @@ registerAction2(class TogglePinChatAction extends Action2 {
 	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
 		session ??= accessor.get(ISessionsService).activeSession.get();
 		if (session) {
-			accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.toggleActiveChatPin();
+			accessor.get(ISessionsPartService).getSessionView(session)?.toggleActiveChatPin();
 		}
 	}
 });
@@ -2097,7 +2122,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		// is only available while the header shows the title (e.g. not while the
 		// single-group chat tabs row replaces it); prompt for the new title when
 		// it cannot be used.
-		if (accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing()) {
+		if (accessor.get(ISessionsPartService).getSessionView(session)?.startTitleEditing()) {
 			return;
 		}
 		await accessor.get(ICommandService).executeCommand(RENAME_SESSION_COMMAND_ID, session);
@@ -2147,7 +2172,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		session ??= sessionsService.activeSession.get();
 
-		const sessionView = session && sessionsPartService.getSessionView(session.sessionId);
+		const sessionView = session && sessionsPartService.getSessionView(session);
 		const activeChat = sessionView?.getActiveChat();
 		if (session
 			&& sessionView
@@ -2278,7 +2303,8 @@ registerAction2(class CloseEditorAreaAction extends Action2 {
 				id: MenuId.EditorGroupWatermarkToolbar,
 				group: 'navigation',
 				order: 10,
-				when: IsSessionsWindowContext,
+				// A window with layout modes, such as a chat window, closes its own editor parts.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, LayoutModeContext.toNegated()),
 			},
 		});
 	}

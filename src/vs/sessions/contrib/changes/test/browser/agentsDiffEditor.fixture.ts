@@ -303,7 +303,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		renderDockedDetailPanel(editorPart);
 		const input = disposableStackStore.add(new TestEditorInput(OVERLAY_RESOURCE, 'fixture.agentsDiff'));
 		const group = new FixtureOverlayEditorGroup(editorPane, input);
-		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group));
+		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group, undefined));
 		return;
 	}
 

@@ -61,7 +61,7 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
@@ -211,7 +211,7 @@ class FocusNewSessionWorkspacePickerAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusWorkspacePicker();
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusWorkspacePicker();
 	}
 }
 
@@ -236,7 +236,7 @@ class FocusNewSessionEnvironmentPickerAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusEnvironmentPicker();
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusEnvironmentPicker();
 	}
 }
 
@@ -261,7 +261,7 @@ class FocusNewSessionHarnessPickerAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusHarnessPicker();
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusHarnessPicker();
 	}
 }
 
@@ -286,7 +286,7 @@ class FocusNewSessionBranchPickerAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusBranchPicker();
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusBranchPicker();
 	}
 }
 
@@ -311,7 +311,7 @@ class FocusNewSessionWorktreePickerAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusWorktreePicker();
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusWorktreePicker();
 	}
 }
 
@@ -336,7 +336,7 @@ class FocusSessionSyncActionAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusSyncAction();
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusSyncAction();
 	}
 }
 
@@ -796,6 +796,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether Remote Environments management and its picker visibility preferences are enabled. Adds a command, a Sessions menu entry, and a Manage Remote Environments entry when the Environment picker and remote agent hosts are enabled. When disabled, saved visibility preferences are ignored but retained."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other clients. Requires Remote Environments management."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

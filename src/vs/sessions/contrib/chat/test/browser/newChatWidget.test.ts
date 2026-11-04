@@ -508,6 +508,29 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('revealing the Inbox composer restores a consumed draft without replacing an existing or pending draft', () => {
+		const session = observableValue<IActiveSession | undefined>('draft', createTestActiveSession('draft', false));
+		const creation = disposables.add(new MutableDisposable<IDisposable>());
+		const seeded: (IActiveSession | undefined)[] = [];
+		const harness = {
+			_preserveCustomView: true,
+			_session: session,
+			_newSessionCreation: creation,
+			_seedWorkspaceDraft: () => { seeded.push(session.get()); },
+		};
+		const setHostVisible = Reflect.get(NewChatWidget.prototype, 'setHostVisible') as (this: typeof harness, visible: boolean) => void;
+		setHostVisible.call(harness, true);
+		session.set(undefined, undefined);
+		setHostVisible.call(harness, false);
+		creation.value = toDisposable(() => { });
+		setHostVisible.call(harness, true);
+		creation.clear();
+		setHostVisible.call(harness, true);
+		harness._preserveCustomView = false;
+		setHostVisible.call(harness, true);
+		assert.deepStrictEqual(seeded, [undefined]);
+	});
+
 	test('forwards nonempty composing intent to the current draft provider, but not after Send', () => {
 		const changed = disposables.add(new Emitter<void>());
 		let input = '';
@@ -553,7 +576,7 @@ suite('NewChatWidget', () => {
 		test(`overlapping composer controls remain clickable in short new-session panes (modern UI: ${modernUI})`, () => {
 			const store = disposables.add(new DisposableStore());
 			const { instantiationService, chatViews } = createSessionViewTestServices(store);
-			const view = store.add(instantiationService.createInstance(SessionView));
+			const view = store.add(instantiationService.createInstance(SessionView, undefined));
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 			if (modernUI) {
 				workbench.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
