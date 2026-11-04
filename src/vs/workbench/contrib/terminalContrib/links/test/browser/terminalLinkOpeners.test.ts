@@ -7,7 +7,9 @@ import { deepStrictEqual } from 'assert';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { IResourceEditorInputIdentifier, ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { IEditorIdentifier } from '../../../../../common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -115,8 +117,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			activeModalEditorPart: undefined,
 		} as Partial<IEditorGroupsService>);
 		instantiationService.stub(IEditorService, {
-			findEditors(resource: URI) {
-				return editorParts.openedIn.map(groupId => ({ groupId, editor: { resource } }));
+			findEditors(resource: URI | IResourceEditorInputIdentifier): readonly IEditorIdentifier[] {
+				const uri = URI.isUri(resource) ? resource : resource.resource;
+				return editorParts.openedIn.map(groupId => ({ groupId, editor: { resource: uri } as Partial<EditorInput> as EditorInput }));
 			},
 			async openEditor(editor: ITextResourceEditorInput, group?: PreferredGroup): Promise<any> {
 				openedInGroup = group;
