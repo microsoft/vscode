@@ -126,6 +126,14 @@ function bindDraggingClass(element: HTMLElement, windows: readonly Window[]): ID
 }
 
 /**
+ * The group of `groups` that shows `editor` itself, not merely an editor that matches it, such as another view of the same
+ * chat, which must not count as the chat still being open.
+ */
+export function findGroupShowing(groups: readonly IEditorGroup[], editor: EditorInput): IEditorGroup | undefined {
+	return groups.find(candidate => candidate.contains(editor, { strictEquals: true }));
+}
+
+/**
  * An open chat window: its chat part, which shows the chat's editor, its main part, and the state that lays them out.
  *
  * - its main part shows when an editor opens in it, and the window shows only its chat once its last editor closes;
@@ -371,7 +379,10 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		}
 		// All or nothing, from the start: while an editor cannot move to the main window, nothing moves or closes, also not
 		// the editors that would close without asking as their part closes.
-		if (this._editorsLeaveVeto() !== undefined) {
+		const veto = this._editorsLeaveVeto();
+		if (veto !== undefined) {
+			// Says why, as the chat moving out of the window does
+			this._host.showMoveVeto?.(veto);
 			return false;
 		}
 		this._closing = true;
@@ -788,7 +799,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	}
 
 	private _findGroup(editor: EditorInput): IEditorGroup | undefined {
-		return this._editorGroupsService.parts.flatMap(part => part.groups).find(candidate => candidate.contains(editor));
+		return findGroupShowing(this._editorGroupsService.parts.flatMap(part => part.groups), editor);
 	}
 
 	private _remove(window: ChatWindow): void {
