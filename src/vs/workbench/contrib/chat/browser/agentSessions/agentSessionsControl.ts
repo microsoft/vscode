@@ -40,7 +40,6 @@ import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -57,8 +56,6 @@ export interface IAgentSessionsControlOptions {
 	readonly hideSectionCount?: boolean;
 	readonly hideSessionBadge?: boolean;
 	readonly compactShowMore?: boolean;
-	readonly itemHeight?: number;
-	readonly sectionHeight?: number;
 
 	createNewChat(): void;
 	getHoverPosition(): HoverPosition;
@@ -67,7 +64,6 @@ export interface IAgentSessionsControlOptions {
 
 	overrideSessionOpenOptions?(openEvent: IOpenEvent<AgentSessionListItem | undefined>): ISessionOpenOptions;
 	overrideSessionOpen?(resource: URI, openOptions?: ISessionOpenOptions): Promise<void>;
-	notifySessionOpened?(resource: URI, widget: IChatWidget): void;
 }
 
 type AgentSessionOpenedClassification = {
@@ -336,8 +332,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const listDelegate = new AgentSessionsListDelegate(
 			approvalModel,
 			this.options.compactShowMore,
-			() => this.options.itemHeight ?? (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT : AgentSessionsListDelegate.ITEM_HEIGHT),
-			() => this.options.sectionHeight ?? (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? AgentSessionsListDelegate.SPACED_SECTION_HEIGHT : AgentSessionsListDelegate.SECTION_HEIGHT),
+			() => this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT : AgentSessionsListDelegate.ITEM_HEIGHT,
+			() => this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? AgentSessionsListDelegate.SPACED_SECTION_HEIGHT : AgentSessionsListDelegate.SECTION_HEIGHT,
 		);
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -740,7 +736,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		} else {
 			const widget = await this.instantiationService.invokeFunction(openSession, element, options);
 			if (widget) {
-				this.options.notifySessionOpened?.(element.resource, widget);
 				this._onDidOpenSession.fire(element.resource);
 			}
 		}

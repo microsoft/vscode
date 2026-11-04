@@ -1220,11 +1220,6 @@ export interface IAgentSessionsFilter {
 	readonly onDidChange: Event<void>;
 
 	/**
-	 * Optional limit on the number of sessions to show.
-	 */
-	readonly limitResults?: () => number | undefined;
-
-	/**
 	 * Whether to show section headers to group sessions.
 	 * When undefined, sessions are shown as a flat list.
 	 */
@@ -1334,20 +1329,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			// Apply filter if configured
 			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
-			let filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
+			const filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
-			// Apply sorter unless we group into sections or we are to limit results
-			const limitResultsCount = this.filter?.limitResults?.();
-			if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
+			// Apply sorter unless we group into sections
+			if (!this.filter?.groupResults?.()) {
 				filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			}
-
-			// Apply limiter if configured (requires sorting)
-			if (typeof limitResultsCount === 'number') {
-				filteredSessions = filteredSessions.slice(0, limitResultsCount);
-				if (revealed && !filteredSessions.includes(revealed)) {
-					filteredSessions.push(revealed);
-				}
 			}
 
 			// Callback results count

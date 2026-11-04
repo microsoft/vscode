@@ -17,6 +17,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -291,10 +292,8 @@ export interface IVoiceSessionController {
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
 
-	/**
-	 * Create a new chat session and set it as the target for transcription.
-	 */
-	newSessionAsTarget(): void;
+	/** Creates a voice target, showing it when a host is available. Returns whether preparation succeeded. */
+	newSessionAsTarget(): Promise<boolean>;
 
 	/**
 	 * Declares the session shown in the UI for playback deferral and buffered
@@ -466,6 +465,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * no chat pane picks the new session up.
 	 */
 	private readonly _newSessionRef = this._register(new MutableDisposable<IChatModelReference>());
+	private _newSessionTargetGeneration = 0;
+	private _pendingNewSessionTarget: { readonly resource: URI; readonly generation: number } | undefined;
 	/**
 	 * Watchdog that resets `isConnecting` (and surfaces feedback) if the connect
 	 * handshake never completes. Armed up front in {@link connect} so a step that
@@ -3322,25 +3323,62 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	newSessionAsTarget(): void {
+	async newSessionAsTarget(): Promise<boolean> {
 		this._prepareDirectVoiceForInputChange(undefined);
-		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-		const resource = ref.object.sessionResource;
-		// Keep the only reference alive until a host adopts the session: an empty
-		// untitled local session is deleted as soon as its last reference goes
-		// away, which would strand `_targetSession` on a dead resource.
-		this._newSessionRef.value = ref;
-		this._hasDraftTarget.set(false, undefined);
-		this._setTargetSession(resource);
-		// Try to switch the view to the new session (works if chat pane is open)
-		this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).then(switched => {
-			// Only release once a host holds its own reference. On failure the
-			// reference is deliberately retained so the next utterance can still
-			// load this target.
-			if (switched === true && this._newSessionRef.value === ref) {
+		try {
+			await this._createNewSessionTarget();
+			return true;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[voice] Failed to create a chat session', error);
+				this.notificationService.error(localize('agentsVoice.newSessionFailed', "Unable to start a new voice conversation. Try again."));
+			}
+			return false;
+		}
+	}
+
+	private async _createNewSessionTarget(): Promise<URI> {
+		const generation = ++this._newSessionTargetGeneration;
+		const connectionGeneration = this._connectAttemptGeneration;
+		const initializationGeneration = this._sessionInitializationGeneration;
+		const cts = new CancellationTokenSource();
+		const request = this._voiceRequestDisposables.add(new DisposableStore());
+		request.add(toDisposable(() => cts.dispose(true)));
+		const isCurrent = () => !this._store.isDisposed && generation === this._newSessionTargetGeneration
+			&& connectionGeneration === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration;
+		try {
+			const ref = await this.voiceToolDispatchService.createChatSession(cts.token);
+			if (!isCurrent()) {
+				ref.dispose();
+				throw new CancellationError();
+			}
+			request.add(ref);
+			const resource = ref.object.sessionResource;
+			this._pendingNewSessionTarget = { resource, generation };
+			const hasHost = !!CommandsRegistry.getCommand('_chat.voice.switchToSession');
+			if (hasHost) {
+				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString());
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				if (switched !== true) {
+					throw new Error(localize('agentsVoice.switchSessionFailed', "Unable to show the new voice conversation."));
+				}
+			}
+			request.deleteAndLeak(ref);
+			this._newSessionRef.value = ref;
+			this._hasDraftTarget.set(false, undefined);
+			this._setTargetSession(resource);
+			if (hasHost) {
 				this._newSessionRef.clear();
 			}
-		}, () => { /* pane may not exist — keep holding the reference */ });
+			return resource;
+		} finally {
+			if (this._pendingNewSessionTarget?.generation === generation) {
+				this._pendingNewSessionTarget = undefined;
+			}
+			this._voiceRequestDisposables.delete(request);
+		}
 	}
 
 	/**
@@ -3364,6 +3402,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _setTargetSession(resource: URI | undefined, tx?: ITransaction): void {
+		if (!this._pendingNewSessionTarget || !isEqual(resource, this._pendingNewSessionTarget.resource)) {
+			this._newSessionTargetGeneration++;
+		}
 		this._releaseNewSessionRefUnlessTargeting(resource);
 		this._targetSession.set(resource, tx);
 	}
@@ -3889,12 +3930,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						accepted = !!result && !ChatSendResult.isRejected(result);
 					}
 				} else {
-					// Truly no sessions exist — create one
-					const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-					const resource = ref.object.sessionResource;
-					ref.dispose();
-					// Switch to the new session so the user sees the response
-					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* pane may not exist */ });
+					const resource = await this._createNewSessionTarget();
+					if (!isCurrent()) {
+						return false;
+					}
 					const result = await this._sendVoiceRequest(resource, text);
 					accepted = !!result && !ChatSendResult.isRejected(result);
 				}
@@ -3937,7 +3976,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 
-		this.newSessionAsTarget();
+		if (!await this.newSessionAsTarget()) {
+			return 'failed';
+		}
 		if (text.trim()) {
 			this._setPinnedSubmitSession(this._targetSession.get());
 		}
@@ -5146,7 +5187,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._getFocusedSessionId();
 	}
 
-	private _pinActiveSessionAsTarget(): void {
+	private _pinActiveSessionAsTarget(nextResource?: URI): void {
+		if (this._pendingNewSessionTarget && isEqual(nextResource, this._pendingNewSessionTarget.resource)) {
+			return;
+		}
 		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get() && !this._hasDraftTarget.get()) {
 			// Changing the visible session must not move an existing voice
 			// conversation with it. Pin voice to its current session while the
@@ -5198,7 +5242,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return;
 		}
-		this._pinActiveSessionAsTarget();
+		this._pinActiveSessionAsTarget(resource);
 		this.logService.trace(`[voice] setActiveSessionShown=${definedKey} (was ${this._activeSessionShown ?? '<none>'})`);
 		this._activeSessionShown = definedKey;
 		this._suspendPlaybackForHiddenSessions();

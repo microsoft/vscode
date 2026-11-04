@@ -4,16 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAccountPolicyGateService, AccountPolicyGateState } from '../../../../../services/policies/common/accountPolicyService.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ConfirmedReason, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ConfirmedReason, IChatModelReference, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -22,6 +35,30 @@ import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuesti
 import { derivePendingId, getVoiceRecentTurns, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { VoiceLiveInputRouter } from '../../../common/voiceClient/voiceLiveInputRouter.js';
+
+function createDispatchService(store: Pick<DisposableStore, 'add'>, agentSessions: IAgentSessionsService, chat: IChatService, tools: ILanguageModelToolsService, options: {
+	hostEnabled?: boolean; preferCopilot?: boolean; managed?: boolean; configuration?: TestConfigurationService; gate?: IAccountPolicyGateService;
+} = {}) {
+	const configuration = options.configuration ?? new TestConfigurationService({ [ChatConfiguration.EditorPreferCopilotHarness]: options.preferCopilot ?? true });
+	return new VoiceToolDispatchService(
+		agentSessions, chat, tools, configuration,
+		new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
+			override getAllChatSessionContributions() { return []; }
+		}(),
+		store.add(new InMemoryStorageService()), new TestContextService(),
+		new class extends mock<IAgentHostEnablementService>() {
+			override readonly enabled = constObservable(options.hostEnabled ?? false);
+			override readonly managedSandboxEnforced = constObservable(false);
+		}(),
+		new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return options.managed && key === 'permissions.deny' ? '["Shell"]' : undefined; }
+		}(),
+		options.gate ?? {
+			_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
+		},
+	);
+}
 
 suite('VoiceToolDispatchService - model selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,7 +94,126 @@ suite('VoiceToolDispatchService - model selection', () => {
 });
 
 suite('VoiceToolDispatchService - session actions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	for (const scenario of [
+		{ name: 'preferred Copilot', hostEnabled: true, expected: SessionType.AgentHostCopilot },
+		{ name: 'explicit Local preference', hostEnabled: true, preferCopilot: false, expected: 'local' },
+		{ name: 'unavailable SDK', hostEnabled: false, expected: 'local' },
+		{ name: 'managed runtime requirement', hostEnabled: false, managed: true, expected: SessionType.AgentHostCopilot },
+		{ name: 'administrator Local override', hostEnabled: true, adminLocal: true, expected: 'local' },
+	]) {
+		test(`new voice conversations respect ${scenario.name}`, async () => {
+			const created: string[] = [];
+			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorPreferCopilotHarness]: scenario.preferCopilot ?? true });
+			if (scenario.adminLocal) {
+				sinon.stub(configuration, 'inspect').callThrough().withArgs(ChatConfiguration.TemporaryDefaultToLocalHarness).returns({ policyValue: true, value: true });
+			}
+			const ref = (resource: URI): IChatModelReference => ({
+				object: upcastDeepPartial<IChatModel>({ sessionResource: resource }), dispose: () => { },
+			});
+			const chat = new class extends mock<IChatService>() {
+				override startNewLocalSession() {
+					created.push('local');
+					return ref(URI.parse('vscode-chat:/new'));
+				}
+				override async acquireOrLoadSession(resource: URI) {
+					created.push(getChatSessionType(resource));
+					return ref(resource);
+				}
+			}();
+			const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() { }(), { ...scenario, configuration });
+			const session = await service.createChatSession();
+			session.dispose();
+			assert.deepStrictEqual(created, [scenario.expected]);
+		});
+	}
+
+	test('a failed SDK acquisition never creates a Local conversation', async () => {
+		let localCreations = 0;
+		const chat = new class extends mock<IChatService>() {
+			override startNewLocalSession(): IChatModelReference { localCreations++; throw new Error('Unexpected Local'); }
+			override async acquireOrLoadSession() { return undefined; }
+		}();
+		const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() { }(), { hostEnabled: true });
+		await assert.rejects(() => service.createChatSession(), /Unable to start/);
+		assert.strictEqual(localCreations, 0);
+	});
+
+	test('cancels new-session policy waiting without allocating a conversation', async () => {
+		const initialized = new DeferredPromise<void>();
+		const cts = store.add(new CancellationTokenSource());
+		const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), new class extends mock<IChatService>() { }(), new class extends mock<ILanguageModelToolsService>() { }(), {
+			gate: { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => initialized.p },
+		});
+		const result = service.createChatSession(cts.token);
+		cts.cancel();
+		await assert.rejects(result, /Canceled/);
+		await initialized.complete();
+	});
+
+	test('a canceled SDK acquisition releases a late model reference', async () => {
+		const started = new DeferredPromise<void>();
+		const acquired = new DeferredPromise<IChatModelReference>();
+		const cts = store.add(new CancellationTokenSource());
+		let released = 0;
+		const chat = new class extends mock<IChatService>() {
+			override async acquireOrLoadSession() { started.complete(); return acquired.p; }
+		}();
+		const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() { }(), { hostEnabled: true });
+		const result = service.createChatSession(cts.token);
+		await started.p;
+		cts.cancel();
+		await acquired.complete({ object: upcastDeepPartial<IChatModel>({ sessionResource: URI.parse(`${SessionType.AgentHostCopilot}:/new`) }), dispose: () => released++ });
+		await assert.rejects(result, /Canceled/);
+		assert.strictEqual(released, 1);
+	});
+
+	for (const canShow of [true, false]) {
+		test(`no-session send ${canShow ? 'shows and targets the resolved conversation' : 'fails without sending if the conversation cannot be shown'}`, async () => {
+			const calls: string[] = [];
+			const resource = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-new`);
+			const chat = new class extends mock<IChatService>() {
+				override async acquireOrLoadSession() {
+					return { object: upcastDeepPartial<IChatModel>({ sessionResource: resource }), dispose: () => calls.push('dispose') };
+				}
+				override async sendRequest(target: URI) { calls.push(`send:${target}`); return { kind: 'rejected', reason: 'test' } as const; }
+			}();
+			const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() {
+				override getTools() { return []; }
+			}(), { hostEnabled: true });
+			service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+				override acceptInput() { return false; }
+				override getTargetSessionResource() { return undefined; }
+				override async getCurrentSessionResource() { return undefined; }
+				override async switchToSession(target: URI) { calls.push(`show:${target}`); return canShow; }
+				override setTargetSession(target: URI) { calls.push(`target:${target}`); }
+			}());
+			const result = await service.dispatchToolCall({ callId: 'new-session-send', name: 'send_to_chat', args: { text: 'Hello' } });
+			assert.deepStrictEqual({ result, calls }, canShow
+				? { result: 'ok', calls: [`show:${resource}`, `target:${resource}`, `send:${resource}`, 'dispose'] }
+				: { result: 'error: unable to show the new chat session', calls: [`show:${resource}`, 'dispose'] });
+		});
+	}
+
+	test('send fallback preserves an explicit existing target instead of the displayed conversation', async () => {
+		const calls: string[] = [];
+		const resource = URI.parse('vscode-chat:/explicit');
+		const chat = new class extends mock<IChatService>() {
+			override async sendRequest(target: URI) { calls.push(`send:${target}`); return { kind: 'rejected', reason: 'test' } as const; }
+		}();
+		const service = createDispatchService(store, new class extends mock<IAgentSessionsService>() { }(), chat, new class extends mock<ILanguageModelToolsService>() {
+			override getTools() { return []; }
+		}(), { hostEnabled: true });
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override acceptInput(): boolean { throw new Error('Wrong input'); }
+			override getTargetSessionResource() { return resource; }
+			override async getCurrentSessionResource() { return URI.parse(`${SessionType.AgentHostCopilot}:/shown`); }
+		}());
+		await service.dispatchToolCall({ callId: 'explicit-target-send', name: 'send_to_chat', args: { text: 'Hello' } });
+		assert.deepStrictEqual(calls, [`send:${resource}`]);
+	});
 
 	test('bounds recent turns and excludes unfinished assistant text only when requested', () => {
 		const model = upcastDeepPartial<IChatModel>({
@@ -122,7 +278,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 				return options.chatModels?.find(model => model.sessionResource.toString() === resource.toString());
 			}
 		};
-		const service = new VoiceToolDispatchService(
+		const service = createDispatchService(store,
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
@@ -190,7 +346,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const chatService = new class extends mock<IChatService>() {
 			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
 		};
-		const service = new VoiceToolDispatchService(
+		const service = createDispatchService(store,
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
@@ -376,7 +532,7 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			}
 			override notifyQuestionCarouselAnswer() { }
 		};
-		return new VoiceToolDispatchService(
+		return createDispatchService(store,
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },

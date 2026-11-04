@@ -10,18 +10,29 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { IChatPlanReviewResult, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatModelReference, IChatPlanReviewResult, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voiceClient/voiceQuestionAnswers.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, getDefaultNewChatSessionTypeAndReasonFromServices } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, getVoiceRecentTurns, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../services/policies/common/accountPolicyService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getNewChatSessionResource } from '../../common/model/chatUri.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -112,6 +123,9 @@ export interface IVoiceToolDispatchService {
 	 */
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void;
 
+	/** Creates a voice conversation using the shared new-chat default and policy. */
+	createChatSession(token?: CancellationToken): Promise<IChatModelReference>;
+
 	/**
 	 * Dispatch a tool call and return the result string.
 	 */
@@ -153,7 +167,33 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 	) { }
+
+	async createChatSession(token: CancellationToken = CancellationToken.None): Promise<IChatModelReference> {
+		await raceCancellationError(whenAccountPolicySettled(this.accountPolicyGateService), token);
+		const { sessionType, selectionReason } = getDefaultNewChatSessionTypeAndReasonFromServices(
+			this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(),
+			this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(),
+			requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+		const ref = sessionType === localChatSessionType
+			? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'voice-new-session', sessionTypeSelectionReason: selectionReason })
+			: await this.chatService.acquireOrLoadSession(getNewChatSessionResource(sessionType), ChatAgentLocation.Chat, token, 'voice-new-session', selectionReason);
+		if (token.isCancellationRequested) {
+			ref?.dispose();
+			throw new CancellationError();
+		}
+		if (!ref) {
+			throw new Error(localize('agentsVoice.sessionUnavailable', "Unable to start the selected chat session."));
+		}
+		return ref;
+	}
 
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void {
 		this._delegate = delegate;
@@ -201,14 +241,24 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			case 'send_to_chat': {
 				const text = argString('text');
 				if (text) {
-					if (!delegate.acceptInput(text)) {
-						const resource = await delegate.getCurrentSessionResource();
+					const target = delegate.getTargetSessionResource();
+					const current = await delegate.getCurrentSessionResource();
+					if ((target && !isEqual(target, current)) || !delegate.acceptInput(text)) {
+						const resource = target ?? current;
 						if (resource) {
 							await this.chatService.sendRequest(resource, text, this._agentModeOptions);
 						} else {
-							const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-							await this.chatService.sendRequest(ref.object.sessionResource, text, this._agentModeOptions);
-							ref.dispose();
+							const ref = await this.createChatSession();
+							try {
+								const resource = ref.object.sessionResource;
+								if (!await delegate.switchToSession(resource)) {
+									return 'error: unable to show the new chat session';
+								}
+								delegate.setTargetSession(resource, true);
+								await this.chatService.sendRequest(resource, text, this._agentModeOptions);
+							} finally {
+								ref.dispose();
+							}
 						}
 					}
 				}
