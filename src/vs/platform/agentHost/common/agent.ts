@@ -1267,6 +1267,13 @@ export interface IAgentPrepareChatResult {
 	readonly error?: ErrorInfo;
 }
 
+export type AgentChatReleaseReason = 'idle' | 'archived' | 'other';
+
+export interface IAgentChatReleaseOptions {
+	readonly reason: () => AgentChatReleaseReason;
+	readonly canContinue?: () => boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1326,7 +1333,7 @@ export interface IAgentChats {
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
+	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
