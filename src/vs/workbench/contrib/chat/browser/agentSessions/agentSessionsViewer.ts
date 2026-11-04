@@ -52,7 +52,7 @@ import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IChatSessionItemArchiveState, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { createPixelSpinner, IPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -969,18 +969,10 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 	renderElement(element: ITreeNode<IAgentSessionSection, FuzzyScore>, index: number, template: IAgentSessionSectionTemplate, details?: ITreeElementRenderDetails): void {
 
 		// Label
-		const archiveState = element.element.archiveDiscoveryState;
-		template.label.textContent = archiveState === 'loading'
-			? localize('archivedSessionsLoading', "{0} (Loading...)", element.element.label)
-			: archiveState === 'error'
-				? localize('archivedSessionsError', "{0} (Unable to load sessions)", element.element.label)
-				: archiveState === 'loaded' && element.element.sessions.length === 0
-					? localize('archivedSessionsEmpty', "{0} (No sessions)", element.element.label)
-					: element.element.label;
-		template.container.setAttribute('aria-busy', String(archiveState === 'loading'));
+		template.label.textContent = element.element.label;
 
 		// Count
-		if (this.sectionOptions.hideSectionCount || archiveState && archiveState !== 'loaded') {
+		if (this.sectionOptions.hideSectionCount) {
 			template.count.textContent = '';
 		} else {
 			template.count.textContent = String(element.element.sessions.length);
@@ -1180,15 +1172,6 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 	getAriaLabel(element: AgentSessionListItem): string | null {
 		if (isAgentSessionSection(element)) {
-			if (element.archiveDiscoveryState === 'idle') {
-				return localize('archivedSessionsIdleAria', "{0} sessions section, expand to load sessions", element.label);
-			}
-			if (element.archiveDiscoveryState === 'loading') {
-				return localize('archivedSessionsLoadingAria', "{0} sessions section, loading sessions", element.label);
-			}
-			if (element.archiveDiscoveryState === 'error') {
-				return localize('archivedSessionsErrorAria', "{0} sessions section, unable to load sessions. Collapse and expand to retry.", element.label);
-			}
 			const count = element.sessions.length;
 			if (count === 1) {
 				return localize('agentSessionSectionAriaLabel.singular', "{0} sessions section, {1} session", element.label, count);
@@ -1303,7 +1286,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
 		private readonly repositoryGroupLimit?: number,
-		private readonly archiveState?: () => IChatSessionItemArchiveState,
+		private readonly archivesAvailable?: () => boolean,
 	) {
 		super();
 
@@ -1339,7 +1322,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
-			return element.sessions.length > 0 || element.archiveDiscoveryState !== undefined;
+			return element.sessions.length > 0 || element.section === AgentSessionSection.Archived && this.hasLoadableArchiveSection;
 		}
 
 		return isAgentSession(element) && this.getSessionChildren(element).length > 0;
@@ -1347,7 +1330,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	get hasLoadableArchiveSection(): boolean {
 		const grouping = this.filter?.groupResults?.();
-		return grouping !== undefined && grouping !== AgentSessionsGrouping.Capped && this.archiveState?.().available === true;
+		return grouping !== undefined && grouping !== AgentSessionsGrouping.Capped && this.archivesAvailable?.() === true;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1380,14 +1363,12 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// Group sessions into sections if enabled
 			if (this.filter?.groupResults?.()) {
 				const sections = this.groupSessionsIntoSections(filteredSessions);
-				const archive = this.archiveState?.();
-				if (archive && this.hasLoadableArchiveSection) {
+				if (this.hasLoadableArchiveSection) {
 					const existing = sections.find((section): section is IAgentSessionSection => isAgentSessionSection(section) && section.section === AgentSessionSection.Archived);
 					const section: IAgentSessionSection = {
 						section: AgentSessionSection.Archived,
 						label: AgentSessionSectionLabels[AgentSessionSection.Archived],
 						sessions: existing?.sessions ?? [],
-						archiveDiscoveryState: archive.state,
 					};
 					if (existing) {
 						sections[sections.indexOf(existing)] = section;

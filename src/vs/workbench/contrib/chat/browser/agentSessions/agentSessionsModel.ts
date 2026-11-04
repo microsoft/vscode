@@ -286,7 +286,6 @@ export interface IAgentSessionSection {
 	readonly section: AgentSessionSection;
 	readonly label: string;
 	readonly sessions: IAgentSession[];
-	readonly archiveDiscoveryState?: 'idle' | 'loading' | 'loaded' | 'error';
 }
 
 export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection {

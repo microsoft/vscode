@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { EventType, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -125,6 +125,61 @@ suite('AgentSessionsControl', () => {
 			});
 		});
 	}
+
+	test('lazy archive discovery shows local rows immediately and adds cloud rows without loading UI', async () => {
+		const local = { ...createSession(URI.parse('test:/local-archive'), 'Local archive'), isArchived: () => true };
+		const cloud = { ...createSession(URI.parse('test:/cloud-archive'), 'Cloud archive'), isArchived: () => true };
+		const sessions: IAgentSession[] = [local];
+		const changes = store.add(new Emitter<void>());
+		const model: IAgentSessionsModel = {
+			sessions, resolved: true, getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: changes.event, onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const service = new class extends MockChatSessionsService {
+			override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: true, state: 'loading' });
+		}();
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatSessionsService, service);
+		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const container = document.createElement('div');
+		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+			overrideStyles: {}, source: 'test',
+			filter: { ...createFilter(), groupResults: () => AgentSessionsGrouping.Date },
+			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
+		}));
+		control.layout(300, 400);
+		const snapshot = () => ({
+			local: !!control.getSessionElement(local.resource),
+			cloud: !!control.getSessionElement(cloud.resource),
+			header: container.querySelector('.agent-session-section-label')?.textContent,
+			count: container.querySelector('.agent-session-section-count')?.textContent,
+			busy: !!container.querySelector('[aria-busy="true"]'),
+		});
+		await control.update();
+		const loading = snapshot();
+		service.archivedSessionItems.set({ available: true, state: 'error' }, undefined);
+		await control.update();
+		const failed = snapshot();
+		sessions.push(cloud);
+		service.archivedSessionItems.set({ available: true, state: 'loaded' }, undefined);
+		changes.fire();
+		await control.update();
+		assert.deepStrictEqual([loading, failed, snapshot()], [
+			{ local: true, cloud: false, header: 'Archived', count: '1', busy: false },
+			{ local: true, cloud: false, header: 'Archived', count: '1', busy: false },
+			{ local: true, cloud: true, header: 'Archived', count: '2', busy: false },
+		]);
+	});
 
 	test('forwards automatic refresh intent without changing explicit Refresh', async () => {
 		const calls: { provider: string | string[] | undefined; reason: ChatSessionRefreshReason | undefined }[] = [];

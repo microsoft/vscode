@@ -24,7 +24,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Throttler } from '../../../../../base/common/async.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ITreeContextMenuEvent, ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -151,8 +151,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.create(this.container);
 
 		this.registerListeners();
+		const archivesAvailable = derived(this, reader => this.chatSessionsService.archivedSessionItems.read(reader).available);
 		this._register(autorun(reader => {
-			this.chatSessionsService.archivedSessionItems.read(reader);
+			archivesAvailable.read(reader);
 			void this.update();
 		}));
 	}
@@ -339,7 +340,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return session.visibleChildIndex === this.sessionsList.getNode(parent).visibleChildrenCount - 1;
 		});
 		const compact = this.options.compactShowMore;
-		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit, () => this.chatSessionsService.archivedSessionItems.get()));
+		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit, () => this.chatSessionsService.archivedSessionItems.get().available));
 		const listDelegate = new AgentSessionsListDelegate(
 			approvalModel,
 			this.options.compactShowMore,
