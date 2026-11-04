@@ -926,7 +926,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly sandboxToggleChecked = derived(this, reader => (this.options.sandboxToggleChecked ?? this.sandboxToggleSource.read(reader))?.read(reader) ?? false);
 
 	private readonly localSandboxToggleAvailable = observableValue(this, false);
-	private readonly localSandboxSetting = observableConfigValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled, false, this.configurationService);
+	private readonly localSandboxSetting: IObservable<AgentSandboxEnabledSettingValue>;
 	private readonly localSandboxToggleChecked = derived(this, reader => this.localSandboxToggleAvailable.read(reader) && isAgentSandboxEnabledValue(this.localSandboxSetting.read(reader)));
 	private _localSandboxSupported = false;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
@@ -1201,6 +1201,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.languageModelsService.onDidChangeLanguageModels,
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, CachedLanguageModelsKey, this._store),
 		)(() => this._mergedModels = undefined));
+		this.localSandboxSetting = observableConfigValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled, false, this.configurationService);
 		remoteAgentService.getEnvironment().then(environment => {
 			if (this._store.isDisposed) {
 				return;
