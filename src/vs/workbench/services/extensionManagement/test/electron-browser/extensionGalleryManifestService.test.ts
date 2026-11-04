@@ -893,30 +893,48 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		test(`Microsoft — sign-out supersedes an in-flight manifest response (${statusCode})`, async () => {
 			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 			microsoftSessions = [createMicrosoftSession()];
+			stubResourceScopedAuthentication();
 			let releaseRequest!: () => void;
 			const requestBlocked = new Promise<void>(resolve => releaseRequest = resolve);
 			let markRequestStarted!: () => void;
 			const requestStarted = new Promise<void>(resolve => markRequestStarted = resolve);
-			requestHandler = async () => {
-				markRequestStarted();
-				await requestBlocked;
-				return mockResponse(statusCode, createGalleryManifest());
+			const indexRequests: IRequestOptions[] = [];
+			const marketplace = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+			requestHandler = async options => {
+				if (options.url === MARKETPLACE_URL) {
+					indexRequests.push(options);
+					markRequestStarted();
+					await requestBlocked;
+					return mockResponse(statusCode, createGalleryManifest());
+				}
+				return marketplace(options);
 			};
 
 			const service = createService();
 			const manifestPromise = service.getExtensionGalleryManifest();
 			await requestStarted;
+			const signedOut = new Promise<ExtensionGalleryManifestStatus>(resolve => {
+				disposableStore.add(Event.once(Event.filter(service.onDidChangeExtensionGalleryManifestStatus, status => status === ExtensionGalleryManifestStatus.RequiresSignIn))(resolve));
+			});
 			microsoftSessions = [];
 			onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+			await signedOut;
 			releaseRequest();
-			await manifestPromise;
-			await new Promise(resolve => setTimeout(resolve, 0));
+			const manifest = await manifestPromise;
 
 			assert.deepStrictEqual({
+				requests: indexRequests.map(options => ({
+					url: options.url,
+					method: options.type,
+					authorization: options.headers?.Authorization,
+				})),
 				status: service.extensionGalleryManifestStatus,
-				token: await authorizationService.getAccessToken('https://marketplace.example.com'),
+				manifest,
+				token: await authorizationService.getAccessToken(MARKETPLACE_URL),
 			}, {
+				requests: [{ url: MARKETPLACE_URL, method: 'GET', authorization: 'Bearer resource-token' }],
 				status: ExtensionGalleryManifestStatus.RequiresSignIn,
+				manifest: null,
 				token: undefined,
 			});
 		});
