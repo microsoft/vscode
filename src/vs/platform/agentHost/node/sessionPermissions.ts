@@ -1024,8 +1024,8 @@ export class SessionPermissionManager extends Disposable {
 		} else if (e.permissionKind === AgentPermissionKind.Url && e.permissionUrl) {
 			try {
 				const url = new URL(e.permissionUrl);
-				if (url.hostname) {
-					const pattern = url.protocol === `${Schemas.https}:` ? url.hostname : `${url.protocol}//${url.hostname}`;
+				if (url.host) {
+					const pattern = url.protocol === `${Schemas.https}:` ? url.host : `${url.protocol}//${url.host}`;
 					const rules = [webFetchRule(pattern)];
 					add(localize('sessionPermissions.allowDomain', "Allow Fetching {0} in this Session", pattern), rules);
 					options.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowDomain', "Always Allow Fetching {0}", pattern), rules, PermissionGrantScope.Host));

@@ -195,6 +195,12 @@ export interface IEditorPartsView {
 	readonly mainPart: IEditorGroupsView;
 	registerPart(part: IEditorPart): IDisposable;
 
+	/**
+	 * The main part of a window: the first part created in it, or the
+	 * main part if the window has none.
+	 */
+	getWindowMainPart(windowId: number): IEditorGroupsView;
+
 	readonly activeGroup: IEditorGroupView;
 	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
