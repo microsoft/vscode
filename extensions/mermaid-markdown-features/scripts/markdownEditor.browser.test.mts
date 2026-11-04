@@ -42,7 +42,12 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 			});
 			const reportedHeights = [];
 			host.onDidReportSize(({ height }) => { reportedHeights.push(height); frame.style.height = height + 'px'; });
-			window.mermaidTest = { setText: text => host.setText(text), reportedHeights };
+			window.mermaidTest = {
+				setText: text => host.setText(text),
+				reuse: (text, readOnly) => host.reuse(text, readOnly),
+				setReadOnly: readOnly => host.setReadOnly(readOnly),
+				reportedHeights,
+			};
 		`),
 	]);
 	const editorHtml = renderMermaidEditorHtml('').replace('<head>', `<head><style data-theme>html:root { ${themes.light} }</style>`);
@@ -77,6 +82,15 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		assert.ok(layout.svgWidth < layout.frameWidth, JSON.stringify(layout));
 		assert.ok(Math.abs(layout.frameHeight - layout.svgHeight) < 1, JSON.stringify(layout));
 		assert.equal(layout.scrolls, false);
+
+		// Reusing the editor frame or toggling read-only mode re-reports the size even when diagram content has not
+		// changed, ensuring a freshly mounted logical editor does not stay stuck at default initial height.
+		const initialReportCount = await page.evaluate(() => window.mermaidTest.reportedHeights.length);
+		await page.evaluate(() => window.mermaidTest.reuse('flowchart LR\n A[First] --> B[Second]', true));
+		await page.waitForFunction(count => window.mermaidTest.reportedHeights.length > count, initialReportCount);
+		const afterReuseCount = await page.evaluate(() => window.mermaidTest.reportedHeights.length);
+		await page.evaluate(() => window.mermaidTest.setReadOnly(false));
+		await page.waitForFunction(count => window.mermaidTest.reportedHeights.length > count, afterReuseCount);
 
 		// The VS Code theme mapping: nodes use the widget background, and a theme change renders again.
 		assert.equal(await nodeFill(), 'rgb(248, 248, 248)');
@@ -243,7 +257,12 @@ it('keeps subgraph titles clear of SVG text edge labels', async () => {
 
 declare global {
 	interface Window {
-		mermaidTest: { setText(text: string): void; reportedHeights: number[] };
+		mermaidTest: {
+			setText(text: string): void;
+			reuse(text: string, readOnly: boolean): void;
+			setReadOnly(readOnly: boolean): void;
+			reportedHeights: number[];
+		};
 		placeSubgraphTitles(svg: SVGSVGElement): boolean;
 	}
 }
