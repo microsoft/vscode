@@ -2255,23 +2255,26 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('shows one mini pet per active subagent and removes it when it stops', async () => {
-		const { widget, firstHost, button, overlay, service } = createHostTransitionHarness();
-		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const parts: IChatProgressResponseContent[] = [];
+	function createSubagentTestModel(parts: IChatProgressResponseContent[], onDidChange: Event<ChatResponseModelChangeReason> = Event.None): IChatModel {
 		const response = new class extends mock<IChatResponseModel>() {
-			override readonly onDidChange = responseChanged.event;
+			override readonly onDidChange = onDidChange;
 			override readonly isPendingConfirmation = constObservable(undefined);
 			override readonly response = new class extends mock<IResponse>() { override readonly value = parts; }();
 		}();
 		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
-		const model = new class extends mock<IChatModel>() {
+		return new class extends mock<IChatModel>() {
 			override readonly onDidChange = Event.None;
 			override readonly hasActiveRequest = constObservable(true);
 			override readonly lastRequestObs = constObservable(request);
 			override getRequests(): IChatRequestModel[] { return [request]; }
 		}();
-		const modelValue = observableValue<IChatModel | undefined>('model', model);
+	}
+
+	test('shows one mini pet per active subagent and removes it when it stops', async () => {
+		const { widget, firstHost, button, overlay, service } = createHostTransitionHarness();
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		const modelValue = observableValue<IChatModel | undefined>('model', createSubagentTestModel(parts, responseChanged.event));
 		widget.setHost({ ...firstHost, model: modelValue });
 		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.CowboyHat).id);
 		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
@@ -2361,19 +2364,7 @@ suite('ChatPetWidget', () => {
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
 		tool.toolSpecificData = { kind: 'subagent', isActive: true };
-		const response = new class extends mock<IChatResponseModel>() {
-			override readonly onDidChange = changed.event;
-			override readonly isPendingConfirmation = constObservable(undefined);
-			override readonly response = new class extends mock<IResponse>() { override readonly value = [tool]; }();
-		}();
-		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
-		const model = new class extends mock<IChatModel>() {
-			override readonly onDidChange = Event.None;
-			override readonly hasActiveRequest = constObservable(true);
-			override readonly lastRequestObs = constObservable(request);
-			override getRequests(): IChatRequestModel[] { return [request]; }
-		}();
-		widget.setHost({ ...firstHost, model: constObservable(model) });
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], changed.event)) });
 		assert.ok(overlay.querySelector('.chat-pet-subagent:not(.arriving)'));
 		tool.toolSpecificData = { kind: 'subagent', isActive: false };
 		changed.fire({ reason: 'other' });
@@ -2387,19 +2378,7 @@ suite('ChatPetWidget', () => {
 		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
 		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
 		tool.toolSpecificData = { kind: 'subagent', isActive: true };
-		const response = new class extends mock<IChatResponseModel>() {
-			override readonly onDidChange = Event.None;
-			override readonly isPendingConfirmation = constObservable(undefined);
-			override readonly response = new class extends mock<IResponse>() { override readonly value = [tool]; }();
-		}();
-		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
-		const model = new class extends mock<IChatModel>() {
-			override readonly onDidChange = Event.None;
-			override readonly hasActiveRequest = constObservable(true);
-			override readonly lastRequestObs = constObservable(request);
-			override getRequests(): IChatRequestModel[] { return [request]; }
-		}();
-		widget.setHost({ ...firstHost, model: constObservable(model) });
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
 		const eyes = pet.querySelector<HTMLElement>('.chat-pet-eyes')!;
 		const pupil = pet.querySelector<HTMLElement>('.chat-pet-pupil')!;

@@ -214,6 +214,18 @@ interface ChatPetSpriteElement {
 	redrawFrame?: () => void;
 }
 
+interface ChatPetSubagent {
+	readonly element: HTMLElement;
+	readonly canvas: HTMLCanvasElement;
+	readonly image: HTMLImageElement;
+	readonly accessoryImage: HTMLImageElement | undefined;
+	readonly eyes: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly updateBlink: () => void;
+	readonly slot: number;
+	readonly side: 'left' | 'right';
+}
+
 interface ChatPetPendingRender {
 	readonly generation: number;
 	readonly sprite: ChatPetSpriteElement;
@@ -1246,7 +1258,7 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
-	private readonly _subagentPets = new Map<string, { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; accessoryImage: HTMLImageElement | undefined; eyes: HTMLElement; disposables: DisposableStore; updateBlink: () => void; slot: number; side: 'left' | 'right' }>();
+	private readonly _subagentPets = new Map<string, ChatPetSubagent>();
 	private _subagentModel: IChatModel | undefined;
 	private readonly _subagentEffects = this._register(new DisposableStore());
 	private readonly _subagentLayer: HTMLElement;
@@ -2941,7 +2953,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _despawnSubagentPet(pet: { element: HTMLElement; canvas: HTMLCanvasElement; image: HTMLImageElement; accessoryImage: HTMLImageElement | undefined; eyes: HTMLElement; disposables: DisposableStore }): void {
+	private _despawnSubagentPet(pet: ChatPetSubagent): void {
 		this._subagentEffects.delete(pet.disposables);
 		pet.image.remove();
 		pet.accessoryImage?.remove();
