@@ -298,7 +298,62 @@ async function renderBottomProgress(context: ComponentFixtureContext): Promise<v
 	measurements.dataset.initial = JSON.stringify(measure());
 }
 
+const stickyRequestText = 'The focus outline should stay readable when the request becomes sticky. Keep the [documentation](https://example.com/docs) link and the complete original request. '.repeat(8);
+
+async function renderStickyRequest(context: ComponentFixtureContext, text: string, width = 500, fontSize = 13, partiallyVisible = false): Promise<void> {
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		width, height: 480, listHeight: 480, inputVisible: false, stickyScroll: true,
+		chatFont: { size: fontSize },
+		messages: [{
+			user: text,
+			assistant: [{ kind: 'markdown', text: Array.from({ length: 30 }, (_, index) => `Response paragraph ${index + 1}.`).join('\n\n') }],
+		}],
+		onRendered: rendered => handle = rendered,
+	});
+	if (!handle) {
+		throw new Error('The sticky request fixture did not initialize');
+	}
+	const { container } = context;
+	const { listWidget } = handle;
+	await waitForListToSettle(container, listWidget);
+	listWidget.scrollTop = 0;
+	await waitForListToSettle(container, listWidget);
+	const source = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .chat-markdown-part');
+	if (!source) {
+		throw new Error('The sticky request source did not render');
+	}
+	const bounds = source.getBoundingClientRect();
+	const viewportTop = listWidget.domNode.getBoundingClientRect().top;
+	listWidget.scrollTop = partiallyVisible ? Math.max(0, bounds.top - viewportTop - 8) + 1 : bounds.bottom - viewportTop + 1;
+	await waitForListToSettle(container, listWidget);
+	const sticky = container.querySelector('.monaco-tree-sticky-row');
+	if (!sticky || sticky.classList.contains('source-node-partially-visible') !== partiallyVisible) {
+		throw new Error('The sticky request did not reach its expected source visibility');
+	}
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/scrollAnchoring/' }, {
+	StickyUnorderedRequest: defineComponentFixture({
+		deferPaint: true, virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The bullet-first sticky request shows two complete text lines with an ellipsis, above the response. The remaining list and paragraph are not clipped into the preview.'],
+		render: context => renderStickyRequest(context, `- ${stickyRequestText}\n- Last item.\n\nLast paragraph.`),
+	}),
+	StickyOrderedRequestNarrow: defineComponentFixture({
+		deferPaint: true, virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['At a narrow width with a larger chat font, the numbered sticky request remains a two-line preview with an ellipsis and a visible list marker.'],
+		render: context => renderStickyRequest(context, `1. ${stickyRequestText}\n2. Last item.`, 320, 18),
+	}),
+	StickyNestedRequestPartiallyVisible: defineComponentFixture({
+		deferPaint: true, virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The sticky list preview shows a parent item and one ellipsized line of its nested item. Its square lower corners join the still-visible full request underneath.'],
+		render: context => renderStickyRequest(context, `- First item.\n  - ${stickyRequestText}\n- Last item.`, 500, 13, true),
+	}),
+	StickyParagraphRequest: defineComponentFixture({
+		deferPaint: true, virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The paragraph-first sticky request retains its two-line preview and ellipsis, with no additional paragraph visible.'],
+		render: context => renderStickyRequest(context, `${stickyRequestText}\n\nLast paragraph.`),
+	}),
 	BottomProgress: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: renderBottomProgress }),
 	StreamingVisibleHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false) }),
 	StreamingOffscreenHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, true) }),

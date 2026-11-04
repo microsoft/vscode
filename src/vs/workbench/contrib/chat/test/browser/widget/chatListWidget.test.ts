@@ -39,6 +39,8 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
@@ -383,6 +385,8 @@ suite('ChatListWidget', () => {
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IOpenerService, { open: async () => true });
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		if (contextMenuService) {
@@ -1928,6 +1932,247 @@ suite('ChatListWidget', () => {
 		}, {
 			oneLine: { lineCount: 1, stableRerenders: true, smoothPushOut: true, visibleContent: true },
 			twoLines: { lineCount: 2, tallerThanOneLine: true, stableRerenders: true, smoothPushOut: true, visibleContent: true },
+		});
+	});
+
+	suite('sticky request previews', () => {
+		async function createPreview(text: string, options: IChatListWidgetOptions = {}) {
+			const context = createWidget(options, configuration => {
+				configuration.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
+				configuration.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, true);
+				configuration.setUserConfiguration('chat.editRequests', 'inline');
+			}, true);
+			const { model, container, widget } = context;
+			container.classList.add('interactive-list');
+			container.style.fontSize = '13px';
+			container.style.height = '600px';
+			container.style.setProperty('--vscode-spacing-size80', '8px');
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 40 }, (_, index) => `Response paragraph ${index}.`).join('\n\n')),
+			});
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(600, 500);
+			await waitForStableLayout(widget);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			return { ...context, request };
+		}
+
+		function getPreviewLineCount(block: HTMLElement): number {
+			const bounds = block.getBoundingClientRect();
+			const lineHeight = mainWindow.getComputedStyle(block).lineHeight;
+			if (lineHeight !== 'normal') {
+				return Math.round(bounds.height / parseFloat(lineHeight) * 100) / 100;
+			}
+
+			// Headings use normal line height, so measure their visible text rows instead of guessing font metrics.
+			const lineTops = new Set<number>();
+			const walker = mainWindow.document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+			const range = mainWindow.document.createRange();
+			while (walker.nextNode()) {
+				if (!walker.currentNode.textContent?.trim()) {
+					continue;
+				}
+				range.selectNodeContents(walker.currentNode);
+				for (const rect of range.getClientRects()) {
+					if (rect.width > 0 && rect.top < bounds.bottom && rect.bottom > bounds.top) {
+						lineTops.add(Math.round(rect.top));
+					}
+				}
+			}
+			return lineTops.size;
+		}
+
+		const longText = 'Read the [documentation](https://example.com/docs) and preserve the complete request. '.repeat(12);
+		for (const { name, text, tag } of [
+			{ name: 'paragraph', text: `${longText}\n\nLast paragraph.`, tag: 'P' },
+			{ name: 'unordered list', text: `- ${longText}\n- Last item.\n\nLast paragraph.`, tag: 'UL' },
+			{ name: 'ordered list', text: `1. ${longText}\n2. Last item.\n\nLast paragraph.`, tag: 'OL' },
+			{ name: 'loose list', text: `- First item.\n\n  ${longText}\n\n- Last item.\n\nLast paragraph.`, tag: 'UL' },
+			{ name: 'nested list', text: `- First item.\n  - ${longText}\n- Last item.\n\nLast paragraph.`, tag: 'UL' },
+			{ name: 'blockquote', text: `> ${longText}\n\nLast paragraph.`, tag: 'BLOCKQUOTE' },
+			{ name: 'heading', text: `# ${longText}\n\nLast paragraph.`, tag: 'H1' },
+		]) {
+			test(`bounds ${name}-first sticky requests to two lines at different widths and font sizes`, async () => {
+				const { container, widget, request } = await createPreview(text);
+				const states = [];
+				for (const { width, fontSize } of [{ width: 500.5, fontSize: 13 }, { width: 287.5, fontSize: 18 }]) {
+					container.style.width = `${width}px`;
+					container.style.fontSize = `${fontSize}px`;
+					widget.layout(600, width);
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					const sourceRow = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request');
+					const source = sourceRow?.querySelector<HTMLElement>('.chat-markdown-part');
+					assert.ok(sourceRow && source);
+					const sourceHtml = source.innerHTML;
+					const sourceTop = source.getBoundingClientRect().top - sourceRow.getBoundingClientRect().top;
+					const sourceBottom = source.getBoundingClientRect().bottom - sourceRow.getBoundingClientRect().top;
+					for (const partiallyVisible of [true, false]) {
+						widget.scrollTop = partiallyVisible ? Math.max(0, sourceTop - 8) + 1 : sourceBottom + 1;
+						await waitForStableLayout(widget);
+						const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+						const bubble = row?.querySelector<HTMLElement>('.chat-markdown-part');
+						const block = bubble?.firstElementChild;
+						assert.ok(row && bubble && dom.isHTMLElement(block), JSON.stringify({ name, width, partiallyVisible, scrollTop: widget.scrollTop, sourceTop, sourceBottom, row: !!row, bubble: !!bubble }));
+						const style = mainWindow.getComputedStyle(block);
+						states.push({
+							tag: block.tagName,
+							partiallyVisible: row.classList.contains('source-node-partially-visible'),
+							lines: getPreviewLineCount(block),
+							clamp: style.getPropertyValue('-webkit-line-clamp'),
+							overflows: block.scrollHeight > block.clientHeight,
+							bubbleFitsRow: bubble.getBoundingClientRect().bottom <= row.getBoundingClientRect().bottom + 1,
+							followingBlocksHidden: Array.from(bubble.children).slice(1).every(child => mainWindow.getComputedStyle(child).display === 'none'),
+							contentUnchanged: bubble.innerHTML === sourceHtml,
+						});
+					}
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					const restored = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .chat-markdown-part');
+					assert.ok(restored && restored.innerHTML === sourceHtml && restored.getBoundingClientRect().height > 2 * fontSize);
+				}
+				assert.deepStrictEqual({ states, message: request.message.text }, {
+					states: [true, false, true, false].map(partiallyVisible => ({
+						tag, partiallyVisible, lines: 2, clamp: '2', overflows: true, bubbleFitsRow: true,
+						followingBlocksHidden: true, contentUnchanged: true,
+					})),
+					message: text,
+				});
+			});
+		}
+
+		test('indicates hidden later blocks without adding an ellipsis to complete short lists', async () => {
+			const states = [];
+			for (const text of ['- Short item.', '1. First item.\n2. Second item.', '- Short item.\n\nLater paragraph.']) {
+				const { disposables, container, widget } = await createPreview(text);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .chat-markdown-part');
+				assert.ok(source);
+				widget.scrollTop = source.getBoundingClientRect().bottom - container.getBoundingClientRect().top + 1;
+				await waitForStableLayout(widget);
+				const block = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part > :first-child');
+				assert.ok(block);
+				states.push({
+					lines: Math.round(block.getBoundingClientRect().height / parseFloat(mainWindow.getComputedStyle(block).lineHeight)),
+					continuation: mainWindow.getComputedStyle(block, '::after').content,
+					overflows: block.scrollHeight > block.clientHeight,
+				});
+				disposables.dispose();
+			}
+			assert.deepStrictEqual(states, [
+				{ lines: 1, continuation: 'none', overflows: false },
+				{ lines: 2, continuation: 'none', overflows: false },
+				{ lines: 2, continuation: '"\u2026"', overflows: false },
+			]);
+		});
+
+		for (const { name, prefix } of [
+			{ name: 'separator', prefix: '---' },
+			{ name: 'code block', prefix: '```text\nexample\n```' },
+			{ name: 'table', prefix: '| Heading |\n| --- |\n| Value |' },
+		]) {
+			test(`preserves text after a leading ${name} in a sticky request`, async () => {
+				const { container, viewModel, widget } = await createPreview(`${prefix}\n\nExplain why this fails.`);
+				const response = viewModel.getItems().find(isResponseVM);
+				assert.ok(response);
+				widget.scrollTop = widget.getElementTop(response)! + 200;
+				await waitForStableLayout(widget);
+				const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+				const paragraph = row?.querySelector<HTMLElement>('.chat-markdown-part > p:last-child');
+				assert.ok(row && paragraph);
+				const bounds = paragraph.getBoundingClientRect();
+				assert.deepStrictEqual({
+					text: paragraph.textContent,
+					visible: bounds.height > 0 && bounds.bottom <= row.getBoundingClientRect().bottom + 1,
+				}, { text: 'Explain why this fails.', visible: true });
+			});
+		}
+
+		test('preserves links, edit activation and literal text in a sticky list request', async () => {
+			const text = `- ${longText}\n- Last item.`;
+			const { disposables, instantiationService, model, viewModel, container, widget } = await createPreview(text, {
+				getEditingValue: () => text,
+				rendererOptions: { editable: true },
+			});
+			const open = sinon.stub(instantiationService.get(IOpenerService), 'open').resolves(true);
+			let editInvocations = 0;
+			disposables.add(widget.onDidClickRequest(() => editInvocations++));
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			widget.scrollTop = widget.getElementTop(response)! + 200;
+			await waitForStableLayout(widget);
+			const bubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+			const link = bubble?.querySelector('a');
+			assert.ok(bubble && link);
+			link.click();
+			await timeout(0);
+			const linkEdits = editInvocations;
+			bubble.click();
+			const pointerEdits = editInvocations;
+			const enter = new mainWindow.KeyboardEvent('keydown', { bubbles: true });
+			Object.defineProperty(enter, 'keyCode', { get: () => 13 });
+			bubble.dispatchEvent(enter);
+			const keyboardEdits = editInvocations;
+			const request = viewModel.getItems().find(isRequestVM);
+			assert.ok(request);
+			viewModel.setEditing(request);
+			widget.rerender();
+			await waitForStableLayout(widget);
+			const editing = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-request-text');
+			assert.ok(editing);
+			assert.deepStrictEqual({
+				opened: open.firstCall?.args[0],
+				linkEdits, pointerEdits, keyboardEdits,
+				focusable: bubble.tabIndex,
+				editingText: editing.textContent,
+				editingLines: Math.round(editing.getBoundingClientRect().height / parseFloat(mainWindow.getComputedStyle(editing).lineHeight)),
+				storedText: model.getRequests()[0].message.text,
+			}, {
+				opened: 'https://example.com/docs',
+				linkEdits: 0, pointerEdits: 1, keyboardEdits: 2,
+				focusable: 0,
+				editingText: text,
+				editingLines: 2,
+				storedText: text,
+			});
+		});
+
+		test('leaves expanded request disclosures unclamped and preserves expansion after scrolling', async () => {
+			const text = `- ${longText}\n- Last item.`;
+			const { container, widget } = await createPreview(text, { rendererOptions: { firstRequestSummary: 'Instructions' } });
+			const details = container.querySelector<HTMLDetailsElement>('details.chat-request-disclosure');
+			const summary = details?.querySelector('summary');
+			assert.ok(details && summary);
+			summary.click();
+			await waitForStableLayout(widget);
+			const list = details.querySelector('ul');
+			assert.ok(list);
+			const expanded = {
+				open: details.open,
+				ariaExpanded: summary.getAttribute('aria-expanded'),
+				lines: list.getBoundingClientRect().height / parseFloat(mainWindow.getComputedStyle(list).lineHeight) > 2,
+				clamp: mainWindow.getComputedStyle(list).getPropertyValue('-webkit-line-clamp'),
+				lastItemVisible: list.lastElementChild!.getBoundingClientRect().height > 0,
+			};
+			widget.scrollTop = 500;
+			await waitForStableLayout(widget);
+			const stickyText = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part')?.textContent?.trim();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				expanded, stickyText,
+				restoredOpen: container.querySelector<HTMLDetailsElement>('details.chat-request-disclosure')?.open,
+			}, {
+				expanded: { open: true, ariaExpanded: 'true', lines: true, clamp: 'none', lastItemVisible: true },
+				stickyText: 'Instructions',
+				restoredOpen: true,
+			});
 		});
 	});
 
