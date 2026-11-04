@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, type AssistantMessageEvent } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -87,7 +87,7 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 				await session.rpc.model.switchTo({ modelId: id });
 				selectedIds.push((await session.rpc.model.getCurrent()).modelId);
 				if (id.startsWith('openai/')) {
-					const result = await session.sendAndWait({ prompt: 'Reply exactly BYOK_TOOLS_DONE.' }, 30_000);
+					const result: AssistantMessageEvent | undefined = await session.sendAndWait({ prompt: 'Reply exactly BYOK_TOOLS_DONE.' }, 30_000);
 					assert.strictEqual(result?.data.content, 'BYOK_TOOLS_DONE');
 				}
 			}
