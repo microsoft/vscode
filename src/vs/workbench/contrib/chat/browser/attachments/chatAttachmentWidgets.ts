@@ -1234,18 +1234,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 	}
 }
 
-/**
- * Renders an agent-host {@link IChatRequestChatReferenceVariableEntry chat-reference}
- * attachment (`#chat:<title>`) as a clickable chip. Clicking (or pressing
- * Enter/Space) opens the referenced chat in the Agents window by handing an
- * `agent-host-session://` link to the {@link IOpenerService}. A chat reference
- * never crosses agent hosts, so the referenced chat is resolved, and the link
- * scoped, on the host connection of the chat that shows the chip
- * (`sessionResource`). When that session has no agent host connection, the link
- * cannot be built, or the opener declines it (e.g. the chat was deleted or
- * lives in another window) the chip degrades gracefully and still renders its
- * label.
- */
+/** Opens chat-reference chips on their recorded source host, or the containing chat's host for unscoped references. */
 export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
 		attachment: IChatRequestChatReferenceVariableEntry,
@@ -1278,24 +1267,28 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
-			this._openReferencedChat(chatResource);
+			this._openReferencedChat(chatResource, attachment.sessionContextSourceAuthority);
 		}));
 
 		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
-				this._openReferencedChat(chatResource);
+				this._openReferencedChat(chatResource, attachment.sessionContextSourceAuthority);
 			}
 
 		}));
 	}
 
-	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const connectionAuthority = this._sessionResource && this._connectionsService.resolveSessionResourceIdentity(this._sessionResource)?.connectionAuthority;
+	private async _openReferencedChat(chatResource: URI, sourceAuthority: string | undefined): Promise<void> {
+		const source = sourceAuthority === undefined ? undefined : this._connectionsService.connections.find(candidate =>
+			(candidate.connection?.resourceUris.authority ?? candidate.authority) === sourceAuthority);
+		const connectionAuthority = sourceAuthority === undefined
+			? this._sessionResource && this._connectionsService.resolveSessionResourceIdentity(this._sessionResource)?.connectionAuthority
+			: source?.authority;
 		const connection = connectionAuthority && this._connectionsService.getConnectionByAuthority(connectionAuthority);
 		if (!connectionAuthority || !connection) {
-			this._logService.trace(`[ChatReferenceAttachmentWidget] The chat showing the reference to ${chatResource.toString()} has no agent host connection`);
+			this._logService.trace(`[ChatReferenceAttachmentWidget] The reference to ${chatResource.toString()} has no agent host connection`);
 			return;
 		}
 		const owner = await resolveAgentHostChatOwner(chatResource, connection, connectionAuthority, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
