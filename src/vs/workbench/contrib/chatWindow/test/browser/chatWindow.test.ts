@@ -366,7 +366,7 @@ suite('Chat window', () => {
 
 		assert.deepStrictEqual({ afterMerge, closed: closed.events, movedOut: movedOut.events }, {
 			afterMerge: [],
-			closed: ['close chat', 'close main', 'will close', 'close window', 'closed'],
+			closed: ['close main', 'close chat', 'will close', 'close window', 'closed'],
 			movedOut: ['moved out'],
 		});
 	});
