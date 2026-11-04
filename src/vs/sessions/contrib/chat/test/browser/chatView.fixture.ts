@@ -39,7 +39,7 @@ const fixtureHeight = 720;
 const codiconsBackground = { kind: 'codicons' } as const;
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
-	const part = dom.append(container, dom.$('.part.sessionspart'));
+	const part = dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
@@ -110,7 +110,7 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 
 	const part = withBackground
 		? createChatBackgroundPart(container, disposableStore)
-		: dom.append(container, dom.$('.part.sessionspart'));
+		: dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';

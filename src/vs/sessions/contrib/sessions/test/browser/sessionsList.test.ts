@@ -801,6 +801,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = activeSession;
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			});
@@ -9704,6 +9705,7 @@ suite('Sessions - SessionsList', () => {
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = activeSession;
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			}).container;
@@ -9764,6 +9766,7 @@ suite('Sessions - SessionsList', () => {
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
 					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 						override readonly activeSession = activeSession;
+						override readonly mainWindowActiveSession = this.activeSession;
 						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 					});
 					instantiationService.stub(IHoverService, {
@@ -11491,6 +11494,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11588,6 +11592,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11622,6 +11627,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11936,6 +11942,7 @@ suite('Sessions - SessionsList', () => {
 					if (activePeer) {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							override readonly activeSession = constObservable(activeSession);
+							override readonly mainWindowActiveSession = this.activeSession;
 							override readonly visibleSessions = constObservable([activeSession]);
 						});
 					}
@@ -13360,6 +13367,7 @@ suite('Sessions - SessionsList', () => {
 					const harness = createListHarness(disposables, [session], instantiationService => {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							override readonly activeSession = constObservable(activeSession);
+							override readonly mainWindowActiveSession = this.activeSession;
 							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
 						});
 					});
