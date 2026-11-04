@@ -887,6 +887,8 @@ export async function synthesizeByokSessionConfig(
 	const models: ProviderModelConfig[] = byokModels.map(m => ({
 		id: getByokLmSelectionModelId(m),
 		provider: m.vendor,
+		// Tool/prompt policy uses the canonical model, not the provider group's routing id.
+		modelId: m.id,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
 		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),

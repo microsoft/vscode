@@ -10,7 +10,7 @@ import { CopilotClient } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { getByokLmAgentModelId, isByokLmAgentModelId, type IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
+import { getByokLmAgentModelId, isByokLmAgentModelId, type IByokLmChatRequest, type IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
@@ -35,6 +35,8 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 		{ vendor: 'azure', id: 'gpt-5', modelIdentifier: 'azure/work/gpt-5' },
 		// Provider-local ids may themselves contain slashes (e.g. Gemini's `models/...`).
 		{ vendor: 'gemini', id: 'models/gemini-flash', modelIdentifier: 'gemini/Google/models/gemini-flash' },
+		{ vendor: 'openai', id: 'gpt-6.1-sol', modelIdentifier: 'openai/Work/gpt-6.1-sol' },
+		{ vendor: 'openai', id: 'gpt-10.2', modelIdentifier: 'openai/Future/gpt-10.2' },
 	];
 
 	test('the bundled runtime lists and selects BYOK models under the agent host model ids', async function () {
@@ -44,7 +46,14 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-selection-ids-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client', { chat: async () => ({ output: [] }), onDidChangeModels: models.event });
+		const capturedRequests: IByokLmChatRequest[] = [];
+		const registration = registry.register('client', {
+			chat: async request => {
+				capturedRequests.push(request);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'BYOK_TOOLS_DONE' }] }] };
+			},
+			onDidChangeModels: models.event,
+		});
 		models.fire(byokModels);
 		const proxy = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await proxy.start();
@@ -64,13 +73,23 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 			const byok = await synthesizeByokSessionConfig(sessionId, registry, async () => handle, new NullLogService());
 			await client.start();
 			clientStarted = true;
-			session = await client.createSession({ sessionId, model: agentModelIds[0], availableTools: [], ...byok });
+			session = await client.createSession({
+				sessionId,
+				model: agentModelIds[0],
+				availableTools: ['builtin:apply_patch', 'builtin:create', 'builtin:edit', 'builtin:view', 'builtin:grep', 'builtin:rg'],
+				onPermissionRequest: () => ({ kind: 'denied-interactively-by-user' }),
+				...byok,
+			});
 
 			const listedIds = (await session.rpc.model.list()).list.map(entry => (entry as { id: string }).id);
 			const selectedIds: (string | undefined)[] = [];
 			for (const id of agentModelIds) {
 				await session.rpc.model.switchTo({ modelId: id });
 				selectedIds.push((await session.rpc.model.getCurrent()).modelId);
+				if (id.startsWith('openai/')) {
+					const result = await session.sendAndWait({ prompt: 'Reply exactly BYOK_TOOLS_DONE.' }, 30_000);
+					assert.strictEqual(result?.data.content, 'BYOK_TOOLS_DONE');
+				}
 			}
 
 			assert.deepStrictEqual({
@@ -82,11 +101,20 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 				// unit test pins bare Copilot ids deterministically.
 				listedIdsWithByokShape: listedIds.filter(isByokLmAgentModelId).sort(),
 				selectedIds,
+				toolOffers: capturedRequests.map(request => ({
+					vendor: request.vendor,
+					modelId: request.modelId,
+					tools: request.tools?.map(tool => tool.name).sort(),
+				})),
 			}, {
-				agentModelIds: ['acme/test-model', 'azure/work/gpt-5', 'gemini/Google/models/gemini-flash'],
+				agentModelIds: ['acme/test-model', 'azure/work/gpt-5', 'gemini/Google/models/gemini-flash', 'openai/Work/gpt-6.1-sol', 'openai/Future/gpt-10.2'],
 				byokIdsListed: true,
 				listedIdsWithByokShape: [...agentModelIds].sort(),
 				selectedIds: agentModelIds,
+				toolOffers: [
+					{ vendor: 'openai', modelId: 'Work/gpt-6.1-sol', tools: ['apply_patch', 'rg', 'view'] },
+					{ vendor: 'openai', modelId: 'Future/gpt-10.2', tools: ['apply_patch', 'rg', 'view'] },
+				],
 			});
 		} finally {
 			try {
