@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from '../../../../base/common/async.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -24,6 +24,8 @@ export class ChatModelHold extends Disposable {
 
 	private readonly _hold = this._register(new MutableDisposable<IDisposable>());
 	private readonly _poll = this._register(new IntervalTimer());
+	/** The time the hold ends at, the view bound or not: a deadline, not a count of polls, which a window in the background makes fewer. */
+	private readonly _expiry = this._register(new TimeoutTimer());
 
 	constructor(
 		private readonly _acquire: (resource: URI) => IDisposable | undefined,
@@ -40,17 +42,17 @@ export class ChatModelHold extends Disposable {
 		if (!this._hold.value) {
 			return;
 		}
-		let waited = 0;
 		this._poll.cancelAndSet(() => {
-			waited += this._pollInterval;
-			if (isBound() || waited >= this._timeout) {
+			if (isBound()) {
 				this.release();
 			}
 		}, this._pollInterval);
+		this._expiry.cancelAndSet(() => this.release(), this._timeout);
 	}
 
 	release(): void {
 		this._poll.cancel();
+		this._expiry.cancel();
 		this._hold.clear();
 	}
 

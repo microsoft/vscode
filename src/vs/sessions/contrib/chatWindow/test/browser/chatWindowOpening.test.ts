@@ -47,6 +47,15 @@ suite('Chat window opening (sessions)', () => {
 			assert.strictEqual(counter.refs, 0);
 		});
 
+		test('is released at its timeout also while the view is polled less often, as in a window in the background', async () => {
+			const { counter, acquire } = setup();
+			const hold = disposables.add(new ChatModelHold(acquire, 20, 10_000));
+			hold.hold(resource, () => false);
+			await timeout(60);
+
+			assert.deepStrictEqual({ refs: counter.refs, holding: hold.isHolding }, { refs: 0, holding: false });
+		});
+
 		test('a hold for another chat replaces the previous one, and none is taken without a chat or a loaded model', () => {
 			const { counter, acquire } = setup();
 			const hold = disposables.add(new ChatModelHold(acquire, 10_000, 5));
