@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
@@ -15,6 +15,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IInputOnlySessionView, ISessionChatViewHost, SessionChatViewEditorView, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/sessionChatViewEditor.js';
 
@@ -112,23 +113,31 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ inputOnly, conversation: read().chosen }, { inputOnly: true, conversation: false });
 	});
 
-	test('the session header leaves the title row it shows in with its view, so that the view that shows the chat after a move is the only one there', () => {
+	test('the session header shows in the title row only from the view that shows the chat, the last attached, also while the view it moved from is still there', () => {
 		const { instantiationService } = createSessionViewTestServices(disposables);
 		const titleRow = $('.title-row');
+		const attached = observableValue<SessionView[]>('attached', []);
 		const host: ISessionChatViewHost = {
 			session: constObservable(undefined),
 			window: constObservable(undefined),
 			header: constObservable({ element: titleRow, actionsElement: undefined, setShown: () => { } }),
 			showsTitle: constObservable(false),
 			createTitle: () => undefined,
-			attach: () => Disposable.None,
+			attach: view => {
+				attached.set([...attached.get(), view], undefined);
+				return toDisposable(() => attached.set(attached.get().filter(candidate => candidate !== view), undefined));
+			},
+			view: derived(reader => attached.read(reader).at(-1)),
 		};
+		const headerOf = (view: SessionChatViewEditorView) => [...titleRow.children].filter(header => view.sessionView.headerTitleElement && header.contains(view.sessionView.headerTitleElement)).length;
 		const first = instantiationService.createInstance(SessionChatViewEditorView, host);
-		const second = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
-		const whileBoth = titleRow.childElementCount;
+		const second = instantiationService.createInstance(SessionChatViewEditorView, host);
+		const whileBoth = { headers: titleRow.childElementCount, ofSecond: headerOf(second) };
+		second.dispose();
+		const afterSecondGoes = { headers: titleRow.childElementCount, ofFirst: headerOf(first) };
 		first.dispose();
 
-		assert.deepStrictEqual({ whileBoth, afterMove: titleRow.childElementCount, ofSecond: titleRow.firstElementChild?.parentElement === titleRow && second.sessionView.element.contains(titleRow.firstElementChild) === false }, { whileBoth: 2, afterMove: 1, ofSecond: true });
+		assert.deepStrictEqual({ whileBoth, afterSecondGoes, afterBoth: titleRow.childElementCount }, { whileBoth: { headers: 1, ofSecond: 1 }, afterSecondGoes: { headers: 1, ofFirst: 1 }, afterBoth: 0 });
 	});
 
 	test('before its editor moves, the chat saves what it shows, such as where it is scrolled to, for the view where it moves to', () => {
@@ -140,6 +149,7 @@ suite('Session chat view editor', () => {
 			showsTitle: constObservable(false),
 			createTitle: () => undefined,
 			attach: () => Disposable.None,
+			view: constObservable(undefined),
 		};
 		const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
 		const saved: string[] = [];
@@ -170,6 +180,7 @@ suite('Session chat view editor', () => {
 					return { element: titleElement, size: constObservable(33), layout: () => { }, dispose: () => titleElement.remove() };
 				},
 				attach: () => Disposable.None,
+				view: constObservable(undefined),
 			};
 			const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
 			let chat: { height: number; top: number } | undefined;
@@ -211,6 +222,7 @@ suite('Session chat view editor', () => {
 			},
 			// What changes the window of the view as it disposes, such as its window closing.
 			attach: () => toDisposable(() => hostWindow.set(window(), undefined)),
+			view: constObservable(undefined),
 		};
 		const view = instantiationService.createInstance(SessionChatViewEditorView, host);
 		const beforeDispose = created;

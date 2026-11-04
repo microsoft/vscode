@@ -191,7 +191,10 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 	readonly windowHeader = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
 	/** Where the session header shows in the view's own title row, once it has one. */
 	private readonly _viewHeader = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
+	/** The attached session views, the last of which shows the chat; see {@link view}. */
+	private readonly _attachedViews: SessionView[] = [];
 	private readonly _view = observableValue<SessionView | undefined>(this, undefined);
+	readonly view: IObservable<SessionView | undefined> = this._view;
 	/**
 	 * Whether the view shows its own title row, at the top of the chat's card: with a single chat, side by side and in chat
 	 * only, as the session view shows its header then, while the chat leads the window, at its top left. Otherwise, such as
@@ -303,8 +306,15 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 
 	attach(view: SessionView): IDisposable {
 		const store = new DisposableStore();
+		this._attachedViews.push(view);
 		this._view.set(view, undefined);
-		store.add(toDisposable(() => this._view.set(undefined, undefined)));
+		store.add(toDisposable(() => {
+			const index = this._attachedViews.indexOf(view);
+			if (index >= 0) {
+				this._attachedViews.splice(index, 1);
+			}
+			this._view.set(this._attachedViews.at(-1), undefined);
+		}));
 		// The session it shows becomes the active session once its window has focus, and focusing the session focuses
 		// the window, and its chat while the chat shows: focusing it while only the main part shows would not show it.
 		store.add(this._sessionsPartService.registerWindowSessionView(view, {

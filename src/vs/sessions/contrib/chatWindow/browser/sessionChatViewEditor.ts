@@ -70,6 +70,11 @@ export interface ISessionChatViewHost {
 	createTitle(container: HTMLElement, instantiationService: IInstantiationService): ISessionChatViewTitle | undefined;
 	/** Called with the session view of the editor once it is created, until the returned disposable is disposed. */
 	attach(view: SessionView): IDisposable;
+	/**
+	 * The session view that shows the chat: the last attached of those attached, such as the view where the chat moves to
+	 * while the one it moves from is still there. Only it shows the session header in the {@link header} host.
+	 */
+	readonly view: IObservable<SessionView | undefined>;
 }
 
 const hosts = new Map<ViewEditorInput, ISessionChatViewHost>();
@@ -289,7 +294,7 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 		// The session header is the top row of the window in every layout, also while the chat shows only its input.
 		const headerShown = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
-			const header = host.header.read(reader);
+			const header = host.view.read(reader) === sessionView ? host.header.read(reader) : undefined;
 			sessionView.setHeaderHost(header?.element, header?.actionsElement);
 			headerShown.value = header ? autorun(innerReader => header.setShown(sessionView.headerShown.read(innerReader))) : undefined;
 		}));
