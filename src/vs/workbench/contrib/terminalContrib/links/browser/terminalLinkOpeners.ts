@@ -18,7 +18,7 @@ import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.j
 import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { getWindowMainPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -44,8 +44,8 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		if (activePart === this._editorGroupsService.activeModalEditorPart) {
 			return undefined;
 		}
-		const mainPart = this._editorGroupsService.parts.find(part => part.windowId === activePart.windowId);
-		return mainPart && mainPart !== activePart ? mainPart.activeGroup : undefined;
+		const mainPart = getWindowMainPart(this._editorGroupsService, activePart.windowId);
+		return mainPart !== activePart ? mainPart.activeGroup : undefined;
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
