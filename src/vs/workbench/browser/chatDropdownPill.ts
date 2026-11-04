@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../base/browser/dom.js';
+import { $, getWindow } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
@@ -23,6 +23,7 @@ import { FileKind, IFileService } from '../../platform/files/common/files.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { ChatPillActionViewItem, createChatPillMediaPreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, hasChatPillMediaPreview, type IChatInlinePillViewItemOptions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
+import { ILayoutService } from '../../platform/layout/browser/layoutService.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -114,6 +115,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		@IFileService private readonly _fileService: IFileService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super(undefined, action, options);
 	}
@@ -347,7 +349,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			items,
 			delegate,
 			trigger,
-			undefined,
+			// In the window of the pill, such as a chat window, rather than in the window that has focus.
+			this._layoutService.getContainer(getWindow(trigger)),
 			[],
 			{
 				getAriaLabel: item => {

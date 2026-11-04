@@ -46,12 +46,16 @@ export function findMissingNativeOptionalDep(nodeModulesDir: string, basePackage
 		return undefined;
 	}
 	const platformPackage = `${basePackage}-${target}`;
-	// With pnpm's hoisted layout the platform package is either next to the base package or in the
-	// base package's own node_modules (when another version of it is hoisted).
-	if (!fs.existsSync(path.join(nodeModulesDir, platformPackage)) && !fs.existsSync(path.join(nodeModulesDir, basePackage, 'node_modules', platformPackage))) {
-		return platformPackage;
-	}
-	return undefined;
+	// With a flat (hoisted) node_modules the platform package is either next to the base package or
+	// in the base package's own node_modules (when another version of it is hoisted). With pnpm's
+	// symlinked (isolated) layout it is next to the real folder of the base package.
+	const realNodeModulesDir = path.resolve(fs.realpathSync(path.join(nodeModulesDir, basePackage)), ...basePackage.split('/').map(() => '..'));
+	const candidates = [
+		path.join(nodeModulesDir, platformPackage),
+		path.join(nodeModulesDir, basePackage, 'node_modules', platformPackage),
+		path.join(realNodeModulesDir, platformPackage),
+	];
+	return candidates.some(candidate => fs.existsSync(candidate)) ? undefined : platformPackage;
 }
 
 // #region CLI entry point
@@ -76,7 +80,7 @@ const SUPPORTED_ARCHS = new Set(['x64', 'arm64']);
 function isCliInvocation(): boolean {
 	// `import.meta.filename` is already a real filesystem path; comparing it
 	// directly to `process.argv[1]` works on Windows too. Matches the pattern
-	// in `build/agent-sdk/package.ts` and `build/npm/installStateHash.ts`.
+	// in `build/agent-sdk/package.ts` and `build/agent-sdk/upload.ts`.
 	return import.meta.filename === process.argv[1];
 }
 

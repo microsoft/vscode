@@ -302,6 +302,22 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
+		test('repeated focus-style refreshes only reread the local catalogue', async () => {
+			const fixture = await createFixture();
+			for (let index = 0; index < 3; index++) {
+				fixture.management.sessions = [createTestSession(`Latest ${index}`).session];
+				fixture.list.refresh();
+			}
+			const immediate = fixture.counts();
+			await nextFrame();
+
+			assert.deepStrictEqual({
+				immediate, settled: fixture.counts(), titles: fixture.titles(),
+			}, {
+				immediate: { reads: 3, updates: 3 }, settled: { reads: 3, updates: 3 }, titles: ['Latest 2'],
+			});
+		});
+
 		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
 			const fixture = await createFixture();
 			fixture.invalidateCatalogue();
@@ -785,6 +801,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = activeSession;
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			});
@@ -9556,6 +9573,37 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows the workspace kind of the main chat on the row of a multi-folder session', () => {
+			const repo: ISessionFolder = {
+				root: URI.file('/workspace/repo'),
+				workingDirectory: URI.file('/workspace/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: { uri: URI.file('/workspace/repo'), workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+			};
+			const worktree = (name: string): ISessionFolder => {
+				const workingDirectory = URI.file(`/workspace/repo.worktrees/${name}`);
+				return { ...repo, workingDirectory, gitRepository: { ...repo.gitRepository!, workTreeUri: workingDirectory } };
+			};
+			const peerWorktree = worktree('peer');
+			const mainWorktree = worktree('main');
+			const rowIcon = (session: ISession) => {
+				const icon = renderSessionChatsList(session, undefined, false, false).container.querySelector('.session-item .session-details-icon > .codicon');
+				return icon?.classList.contains(`codicon-${Codicon.worktreeCompact.id}`) ? 'worktree' : icon?.classList.contains(`codicon-${Codicon.folderCompact.id}`) ? 'folder' : undefined;
+			};
+
+			assert.deepStrictEqual({
+				// The session keeps its first folder when only its main chat moves to a worktree.
+				mainChatMovedToWorktree: rowIcon(createMultiFolderSession([repo, peerWorktree, mainWorktree], [[mainWorktree], [peerWorktree]])),
+				mainChatMovedToFolder: rowIcon(createMultiFolderSession([mainWorktree, repo], [[repo], [mainWorktree]])),
+				onlyPeerChatInWorktree: rowIcon(createMultiFolderSession([repo, peerWorktree], [[repo], [peerWorktree]])),
+			}, {
+				mainChatMovedToWorktree: 'worktree',
+				mainChatMovedToFolder: 'folder',
+				onlyPeerChatInWorktree: 'folder',
+			});
+		});
+
 		test('shows the own folder of a chat in a quick chat and no folder for its scratch chats', () => {
 			const repo = { root: URI.file('/workspace/repo'), workingDirectory: URI.file('/workspace/repo'), name: 'repo', description: undefined };
 			const base = createTestSession('Quick chat', { isQuickChat: true }).session;
@@ -9657,6 +9705,7 @@ suite('Sessions - SessionsList', () => {
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = activeSession;
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			}).container;
@@ -9717,6 +9766,7 @@ suite('Sessions - SessionsList', () => {
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
 					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 						override readonly activeSession = activeSession;
+						override readonly mainWindowActiveSession = this.activeSession;
 						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 					});
 					instantiationService.stub(IHoverService, {
@@ -11444,6 +11494,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11541,6 +11592,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11575,6 +11627,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					override readonly activeSession = constObservable(activeSession);
+					override readonly mainWindowActiveSession = this.activeSession;
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11626,11 +11679,17 @@ suite('Sessions - SessionsList', () => {
 				isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
 				sessionPayload: dataTransfer.getData(SessionsDataTransfers.SESSION),
 				chatPayload: getSessionChatDragData(dragStart),
+				// Unlike a chat tab's drag, a row's drag offers its URI as text to other apps,
+				// so dropping it on the desktop creates a text clipping rather than a chat window.
+				externalTypes: [...dataTransfer.types].filter(type => !type.startsWith('application/vnd.code.')),
+				text: dataTransfer.getData('text/plain'),
 			}, {
 				isChatDrag: true,
 				isSameSessionDrag: true,
 				sessionPayload: '',
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
+				externalTypes: ['text/plain'],
+				text: peer.resource.toString(),
 			});
 		});
 
@@ -11889,6 +11948,7 @@ suite('Sessions - SessionsList', () => {
 					if (activePeer) {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							override readonly activeSession = constObservable(activeSession);
+							override readonly mainWindowActiveSession = this.activeSession;
 							override readonly visibleSessions = constObservable([activeSession]);
 						});
 					}
@@ -13313,6 +13373,7 @@ suite('Sessions - SessionsList', () => {
 					const harness = createListHarness(disposables, [session], instantiationService => {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							override readonly activeSession = constObservable(activeSession);
+							override readonly mainWindowActiveSession = this.activeSession;
 							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
 						});
 					});

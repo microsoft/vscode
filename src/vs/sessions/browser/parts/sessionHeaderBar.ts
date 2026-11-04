@@ -23,7 +23,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -85,6 +85,7 @@ export class SessionHeaderBar extends Disposable {
 	private _titlePath = '';
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
+	private readonly _titleRowEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -120,6 +121,11 @@ export class SessionHeaderBar extends Disposable {
 
 	get element(): HTMLElement {
 		return this._container;
+	}
+
+	/** The title of the session, which can stand for the session's chat, such as to drag it. */
+	get titleElement(): HTMLElement {
+		return this._titleEl;
 	}
 
 	get visible(): boolean {
@@ -185,6 +191,7 @@ export class SessionHeaderBar extends Disposable {
 		const titleActions = $('.chat-composite-bar-title-actions');
 		titleRow.appendChild(titleActions);
 		this._titleActionsEl = titleActions;
+		this._titleRowEl = titleRow;
 
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
 		titleActions.appendChild(toolbarContainer);
@@ -287,9 +294,31 @@ export class SessionHeaderBar extends Disposable {
 			e.stopPropagation();
 		}));
 
-		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
+		this._register(addDisposableListener(this._container, EventType.DRAG_END, (e: DragEvent) => {
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+
+			// The header's own drag, of its session or of its chat, can open it in a window of its own
+			if (e.target === this._container && this._session) {
+				onDidEndSessionChatDrag(e, this._container, this._session, this._actionsTargetChat ? this._activeChat?.resource : undefined, this._titlePath);
+			}
 		}));
+	}
+
+	/**
+	 * Shows the header as the top row of its window, in place of the title of its title bar: its empty space then moves
+	 * the window rather than starting a drag of the session.
+	 */
+	setWindowChrome(shown: boolean): void {
+		this._container.classList.toggle('window-chrome', shown);
+		this._container.draggable = !shown;
+	}
+
+	/**
+	 * Shows the actions of the header, such as its More Actions, in `host`, such as after the other actions of the title
+	 * bar that hosts the header, so that they are one group with them; `undefined` brings them back after the title.
+	 */
+	setActionsHost(host: HTMLElement | undefined): void {
+		(host ?? this._titleRowEl).appendChild(this._titleActionsEl);
 	}
 
 	setContext(context: ISessionHeaderBarContext | undefined): void {

@@ -26,7 +26,7 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
 	[string]$Distribution = 'Ubuntu',
-	# A Linux VS Code server, or a source checkout set up with `pnpm run install-fast` and `pnpm run build-fast --client-only`.
+	# A Linux VS Code server, or a source checkout set up with `pnpm install` and `pnpm run build-fast --client-only`.
 	[Parameter(Mandatory)][string]$WslServerPath,
 	# The Linux Node for a source checkout, which has no bundled Node.
 	[string]$WslNodePath,

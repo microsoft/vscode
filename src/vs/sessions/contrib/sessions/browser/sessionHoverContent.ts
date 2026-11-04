@@ -19,7 +19,7 @@ import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../common/ses
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../common/sessionApplication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getHarnessPresentationOrDefault } from '../../../services/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
@@ -91,14 +91,14 @@ export function getSessionSummaryHoverData(
 	const sessionWorkspace = session.workspace.get();
 	const isMultiFolder = (sessionWorkspace?.folders.length ?? 0) > 1;
 	const mainChat = isMultiFolder ? session.mainChat.get() : undefined;
-	const mainWorkspace = mainChat?.workspace.get() ?? sessionWorkspace;
-	const topPullRequestRefs = getPullRequestRefs([isMultiFolder ? mainWorkspace : sessionWorkspace]);
+	const presentationWorkspace = getSessionPresentationWorkspace(session, undefined);
+	const topPullRequestRefs = getPullRequestRefs([presentationWorkspace]);
 	return {
 		...getProviderDetails(session, sessionsProvidersService),
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
 		...(includeUpdatedAt ? { updatedAt: session.updatedAt.get() } : {}),
 		location: getLocation(
-			isMultiFolder ? mainWorkspace : sessionWorkspace,
+			presentationWorkspace,
 			session.worktreePending?.get() ?? false,
 			() => mainChat ? getMainChatHoverChanges(mainChat, mainChatBranchChangesObserved) : getSessionHoverChanges(session),
 			labelService,

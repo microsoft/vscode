@@ -81,6 +81,8 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
+/** Turns this computer's remote connections on or off from the Agents window. */
+export const TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
 
 export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID = 'sessions.focusNewSessionEnvironmentPicker';
 

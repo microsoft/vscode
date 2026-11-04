@@ -8,7 +8,7 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
@@ -37,6 +37,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { registerSessionChatDragEndHandler } from '../../../../browser/dnd.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -592,10 +593,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
 	 * With `realGroups`, the `grouped` sessions are in a group of the real groups service.
 	 */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean; readonly activeSession?: IObservable<IActiveSession | undefined> }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
+			activeSession: options?.activeSession,
 			pinnedSessionIds: new Set(options?.pinned),
 			groups: options?.grouped ? [group] : [],
 			memberships: new Map(options?.grouped?.map(sessionId => [sessionId, group.id])),
@@ -761,9 +763,10 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			list.closeFind();
 			await timeout(350);
 		};
-		/** The rows the list renders now (it renders only those in view) and the selected ones. */
+		/** The rows the list renders now (it renders only those in view), the focused ones and the selected ones. */
 		const rendered = () => ({
 			rows: labels(),
+			focused: [...container.querySelectorAll<HTMLElement>('.monaco-list-row.focused')].map(labelOf),
 			selected: [...container.querySelectorAll<HTMLElement>('.monaco-list-row.selected')].map(labelOf),
 		});
 		/** The nested chat rows of the list, top to bottom. */
@@ -778,6 +781,27 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			.map(row => `${row.querySelector('.session-chat-title') ? '  ' : ''}${labelOf(row)}`);
 		return { list, rows, instantiationService: harness.instantiationService, moves, writtenStorageKeys, chatRows, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
+
+	test('the end of a chat row\'s drag goes to the chat drag end handler with its session and chat, a session row\'s with its session only', async () => {
+		const source = listSession('Source', ['s1']);
+		const list = render([source]);
+		list.setExpanded('Source', true);
+		const ended: string[] = [];
+		const handler = registerSessionChatDragEndHandler(async (e, offsetElement, session, chat, name) => {
+			ended.push(`${session.title.get()} ${chat?.toString() ?? '(its chat)'} ${name} ${offsetElement.classList.contains('monaco-list-row')}`);
+			return false;
+		});
+
+		try {
+			list.dragOver('s1', undefined).end();
+			list.dragOver('Source', undefined).end();
+		} finally {
+			handler.dispose();
+			list.dispose();
+		}
+
+		assert.deepStrictEqual(ended, [`Source ${source.chats.get().find(chat => chat.title.get() === 's1')!.resource.toString()} s1 true`, 'Source (its chat) Source true']);
+	});
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
 		const target = listSession('Target', ['t1', 't2']);
@@ -932,7 +956,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			moved: { fixed: movedFixed, c: movedC, first: movedFirst },
 			moves: list.moves,
 			rows: list.chatRows(),
-			focused: list.rendered().selected,
+			focused: list.rendered().focused,
 		}, {
 			// Only the provider orders nested chats: the first chat has nowhere to go up, `fixed` can't move at all.
 			keys: { a: { up: false, down: true }, fixed: { up: false, down: false }, c: { up: true, down: false } },
@@ -996,7 +1020,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('Move Up moves the chat and reveals and selects it', async () => {
+	test('Move Up moves the chat and reveals and focuses it', async () => {
 		const own = listSession('Own', ['a', 'b', 'c']);
 		const list = render([own], { simulateMoves: true });
 		list.setExpanded('Own', true);
@@ -1005,10 +1029,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		list.list.moveChat(new SessionChatItem(own, c), 'up');
 		await timeout(0);
 
-		assert.deepStrictEqual({ moves: list.moves, moved: list.chatRows(), selected: list.rendered().selected }, {
+		assert.deepStrictEqual({ moves: list.moves, moved: list.chatRows(), focused: list.rendered().focused, selected: list.rendered().selected }, {
 			moves: ['c -> Own after a'],
 			moved: 'a c b',
-			selected: ['c'],
+			focused: ['c'],
+			selected: [],
 		});
 	});
 
@@ -1211,7 +1236,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		}
 	}
 
-	test('after a session is dropped into another, the list reveals and selects it, though "Updated" sorts it below the view', async () => {
+	test('after a session is dropped into another, the list reveals and focuses it, though "Updated" sorts it below the view', async () => {
 		// Updated at 0, the oldest: "Updated" sorts it after Tree's other nested rows.
 		const single = listSession('Single', [], listChat('Moved'));
 		const tree = listSession('Tree', ['t1', 't2', 't3', 't4']);
@@ -1224,17 +1249,59 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		await settle();
 		const after = list.rendered();
 
-		assert.deepStrictEqual({ lastRowShownBefore, moves: list.moves, movedShown: after.rows.includes('Moved'), selected: after.selected }, {
+		assert.deepStrictEqual({ lastRowShownBefore, moves: list.moves, movedShown: after.rows.includes('Moved'), focused: after.focused, selected: after.selected }, {
 			// Tree's last nested row was below the view.
 			lastRowShownBefore: false,
 			moves: ['session Single -> Tree after t4'],
-			// Scrolled down to the moved chat, the last of Tree's nested rows, and selected it.
+			// Scrolled down to the moved chat, the last of Tree's nested rows, and focused it; no chat is open, so none is selected.
 			movedShown: true,
+			focused: ['Moved'],
+			selected: [],
+		});
+	});
+
+	test('after a move, the selection stays on the open chat, which is not the one the list reveals and focuses', async () => {
+		const open = listSession('Open', []);
+		const single = listSession('Single', [], listChat('Moved'));
+		const tree = listSession('Tree', ['t1']);
+		const activeSession = observableValue<IActiveSession | undefined>('active-session', upcastPartial<IActiveSession>({ ...open, activeChat: constObservable(open.mainChat.get()) }));
+		const list = render([open, single, tree], { simulateMoves: true, activeSession });
+		list.setExpanded('Tree', true);
+		await settle();
+
+		await list.dragOver('Single', 'Tree', 0.5).drop();
+		await settle();
+		const after = list.rendered();
+
+		assert.deepStrictEqual({ moves: list.moves, focused: after.focused, selected: after.selected }, {
+			moves: ['session Single -> Tree after t1'],
+			focused: ['Moved'],
+			selected: ['Open'],
+		});
+	});
+
+	test('after the open chat is moved, the list selects it where it went', async () => {
+		const single = listSession('Single', [], listChat('Moved'));
+		const tree = listSession('Tree', ['t1']);
+		const activeSession = observableValue<IActiveSession | undefined>('active-session', upcastPartial<IActiveSession>({ ...single, activeChat: constObservable(single.mainChat.get()) }));
+		const list = render([single, tree], { simulateMoves: true, activeSession });
+		list.setExpanded('Tree', true);
+		await settle();
+		// The sessions service follows the open chat into the session it moved to.
+		activeSession.set(upcastPartial<IActiveSession>({ ...tree, activeChat: constObservable(listChat('Moved')) }), undefined);
+
+		await list.dragOver('Single', 'Tree', 0.5).drop();
+		await settle();
+		const after = list.rendered();
+
+		assert.deepStrictEqual({ moves: list.moves, focused: after.focused, selected: after.selected }, {
+			moves: ['session Single -> Tree after t1'],
+			focused: ['Moved'],
 			selected: ['Moved'],
 		});
 	});
 
-	test('after a move, a find filter that hides the moved row is cleared, so the list reveals and selects it', async () => {
+	test('after a move, a find filter that hides the moved row is cleared, so the list reveals and focuses it', async () => {
 		// Its main chat, `Moved`, doesn't match the filter, so once nested its row would be filtered out.
 		const single = listSession('Alpha One', [], listChat('Moved'));
 		const tree = listSession('Alpha Tree', ['a1']);
@@ -1250,14 +1317,15 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			await list.closeFind();
 		}
 
-		assert.deepStrictEqual({ moves: list.moves, movedShown: after.rows.includes('Moved'), selected: after.selected }, {
+		assert.deepStrictEqual({ moves: list.moves, movedShown: after.rows.includes('Moved'), focused: after.focused, selected: after.selected }, {
 			moves: ['session Alpha One -> Alpha Tree after a1'],
 			movedShown: true,
-			selected: ['Moved'],
+			focused: ['Moved'],
+			selected: [],
 		});
 	});
 
-	test('after a nested session is dropped on empty space, the list reveals and selects its new session', async () => {
+	test('after a nested session is dropped on empty space, the list reveals and focuses its new session', async () => {
 		const own = listSession('Own', ['promoted']);
 		const others = ['A', 'B', 'C', 'D'].map(title => listSession(title, []));
 		const list = render([own, ...others], { height: 220, simulateMoves: true });
@@ -1268,11 +1336,12 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		await settle();
 		const after = list.rendered();
 
-		assert.deepStrictEqual({ lastShownBefore, moves: list.moves, selected: after.selected }, {
+		assert.deepStrictEqual({ lastShownBefore, moves: list.moves, focused: after.focused, selected: after.selected }, {
 			lastShownBefore: false,
 			moves: ['promoted -> new session'],
-			// The new session, created last, is the list's last row: scrolled to it and selected it.
-			selected: ['promoted'],
+			// The new session, created last, is the list's last row: scrolled to it and focused it.
+			focused: ['promoted'],
+			selected: [],
 		});
 	});
 
@@ -1293,7 +1362,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('after Move to New Session, the list reveals and selects the new session', async () => {
+	test('after Move to New Session, the list reveals and focuses the new session', async () => {
 		const own = listSession('Own', ['promoted']);
 		const others = ['A', 'B', 'C', 'D'].map(title => listSession(title, []));
 		const list = render([own, ...others], { height: 220, simulateMoves: true });
@@ -1308,10 +1377,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const moved = await list.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session: own, chat: own.chats.get()[1] });
 		await settle();
 
-		assert.deepStrictEqual({ moved, moves: list.moves, selected: list.rendered().selected }, {
+		assert.deepStrictEqual({ moved, moves: list.moves, focused: list.rendered().focused, selected: list.rendered().selected }, {
 			moved: true,
 			moves: ['promoted -> new session'],
-			selected: ['promoted'],
+			focused: ['promoted'],
+			selected: [],
 		});
 	});
 

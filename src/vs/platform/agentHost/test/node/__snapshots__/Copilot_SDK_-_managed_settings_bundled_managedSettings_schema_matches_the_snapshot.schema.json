@@ -27,10 +27,10 @@
 			}
 		},
 		"strictPluginOnlyCustomization": {
-			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all four surfaces (skills, agents, hooks, MCP servers); an array locks only the named surfaces. Unset preserves existing behavior.",
+			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. For executable Copilot extensions, also blocks session-state extension directories. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all five surfaces (skills, agents, hooks, MCP servers, extensions); an array locks only the named surfaces. Unset or false preserves existing behavior.",
 			"oneOf": [
 				{
-					"description": "true locks all four surfaces (skills, agents, hooks, MCP servers); false preserves existing behavior.",
+					"description": "true locks all five surfaces (skills, agents, hooks, MCP servers, extensions); false preserves existing behavior.",
 					"type": "boolean"
 				},
 				{
@@ -42,7 +42,8 @@
 							"skills",
 							"agents",
 							"hooks",
-							"mcp"
+							"mcp",
+							"extensions"
 						]
 					},
 					"uniqueItems": true
@@ -70,8 +71,14 @@
 			}
 		},
 		"features": {
-			"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it.",
+			"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it. Native MDM supports both a JSON-encoded features object and the features.computerUse boolean leaf. When both supply computerUse, false in either form wins and other feature entries are preserved.",
 			"type": "object",
+			"properties": {
+				"computerUse": {
+					"description": "Whether Computer Use is available. For native MDM, features.computerUse is a string containing the JSON boolean false or true.",
+					"type": "boolean"
+				}
+			},
 			"additionalProperties": {
 				"type": "boolean"
 			}
@@ -100,8 +107,39 @@
 				"description": "The whole vscode block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An explicit false or empty block replaces a lower-priority true; this is a preference, not a security floor."
 			}
 		},
+		"communication": {
+			"description": "Organization-specific information that Copilot clients surface to end users, such as where to get help. Informational only: the runtime does not enforce these values, and clients decide where to display them.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"support": {
+					"description": "Where end users find help for this organization's Copilot deployment.",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"url": {
+							"description": "Absolute http or https URL of an organization-maintained page that tells users how to get help, for example who administers Copilot and how to request access. Clients may link to it wherever they would otherwise tell users to contact their administrator.",
+							"type": "string",
+							"format": "uri",
+							"pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#\\s]+"
+						}
+					}
+				}
+			},
+			"x-composition": {
+				"strategy": "highest-layer-wins",
+				"description": "The whole communication block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An empty block replaces a lower-priority block."
+			}
+		},
 		"model": {
 			"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. 'fusion' is accepted as the Copilot Fusion name for 'auto'; use fusionTier to choose its tier. Users may override this startup default. Hosts should match it against the account's available models.",
+			"type": "string",
+			"x-composition": {
+				"strategy": "highest-layer-wins"
+			}
+		},
+		"copilotInferenceUrl": {
+			"description": "Base URL for GitHub Copilot inference only: chat completions, Anthropic messages, and HTTP/WebSocket responses. Only supported for user bearer authentication; a nonblank URL fails model-turn preparation for HMAC/service authentication, including HMAC credential helpers. Authentication, token refresh, model discovery, and other control-plane services keep their original endpoints. Does not enable offline mode or affect BYOK/Azure providers. Requires an absolute HTTPS URL with a host; HTTP is allowed only for localhost or literal loopback IP addresses. May include a path prefix, but not embedded credentials, a query, or a fragment. Leading/trailing whitespace and trailing slashes are normalized. Unset or blank uses the normal inference endpoint. Device policy takes precedence over server policy, then policy-helper settings; a blank value in a higher-priority channel overrides lower-priority URLs. User and repository settings cannot set this property. Only use a trusted gateway: inference requests carry Copilot credentials and session tokens. Changes apply to subsequently prepared model turns; an in-flight request keeps its captured route.",
 			"type": "string",
 			"x-composition": {
 				"strategy": "highest-layer-wins"
@@ -989,6 +1027,13 @@
 						"strategy": "force-on-wins"
 					}
 				},
+				"sandboxExtensions": {
+					"description": "Whether extension processes are spawned inside the sandbox. Routing flag: true is the more-restrictive value, so a managed true wins and a user false cannot loosen it.",
+					"type": "boolean",
+					"x-composition": {
+						"strategy": "force-on-wins"
+					}
+				},
 				"sandboxLspServers": {
 					"description": "Whether LSP servers are spawned inside the sandbox. Routing flag: true (servers sandboxed) is the more-restrictive value, so a managed true wins (force-on) and a user false cannot loosen it.",
 					"type": "boolean",
@@ -1167,7 +1212,7 @@
 			},
 			"x-composition": {
 				"strategy": "restrictiveness-merge",
-				"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
+				"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP/extension routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
 			}
 		}
 	},

@@ -36,6 +36,7 @@ import { getSingletonServiceDescriptors } from '../../../../../../platform/insta
 import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -83,6 +84,7 @@ suite('AgentHostSandboxNotification', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IProductService, { applicationName: 'code' });
 		instantiationService.stub(IDialogService, {
 			confirm: async options => {
 				confirmations.push(options);
@@ -937,7 +939,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ hasInstallButton: hasInstallButton(service), actions: service.notifications.get(id)?.actions }, { hasInstallButton: false, actions: [] });
 		});
 
-		const remoteGuidance = 'Install the sandbox certificate authority (CA) on remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.';
+		const remoteGuidance = 'Install the sandbox certificate authority (CA) on the remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. On the host, run code agent sandbox ca create, then code agent sandbox ca trust. Learn more.';
 
 		function enableRefresh(refresh: (chat: string, scopeId: string) => Promise<void>) {
 			assert.ok(resolution);
@@ -1048,6 +1050,7 @@ suite('AgentHostSandboxNotification', () => {
 
 		for (const key of ['Enter', ' '] as const) {
 			test(`renders an accessible remote certificate Refresh button activated by ${key === ' ' ? 'Space' : key}`, async () => {
+				instantiationService.stub(IProductService, { applicationName: 'code-insiders' });
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
 				subscription.setCertificate(certificate);
@@ -1060,6 +1063,9 @@ suite('AgentHostSandboxNotification', () => {
 				const widget = renderWarning(service, commands, inputUri);
 				const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 				assert.ok(button);
+				const description = widget.domNode.querySelector('.chat-input-notification-description');
+				assert.ok(description);
+				assert.deepStrictEqual([...description.querySelectorAll('code')].map(code => code.textContent), ['code-insiders agent sandbox ca create', 'code-insiders agent sandbox ca trust']);
 				const keyboard = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
 				Object.defineProperty(keyboard, 'keyCode', { get: () => key === 'Enter' ? 13 : 32 });
 				button.dispatchEvent(keyboard);
