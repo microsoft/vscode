@@ -183,6 +183,15 @@ export class PromptHeader {
 		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.model);
 	}
 
+	public get reasoningEffort(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.reasoningEffort);
+	}
+
+	public get modelPolicy(): 'preferred' | 'required' | undefined {
+		const policy = this.getStringAttribute(PromptHeaderAttributes.modelPolicy);
+		return policy === 'preferred' || policy === 'required' ? policy : undefined;
+	}
+
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
 	}

@@ -199,6 +199,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/chatWindow",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
@@ -659,10 +663,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcomeAgentSessions",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/accounts",
 			"project": "vscode-workbench"
 		},
@@ -722,6 +722,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/chat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatWindow",
 			"project": "vscode-sessions"
 		},
 		{

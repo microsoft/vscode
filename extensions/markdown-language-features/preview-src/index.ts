@@ -785,9 +785,13 @@ function updateScrollProgress() {
 }
 
 
+/**
+ * Re-creates the scripts in rendered content so that they run if the preview's CSP allows them.
+ * Never copy a `nonce` from content: content must not be able to opt into the preview's own nonce.
+ */
 function domEval(el: Element): void {
 	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
-		'type', 'src', 'nonce', 'noModule', 'async',
+		'type', 'src', 'noModule', 'async',
 	];
 
 	const scriptNodes = el.tagName === 'SCRIPT' ? [el] : Array.from(el.getElementsByTagName('script'));

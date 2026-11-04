@@ -185,6 +185,8 @@ class ChatModes extends Disposable implements IChatModes {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: isString(cachedMode.model) ? [cachedMode.model] : cachedMode.model,
+						reasoningEffort: cachedMode.reasoningEffort,
+						modelPolicy: cachedMode.modelPolicy,
 						argumentHint: cachedMode.argumentHint,
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
@@ -380,6 +382,8 @@ export interface IChatModeData {
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly model?: readonly string[] | string;
+	readonly reasoningEffort?: string;
+	readonly modelPolicy?: 'preferred' | 'required';
 	readonly argumentHint?: string;
 	readonly modeInstructions?: IChatModeInstructions;
 	readonly body?: string; /* deprecated */
@@ -404,6 +408,8 @@ export interface IChatMode {
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly handOffs?: IObservable<readonly IHandOff[] | undefined>;
 	readonly model?: IObservable<readonly string[] | undefined>;
+	readonly reasoningEffort?: IObservable<string | undefined>;
+	readonly modelPolicy?: IObservable<'preferred' | 'required' | undefined>;
 	readonly argumentHint?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
@@ -458,6 +464,8 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string' || Array.isArray(mode.model)) &&
+		(mode.reasoningEffort === undefined || typeof mode.reasoningEffort === 'string') &&
+		(mode.modelPolicy === undefined || mode.modelPolicy === 'preferred' || mode.modelPolicy === 'required') &&
 		(mode.argumentHint === undefined || typeof mode.argumentHint === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
@@ -475,6 +483,8 @@ export class CustomChatMode implements IChatMode {
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<readonly string[] | undefined>;
+	readonly reasoningEffort: ISettableObservable<string | undefined>;
+	readonly modelPolicy: ISettableObservable<'preferred' | 'required' | undefined>;
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<Target>;
@@ -559,6 +569,8 @@ export class CustomChatMode implements IChatMode {
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
+		this.reasoningEffort = observableValue('reasoningEffort', customChatMode.reasoningEffort);
+		this.modelPolicy = observableValue('modelPolicy', customChatMode.modelPolicy);
 		this._argumentHintObservable = observableValue('argumentHint', customChatMode.argumentHint);
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._targetObservable = observableValue('target', customChatMode.target);
@@ -587,6 +599,8 @@ export class CustomChatMode implements IChatMode {
 			update(this._descriptionObservable, newData.description);
 			update(this._customToolsObservable, newData.tools, arraysEqual);
 			update(this._modelObservable, newData.model, arraysEqual);
+			update(this.reasoningEffort, newData.reasoningEffort);
+			update(this.modelPolicy, newData.modelPolicy);
 			update(this._argumentHintObservable, newData.argumentHint);
 			update(this._modeInstructions, newData.agentInstructions, IChatModeInstructions.isEquals);
 			update(this._uriObservable, newData.uri, isURLEquals);
@@ -614,6 +628,8 @@ export class CustomChatMode implements IChatMode {
 			kind: this.kind,
 			customTools: this.customTools.get(),
 			model: this.model.get(),
+			reasoningEffort: this.reasoningEffort.get(),
+			modelPolicy: this.modelPolicy.get(),
 			argumentHint: this.argumentHint.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get(),

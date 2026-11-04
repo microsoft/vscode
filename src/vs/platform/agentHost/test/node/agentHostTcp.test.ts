@@ -228,7 +228,11 @@ suite('AHP windowed TCP', function () {
 		await assert.rejects(h.open(), /Invalid TCP snapshot/);
 		const controls = h.wire.sent.filter(message => hasKey(message, { method: true }) && (message.method === 'unsubscribe' || message.method === 'tcp/reset'));
 		assert.deepStrictEqual(controls.map(message => hasKey(message, { method: true }) ? message.method : undefined), ['tcp/reset', 'unsubscribe']);
-		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, { warnings: [], errors: [] });
+		const [reset] = controls.map(message => vObj({ channel: vString() }).validateOrThrow(hasKey(message, { params: true }) ? message.params : undefined).channel);
+		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, {
+			warnings: [`[AgentHostChannels] ${reset} failed (invalidSnapshot); resetting the channel: Invalid TCP snapshot`],
+			errors: [],
+		});
 	});
 
 	test('client cancellation and repeated teardown controls are quiet on the host', async () => {
@@ -381,9 +385,10 @@ suite('AHP windowed TCP', function () {
 		let accepted = 0;
 		const h = await harness(socket => { accepted++; socket.end(input); });
 		const stream = store.add(await h.open());
-		await Promise.all([8192, 4096].map((windowBytes, index) => h.wire.request({
+		// Equal windows keep the client's credit threshold valid; the test bypasses the client stream's own renegotiation.
+		await Promise.all([1024, 2048].map((maximumFrameBytes, index) => h.wire.request({
 			jsonrpc: '2.0', id: 900 + index, method: 'subscribe', params: {
-				channel: stream.resource, flowControl: { receive: { windowBytes, maximumFrameBytes: 1024 } },
+				channel: stream.resource, flowControl: { receive: { windowBytes: agentHostTcpReceiveLimits.windowBytes, maximumFrameBytes } },
 			}
 		})));
 		assert.deepStrictEqual(await readAll(stream), input);
@@ -508,7 +513,7 @@ suite('AHP windowed TCP', function () {
 			jsonrpc: '2.0', method: 'unsubscribe',
 			params: { channel: stream.resource, padding: 'x'.repeat(16 * 1024) },
 		});
-		assert.ok(h.log.errors.some(error => error.includes('AgentHostChannels')));
+		assert.ok(h.log.warnings.some(warning => warning.includes('[AgentHostChannels] Control lane failed (controlLimitExceeded)')));
 		assert.strictEqual(h.wire.peer.disposed, true);
 	});
 
@@ -528,8 +533,8 @@ suite('AHP windowed TCP', function () {
 				},
 			});
 			assert.deepStrictEqual(result, replay
-				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'] }
-				: { type: 'snapshot', snapshots: [] });
+				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'], windows: { items: [] } }
+				: { type: 'snapshot', snapshots: [], windows: { items: [] } });
 		});
 	}
 

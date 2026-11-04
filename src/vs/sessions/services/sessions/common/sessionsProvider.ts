@@ -19,6 +19,7 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IAgentModelPreferences } from '../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
@@ -273,6 +274,7 @@ export interface ISessionModelPickerOptions {
 }
 
 export interface ISessionModelsSnapshot {
+	readonly agentModelPreferences?: IAgentModelPreferences;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
@@ -489,10 +491,10 @@ export interface ISessionsProvider {
 	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether the provider validates and applies explicit permission choices before creating the backend session. */
 	readonly supportsPermissionsForCreation?: boolean;
-	/** Current draft's provider-owned permission choice, including its policy availability. */
-	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
-	/** Translates the current draft's permission intent to a comparison participant's session type. */
-	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined;
+	/** Provider-owned permission choice for a draft or an exact running chat, including policy availability. */
+	getPermissionOptionForSession?(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined;
+	/** Translates a draft or exact running chat's permission intent to a comparison participant's session type. */
+	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string, chatResource?: URI): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 

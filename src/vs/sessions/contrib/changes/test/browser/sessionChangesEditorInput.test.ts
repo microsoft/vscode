@@ -4,24 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffResourceId } from '../../../../../editor/common/multiDiffEditor.js';
+import { DiffEditorViewMode } from '../../../../../editor/common/config/editorOptions.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
+import { IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
@@ -31,12 +46,17 @@ suite('SessionChangesEditorInput', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const emptyChangesViewService = new class extends mock<IChangesViewService>() {
 		override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+		override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+		override readonly activeSessionChangesetLoadingObs = constObservable(false);
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
 	};
 	const sessionChangesServiceWithResource = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		override getChatResource(): URI | undefined {
+			return undefined;
+		}
 		override getSessionResource(): URI | undefined {
 			return URI.parse('agent-host-copilotcli:/session');
 		}
@@ -318,6 +338,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 			emptySessionChangesService,
 			layoutService,
+			new TestEditorGroupsService(),
 		));
 		let capabilitiesChanges = 0;
 		disposables.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
@@ -342,6 +363,57 @@ suite('SessionChangesEditorInput', () => {
 		});
 	});
 
+	test('is closable while the part that shows it is visible: the main window\'s editor area for the main part, the part\'s own visibility for the part of another window', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		let mainEditorAreaVisible = false;
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && mainEditorAreaVisible;
+			}
+		};
+		const otherPartContextKeyService = disposables.add(new MockContextKeyService());
+		const otherPartVisible = MainEditorAreaVisibleContext.bindTo(otherPartContextKeyService);
+		let inOtherPart = false;
+		const otherPart = new class extends mock<IEditorPart>() {
+			override readonly groups = [new class extends mock<IEditorGroup>() {
+				override readonly scopedContextKeyService = otherPartContextKeyService;
+				override contains(): boolean { return inOtherPart; }
+			}()];
+		}();
+		const editorGroupsService = new class extends TestEditorGroupsService {
+			override readonly parts: readonly IEditorPart[] = [this, otherPart];
+		}();
+		const input = disposables.add(new SessionChangesEditorInput(
+			URI.parse('test-changes:session'),
+			instantiationService,
+			emptySessionChangesService,
+			layoutService,
+			editorGroupsService,
+		));
+		const closable = () => (input.capabilities & EditorInputCapabilities.CannotClose) === 0;
+
+		const results: Record<string, boolean> = {};
+		for (const [name, main, other, inOther] of [
+			['main part, editor area hidden', false, true, false],
+			['main part, editor area visible', true, false, false],
+			['other part visible, main editor area hidden', false, true, true],
+			['other part hidden, main editor area visible', true, false, true],
+		] as const) {
+			mainEditorAreaVisible = main;
+			otherPartVisible.set(other);
+			inOtherPart = inOther;
+			results[name] = closable();
+		}
+
+		assert.deepStrictEqual(results, {
+			'main part, editor area hidden': false,
+			'main part, editor area visible': true,
+			'other part visible, main editor area hidden': true,
+			'other part hidden, main editor area visible': false,
+		});
+	});
+
 	test('updates the tab badge class and accessible label with the changed file count', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
@@ -360,6 +432,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 			sessionChangesService,
 			layoutService,
+			new TestEditorGroupsService(),
 		));
 		let labelChanges = 0;
 		disposables.add(input.onDidChangeLabel(() => labelChanges++));
@@ -380,6 +453,111 @@ suite('SessionChangesEditorInput', () => {
 			labelChanges: 2,
 		});
 	});
+
+	for (const loadingSettles of [true, false]) {
+		test(`keeps showing the replaced input's diffs until the incoming session's changes load (load settles: ${loadingSettles})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const outgoingSource = URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/outgoing"}');
+			const incomingSource = URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/incoming"}');
+			const activeSession = observableValue<URI | undefined>('activeSession', URI.parse('agent-host-copilotcli:/outgoing'));
+			const changesLoading = observableValue('changesLoading', false);
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+				override contextMatchesRules(): boolean { return true; }
+			});
+			instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+			// The editor shows the changes of its host's session: here the main window's.
+			const mainWindowSession = constObservable<IActiveSession | undefined>(undefined);
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = mainWindowSession;
+				override readonly mainWindowActiveSession = mainWindowSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			}());
+			instantiationService.stub(ISessionScope, { session: mainWindowSession });
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+				override readonly activeSessionResourceObs = activeSession;
+				override readonly activeSessionChangesetLoadingObs = changesLoading;
+				override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+			}());
+			const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
+			instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+			instantiationService.stub(IWorkbenchLayoutService, layoutService);
+			instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+				override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+				override getSessionResource(resource: URI): URI | undefined {
+					return URI.parse(JSON.parse(resource.query).sessionResource);
+				}
+				override getChatResource(): URI | undefined { return undefined; }
+			}());
+			instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+				override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+				override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+			}());
+			const shownViewModel = observableValue<MultiDiffEditorViewModel | undefined>('shownViewModel', undefined);
+			instantiationService.stubInstance(MultiDiffEditorWidget, {
+				viewModel: shownViewModel,
+				onDidChangeActiveControl: Event.None,
+				setPaddingBottom() { },
+				setVariant() { },
+				setDiffLayoutOptions() { },
+				setViewModel(viewModel: MultiDiffEditorViewModel | undefined) { shownViewModel.set(viewModel, undefined); },
+				getViewState() { return { scrollState: { top: 0, left: 0 } }; },
+				layout() { },
+				dispose() { },
+			});
+
+			const disposedViewModels: string[] = [];
+			const createInput = (source: URI, name: string) => {
+				const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
+					override readonly isLoading = observableValue('isLoading', false);
+					override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>([]);
+					override toString() { return name; }
+				}();
+				instantiationService.stubInstance(MultiDiffEditorInput, {
+					getViewModel: async () => viewModel,
+					dispose: () => disposedViewModels.push(name),
+				});
+				const input = disposables.add(instantiationService.createInstance(SessionChangesEditorInput, source));
+				assert.ok(input.multiDiffInput);
+				return input;
+			};
+			const parent = append(mainWindow.document.body, $('.editor-instance'));
+			disposables.add(toDisposable(() => parent.remove()));
+			const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+			editor.create(parent);
+
+			const outgoing = createInput(outgoingSource, 'outgoing');
+			await editor.setInput(outgoing, undefined, {}, CancellationToken.None);
+			const incoming = createInput(incomingSource, 'incoming');
+			activeSession.set(URI.parse('agent-host-copilotcli:/incoming'), undefined);
+			changesLoading.set(true, undefined);
+			editor.clearInput();
+			const switched = editor.setInput(incoming, undefined, {}, CancellationToken.None);
+			outgoing.dispose();
+			await timeout(0);
+			const whileLoading = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			if (loadingSettles) {
+				changesLoading.set(false, undefined);
+			} else {
+				await timeout(1000);
+			}
+			await switched;
+			const afterLoading = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			editor.clearInput();
+			await editor.setInput(incoming, { forceReload: true }, {}, CancellationToken.None);
+			await timeout(0);
+			const afterReload = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			editor.clearInput();
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileLoading, afterLoading, afterReload, afterClear: { shown: String(shownViewModel.get()), disposed: disposedViewModels } }, {
+				whileLoading: { shown: 'outgoing', disposed: [] },
+				afterLoading: { shown: 'incoming', disposed: ['outgoing'] },
+				afterReload: { shown: 'incoming', disposed: ['outgoing'] },
+				afterClear: { shown: 'undefined', disposed: ['outgoing', 'incoming'] },
+			});
+		}));
+	}
 });
 
 function createFileChange(index: number): ISessionFileChange {

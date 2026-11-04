@@ -8,7 +8,7 @@ import { alert } from '../../base/browser/ui/aria/aria.js';
 import { localize } from '../../nls.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../common/dockedEditorInput.js';
+import { DockedEditorInput } from './dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';

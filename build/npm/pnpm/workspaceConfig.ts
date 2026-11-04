@@ -22,6 +22,7 @@ export const knownSettingNames = [
 	'packages',
 	'pnpmfile',
 	'nodeLinker',
+	'hoistWorkspacePackages',
 	'strictPeerDependencies',
 	'autoInstallPeers',
 	'dedupePeerDependents',
@@ -71,8 +72,9 @@ export const minimumReleaseAgeExclusions: readonly string[] = [
  * gets the patterns that match a package it installs (see {@link getPatternsOfInstalledPackages}).
  *
  * `@parcel/watcher` loads its prebuilt `@parcel/watcher-<platform>` package before the binary that
- * `build_from_source` in `.npmrc` builds, and the product would ship the prebuilt one, which isn't
- * built with VS Code's toolchain (the Linux armhf one needs a newer glibc than VS Code supports).
+ * `buildFromSource` in the `nativeBuild` field of `package.json` builds, and the product would ship
+ * the prebuilt one, which isn't built with VS Code's toolchain (the Linux armhf one needs a newer
+ * glibc than VS Code supports).
  * Deleting the prebuilds after the install doesn't last: every later install restores them.
  */
 export const ignoredOptionalDependencyPatterns: readonly string[] = [
@@ -421,7 +423,8 @@ export interface InstallRootOptions {
 	/**
 	 * The root's postinstall installs other install roots. pnpm's optimistic repeat install skips
 	 * lifecycle scripts when the workspace itself is unchanged, which would miss changes in those
-	 * roots, so it is turned off; the postinstall has its own fast path (installStateHash.ts).
+	 * roots, so it is turned off: the postinstall runs on every install, and each of those roots
+	 * takes pnpm's own repeat-install check.
 	 */
 	readonly installsOtherRoots?: boolean;
 	/**

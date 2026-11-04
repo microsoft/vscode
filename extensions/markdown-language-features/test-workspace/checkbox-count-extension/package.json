@@ -39,7 +39,8 @@
     ]
   },
   "dependencies": {
-    "@vscode/web-editors": "^0.0.2-41"
+    "@vscode/web-editors": "^0.0.2-41",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "esbuild": "0.27.2"

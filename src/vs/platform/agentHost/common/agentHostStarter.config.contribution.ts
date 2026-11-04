@@ -39,6 +39,7 @@ import {
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
 	AgentHostWorkspaceSnapshotEnabledSettingId,
+	AgentHostMcpSkillsEnabledSettingId,
 } from './agentService.js';
 import {
 	AgentHostAhpJsonlLoggingEnabledConfigKey,
@@ -56,6 +57,7 @@ import {
 	AgentHostPrewarmSessionsConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
+	AgentHostMcpSkillsEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
@@ -285,6 +287,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
+		},
+		[AgentHostMcpSkillsEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.mcpSkills.enabled', "When enabled, Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostMcpSkillsEnabledConfigKey },
 		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',

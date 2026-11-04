@@ -63,6 +63,8 @@ import { TestQuickInputService } from '../../../../../workbench/test/browser/wor
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -629,6 +631,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
+			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -663,6 +666,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
@@ -702,6 +706,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 				override readonly notifications = constObservable([]);
+				override readonly attentionCount = constObservable(0);
 				override readonly isLoading = constObservable(false);
 				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
 				override setSortMode(): void { }

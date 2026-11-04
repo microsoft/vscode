@@ -22,7 +22,7 @@ import { NullOpenerService } from '../../../../../platform/opener/test/common/nu
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -35,6 +35,8 @@ import { IRequestService } from '../../../../../platform/request/common/request.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource, languageModelSourcePresentationRegistry } from '../../common/languageModelSourcePresentation.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { createTestProfile, createTestProfileService, SharedApplicationStorageDatabase, TestWindowStorageService } from './testSharedApplicationStorage.js';
 
 suite('LanguageModels', function () {
 
@@ -43,7 +45,7 @@ suite('LanguageModels', function () {
 	const store = new DisposableStore();
 	const activationEvents = new Set<string>();
 
-	function createLanguageModelsService(storageService: IStorageService): LanguageModelsService {
+	function createLanguageModelsService(storageService: IStorageService, userDataProfileService: IUserDataProfileService = new TestUserDataProfileService()): LanguageModelsService {
 		return new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent(name: string) {
@@ -67,6 +69,7 @@ suite('LanguageModels', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			userDataProfileService,
 		);
 	}
 
@@ -796,6 +799,116 @@ suite('LanguageModels', function () {
 			siblingHidden: true,
 		});
 	});
+
+	function readModelPreferences(storageService: IStorageService, scope: StorageScope) {
+		return {
+			pinned: storageService.getObject('chatModelPinned', scope),
+			recent: storageService.getObject('chatModelRecentlyUsed', scope),
+			hidden: storageService.getObject('chatModelVisibility', scope),
+		};
+	}
+
+	test('model preferences — another window\'s changes are picked up instead of overwritten', function () {
+		languageModels.dispose();
+		const storageService = store.add(new TestStorageService());
+		const service = store.add(createLanguageModelsService(storageService));
+		const events: string[] = [];
+		store.add(service.onDidChangePinnedModels(() => events.push('pinned')));
+		store.add(service.onDidChangeModelVisibility(() => events.push('visibility')));
+
+		storageService.storeAll([
+			{ key: 'chatModelPinned', value: ['other/pinned'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
+			{ key: 'chatModelRecentlyUsed', value: ['other/recent'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
+			{ key: 'chatModelVisibility', value: { hiddenModels: ['other/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
+		], true);
+		service.pinModel('this/pinned');
+		service.addToRecentlyUsedList('this/recent');
+		service.setModelHidden('this/hidden', true);
+
+		assert.deepStrictEqual({ events, ...readModelPreferences(storageService, StorageScope.PROFILE) }, {
+			events: ['pinned', 'visibility', 'pinned', 'visibility'],
+			pinned: ['other/pinned', 'this/pinned'],
+			recent: ['this/recent', 'other/recent'],
+			hidden: { hiddenModels: ['other/hidden', 'this/hidden'] },
+		});
+	});
+
+	async function createDefaultProfileAndAgentsWindows() {
+		const shared = new SharedApplicationStorageDatabase();
+		return {
+			editorStorage: await store.add(new TestWindowStorageService(shared, { useApplicationStorageForProfile: true })).init(),
+			agentsStorage: await store.add(new TestWindowStorageService(shared)).init(),
+		};
+	}
+
+	test('model preferences — the Agents window shares them with default profile windows', async function () {
+		languageModels.dispose();
+		const { editorStorage, agentsStorage } = await createDefaultProfileAndAgentsWindows();
+		editorStorage.store('chatModelPinned', ['editor/first'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(agentsStorage, createTestProfileService(createTestProfile('agents'))));
+		const pinnedOnLoad = service.isModelPinned('editor/first');
+		let pinnedChanges = 0;
+		store.add(service.onDidChangePinnedModels(() => pinnedChanges++));
+
+		editorStorage.store('chatModelPinned', ['editor/first', 'editor/second'], StorageScope.PROFILE, StorageTarget.USER);
+		service.pinModel('agents/pinned');
+
+		assert.deepStrictEqual({
+			pinnedOnLoad,
+			pinnedChanges,
+			editorPinned: editorStorage.getObject('chatModelPinned', StorageScope.PROFILE),
+			agentsProfilePinned: agentsStorage.getObject('chatModelPinned', StorageScope.PROFILE),
+		}, {
+			pinnedOnLoad: true,
+			pinnedChanges: 2,
+			editorPinned: ['editor/first', 'editor/second', 'agents/pinned'],
+			agentsProfilePinned: undefined,
+		});
+	});
+
+	test('model preferences — default profile windows see changes from the Agents window', async function () {
+		languageModels.dispose();
+		const { editorStorage, agentsStorage } = await createDefaultProfileAndAgentsWindows();
+		const service = store.add(createLanguageModelsService(editorStorage, createTestProfileService(createTestProfile('__default__profile__', { isDefault: true }))));
+		let pinnedChanges = 0;
+		store.add(service.onDidChangePinnedModels(() => pinnedChanges++));
+
+		agentsStorage.store('chatModelPinned', ['agents/pinned'], StorageScope.APPLICATION, StorageTarget.USER);
+		service.pinModel('editor/pinned');
+
+		assert.deepStrictEqual({
+			pinnedChanges,
+			agentsPinned: agentsStorage.getObject('chatModelPinned', StorageScope.APPLICATION),
+		}, {
+			pinnedChanges: 2,
+			agentsPinned: ['agents/pinned', 'editor/pinned'],
+		});
+	});
+
+	test('model preferences — the Agents window merges its own profile values into application storage once', async function () {
+		languageModels.dispose();
+		const shared = new SharedApplicationStorageDatabase();
+		const agentsStorage = await store.add(new TestWindowStorageService(shared)).init();
+		const agentsProfileService = createTestProfileService(createTestProfile('agents'));
+		agentsStorage.storeAll([
+			{ key: 'chatModelPinned', value: ['both', 'application'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
+			{ key: 'chatModelRecentlyUsed', value: ['application/recent'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
+			{ key: 'chatModelPinned', value: ['agents', 'both'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
+			{ key: 'chatModelRecentlyUsed', value: ['agents/recent'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
+			{ key: 'chatModelVisibility', value: { hiddenModels: ['agents/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
+		], false);
+
+		createLanguageModelsService(agentsStorage, agentsProfileService).dispose();
+		agentsStorage.store('chatModelPinned', ['agents/later'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(agentsStorage, agentsProfileService));
+
+		assert.deepStrictEqual({ ...readModelPreferences(agentsStorage, StorageScope.APPLICATION), laterPinned: service.isModelPinned('agents/later') }, {
+			pinned: ['both', 'application', 'agents'],
+			recent: ['application/recent', 'agents/recent'],
+			hidden: { hiddenModels: ['agents/hidden'] },
+			laterPinned: false,
+		});
+	});
 });
 
 suite('LanguageModels - When Clause', function () {
@@ -844,6 +957,7 @@ suite('LanguageModels - When Clause', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsWithWhen.deltaLanguageModelChatProviderDescriptors([
@@ -910,6 +1024,7 @@ suite('LanguageModels - Model Change Events', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		// Register the vendor first
@@ -1497,6 +1612,7 @@ suite('LanguageModels - Vendor Change Events', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 	});
 
@@ -1622,6 +1738,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1824,6 +1941,7 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1922,6 +2040,7 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 		service.deltaLanguageModelChatProviderDescriptors([
 			{ vendor, displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined },
@@ -2128,6 +2247,7 @@ suite('LanguageModels - Provider Group Management', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -2280,6 +2400,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -2355,6 +2476,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -2419,6 +2541,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -2507,7 +2630,8 @@ suite('LanguageModels - Provider Deprecation Notice', function () {
 					return true;
 				}
 			},
-			NullTelemetryService
+			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		service.deltaLanguageModelChatProviderDescriptors([
@@ -2691,6 +2815,7 @@ suite('LanguageModels - provider usage telemetry', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			telemetry as unknown as ITelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		service.deltaLanguageModelChatProviderDescriptors([
@@ -2797,6 +2922,7 @@ suite('LanguageModels - pin telemetry', function () {
 			new class extends mock<ITelemetryService>() {
 				override publicLog2(eventName: string, data?: unknown) { events.push({ eventName, data }); }
 			},
+			new TestUserDataProfileService(),
 		));
 		const vendors = ['agent-host-copilotcli', 'ollama'];
 		service.deltaLanguageModelChatProviderDescriptors(vendors.map(vendor => ({ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined })), []);
