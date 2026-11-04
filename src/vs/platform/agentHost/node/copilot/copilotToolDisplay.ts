@@ -20,6 +20,7 @@ import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivationTool.js';
@@ -1090,7 +1091,7 @@ export function synthesizeSkillToolCall(
 	const isMcpSkill = !!skill || data.source === 'mcp' || !!mcpOrigin || data.name.startsWith('mcp1:');
 	const originUri = mcpOrigin ? URI.parse(mcpOrigin.uri) : undefined;
 	const name = skill?.name ?? (mcpOrigin && originUri
-		? `${mcpOrigin.serverName}:${basename(dirname(originUri)) || originUri.authority}`
+		? getMcpSkillName(mcpOrigin.serverName, basename(dirname(originUri)) || originUri.authority)
 		: isMcpSkill ? undefined : data.name);
 	const fileUri = !isMcpSkill && data.path?.trim() ? URI.file(data.path) : undefined;
 	const uri = skill?.uri ?? (fileUri?.path !== '/' ? fileUri?.toString() : undefined);

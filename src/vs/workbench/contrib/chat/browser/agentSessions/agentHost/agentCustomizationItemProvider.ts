@@ -15,7 +15,7 @@ import { autorun, type IObservable } from '../../../../../../base/common/observa
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname, extUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { getCustomizationDisabledReason, getSkillCustomizations, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
-import { getMcpSkillCustomizationUri, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { getMcpSkillNamePrefix, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -442,7 +442,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
 			items.set(skill.id, {
 				itemKey: skill.id,
-				uri: getAgentHostCustomizationUri(getMcpSkillCustomizationUri(URI.parse(skill.uri)), this._connection)!,
+				uri: getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection)!,
 				type: PromptsType.skill,
 				name: skill.name,
 				description: skill.description,
@@ -453,7 +453,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					id: container.id,
 					name: localize('mcpSkillBundleName', "Skills from {0}", readMcpServerDisplayName(container) ?? container.name),
 					description: localize('mcpSkillBundleDescription', "MCP Server"),
-					namePrefix: `${container.name}:`,
+					namePrefix: getMcpSkillNamePrefix(container.name),
 				},
 				enabled: skill.enabled !== false,
 				userInvocable: skill.disableUserInvocation !== true,

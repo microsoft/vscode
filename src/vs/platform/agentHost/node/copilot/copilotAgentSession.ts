@@ -117,6 +117,7 @@ import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
+import { getMcpSkillCustomizationUri, getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, mcpSkillDisplayName, type IMcpServerProvenance, type IMcpSkill, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer, targetForMcpSkill } from '../shared/customizationEnablementGate.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
@@ -7745,6 +7746,9 @@ export class CopilotAgentSession extends Disposable {
 		const configuration = this._appliedSnapshot.mcpServers[serverName];
 		if (configuration) {
 			identities.push(getMcpRoutingCacheKey({ serverName, configuration }, 'root'));
+		} else if (Object.hasOwn(this._userMcpServers, serverName)) {
+			// The runtime's own user configuration, so reconfiguring the server requires fresh approval.
+			identities.push(getMcpRoutingCacheKey({ serverName, configuration: this._userMcpServers[serverName] }, 'user'));
 		}
 		for (const plugin of this._appliedSnapshot.plugins) {
 			for (const server of plugin.mcpServers) {
@@ -11526,8 +11530,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._mcpCustomizations.setSkills(byServer);
 		this._mcpSkillCacheWriter.write(new Map([...byServer].map(([serverName, skills]) => [serverName, skills.map(skill => ({
-			name: `${serverName}:${mcpSkillDisplayName(skill)}`, description: skill.description,
-			userInvocable: skill.userInvocable, enabled: skill.enabled, uri: skill.uri,
+			name: getMcpSkillName(serverName, mcpSkillDisplayName(skill)), description: skill.description,
+			userInvocable: skill.userInvocable, enabled: skill.enabled,
+			// The cache serves sessions whose servers have not started, so its URIs are discovery-only.
+			uri: getMcpSkillCustomizationUri(skill.uri, undefined, mcpSkillDisplayName(skill)),
 		}))])), serverName => this._mcpCustomizations.isServerReady(serverName));
 		this._slashCommandProvider.clearCache();
 	}

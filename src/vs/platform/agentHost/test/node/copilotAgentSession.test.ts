@@ -17577,6 +17577,23 @@ Use the attached image as context.
 				return ready;
 			}
 
+			test('Always Allow is keyed to the runtime user configuration of the server', async () => {
+				const approve = async (url: string) => {
+					const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables, {
+						getUserMcpServers: async () => ({ 'test-server': { type: 'http', url } }),
+						configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: 'test-server', status: 'connected', source: 'user' }] }; },
+					});
+					await timeout(0);
+					session.resetTurnState('turn-consent');
+					const response = requestConsent(runtime);
+					session.respondToPermissionRequest(consentReady(signals).toolCallId, true, { selectedOptionId: 'allow-mcp-skills-always' });
+					await response;
+					return Object.keys(rootConfigUpdates[0]?.[AgentHostMcpSkillsServerApprovalsConfigKey] as Record<string, string> ?? {});
+				};
+				const [first, second] = [await approve('https://one.example/mcp'), await approve('https://two.example/mcp')];
+				assert.deepStrictEqual({ count: [first.length, second.length], distinct: first[0] !== second[0], bareName: [...first, ...second].includes('test-server') }, { count: [1, 1], distinct: true, bareName: false });
+			});
+
 			test('Always Allow surfaces a tool approval, persists the decision and answers the runtime', async () => {
 				const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables, {
 					rootValues: {
@@ -31269,7 +31286,7 @@ Use the attached image as context.
 			};
 
 			const cachedSkill: ICachedMcpSkill = {
-				name: 'fs:Review', description: skill.description, userInvocable: true, enabled: true, uri: skill.mcpOrigin.uri,
+				name: 'fs:Review', description: skill.description, userInvocable: true, enabled: true, uri: 'agent-discovery://review/SKILL.md',
 			};
 
 			test('keeps cached skills and publishes no children for servers that have not started', async () => {
@@ -31422,7 +31439,7 @@ Use the attached image as context.
 								? [action.invocationMessage]
 								: action.type === ActionType.ChatToolCallComplete ? [action.result.pastTenseMessage] : []),
 						}, {
-							publishedUri: status === 'connected' ? uri : skill.mcpOrigin.uri,
+							publishedUri: status === 'connected' ? uri : 'agent-discovery://review/SKILL.md',
 							messages: [message, message],
 						});
 					});

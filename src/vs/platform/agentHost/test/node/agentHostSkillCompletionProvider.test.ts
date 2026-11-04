@@ -232,7 +232,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 	});
 
 	suite('cached MCP skills', () => {
-		const rawUri = 'skill://server/friendly/SKILL.md';
+		const rawUri = 'agent-discovery://server/friendly/SKILL.md';
 		class CacheDatabase extends TestSessionDatabase {
 			readCalls = 0;
 			failRead = false;

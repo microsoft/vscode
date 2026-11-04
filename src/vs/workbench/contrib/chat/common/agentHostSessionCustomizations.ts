@@ -28,7 +28,6 @@ import {
 	type Turn,
 } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
-import { getMcpSkillCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
 
 /**
@@ -292,7 +291,7 @@ export class CustomizationIndex {
 		}
 		for (const { skill, container } of getSkillCustomizations(customizations ?? [])) {
 			if (container.type === CustomizationType.McpServer) {
-				this._add(skill, uri => getAgentHostCustomizationUri(getMcpSkillCustomizationUri(uri), connection));
+				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection));
 			}
 		}
 		this._reuseResolvedPaths(previous);

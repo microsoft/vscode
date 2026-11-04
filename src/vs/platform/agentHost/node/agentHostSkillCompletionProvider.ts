@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { getMcpSkillCustomizationUri } from '../common/agentHostCustomizationUri.js';
 import { readMcpServerDisplayName } from '../common/meta/mcpCustomizationMeta.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
 import type { IAgent, IAgentChatContext } from '../common/agent.js';
@@ -144,7 +143,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 				? localize('mcpSkillDescription', "{0} (MCP: {1})", skill.description ?? skill.name, readMcpServerDisplayName(container) ?? container.name)
 				: skill.description,
 			argumentHint,
-			uri: isMcpSkill ? getMcpSkillCustomizationUri(URI.parse(skill.uri)).toString() : skill.uri,
+			uri: skill.uri,
 		};
 	}
 }

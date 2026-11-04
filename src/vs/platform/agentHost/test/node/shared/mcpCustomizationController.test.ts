@@ -175,7 +175,7 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual({ cold, warm, cleared: controller.topLevelCustomizations()[0].children }, {
 			cold: [{
 				type: CustomizationType.Skill, id: 'mcp-top-level:copilot:session-1:fs#skill=skill%3A%2F%2Fdemo%2Frelease-notes%2FSKILL.md',
-				name: 'fs:release-notes', description: 'Reviews files', uri: 'skill://demo/release-notes/SKILL.md',
+				name: 'fs:release-notes', description: 'Reviews files', uri: 'agent-discovery://demo/release-notes/SKILL.md',
 			}],
 			warm: [{
 				type: CustomizationType.Skill, id: 'mcp-top-level:copilot:session-1:fs#skill=skill%3A%2F%2Fdemo%2Frelease-notes%2FSKILL.md',

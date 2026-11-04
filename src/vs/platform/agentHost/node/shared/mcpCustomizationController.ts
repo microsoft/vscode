@@ -8,7 +8,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { derived, observableValue, transaction, type IObservable, type ITransaction } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
+import { getMcpSkillCustomizationUri, getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -375,7 +375,7 @@ export class McpCustomizationController extends Disposable {
 	skillNameForPublishedName(name: string): string | undefined {
 		const lower = name.toLowerCase();
 		for (const entry of this._live.get().values()) {
-			const skill = this._skills.get()?.get(entry.serverName)?.find(skill => `${entry.serverName}:${mcpSkillDisplayName(skill)}`.toLowerCase() === lower);
+			const skill = this._skills.get()?.get(entry.serverName)?.find(skill => getMcpSkillName(entry.serverName, mcpSkillDisplayName(skill)).toLowerCase() === lower);
 			if (skill) {
 				return skill.name;
 			}
@@ -421,8 +421,8 @@ export class McpCustomizationController extends Disposable {
 		return (skills.get(serverName) ?? []).map(skill => ({
 			type: CustomizationType.Skill,
 			id: mcpSkillId(serverId, skill.uri),
-			uri: channel ? buildMcpResourceUri(channel, skill.uri, mcpSkillDisplayName(skill)) : skill.uri,
-			name: `${serverName}:${mcpSkillDisplayName(skill)}`,
+			uri: getMcpSkillCustomizationUri(skill.uri, channel, mcpSkillDisplayName(skill)),
+			name: getMcpSkillName(serverName, mcpSkillDisplayName(skill)),
 			description: skill.description,
 			...(skill.enabled ? {} : { enabled: false }),
 			...(skill.userInvocable ? {} : { disableUserInvocation: true }),

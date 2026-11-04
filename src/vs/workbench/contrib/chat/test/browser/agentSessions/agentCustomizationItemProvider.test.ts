@@ -73,7 +73,7 @@ suite('AgentCustomizationItemProvider', () => {
 						server('disabled', [skill('Disabled Server')], false),
 						{ ...server('workspace', [skill('Workspace')]), _meta: withMcpServerSourceMeta(undefined, 'workspace') },
 						{ type: CustomizationType.Plugin, id: 'disabled-plugin', uri: 'file:///disabled/plugin', name: 'Disabled Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], children: [server('disabled-parent', [skill('Disabled Parent')])] },
-						server('unreadable', [{ ...skill('No Channel'), uri: 'skill://server/no-channel/SKILL.md' }]),
+						server('unreadable', [{ ...skill('No Channel'), uri: 'agent-discovery://server/no-channel/SKILL.md' }]),
 					];
 				}
 			}
