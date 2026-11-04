@@ -8,7 +8,7 @@ import { getZoomFactor, setFullscreen, setZoomFactor } from '../../../base/brows
 import { $, append, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
-import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
@@ -363,45 +363,46 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
 	});
 
-	function createAuxiliaryTitlebar(options?: { createdBeforeInWindow?: boolean }) {
+	function createAuxiliaryTitlebar(options?: { createdBeforeInWindow?: boolean; hostFullscreen?: () => boolean | undefined }) {
 		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
 		store.add(toDisposable(() => iframe.remove()));
 		const auxiliaryWindow = iframe.contentWindow!;
 		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 1000);
 		store.add(registerWindow(auxiliaryWindow));
-		const screen = { width: 1440, height: 900 };
-		const size = { width: 800, height: 640 };
+		// A window in full screen need not cover its screen, such as below the camera notch of a display or on an external display.
+		const screen = { width: 3360, height: 1418 };
 		Object.defineProperty(auxiliaryWindow, 'screen', { configurable: true, get: () => screen });
-		Object.defineProperty(auxiliaryWindow, 'outerWidth', { configurable: true, get: () => size.width });
-		Object.defineProperty(auxiliaryWindow, 'outerHeight', { configurable: true, get: () => size.height });
+		Object.defineProperty(auxiliaryWindow, 'outerWidth', { configurable: true, get: () => 1512 });
+		Object.defineProperty(auxiliaryWindow, 'outerHeight', { configurable: true, get: () => 944 });
 		const { part } = createTitlebar();
+		const hostQueries: CodeWindow[] = [];
+		(part as unknown as { queryWindowFullscreen(targetWindow: CodeWindow): Promise<boolean | undefined> }).queryWindowFullscreen = async targetWindow => {
+			hostQueries.push(targetWindow);
+			return options?.hostFullscreen?.();
+		};
 		// Created before it is in its window, as the title row of a chat view is, it moves there.
 		const parent = options?.createdBeforeInWindow ? mainWindow.document.createElement('div') : auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div'));
 		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
 		if (options?.createdBeforeInWindow) {
 			auxiliaryWindow.document.body.appendChild(parent);
+			// As it is laid out in the window it moved to
+			(part as unknown as { trackFullscreenOfWindow(): void }).trackFullscreenOfWindow();
 		}
 		store.add(toDisposable(() => {
 			setFullscreen(false, mainWindow);
 			setFullscreen(false, auxiliaryWindow);
 		}));
-		const coverScreen = (options?: { belowNotch?: boolean; height?: number }) => {
-			size.width = screen.width;
-			// In full screen on a display with a camera notch, the window is below the notch.
-			size.height = options?.height ?? (options?.belowNotch ? screen.height - 38 : screen.height);
-		};
 		// Only native macOS reserves a spacer for the traffic lights.
 		const hasTrafficLightSpacer = isMacintosh && isNative;
 		const read = () => ({
 			fullscreenClass: parent.classList.contains('titlebar-fullscreen'),
 			spacer: hasTrafficLightSpacer ? parent.querySelector<HTMLElement>('.titlebar-left > .window-controls-container')!.style.display : 'absent',
 		});
-		return { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer };
+		return { auxiliaryWindow, read, hasTrafficLightSpacer, hostQueries };
 	}
 
 	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
-		const { auxiliaryWindow, coverScreen, read } = createAuxiliaryTitlebar();
-		coverScreen();
+		const { auxiliaryWindow, read } = createAuxiliaryTitlebar();
 
 		setFullscreen(true, mainWindow);
 		const mainFullscreen = read().fullscreenClass;
@@ -416,8 +417,7 @@ suite('Sessions - Titlebar Part', () => {
 	});
 
 	test('a title bar created before it is in its window, such as the title row of a chat view, gives up the traffic-light inset while that window is fullscreen, and takes it back as it leaves fullscreen', () => {
-		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
-		coverScreen();
+		const { auxiliaryWindow, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
 		const windowed = read();
 		setFullscreen(true, auxiliaryWindow);
 		const fullscreen = read();
@@ -430,34 +430,8 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
-	test('keeps the traffic-light inset for an auxiliary window flagged fullscreen that does not cover its screen', () => {
-		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar();
-		const reserved = read();
-
-		setFullscreen(true, auxiliaryWindow);
-		const flaggedButWindowed = read();
-		coverScreen();
-		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
-		const fullscreen = read();
-
-		assert.deepStrictEqual({ reserved, flaggedButWindowed, fullscreen }, {
-			reserved: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
-			flaggedButWindowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
-			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
-		});
-	});
-
-	test('keeps the traffic-light inset for an auxiliary window flagged fullscreen that spans the width of its screen but is much less tall', () => {
-		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
-		coverScreen({ height: 640 });
-		setFullscreen(true, auxiliaryWindow);
-
-		assert.deepStrictEqual(read(), { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' });
-	});
-
-	test('gives up the traffic-light inset for an auxiliary window in fullscreen below the camera notch of its display, which is less tall than its screen', () => {
-		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
-		coverScreen({ belowNotch: true });
+	test('gives up the traffic-light inset for an auxiliary window in full screen that does not cover its screen, such as below a camera notch or on an external display, and takes it back as it leaves full screen', () => {
+		const { auxiliaryWindow, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
 		setFullscreen(true, auxiliaryWindow);
 		const fullscreen = read();
 		setFullscreen(false, auxiliaryWindow);
@@ -465,6 +439,31 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ fullscreen, windowed: read() }, {
 			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
 			windowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+		});
+	});
+
+	test('a stale full-screen state of an auxiliary window is corrected by its host as the window resizes, and the title bar moving to the window asks its host', async () => {
+		let hostFullscreen: boolean | undefined = undefined;
+		const { auxiliaryWindow, read, hasTrafficLightSpacer, hostQueries } = createAuxiliaryTitlebar({ createdBeforeInWindow: true, hostFullscreen: () => hostFullscreen });
+		const askedOnMove = hostQueries.length;
+
+		// Told it is in full screen, which it left without being told
+		setFullscreen(true, auxiliaryWindow);
+		const stale = read();
+		hostFullscreen = false;
+		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
+		await timeout(0);
+		const corrected = read();
+		// And the other way
+		hostFullscreen = true;
+		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
+		await timeout(0);
+
+		assert.deepStrictEqual({ askedOnMove, stale, corrected, enteredUntold: read() }, {
+			askedOnMove: 1,
+			stale: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
+			corrected: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+			enteredUntold: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
 		});
 	});
 

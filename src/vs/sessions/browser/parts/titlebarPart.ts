@@ -7,7 +7,7 @@ import '../../../workbench/browser/parts/titlebar/media/titlebarpart.css';
 import './media/titlebarpart.css';
 import { MultiWindowParts, Part } from '../../../workbench/browser/part.js';
 import { ITitleService } from '../../../workbench/services/title/browser/titleService.js';
-import { getZoomFactor, isWCOEnabled, getWCOTitlebarAreaRect, isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
+import { getZoomFactor, isWCOEnabled, getWCOTitlebarAreaRect, isFullscreen, onDidChangeFullscreen, setFullscreen } from '../../../base/browser/browser.js';
 import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, getTitleBarStyle, getWindowControlsStyle, WindowControlsStyle } from '../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -38,11 +38,8 @@ import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hover
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
-/**
- * The most a window in full screen may be less tall than its screen: on a display with a camera notch, macOS shows it
- * below the notch, whose area is about as tall as the menu bar.
- */
-const FULLSCREEN_NOTCH_ALLOWANCE = 64;
+/** The width reserved for the macOS traffic lights while they show. */
+const TRAFFIC_LIGHTS_WIDTH = 70;
 
 const SHOWS_NO_ACTIONS_CLASS = 'shows-no-actions';
 
@@ -60,25 +57,6 @@ export function trackActionsContainersShowingNoActions(containers: readonly HTML
 		return observer;
 	});
 	return toDisposable(() => observers.forEach(observer => observer.disconnect()));
-}
-
-/**
- * Whether the window hosting the title bar is in full screen, where the
- * traffic lights are hidden. The full-screen state of an auxiliary window is
- * only trusted when the window also covers its screen, but for the area of a
- * camera notch above it, so that a wrong state never removes the space
- * reserved for visible traffic lights.
- */
-function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
-	if (!isFullscreen(targetWindow)) {
-		return false;
-	}
-
-	if (targetWindow === mainWindow) {
-		return true;
-	}
-
-	return targetWindow.outerWidth >= targetWindow.screen.width && targetWindow.outerHeight >= targetWindow.screen.height - FULLSCREEN_NOTCH_ALLOWANCE;
 }
 
 /**
@@ -144,9 +122,17 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
-	private leftSpacerWidth: number = 0;
 	/** Follows the fullscreen state of the window the title bar is in now. */
 	private trackFullscreenOfWindow: () => void = () => { };
+
+	/**
+	 * The full-screen state of `targetWindow` as its host knows it, if it can tell, to correct the state the window was
+	 * told of. Its size cannot tell: a window in full screen may not cover its screen, such as below the camera notch of a
+	 * display or on an external display.
+	 */
+	protected async queryWindowFullscreen(_targetWindow: CodeWindow): Promise<boolean | undefined> {
+		return undefined;
+	}
 
 	private centerActionsContainer!: HTMLElement;
 	private sessionActionsContainer!: HTMLElement;
@@ -293,11 +279,32 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// chat view is.
 		let trafficLightSpacer: HTMLElement | undefined;
 		const updateFullscreen = () => {
-			const fullscreen = isTitlebarWindowFullscreen(getWindow(parent));
+			const fullscreen = isFullscreen(getWindow(parent));
 			parent.classList.toggle('titlebar-fullscreen', fullscreen);
 			if (trafficLightSpacer) {
 				trafficLightSpacer.style.display = fullscreen ? 'none' : '';
-				this.leftSpacerWidth = fullscreen ? 0 : 70;
+			}
+		};
+		// The full-screen state of an auxiliary window comes from the events of its host, which the host is asked again as
+		// the window resizes or the title bar moves to it, in case the state it was told of is stale.
+		let querying = false;
+		let queryAgain = false;
+		const correctFullscreen = async (targetWindow: CodeWindow) => {
+			if (querying) {
+				queryAgain = true;
+				return;
+			}
+			querying = true;
+			try {
+				do {
+					queryAgain = false;
+					const fullscreen = await this.queryWindowFullscreen(targetWindow);
+					if (fullscreen !== undefined && targetWindow === trackedWindow && fullscreen !== isFullscreen(targetWindow)) {
+						setFullscreen(fullscreen, targetWindow);
+					}
+				} while (queryAgain && targetWindow === trackedWindow);
+			} finally {
+				querying = false;
 			}
 		};
 		const windowResize = this._register(new MutableDisposable());
@@ -306,7 +313,10 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			const targetWindow = getWindow(parent);
 			if (targetWindow !== trackedWindow) {
 				trackedWindow = targetWindow;
-				windowResize.value = targetWindow !== mainWindow ? addDisposableListener(targetWindow, EventType.RESIZE, () => updateFullscreen()) : undefined;
+				windowResize.value = targetWindow !== mainWindow ? addDisposableListener(targetWindow, EventType.RESIZE, () => void correctFullscreen(targetWindow)) : undefined;
+				if (targetWindow !== mainWindow) {
+					void correctFullscreen(targetWindow);
+				}
 			}
 			updateFullscreen();
 		};
@@ -343,7 +353,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				// The spacer is hidden in fullscreen, where traffic lights are not shown.
 				const spacer = trafficLightSpacer = append(this.leftContent, $('div.window-controls-container'));
 				updateFullscreen();
-				spacer.style.width = `${this.leftSpacerWidth}px`;
+				spacer.style.width = `${TRAFFIC_LIGHTS_WIDTH}px`;
 				spacer.style.flexShrink = '0';
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// controls explicitly disabled
