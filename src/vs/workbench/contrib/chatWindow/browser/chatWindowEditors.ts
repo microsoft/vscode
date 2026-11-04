@@ -83,15 +83,19 @@ export function deserializeChatWindowEditors(instantiationService: IInstantiatio
 export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>, parts: { readonly chatPart: IChatWindowChatPart | undefined; readonly createdParts: readonly IContentPart[] }): Promise<void> {
 	const chat = window.chat.get();
 	// Serialized, as closing the window disposes them, and opened again in the new window.
-	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself
-	const editors = window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }));
+	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself.
+	// The groups of its chat part are captured as a whole, which would open such an editor twice: with one there, those
+	// that close go to the main part of the new window instead.
+	const chatPartConfirms = window.chatPart.groups.some(group => group.getEditors(EditorsOrder.SEQUENTIAL).some(confirmsClose));
+	const chatPart = chatPartConfirms ? undefined : parts.chatPart;
+	const editors = [...window.mainPart.groups, ...(chatPartConfirms ? window.chatPart.groups : [])].flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }));
 	const createdParts = parts.createdParts.map(part => part.groups.flatMap(group => serializeChatWindowEditors(group, { onlyThoseThatClose: true }))).filter(created => created.length > 0);
 	const showTerminals = window.terminalsVisible.get();
 	if (window.close()) {
 		await open(chat, {
 			editors: deserializeChatWindowEditors(instantiationService, editors),
 			showTerminals,
-			chatPart: parts.chatPart,
+			chatPart,
 			createdParts: createdParts.length ? createdParts.map(created => deserializeChatWindowEditors(instantiationService, created)) : undefined,
 		});
 	}
@@ -110,16 +114,6 @@ export function captureChatPart(chatPart: IContentPart, chatInput: EditorInput):
 	// Its groups, or the editors beside the chat in its group, as tabs
 	const hasMore = groups.length > 1 || (chatGroup !== -1 && groups[chatGroup].count > 1);
 	return hasMore && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
-}
-
-/**
- * The groups of a chat window's chat part to open it with again, as {@link captureChatPart} captures them, once the chat
- * left `chatGroup`, such as for another window: the chat goes back there. Nothing while that group is gone.
- */
-export function captureChatPartWithoutChat(chatPart: IContentPart, chatGroup: IEditorGroup): IChatWindowChatPart | undefined {
-	const groups = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
-	const index = groups.indexOf(chatGroup);
-	return index !== -1 && (groups.length > 1 || chatGroup.count > 0) ? { state: chatPart.createState(), chatGroup: index } : undefined;
 }
 
 /** The group of a chat part, restored from what {@link captureChatPart} captured, to open the chat in: its own group, else the active one. */

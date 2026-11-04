@@ -177,6 +177,7 @@ suite('Chat window: moving editors', () => {
 			override readonly chat = constObservable(URI.parse('test:/chat'));
 			override readonly terminalsVisible = constObservable(true);
 			override readonly mainPart = upcastPartial<IContentPart>({ groups: [upcastPartial<IEditorGroup>({ activeEditor: first, getEditors: () => [first, second, dirty] })] });
+			override readonly chatPart = upcastPartial<IContentPart>({ groups: [upcastPartial<IEditorGroup>({ activeEditor: null, getEditors: () => [] })] });
 			override close() { events.push('close'); return true; }
 		}();
 
@@ -187,5 +188,35 @@ suite('Chat window: moving editors', () => {
 		}, { chatPart, createdParts: [createdPart, emptyCreatedPart] });
 
 		assert.deepStrictEqual(events, ['close', 'open test:/chat editors /first,/second active /first terminals true', 'chat part true created /edge']);
+	});
+
+	test('a chat window that opens again with a dirty editor beside the chat does not open its chat part as captured, which would show that editor twice, as closing the window merges it into the main window: the others beside the chat open in its main part', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const typeId = 'chatWindowReopenDirtyBesideChatInput';
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(typeId, class implements IEditorSerializer {
+			canSerialize() { return true; }
+			serialize(editor: EditorInput) { return editor.resource!.toString(); }
+			deserialize(_instantiationService: IInstantiationService, value: string) { return disposables.add(new TestFileEditorInput(URI.parse(value), typeId)); }
+		}));
+		// The chat's editor has no serializer
+		const chat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowReopenDirtyChatInput'));
+		const [main, tab, dirty] = ['/main', '/tab', '/dirty'].map(path => disposables.add(new TestFileEditorInput(URI.file(path), typeId)));
+		dirty.setDirty();
+		const group = (...editors: EditorInput[]) => upcastPartial<IEditorGroup>({ activeEditor: editors[0], getEditors: () => editors });
+		const window = new class extends mock<IChatWindow>() {
+			override readonly chat = constObservable(URI.parse('test:/chat'));
+			override readonly terminalsVisible = constObservable(false);
+			override readonly mainPart = upcastPartial<IContentPart>({ groups: [group(main)] });
+			override readonly chatPart = upcastPartial<IContentPart>({ groups: [group(chat, tab, dirty)] });
+			override close() { return true; }
+		}();
+		const opened: string[] = [];
+
+		await reopenChatWindow(window, instantiationService, async (_chat, options) => {
+			opened.push(`editors ${options.editors?.editors?.map(editor => editor.resource?.path).join(',')} chat part ${options.chatPart !== undefined}`);
+		}, { chatPart: { state: { groups: 'captured' }, chatGroup: 0 }, createdParts: [] });
+
+		assert.deepStrictEqual(opened, ['editors /main,/tab chat part false']);
 	});
 });

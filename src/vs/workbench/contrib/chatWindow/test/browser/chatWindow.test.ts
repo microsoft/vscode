@@ -18,6 +18,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindowContent } from '../../browser/chatWindow.js';
 import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
+import { TERMINAL_EDITOR_TYPE_ID } from '../../browser/chatWindowGrid.js';
 import { ChatWindow, getChatPartGroupViewOptions, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
@@ -32,6 +33,11 @@ class ImmovableInput extends TestInput {
 	override canMove(): true | string { return 'cannot move'; }
 }
 
+/** A terminal, which cannot move to another window either, but goes to the panel as its window closes. */
+class ImmovableTerminalInput extends ImmovableInput {
+	override get typeId() { return TERMINAL_EDITOR_TYPE_ID; }
+}
+
 suite('Chat window', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +46,8 @@ suite('Chat window', () => {
 		readonly onModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
 		readonly onCloseEditor = disposables.add(new Emitter<IEditorCloseEvent>());
 		readonly onActiveEditorChange = disposables.add(new Emitter<IActiveEditorChangeEvent>());
+		readonly onWillClose = disposables.add(new Emitter<IEditorCloseEvent>());
+		override readonly onWillCloseEditor = this.onWillClose.event;
 		override readonly onDidModelChange = this.onModelChange.event;
 		override readonly onDidCloseEditor = this.onCloseEditor.event;
 		override readonly onDidActiveEditorChange = this.onActiveEditorChange.event;
@@ -68,6 +76,7 @@ suite('Chat window', () => {
 			this.onActiveEditorChange.fire({ editor });
 		}
 		fireCloseEditor(editor: EditorInput, context = EditorCloseContext.UNKNOWN) {
+			this.onWillClose.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 			this.testEditors = this.testEditors.filter(candidate => candidate !== editor);
 			this.onCloseEditor.fire({ editor, context, index: 0, sticky: false, groupId: 0 } as IEditorCloseEvent);
 		}
@@ -139,6 +148,9 @@ suite('Chat window', () => {
 		chat.group.testEditors.push(chatInput);
 		// Another part of the window, such as one created for an editor dropped on its edge
 		const other = createPart(events, 'other');
+		let terminals: ReturnType<typeof createPart> | undefined;
+		// A part of another window, such as an editor window
+		const elsewhere = createPart(events, 'elsewhere');
 		const window = disposables.add(new ChatWindow(1, content, state, main.part, chat.part, {
 			focusWindow: () => events.push('focus window'),
 			closeWindow: () => events.push('close window'),
@@ -147,22 +159,24 @@ suite('Chat window', () => {
 			mainWindowGroup: () => 99,
 			createTerminalsPart: () => {
 				events.push('create terminals');
-				return createPart(events, 'terminals').part;
+				terminals = createPart(events, 'terminals');
+				return terminals.part;
 			},
 			terminalsVisible: constObservable(false),
 			chatPartLeads: constObservable(true),
 			resizing: constObservable(false),
 			didMoveChatOut: () => events.push('moved out'),
+			findGroup: editor => [...chat.part.groups, ...main.part.groups, ...elsewhere.part.groups].find(group => group.contains(editor)),
 			resetLayout: () => events.push('reset layout'),
 			windowGroups: options?.otherPart ? {
-				get groups() { return [...chat.part.groups, ...main.part.groups, ...other.part.groups]; },
+				get groups() { return [...chat.part.groups, ...main.part.groups, ...other.part.groups, ...(terminals?.part.groups ?? [])]; },
 				onDidAddGroup: Event.None,
 				onDidRemoveGroup: Event.None,
 			} : undefined,
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
-		return { window, state, main, chat, other, chatInput, onDidEnd, events, storage, remembered, closingStates };
+		return { window, state, main, chat, other, elsewhere, chatInput, onDidEnd, events, storage, remembered, closingStates };
 	}
 
 	const editor = () => disposables.add(new TestInput());
@@ -380,7 +394,47 @@ suite('Chat window', () => {
 		const elsewhere = createPart([], 'elsewhere');
 		chat.group.moveEditor(chatInput, elsewhere.group);
 
-		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['move to elsewhere', 'moved out'], captured: { state: { groups: [1] }, chatGroup: 0 } });
+		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['move to elsewhere', 'moved out'], captured: { state: { groups: [2] }, chatGroup: 0 } });
+	});
+
+	test('the chat moving out of the window alone in its group, which then goes away, leaves the groups split beside it to open it with again', () => {
+		const { window, chat, chatInput, events } = createWindow();
+		const split = chat.addGroup();
+		split.open(editor());
+		const elsewhere = createPart([], 'elsewhere');
+		chat.group.moveEditor(chatInput, elsewhere.group);
+		// Its group, empty, goes away, as empty groups close
+		chat.part.groups.splice(chat.part.groups.indexOf(chat.group), 1);
+
+		assert.deepStrictEqual({ events, captured: window.captureChatPart() }, { events: ['move to elsewhere', 'moved out'], captured: { state: { groups: [1, 1] }, chatGroup: 0 } });
+	});
+
+	test('the part that holds its terminals keeps the window open for another editor there that cannot move to the main window, but not for its terminals, which go to the panel', () => {
+		const close = (immovable: EditorInput) => {
+			const { window, events } = createWindow({ otherPart: true });
+			(window.getOrCreateTerminalsPart().groups[0] as TestGroup).open(immovable);
+			const result = { closed: window.close(), closedWindow: events.includes('close window') };
+			// Its terminals leave the window as it unloads
+			window.willUnload();
+			return result;
+		};
+
+		assert.deepStrictEqual({
+			other: close(disposables.add(new ImmovableInput())),
+			terminal: close(disposables.add(new ImmovableTerminalInput())),
+		}, {
+			other: { closed: false, closedWindow: false },
+			terminal: { closed: true, closedWindow: true },
+		});
+	});
+
+	test('the chat moving out of a window that cannot close, such as for an editor that cannot move to the main window, goes back into its group once the move is done, rather than out of the window', async () => {
+		const { main, chat, elsewhere, chatInput, events } = createWindow();
+		main.group.open(disposables.add(new ImmovableInput()));
+		chat.group.moveEditor(chatInput, elsewhere.group);
+		await timeout(0);
+
+		assert.deepStrictEqual({ events, chat: chat.group.contains(chatInput), elsewhere: elsewhere.group.contains(chatInput) }, { events: ['move to elsewhere', 'move to chat'], chat: true, elsewhere: false });
 	});
 
 	test('while an editor of a part the window created, such as for an editor dropped on its edge, cannot move to the main window, closing it does nothing at all', () => {
