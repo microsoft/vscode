@@ -5,7 +5,7 @@
 
 import './media/inboxNotificationsView.css';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, DisposableResizeObserver, disposableWindowInterval, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { captureAnimationTarget, IAnimationTarget, triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -742,10 +742,25 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.newSessionElement.setAttribute('role', 'region');
 		this.newSessionElement.setAttribute('aria-label', localize('inboxNotifications.newSession', "New session"));
 		const header = container.appendChild($('.inbox-notifications-header'));
-		const hour = new Date().getHours();
-		header.appendChild($('h2.inbox-notifications-greeting', undefined, hour < 12
-			? localize('inbox.greeting.morning', "Good morning")
-			: hour < 18 ? localize('inbox.greeting.afternoon', "Good afternoon") : localize('inbox.greeting.evening', "Good evening")));
+		const greeting = header.appendChild($('h2.inbox-notifications-greeting'));
+		const updateGreeting = () => {
+			const hour = new Date().getHours();
+			const text = hour < 12
+				? localize('inbox.greeting.morning', "Good morning")
+				: hour < 18 ? localize('inbox.greeting.afternoon', "Good afternoon") : localize('inbox.greeting.evening', "Good evening");
+			if (greeting.textContent !== text) {
+				greeting.textContent = text;
+			}
+		};
+		this._register(autorun(reader => {
+			if (!this.visible.read(reader)) {
+				return;
+			}
+			updateGreeting();
+			const targetWindow = getWindow(container);
+			reader.store.add(disposableWindowInterval(targetWindow, updateGreeting, 60_000));
+			reader.store.add(addDisposableListener(targetWindow, EventType.FOCUS, updateGreeting));
+		}));
 		container.appendChild(this.contentElement);
 		container.appendChild(this.composerElement);
 		this.loadListPaneWidth();

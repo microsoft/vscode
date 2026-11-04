@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { match, spy, stub } from 'sinon';
+import { match, spy, stub, useFakeTimers } from 'sinon';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -314,6 +314,57 @@ suite('InboxNotificationsView', () => {
 			'All caught up, Megan. Your agents are working.',
 			'No notifications match the current filter.',
 		]);
+	});
+
+	for (const { hour, before, after } of [
+		{ hour: 11, before: 'Good morning', after: 'Good afternoon' },
+		{ hour: 17, before: 'Good afternoon', after: 'Good evening' },
+		{ hour: 23, before: 'Good evening', after: 'Good morning' },
+	]) {
+		test(`refreshes the greeting across the ${hour + 1}:00 boundary`, () => {
+			const clock = useFakeTimers({ now: new Date(2026, 0, 1, hour, 59), toFake: ['Date', 'setInterval', 'clearInterval'] });
+			try {
+				const { view, container } = createView(constObservable([]));
+				view.render(container);
+				const initial = container.querySelector('.inbox-notifications-greeting')?.textContent;
+				clock.tick(60_000);
+				assert.deepStrictEqual([initial, container.querySelector('.inbox-notifications-greeting')?.textContent], [before, after]);
+			} finally {
+				disposables.clear();
+				clock.restore();
+			}
+		});
+	}
+
+	test('refreshes the greeting immediately when returning to the inbox', () => {
+		const clock = useFakeTimers({ now: new Date(2026, 0, 1, 9), toFake: ['Date', 'setInterval', 'clearInterval'] });
+		try {
+			const { view, container } = createView(constObservable([]));
+			view.render(container);
+			view.setVisible(false);
+			clock.setSystemTime(new Date(2026, 0, 1, 15, 10));
+			clock.tick(60_000);
+			const hidden = container.querySelector('.inbox-notifications-greeting')?.textContent;
+			view.setVisible(true);
+			assert.deepStrictEqual([hidden, container.querySelector('.inbox-notifications-greeting')?.textContent], ['Good morning', 'Good afternoon']);
+		} finally {
+			disposables.clear();
+			clock.restore();
+		}
+	});
+
+	test('refreshes the greeting immediately when the window regains focus', () => {
+		const clock = useFakeTimers({ now: new Date(2026, 0, 1, 9), toFake: ['Date', 'setInterval', 'clearInterval'] });
+		try {
+			const { view, container } = createView(constObservable([]));
+			view.render(container);
+			clock.setSystemTime(new Date(2026, 0, 1, 15, 10));
+			mainWindow.dispatchEvent(new FocusEvent('focus'));
+			assert.strictEqual(container.querySelector('.inbox-notifications-greeting')?.textContent, 'Good afternoon');
+		} finally {
+			disposables.clear();
+			clock.restore();
+		}
 	});
 
 	for (const interaction of ['click', 'keyboard'] as const) {
