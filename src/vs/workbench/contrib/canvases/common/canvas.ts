@@ -28,6 +28,10 @@ export interface ICanvas {
 	readonly title: string;
 	readonly status?: string;
 	readonly source: URI | undefined;
+	/** Owning extension identifier, when the host reports it. */
+	readonly extensionId?: string;
+	/** Provider-local canvas type identifier, when the host reports it. */
+	readonly canvasId?: string;
 }
 
 /** Where a registered canvas definition was contributed from. */
@@ -92,6 +96,7 @@ export interface ICanvasOpenRequest {
 
 export interface ICanvasModelResolution {
 	readonly model: IBrowserViewModel;
+	/** Whether the model already presented the source, so resolving it loaded no page. */
 	readonly reused: boolean;
 }
 
@@ -141,6 +146,21 @@ export interface ICanvasContextService {
 	 * `undefined` means the owner is outside this window's live scope.
 	 */
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined;
+	/**
+	 * Resolves one canvas that this window keeps live outside its owner's membership,
+	 * such as a canvas pinned to a sidebar. `undefined` means it is not tracked that way.
+	 */
+	getTrackedCanvas?(reference: ICanvasReference, reader?: IReader): ICanvas | undefined;
+	/**
+	 * Whether this window keeps the canvas live outside its owner's membership, such as a
+	 * pinned canvas, even while its live state is temporarily unavailable.
+	 */
+	isCanvasTracked?(reference: ICanvasReference, reader?: IReader): boolean;
+	/**
+	 * Whether a surface other than the owner's editor working set currently presents
+	 * this canvas, such as a full-page view of a pinned canvas.
+	 */
+	isPresentedElsewhere?(reference: ICanvasReference, reader?: IReader): boolean;
 	/** Resolves the frontend chat-session resource that owns this opaque Canvas context. */
 	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined;
 	/**
@@ -157,12 +177,22 @@ export interface ICanvasService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly reopenableCanvases: IObservable<readonly ICanvasReopenTarget[]>;
+	/** Whether the canvas may be revealed as an editor beside its owner, which must be visible. */
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean;
+	/**
+	 * Whether a canvas view may attach the canvas: its owner is visible, or another
+	 * surface such as a pinned canvas page presents it. Never opens an editor.
+	 */
+	isPresentable(reference: ICanvasReference, reader?: IReader): boolean;
 	revealCanvas(reference: ICanvasReference): Promise<void>;
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;
-	/** Resolves the live browser model retained for this presentation, creating it once when needed. */
+	/**
+	 * Resolves the live browser model retained for this presentation, creating it once when needed.
+	 * A retained model keeps its last page while the provider is temporarily unavailable, then
+	 * loads the next source in place.
+	 */
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
 }
 
@@ -290,9 +320,12 @@ export function compareCanvasDefinitions(first: ICanvasDefinition, second: ICanv
 		|| first.canvasId.localeCompare(second.canvasId);
 }
 
-function createInputResource(reference: ICanvasReference): URI {
+export const CANVAS_INPUT_SCHEME = 'session-canvas';
+
+/** Returns the resource of the editor input that presents `reference`. */
+export function getCanvasInputResource(reference: ICanvasReference): URI {
 	return URI.from({
-		scheme: 'session-canvas',
+		scheme: CANVAS_INPUT_SCHEME,
 		path: '/canvas',
 		query: encodeURIComponent(JSON.stringify({
 			providerId: reference.providerId,
@@ -320,7 +353,7 @@ export class CanvasInput extends EditorInput {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this.resource = createInputResource(reference);
+		this.resource = getCanvasInputResource(reference);
 		this.canvas.set(canvas, undefined);
 	}
 

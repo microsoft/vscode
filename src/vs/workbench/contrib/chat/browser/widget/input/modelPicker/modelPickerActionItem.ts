@@ -23,6 +23,7 @@ import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
+import { IAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 
 export interface IModelPickerPresentationOptions {
 	readonly showManageModelsAction: boolean;
@@ -35,6 +36,8 @@ export interface IModelPickerDelegate {
 	readonly comparison?: IModelPickerComparison;
 	/** Whether a committed comparison is currently being submitted. */
 	readonly comparisonBusy?: IObservable<boolean>;
+	/** May replace an available picker's presentation, leaving unavailable states to the shared widget. */
+	showPicker?(anchor: HTMLElement, configuration: boolean): boolean;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
@@ -49,6 +52,7 @@ export interface IModelPickerDelegate {
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	getAgentModelPreferences?(): IAgentModelPreferences | undefined;
 	/**
 	 * Models offered while configuring a comparison. When omitted, comparisons
 	 * use the same model pool as ordinary selection.

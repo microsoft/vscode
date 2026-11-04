@@ -18,7 +18,8 @@ import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/com
 import { EditStreamingWithTelemetry, type IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
-import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
+import { ILogger, ILogService, LogLevel, LogServiceImpl } from '../../../../platform/log/common/logService';
+import { TestLogTarget } from '../../../../platform/log/test/common/loggerHelpers';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { ISnippyService, NullSnippyService } from '../../../../platform/snippy/common/snippyService';
@@ -418,6 +419,32 @@ describe('NextEditProvider speculative requests', () => {
 		await statelessProvider.calls[1].cancellationRequested.p;
 
 		expect(statelessProvider.calls[1].wasCancelled).toBe(true);
+	});
+
+	it('logs a failed Snippy check without rejecting the acceptance flow', async () => {
+		const target = new TestLogTarget();
+		logService = disposables.add(new LogServiceImpl([target]));
+		class FailingSnippyService extends NullSnippyService {
+			override async handlePostInsertion(): Promise<void> {
+				throw new Error('Snippy request failed');
+			}
+		}
+		snippyService = new FailingSnippyService();
+		const statelessProvider = new TestStatelessNextEditProvider();
+		statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+		const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+		const doc = workspace.addDocument({
+			id: DocumentId.create(URI.file('/test/snippy-error.ts').toString()),
+			initialValue: 'const value = 1;',
+		});
+		doc.setSelection([new OffsetRange(0, 0)], undefined);
+		const suggestion = await getNextEdit(nextEditProvider, doc.id);
+		assert(suggestion.result?.edit);
+
+		nextEditProvider.handleAcceptance(doc.id, suggestion);
+		await flushMicrotasks();
+
+		expect(target.hasMessageMatching(LogLevel.Error, /Snippy post-insertion check failed/)).toBe(true);
 	});
 
 	it('cancels speculative request on ignored when suggestion was shown and not superseded', async () => {

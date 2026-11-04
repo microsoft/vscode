@@ -7,7 +7,7 @@ import type { SessionEventPayload } from '@github/copilot-sdk';
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -16,27 +16,10 @@ import { readAgentErrorTelemetryMeta } from '../../common/meta/errorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = true;
-	readonly events: { eventName: string; data: Record<string, unknown> | undefined }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<Record<string, unknown> | undefined> {
+	constructor() {
+		super({ captureErrors: true, sendErrorTelemetry: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite('CopilotFailureTelemetry', () => {

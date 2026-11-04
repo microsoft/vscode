@@ -399,6 +399,20 @@ export interface IToolConfirmationMessages {
 		/** String representation of the arguments for this combination */
 		arguments?: string;
 	};
+	/**
+	 * Offers an optional feedback field with the decision. What the user types is kept only on
+	 * the live invocation (see `IChatToolInvocation.confirmationFeedback`) and is never persisted.
+	 */
+	feedback?: IToolConfirmationFeedback;
+}
+
+/** An optional free-text field that accompanies a confirmation decision. */
+export interface IToolConfirmationFeedback {
+	/** Names the field, both visibly and for assistive technologies. */
+	readonly label: string;
+	readonly placeholder?: string;
+	/** Explains what the feedback is for, shown below the field. */
+	readonly description?: string;
 }
 
 export interface IToolConfirmationAction {
