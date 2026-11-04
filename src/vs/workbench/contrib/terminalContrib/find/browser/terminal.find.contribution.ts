@@ -23,7 +23,7 @@ import { TerminalFindWidget } from './terminalFindWidget.js';
 
 // #region Terminal Contributions
 
-export class TerminalFindContribution extends Disposable implements ITerminalContribution {
+class TerminalFindContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.find';
 
 	/**
