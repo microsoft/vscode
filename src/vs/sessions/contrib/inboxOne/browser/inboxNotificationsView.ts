@@ -47,6 +47,8 @@ import { openInboxLink } from './inboxLinks.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { chartsOrange } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
 import { ChatSendResult, IChatConfirmation, IChatPlanReviewResult, IChatQuestionAnswerValue, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -1305,7 +1307,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		store.add(this.hoverService.setupDelayedHover(icon, {
 			content: kindLabel, appearance: { showPointer: true },
 		}, { groupId: 'inbox-notification-kind' }));
-		const titles = card.appendChild($('.inbox-notifications-row-titles'));
+		const content = card.appendChild($('.inbox-notifications-row-content'));
+		const titles = content.appendChild($('.inbox-notifications-row-titles'));
 		const title = titles.appendChild($('.inbox-notifications-item-title'));
 		const sessionTitle = titles.appendChild($('.inbox-notifications-session-title'));
 		store.add(this.hoverService.setupDelayedHover(sessionTitle, () => ({ content: sessionTitle.textContent ?? item.title })));
@@ -1322,22 +1325,22 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				fromNowByDay(item.timestamp, true, true),
 			].filter(Boolean).join('. '));
 		}));
-		const metadata = card.appendChild($('.inbox-notifications-row-metadata'));
-		if (item.repositoryLabel) {
-			const repository = metadata.appendChild($('.inbox-notifications-row-repository', undefined, item.repositoryLabel));
-			store.add(this.hoverService.setupDelayedHover(repository, { content: item.repositoryLabel }));
-		}
+		const metadata = content.appendChild($('.inbox-notifications-row-metadata'));
 		if (row?.hasImages) {
 			const visual = metadata.appendChild($('.inbox-notifications-visual'));
 			visual.appendChild(renderIcon(Codicon.fileMedia)).setAttribute('aria-hidden', 'true');
 			visual.appendChild($('span', undefined, localize('inbox.visual', "Visual")));
 		}
-		if (item.pullRequestStates?.length) {
-			const pullRequests = metadata.appendChild($('.inbox-notifications-row-repository', undefined,
-				item.pullRequestStates.map(state => state.label).join(', ')));
-			store.add(this.hoverService.setupDelayedHover(pullRequests, {
-				content: item.pullRequestStates.map(state => `${state.label}: ${state.statusLabel}`).join('\n'),
-			}));
+		const inlineActions = metadata.appendChild($('.inbox-notifications-row-inline-actions'));
+		for (const notification of row?.notifications ?? [item]) {
+			for (const action of notification.actions) {
+				if (isInboxPullRequestActionKind(action.kind)) {
+					this.renderActionButton(inlineActions, notification, action, store);
+				}
+			}
+		}
+		if (!inlineActions.childElementCount) {
+			inlineActions.remove();
 		}
 		const state = card.appendChild($('.inbox-notifications-item-kind-label', undefined, kindLabel));
 		state.classList.add(`priority-${item.priority}`);
@@ -1390,7 +1393,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const primaryActions = item.actions.filter(action =>
 			action.kind !== InboxNotificationActionKind.OpenSession
 			&& action.kind !== InboxNotificationActionKind.MarkDone
-			&& action.kind !== InboxNotificationActionKind.Dismiss);
+			&& action.kind !== InboxNotificationActionKind.Dismiss
+			&& !isInboxPullRequestActionKind(action.kind));
 		const headerActions: IInboxNotificationAction[] = [];
 		let footerActions: HTMLElement | undefined;
 		if (primaryActions.length || headerActions.length) {
@@ -2200,8 +2204,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const openSessionIsSecondary = action.kind === InboxNotificationActionKind.OpenSession;
 		const showsSpinnerWhileRunning = isInboxPullRequestActionKind(action.kind);
 		const baseOptions = {
-			...inboxButtonStyles,
-			secondary: openSessionIsSecondary || !action.primary,
+			...(showsSpinnerWhileRunning ? defaultButtonStyles : inboxButtonStyles),
+			...(action.kind === InboxNotificationActionKind.AgentMergeFixCI ? {
+				buttonBackground: asCssVariable(chartsOrange),
+				buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+				buttonBorder: asCssVariable(chartsOrange),
+			} : {}),
+			secondary: !showsSpinnerWhileRunning && (openSessionIsSecondary || !action.primary),
 			small: true,
 			supportIcons: action.kind === InboxNotificationActionKind.MarkDone || showsSpinnerWhileRunning,
 			title: action.kind === InboxNotificationActionKind.MarkDone

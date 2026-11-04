@@ -79,6 +79,8 @@ const items: readonly IInboxNotificationItem[] = [
 export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	Collapsed: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100, 'collapsed') }),
 	Hovered: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, 'hovered') }),
+	WorkflowActions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100, 'workflowActions') }),
+	WorkflowActionsNarrow: defineComponentFixture({ render: ctx => renderInbox(ctx, 360, 'workflowActions') }),
 	Working: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.Working) }),
 	ReadyToMerge: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.ReadyToMerge) }),
 	OnHold: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.OnHold) }),
@@ -99,7 +101,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	MergedPullRequestsExpanded: defineComponentFixture({ render: ctx => renderInbox(ctx, 560, 'mergedExpanded') }),
 });
 
-async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'toolConfirmation' | 'textQuestion' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | InboxTab): Promise<void> {
+async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'toolConfirmation' | 'textQuestion' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | 'workflowActions' | InboxTab): Promise<void> {
 	const merged = state === 'merged' || state === 'mergedExpanded';
 	const chat = upcastPartial<IChat>({
 		resource: URI.parse('fixture:///search'),
@@ -149,6 +151,14 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 			repositoryLabel: 'acme/workbench', statusLabel: 'Merged', icon: { id: 'git-pull-request-done' },
 			pullRequestUri: URI.parse(`https://github.com/acme/workbench/pull/${1000 + index}`),
 		})),
+	})) : state === 'workflowActions' ? [
+		{ kind: InboxNotificationKind.FailingCI, title: 'Fix the failing search tests', label: 'Fix CI Failures', action: InboxNotificationActionKind.AgentMergeFixCI },
+		{ kind: InboxNotificationKind.ReviewComments, title: 'Address two review comments', label: 'Address Reviews', action: InboxNotificationActionKind.AgentMergeAddressReviews },
+		{ kind: InboxNotificationKind.PassingCI, title: 'Merge the keyboard navigation changes', label: 'Merge Pull Request', action: InboxNotificationActionKind.AgentMergeMergePullRequest },
+	].map(({ kind, title, label, action }) => ({
+		id: action, kind, title, description: title, repositoryLabel: 'acme/workbench', timestamp: 0,
+		priority: InboxNotificationPriority.Now,
+		actions: [...actions, { id: action, label, kind: action }],
 	})) : items;
 	const notifications = observableValue<readonly IInboxNotificationItem[]>('fixture.notifications', state === 'empty' ? [] : sourceItems.map((sourceItem, index) => {
 		const item = { ...sourceItem, timestamp: Date.now() };
@@ -211,7 +221,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	const rows = observableValue<readonly IInboxSessionRow[]>('fixture.rows', [
 		...notifications.get().map((item, index) => ({
 			...item, tab: InboxTab.ReadyForYou, sessionTitle: item.title, occurrence: item.id, notifications: [item],
-			title: index === 0 && (state === 'toolConfirmation' || state === 'textQuestion') ? item.title
+			title: state === 'workflowActions' || index === 0 && (state === 'toolConfirmation' || state === 'textQuestion') ? item.title
 				: ['Choose how search results should open', 'Address two review comments', 'Review the keyboard navigation changes'][index] ?? item.title,
 			hasImages: index === 0,
 		})),
@@ -335,7 +345,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	if (workflowTab) {
 		const index = [InboxTab.ReadyForYou, InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done].indexOf(workflowTab);
 		ctx.container.querySelectorAll<HTMLElement>('[role="tab"]')[index].click();
-	} else if (state !== 'collapsed' && state !== 'hovered') {
+	} else if (state !== 'collapsed' && state !== 'hovered' && state !== 'workflowActions') {
 		ctx.container.querySelector<HTMLElement>('.inbox-notifications-item')?.click();
 	}
 	if (state === 'hovered') {

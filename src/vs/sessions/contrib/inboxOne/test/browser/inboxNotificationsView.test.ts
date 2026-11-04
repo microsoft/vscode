@@ -829,7 +829,89 @@ suite('InboxNotificationsView', () => {
 		}), events.map(event => ({ icon: true, decorative: 'true', label: true, hover: event.label })));
 	});
 
-	test('compact rows omit provider labels and retain timestamps while evidence has one title and a bounded session preview', () => {
+	test('combined rows show emphasized workflow actions for their originating notifications without duplicate evidence actions', async () => {
+		const notifications: IInboxNotificationItem[] = [
+			{ kind: InboxNotificationKind.FailingCI, label: 'Fix CI', action: InboxNotificationActionKind.AgentMergeFixCI },
+			{ kind: InboxNotificationKind.ReviewComments, label: 'Address Reviews', action: InboxNotificationActionKind.AgentMergeAddressReviews },
+		].map(({ kind, label, action }) => ({
+			id: action, kind, priority: InboxNotificationPriority.Now,
+			title: label, description: '', timestamp: 1, repositoryLabel: 'owner/repository',
+			actions: [{ id: action, label, kind: action }],
+		}));
+		const merged: IInboxNotificationItem = {
+			...notifications[0], id: 'merge', kind: InboxNotificationKind.PassingCI, title: 'Ready to merge',
+			actions: [{ id: 'merge', label: 'Merge Pull Request', kind: InboxNotificationActionKind.AgentMergeMergePullRequest }],
+		};
+		const rows: IInboxSessionRow[] = [notifications, [merged]].map((items, index) => ({
+			...items[0], id: `row-${index}`, sessionTitle: 'Session title', occurrence: '1',
+			tab: InboxTab.ReadyForYou, notifications: items, hasImages: false, actions: [],
+		}));
+		const { view, container } = createView(constObservable([...notifications, merged]), { rows: constObservable(rows) });
+		const pending = new DeferredPromise<void>();
+		const run = stub(accessView(view), 'runAction').returns(pending.p);
+		view.render(container);
+		const firstCard = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+		const buttons = [...container.querySelectorAll<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button')];
+		const styles = buttons.map(button => ({
+			label: button.textContent, secondary: button.classList.contains('secondary'), background: button.style.backgroundColor,
+			accessible: button.getAttribute('aria-label'),
+		}));
+		buttons[1].focus();
+		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const during = {
+			notification: run.firstCall.args[0], action: run.firstCall.args[1],
+			selected: firstCard.classList.contains('selected'), disabled: buttons[1].getAttribute('aria-disabled'),
+			spinning: !!buttons[1].querySelector('.codicon-modifier-spin'),
+		};
+		await pending.complete();
+		await timeout(0);
+		firstCard.click();
+		assert.deepStrictEqual({
+			styles, during,
+			after: { label: buttons[1].textContent, disabled: buttons[1].getAttribute('aria-disabled') },
+			metadata: firstCard.querySelector('.inbox-notifications-row-repository'),
+			duplicates: container.querySelector('.inbox-notifications-notification .inbox-notifications-item-header-actions'),
+			repositoryInEvidence: container.querySelector('.inbox-notifications-notification .repository')?.textContent,
+		}, {
+			styles: [
+				{ label: 'Fix CI', secondary: false, background: 'var(--vscode-charts-orange)', accessible: 'Fix CI for Fix CI' },
+				{ label: 'Address Reviews', secondary: false, background: 'var(--vscode-button-background)', accessible: 'Address Reviews for Address Reviews' },
+				{ label: 'Merge Pull Request', secondary: false, background: 'var(--vscode-button-background)', accessible: 'Merge Pull Request for Ready to merge' },
+			],
+			during: { notification: notifications[1], action: notifications[1].actions[0], selected: false, disabled: 'true', spinning: true },
+			after: { label: 'Address Reviews', disabled: 'false' }, metadata: null, duplicates: null, repositoryInEvidence: 'owner/repository',
+		});
+	});
+
+	test('inline workflow actions wrap within narrow rows without overlapping titles or trailing controls', () => {
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'A long notification title that needs to truncate', description: '', timestamp: 1,
+			actions: [
+				{ id: 'fix', label: 'Fix CI Failures', kind: InboxNotificationActionKind.AgentMergeFixCI },
+				{ id: 'reviews', label: 'Address Reviews', kind: InboxNotificationActionKind.AgentMergeAddressReviews },
+			],
+		};
+		const { view, container } = createView(constObservable([item]));
+		view.render(container);
+		const layouts = [320, 420, 560, 900].map(width => {
+			container.style.width = `${width}px`;
+			view.layout(width, 400);
+			const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+			const bounds = card.getBoundingClientRect();
+			const title = card.querySelector<HTMLElement>('.inbox-notifications-row-titles')!.getBoundingClientRect();
+			const state = card.querySelector<HTMLElement>('.inbox-notifications-item-kind-label')!.getBoundingClientRect();
+			const buttons = [...card.querySelectorAll<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button')];
+			return buttons.every(button => {
+				const rect = button.getBoundingClientRect();
+				return rect.width > 0 && rect.left >= bounds.left && rect.right <= state.left
+					&& rect.bottom <= bounds.bottom && (rect.top >= title.bottom || rect.left >= title.right);
+			});
+		});
+		assert.deepStrictEqual(layouts, [true, true, true, true]);
+	});
+
+	test('compact rows omit provider and repository labels and retain timestamps while evidence has one title and a bounded session preview', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
 		const session = upcastPartial<ISession>({
 			sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]),
@@ -894,7 +976,7 @@ suite('InboxNotificationsView', () => {
 			previews: ['Open Session'].map(button => ({
 				button, title: true, response: `${'R'.repeat(600)}…`, pointer: true, nativeTitle: false,
 			})), createdChats: 1, headerLayouts: Array.from({ length: 3 }, () => ({ actionsFit: true, dateAtRight: true })),
-			providerRequestedForRow: false, metadata: 'owner/repo', evidenceTitles: ['Finished'],
+			providerRequestedForRow: false, metadata: 'Fix CI', evidenceTitles: ['Finished'],
 			title: 'Finished', rowDates: 1, collapsedControls: null, disclosure: 'Show chat response',
 		});
 		view.dispose();
