@@ -70,19 +70,15 @@ type RemoteCellTemplate = {
 	row?: IRemoteTableRow;
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement; readonly availability: HTMLElement; readonly warning: HTMLElement }
+		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
-	return connecting === undefined ? getAgentHostConnectionStatusLabel(remote.connectionStatus)
+	return connecting === undefined ? remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)
+		? localize('remotes.offline', "Offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
 		: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
-}
-
-export function getHostAvailabilityLabel(remote: ICustomizationRemote): string | undefined {
-	return remote.hostAvailability === 'online' ? localize('remotes.hostOnline', "Host online")
-		: remote.hostAvailability === 'offline' ? localize('remotes.hostOffline', "Host offline") : undefined;
 }
 
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
@@ -126,12 +122,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'connection': {
-				const content = dom.append(container, dom.$('.remotes-connection-content'));
-				const label = dom.append(content, dom.$('.remotes-connection-state'));
-				const availability = dom.append(content, dom.$('.remotes-host-availability'));
+				const label = dom.append(container, dom.$('.remotes-connection-state'));
 				const warning = dom.append(container, dom.$('.remotes-connection-warning'));
 				dom.append(warning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
-				template = { ...base, column: this.column, label, availability, warning };
+				template = { ...base, column: this.column, label, warning };
 				break;
 			}
 			default: {
@@ -276,15 +270,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
-				const availability = entry.type === 'remote' ? getHostAvailabilityLabel(entry.remote) : undefined;
-				template.availability.textContent = availability ?? '';
-				template.availability.hidden = !availability;
-				if (availability) {
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.availability, {
-						content: localize('remotes.hostAvailabilityHover', "{0} is the host's last reported availability, independent of this window's connection. Refresh to check again.", availability),
-						style: HoverStyle.Pointer,
-					}, { groupId: this.hoverGroupId }));
-				}
 				const error = entry.type === 'remote' && entry.connecting === undefined
 					? entry.remote.lastConnectionError : undefined;
 				template.warning.hidden = !error;

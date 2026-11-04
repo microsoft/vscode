@@ -224,7 +224,7 @@ suite('RemotesWidget', () => {
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['', 'Name', 'Connection', ''],
+				columns: ['', 'Name', 'Status', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
@@ -934,7 +934,7 @@ suite('RemotesWidget', () => {
 				disabled: action.getAttribute('aria-disabled') === 'true',
 			};
 		});
-		assert.deepStrictEqual({ observed, accessible: widget.getAccessibilityContent().includes('Connection: Disconnected') }, {
+		assert.deepStrictEqual({ observed, accessible: widget.getAccessibilityContent().includes('Status: Disconnected') }, {
 			observed: [
 				{ status: 'Connected', action: 'Disconnect Build server', disabled: false },
 				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
@@ -982,7 +982,7 @@ suite('RemotesWidget', () => {
 		getConnectionAction(parent, 'ssh:build').click();
 		const busy = {
 			state: parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')?.textContent,
-			accessible: widget.getAccessibilityContent().includes('Connection: Disconnecting'),
+			accessible: widget.getAccessibilityContent().includes('Status: Disconnecting'),
 			renameDisabled: getManagementAction(parent, 'ssh:build', 'rename').getAttribute('aria-disabled'),
 		};
 		await model.pendingConnection.complete();
@@ -1276,11 +1276,11 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('offline environment shows its host availability below the connection without an address or info icon and preserves row focus on updates', () => {
+	test('offline environment shows Offline without an address or info icon and preserves row focus on updates', () => {
 		const { parent, model, widget, hoverContents } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
-			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false, hostAvailability: 'offline',
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
 		}], undefined);
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="environment:desktop"]')!;
@@ -1290,52 +1290,27 @@ suite('RemotesWidget', () => {
 		const connection = row.querySelector<HTMLElement>('.remotes-connection-state')!;
 		const offline = {
 			connection: connection.textContent,
-			host: row.querySelector('.remotes-host-availability')?.textContent,
 			tooltip: hoverContents.get(connection),
 			infoIcons: row.querySelectorAll('.codicon-info').length,
 			addressColumns: parent.querySelectorAll('.remotes-address-column').length,
-			accessibleView: widget.getAccessibilityContent().includes('Desktop. Connection: Disconnected. Host offline. Start the owning application.'),
+			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Offline. Start the owning application.'),
 		};
-		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, hostAvailability: 'online', unavailableReason: undefined })), undefined);
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
 		assert.deepStrictEqual({
 			offline,
 			available: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
-			availableHost: parent.querySelector('[data-remote-id] .remotes-host-availability')?.textContent,
 			tableFocused: dom.getActiveElement() === table,
 		}, {
-			offline: { connection: 'Disconnected', host: 'Host offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
-			available: 'Disconnected', availableHost: 'Host online', tableFocused: true,
+			offline: { connection: 'Offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
+			available: 'Disconnected', tableFocused: true,
 		});
 	});
 
-	test('shows host availability only where it is known', () => {
-		const { parent, model, widget } = createWidget();
-		model.environmentsEnabled.set(true, undefined);
-		model.remotes.set([
-			{ id: 'environment:desktop', kind: 'environment', name: 'Workstation', detail: 'desktop', canRemove: true, hostAvailability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-			{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-		], undefined);
-		const read = (id: string) => {
-			const row = parent.querySelector<HTMLElement>(`[data-remote-id="${id}"]`)!;
-			const host = row.querySelector<HTMLElement>('.remotes-host-availability')!;
-			return { host: host.hidden ? undefined : host.textContent, height: row.closest<HTMLElement>('.monaco-list-row')!.style.height };
-		};
-		assert.deepStrictEqual({
-			environment: read('environment:desktop'),
-			ssh: read('ssh:build'),
-			accessible: widget.getAccessibilityContent().includes('Workstation. Connection: Disconnected. Host online'),
-		}, {
-			environment: { host: 'Host online', height: '42px' },
-			ssh: { host: undefined, height: '26px' },
-			accessible: true,
-		});
-	});
-
-	test('host availability does not change the connection label or pending action', async () => {
+	test('offline availability does not override an active connection or pending action', async () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		const offline: ICustomizationRemote = {
-			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false, hostAvailability: 'offline',
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
 		};
 		const states = [
@@ -1355,7 +1330,7 @@ suite('RemotesWidget', () => {
 		await model.pendingConnection.complete();
 		await timeout(0);
 		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
-		assert.deepStrictEqual(observed, ['Disconnected', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Disconnected']);
+		assert.deepStrictEqual(observed, ['Offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Offline']);
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {

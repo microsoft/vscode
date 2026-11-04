@@ -1498,7 +1498,7 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('omits this computer\'s own registrations and reports host availability separately from the connection', async () => {
+	test('omits this computer\'s own registrations', async () => {
 		const { model, configuration, environmentAvailable, environmentHosts, addEnvironmentProvider, addProvider } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
@@ -1508,21 +1508,17 @@ suite('RemotesModel', () => {
 		], undefined);
 		addEnvironmentProvider('self', 'githubEnvironment');
 		addEnvironmentProvider('desktop');
-		const summarize = () => model.remotes.get()
+		const names = () => model.remotes.get()
 			.filter(remote => remote.kind === 'environment' || remote.kind === 'tunnel')
-			.map(({ name, connectionStatus, hostAvailability, unavailableReason, pickerUnavailableReason }) => ({ name, connection: connectionStatus.kind, hostAvailability, unavailableReason, pickerUnavailableReason }));
-		const cached = summarize();
+			.map(remote => remote.name);
+		const cached = names();
 		await model.refresh(CancellationToken.None);
-		const discovered = summarize();
+		const discovered = names();
 		addProvider('tunnel:laptop', 'devTunnel');
-		const desktop = { name: 'Desktop', connection: 'disconnected', hostAvailability: 'offline', unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' };
-		assert.deepStrictEqual({ cached, discovered, ownTunnel: summarize() }, {
-			cached: [desktop],
-			discovered: [
-				{ name: 'Laptop', connection: 'disconnected', hostAvailability: 'online', unavailableReason: undefined, pickerUnavailableReason: undefined },
-				desktop,
-			],
-			ownTunnel: [desktop],
+		assert.deepStrictEqual({ cached, discovered, ownTunnel: names() }, {
+			cached: ['Desktop'],
+			discovered: ['Laptop', 'Desktop'],
+			ownTunnel: ['Desktop'],
 		});
 	});
 
