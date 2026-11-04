@@ -9,7 +9,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatPlanReview, IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../workbench/contrib/chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
@@ -97,6 +97,13 @@ export interface IInboxNotificationQuestionCarouselPart {
 	readonly questions: readonly IChatQuestion[];
 }
 
+export interface IInboxNotificationPlanReviewPart extends Pick<IChatPlanReview, 'resolveId' | 'title' | 'content' | 'actions' | 'planUri'> {
+	readonly kind: 'planReview';
+	readonly chatResource: URI;
+	readonly requestId: string;
+	readonly reviewIndex: number;
+}
+
 export interface IInboxNotificationToolConfirmationButton {
 	readonly label: string;
 	readonly id?: string;
@@ -153,7 +160,7 @@ export function getInboxToolConfirmationDetails(invocation: IChatToolInvocation)
 	};
 }
 
-export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart;
+export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart | IInboxNotificationPlanReviewPart;
 
 export interface IInboxNotificationItem {
 	readonly id: string;

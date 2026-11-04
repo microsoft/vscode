@@ -3,6 +3,13 @@
   "version": "1.146.0",
   "packageManager": "pnpm@12.16.0",
   "distro": "db5ed1b9eedd37f415858594f54bfd0859e60a6b",
+  "nativeBuild": {
+    "runtime": "electron",
+    "target": "43.8.6",
+    "disturl": "https://electronjs.org/headers",
+    "msBuildId": "15893748",
+    "buildFromSource": true
+  },
   "author": {
     "name": "Microsoft Corporation"
   },
