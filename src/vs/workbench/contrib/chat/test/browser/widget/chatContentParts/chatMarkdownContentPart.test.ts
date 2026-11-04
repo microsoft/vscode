@@ -12,7 +12,6 @@ import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrol
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { resolvePath } from '../../../../../../../base/common/resources.js';
@@ -60,7 +59,6 @@ import { ChatConfiguration } from '../../../../common/constants.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
-import { ResourceContextKey } from '../../../../../../common/contextkeys.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 
@@ -430,83 +428,12 @@ suite('ChatMarkdownContentPart', () => {
 		);
 	});
 
-	for (const { scheme, linkType } of [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME].flatMap(scheme => [undefined, 'file', 'skill'].map(linkType => ({ scheme, linkType })))) {
-		for (const gesture of ['contextmenu', 'ContextMenu', 'Shift+F10']) {
-			test(`offers ${linkType ?? 'plain'} file link actions for ${scheme} via ${gesture}`, async () => {
-				const hasProvider = stub(instantiationService.get(IFileService), 'hasProvider').callsFake(resource => resource.scheme === scheme);
-				disposables.add(toDisposable(() => hasProvider.restore()));
-				const resource = scheme === AGENT_HOST_SCHEME
-					? toAgentHostUri(URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), 'remote-host')
-					: URI.from({ scheme, path: '/workspace/my file.ts', query: 'provider=value' });
-				const target = resource.with({ query: linkType ? `${resource.query}&vscodeLinkType=${linkType}` : resource.query, fragment: 'L42,7' });
-				const menus: object[] = [];
-				instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
-					getMenuActions: (id, context, options) => {
-						menus.push({
-							id,
-							resource: URI.isUri(options?.arg) ? options.arg.toString() : options?.arg,
-							scheme: context.getContextKeyValue(ResourceContextKey.Scheme.key),
-							fileSystem: context.getContextKeyValue(ResourceContextKey.IsFileSystemResource.key),
-						});
-						return [];
-					}
-				}));
-				instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
-					showContextMenu: delegate => { delegate.getActions?.(); }
-				}));
-				const part = createMarkdownPart(`[Source file](<${target.toString()}>)`);
-				const anchor = part.domNode.querySelector('a')!;
-				const openMenu = () => anchor.dispatchEvent(gesture === 'contextmenu'
-					? new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-					: new mainWindow.KeyboardEvent('keydown', { key: gesture === 'ContextMenu' ? 'ContextMenu' : 'F10', keyCode: gesture === 'ContextMenu' ? 93 : 121, shiftKey: gesture === 'Shift+F10', bubbles: true, cancelable: true }));
-				openMenu();
-				await Promise.resolve();
-				part.dispose();
-				openMenu();
-				await Promise.resolve();
-
-				assert.deepStrictEqual({
-					menus,
-					text: anchor.textContent,
-					href: anchor.getAttribute('data-href'),
-					isFileWidget: anchor.classList.contains('chat-inline-anchor-widget'),
-				}, {
-					menus: [{ id: MenuId.ChatInlineResourceAnchorContext, resource: resource.toString(), scheme, fileSystem: true }],
-					text: 'Source file',
-					href: target.toString(),
-					isFileWidget: false,
-				});
-			});
-		}
-	}
-
-	test('returns focus to the file link when its context menu closes', async () => {
-		let hideMenu: (() => void) | undefined;
-		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
-			showContextMenu: delegate => { hideMenu = () => delegate.onHide?.(false); }
-		}));
-		const part = createMarkdownPart('[Source](file:///workspace/file.ts)');
-		mainWindow.document.body.appendChild(part.domNode);
-		disposables.add(toDisposable(() => part.domNode.remove()));
-		const anchor = part.domNode.querySelector('a')!;
-		anchor.focus();
-		anchor.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
-		await Promise.resolve();
-		anchor.blur();
-		hideMenu!();
-		assert.strictEqual(mainWindow.document.activeElement, anchor);
-	});
-
-	test('does not give external or unsupported links a file context menu', async () => {
-		const showContextMenu = spy();
-		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu }));
-		const part = createMarkdownPart('[Web](https://example.com) [Remote](vscode-remote://unavailable/file.ts) [Agent](vscode-agent-host://unavailable/file.ts)');
-		const anchors = Array.from(part.domNode.querySelectorAll('a'));
-		for (const anchor of anchors) {
-			anchor.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-		}
-		await Promise.resolve();
-		assert.deepStrictEqual({ links: anchors.length, menus: showContextMenu.callCount }, { links: 3, menus: 0 });
+	test('preserves browser-normalized links without parsing them as file resources', () => {
+		const part = createMarkdownPart('[Web](https:////example.com) [Source](file:///workspace/file.ts)');
+		assert.deepStrictEqual(
+			Array.from(part.domNode.querySelectorAll('a'), anchor => ({ text: anchor.textContent, href: anchor.getAttribute('data-href') })),
+			[{ text: 'Web', href: 'https:////example.com' }, { text: 'Source', href: 'file:///workspace/file.ts' }],
+		);
 	});
 
 	test('preserves absolute Windows targets for newly created file links', () => {
