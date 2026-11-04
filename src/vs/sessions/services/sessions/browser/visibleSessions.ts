@@ -105,10 +105,14 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			const chats = this._session.chats.read(reader);
 			const detached = this._detachedChats.read(reader);
 			const inWindow = this._windowChats.read(reader);
+			// A window of its own also shows the subagent chats opened from it, beside its chat.
+			const shownInWindow = this._inWindow ? this._shownRelatedChatUris.read(reader) : undefined;
+			const isScoped = (c: IChat) => c.resource.toString() === this.scopedChatResource!.toString()
+				|| (c.origin?.kind === ChatOriginKind.Tool && !!shownInWindow?.has(c.resource.toString()));
 			// Hidden chats are internal workers that must never be surfaced in the
 			// conversation tab strip; closed chats are user-dismissed.
 			return chats.filter(c =>
-				(this.scopedChatResource ? c.resource.toString() === this.scopedChatResource.toString() : !detached.has(c.resource.toString()) && !inWindow.has(c.resource.toString())) &&
+				(this.scopedChatResource ? isScoped(c) : !detached.has(c.resource.toString()) && !inWindow.has(c.resource.toString())) &&
 				c.interactivity.read(reader) !== ChatInteractivity.Hidden &&
 				!closed.has(c.resource.toString()));
 		});
@@ -254,6 +258,10 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	 * subagent sets, or the main chat.
 	 */
 	private _defaultActiveChat(closed: ReadonlySet<string>, shownRelatedChats: ReadonlySet<string>): IChat {
+		const scoped = this._inWindow ? this._session.chats.get().find(c => c.resource.toString() === this.scopedChatResource?.toString()) : undefined;
+		if (scoped) {
+			return scoped;
+		}
 		const candidates = this._session.chats.get().filter(c =>
 			!this._detachedChats.get().has(c.resource.toString()) &&
 			!this._windowChats.get().has(c.resource.toString()) &&
@@ -1142,6 +1150,13 @@ export class VisibleSessions extends Disposable {
 			transaction(tx => this._setActiveSession(detached.wrapper, this._activePreserveFocus.get(), tx));
 			return;
 		}
+		// A window session shows its active chat; only the chats it shows beside its own chat stay out of the grid's.
+		if (this.isWindowSession(session)) {
+			(session as VisibleSession).setActiveChat(chat);
+			if (this._chatWrapperOf(session, chat) === session) {
+				return;
+			}
+		}
 		transaction(tx => {
 			let wrapper = this._wrappers.get(session.sessionId);
 			const active = this._activeSession.get();
@@ -1172,7 +1187,16 @@ export class VisibleSessions extends Disposable {
 	 */
 	closeChat(session: ISession, chat: IChat): void {
 		this.attachChat(session, chat.resource);
-		this._wrappers.get(session.sessionId)?.closeChat(chat);
+		this._chatWrapperOf(session, chat)?.closeChat(chat);
+	}
+
+	/**
+	 * The wrapper that shows `chat` of `session`: a window session's own for the chats it shows beside its chat, such as
+	 * subagent chats opened from it; else the grid's of its session.
+	 */
+	private _chatWrapperOf(session: ISession, chat: IChat): VisibleSession | undefined {
+		const windowSession = this.isWindowSession(session) ? session as VisibleSession : undefined;
+		return windowSession && windowSession.scopedChatResource!.toString() !== chat.resource.toString() ? windowSession : this._wrappers.get(session.sessionId);
 	}
 
 	/**
@@ -1180,7 +1204,7 @@ export class VisibleSessions extends Disposable {
 	 * wrapper. No-op if the session is not currently tracked in the visibility model.
 	 */
 	openChat(session: ISession, chat: IChat): void {
-		this._wrappers.get(session.sessionId)?.openChat(chat);
+		this._chatWrapperOf(session, chat)?.openChat(chat);
 	}
 
 	/**

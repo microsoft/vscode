@@ -1139,7 +1139,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
 			}
 			if (chat && intent === 'explicit' && !token.isCancellationRequested) {
-				const reopening = this.sessionsPartService.getSessionView(session.sessionId)?.reopenChat(chat.resource);
+				// The view of the session opened: a window's own, for a chat shown beside the chat of the window.
+				const reopening = this.sessionsPartService.getSessionView(activeSession ?? session.sessionId)?.reopenChat(chat.resource);
 				if (reopening) {
 					// A retained grid view can keep loading after this navigation is superseded.
 					await raceCancellation(reopening, token);
@@ -1636,12 +1637,34 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
+		const windowSession = this._getSubagentWindowSession(session, chatResource, options?.referenceChatResource);
+		if (windowSession) {
+			this._activate(windowSession, options?.preserveFocus, 'explicit');
+			await this.sessionsPartService.getSessionView(windowSession)?.openChatToSide(chatResource, options?.referenceChatResource);
+			return;
+		}
 		this._showSession(this._getSession(session.resource), options);
 		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
 		if (!sessionView) {
 			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
 		}
 		await sessionView.openChatToSide(chatResource, options?.referenceChatResource);
+	}
+
+	/**
+	 * The chat window a subagent chat opens to the side in: the window it is opened from, given as the window's session
+	 * or as the chat the window shows. Other chats, such as forks and side chats, open in the main window.
+	 */
+	private _getSubagentWindowSession(session: ISession, chatResource: URI, referenceChatResource: URI | undefined): IActiveSession | undefined {
+		const extUri = this.uriIdentityService.extUri;
+		const chat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, chatResource));
+		if (chat?.origin?.kind !== ChatOriginKind.Tool) {
+			return undefined;
+		}
+		if (this._visibility.isWindowSession(session)) {
+			return session as IActiveSession;
+		}
+		return referenceChatResource ? this._visibility.getWindowSession(session.sessionId, referenceChatResource) : undefined;
 	}
 
 	/**

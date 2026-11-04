@@ -10,6 +10,7 @@ import { getWindow } from '../../../../base/browser/dom.js';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -45,7 +46,7 @@ import { SessionsChatSurface } from '../../../services/chatBackground/browser/se
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../changes/common/changes.js';
@@ -259,6 +260,7 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		readonly sourceSession: ISession,
 		chatResource: URI,
 		private readonly _titleFactory: ChatWindowTitleFactory,
+		private readonly _onDidReleaseSubagentChats: (chat: URI, subagentChats: readonly URI[]) => void,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
@@ -442,6 +444,9 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 	private _releaseSession(): void {
 		const session = this._session.get();
 		if (session && this._sessionsService.windowSessions.get().includes(session)) {
+			// The subagent chats it shows beside its chat, which follow the chat when it moves to the main window.
+			const chat = this.chat.get();
+			this._onDidReleaseSubagentChats(chat, session.visibleChatTabs.get().filter(candidate => candidate.origin?.kind === ChatOriginKind.Tool && !isEqual(candidate.resource, chat)).map(candidate => candidate.resource));
 			this._sessionsService.closeSession(session);
 		}
 	}
@@ -454,6 +459,8 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 export class SessionsChatWindowProvider extends Disposable implements IChatWindowProvider {
 
 	private readonly _contents = observableValue<readonly SessionsChatWindowContent[]>(this, []);
+	/** The subagent chats that closed chat windows showed beside their chat, by chat, until the chat moves to the main window. */
+	private readonly _releasedSubagentChats = new ResourceMap<readonly URI[]>();
 
 	readonly restoreEnabled: IObservable<boolean>;
 	readonly onDidRemoveChats: Event<readonly URI[]>;
@@ -518,7 +525,14 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		// session shows in the grid, else its main chat.
 		const shown = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
 		const chat = resolved.chat ?? shown?.activeChat.get().resource ?? session.mainChat.get().resource;
-		const content = this._instantiationService.createInstance(SessionsChatWindowContent, session, chat, (window, windowContent, container, instantiationService, overChat) => this._createTitle(window, windowContent, container, instantiationService, overChat));
+		this._releasedSubagentChats.delete(chat);
+		const content = this._instantiationService.createInstance(SessionsChatWindowContent, session, chat, (window, windowContent, container, instantiationService, overChat) => this._createTitle(window, windowContent, container, instantiationService, overChat), (released, subagentChats) => {
+			if (subagentChats.length) {
+				this._releasedSubagentChats.set(released, subagentChats);
+			} else {
+				this._releasedSubagentChats.delete(released);
+			}
+		});
 		this._contents.set([...this._contents.get(), content], undefined);
 		Event.once(content.onWillDispose)(() => this._contents.set(this._contents.get().filter(candidate => candidate !== content), undefined));
 		return content;
@@ -530,7 +544,16 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			return;
 		}
 		const { session } = resolved;
+		const subagentChats = this._releasedSubagentChats.get(chat) ?? [];
+		this._releasedSubagentChats.delete(chat);
 		await (resolved.chat ? this._sessionsService.openChat(session, resolved.chat) : this._sessionsService.openSession(session.resource));
+		// The subagent chats the window showed beside the chat show beside it in the main window too.
+		const referenceChatResource = resolved.chat ?? session.mainChat.get().resource;
+		for (const subagentChat of subagentChats) {
+			if (session.chats.get().some(candidate => isEqual(candidate.resource, subagentChat))) {
+				await this._sessionsService.openChatToSide(session, subagentChat, { preserveFocus: true, referenceChatResource });
+			}
+		}
 		const inputs = editors.editors ?? [];
 		if (!inputs.length) {
 			return;
