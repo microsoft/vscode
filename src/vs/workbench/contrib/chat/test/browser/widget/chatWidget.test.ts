@@ -47,7 +47,7 @@ import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicator
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, createChatReferenceVariableEntry, hasIncompatibleSessionContext, withSessionContextSource } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
@@ -3082,6 +3082,46 @@ suite('ChatWidget - acceptInput submission', () => {
 			h.assertFinished('queued');
 		});
 	}
+
+	for (const queue of [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+		test(`rejects cross-host session context before queue admission and preserves the draft (${queue})`, async () => {
+			const fixture = createSubmissionWidget();
+			const context = withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), 'local');
+			fixture.attachments.add(context);
+			fixture.original.hasActiveRequest.set(true, undefined);
+			fixture.original.requestInProgress.set(true, undefined);
+			fixture.viewOptions.validateAttachments = attachments => !hasIncompatibleSessionContext(attachments, 'other-host');
+			const result = await fixture.widget.acceptInput(undefined, { queue, preserveInput: false });
+			assert.deepStrictEqual({
+				result, requests: fixture.chatService.sendRequest.callCount, accepted: fixture.input.acceptInput.callCount,
+				saves: fixture.editorService.saveAll.callCount, draft: fixture.attachments.asArray(),
+			}, { result: undefined, requests: 0, accepted: 0, saves: 0, draft: [context] });
+		});
+	}
+
+	test('revalidates session context when the host changes while saving', async () => {
+		const fixture = createSubmissionWidget();
+		const context = withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), 'local');
+		fixture.attachments.add(context);
+		let authority = 'local';
+		fixture.viewOptions.validateAttachments = attachments => !hasIncompatibleSessionContext(attachments, authority);
+		fixture.editorService.saveAll.callsFake(async () => {
+			authority = 'other-host';
+			return { success: true, editors: [] };
+		});
+		const result = await fixture.widget.acceptInput(undefined, { preserveInput: false });
+		assert.deepStrictEqual({
+			result, requests: fixture.chatService.sendRequest.callCount, accepted: fixture.input.acceptInput.callCount, draft: fixture.attachments.asArray(),
+		}, { result: undefined, requests: 0, accepted: 0, draft: [context] });
+	});
+
+	test('session context in a preserved draft does not block an unrelated background query', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.attachments.add(withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), 'local'));
+		fixture.viewOptions.validateAttachments = attachments => !hasIncompatibleSessionContext(attachments, 'other-host');
+		await fixture.widget.acceptInput('Background continuation', { preserveInput: true });
+		assert.deepStrictEqual(fixture.chatService.sendRequest.firstCall.args[2]?.attachedContext, []);
+	});
 });
 
 suite('ChatWidget - first visible progress lifecycle', () => {

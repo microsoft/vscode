@@ -23,6 +23,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
@@ -94,6 +95,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -111,7 +113,9 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
+		if (!environmentService.isSessionsWindow) {
+			this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
+		}
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
 	}
@@ -560,7 +564,7 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	}
 }
 
-class SessionReferenceContextPickerPick implements IChatContextPickerItem {
+export class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 	readonly icon = Codicon.comment;

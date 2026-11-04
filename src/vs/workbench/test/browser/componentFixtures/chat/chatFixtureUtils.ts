@@ -12,6 +12,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IMenu, IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IChatModelFeedbackSurveyService } from '../../../../contrib/chat/browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
@@ -72,7 +74,7 @@ import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/brows
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
-import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
+import { ChatContextPickService, IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
@@ -425,7 +427,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override async generateTitle() { return undefined; }
 	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
-	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
+	reg.defineInstance(IChatContextPickService, new ChatContextPickService());
+	reg.defineInstance(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
 	// Needed whenever chat markdown contains a code block; returns no custom renderer so
 	// code blocks fall back to the normal editor-backed CodeBlockPart.
 	reg.defineInstance(IChatOutputRendererService, new class extends mock<IChatOutputRendererService>() {

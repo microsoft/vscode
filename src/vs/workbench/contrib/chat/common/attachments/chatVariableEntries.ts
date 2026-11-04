@@ -595,6 +595,8 @@ export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): en
  */
 export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'chatReference';
+	/** Client-only source host for a session-context pick, rebound when restored from a host. */
+	readonly sessionContextSourceAuthority?: string;
 	/**
 	 * The referenced chat's **opaque backend chat URI** — the exact value carried
 	 * on `MessageChatAttachment.resource` on the wire. It is provider-defined and
@@ -620,6 +622,27 @@ export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequest
  */
 export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): entry is IChatRequestChatReferenceVariableEntry {
 	return entry.kind === 'chatReference';
+}
+
+const sessionContextMetadataKey = 'vscode.agentHost.sessionContext';
+
+export function withSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
+	return { ...entry, sessionContextSourceAuthority: authority, _meta: { ...entry._meta, [sessionContextMetadataKey]: true } };
+}
+
+export function restoreSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
+	return entry._meta?.[sessionContextMetadataKey] === true ? withSessionContextSource(entry, authority) : entry;
+}
+
+export function getSessionContextSourceAuthority(entry: IChatRequestVariableEntry): string | undefined {
+	return entry.kind === 'chatReference' ? entry.sessionContextSourceAuthority : undefined;
+}
+
+export function hasIncompatibleSessionContext(entries: readonly IChatRequestVariableEntry[], authority: string | undefined): boolean {
+	return entries.some(entry => {
+		const source = getSessionContextSourceAuthority(entry);
+		return source !== undefined && source !== authority;
+	});
 }
 
 /**

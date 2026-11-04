@@ -25,6 +25,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -41,7 +42,7 @@ import { IChatInputHostModelSelection } from '../../../../workbench/contrib/chat
 import { ModelComparisonAvailableContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
-import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { getSessionContextSourceAuthority, IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IDynamicVariable } from '../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
@@ -69,6 +70,7 @@ import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
 import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
+import { SessionReferenceContextPicker } from './sessionReferenceContext.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -167,6 +169,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _promptOptions: NewSessionPromptOptionsPresenter;
 
 	private _widget: ChatWidget | undefined;
+	private _sessionReferencePicker: SessionReferenceContextPicker | undefined;
 	private _container: HTMLElement | undefined;
 	private _repositoryControlsContainer: HTMLElement | undefined;
 	private _repositoryControlsHome: HTMLElement | undefined;
@@ -207,6 +210,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
@@ -328,6 +332,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this._onDidChangeInput.fire();
 		}));
 		this._register(this.instantiationService.createInstance(SessionReferenceCompletions, widget, () => this.options.session.get()));
+		this._sessionReferencePicker = this._register(this.instantiationService.createInstance(SessionReferenceContextPicker, widget, () => {
+			const session = this.options.session.get();
+			const chat = this.options.chat ? this.options.chat.get() : session?.activeChat.get();
+			return session && chat ? { session, chat } : undefined;
+		}));
 		if (this.options.supportsBackground) {
 			// Alt+Enter sends without navigating into the session, like the other Agents window composers.
 			this._register(widget.inputEditor.onKeyDown(e => {
@@ -910,6 +919,20 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (!this._canSendRequest.get()) {
 			return false;
 		}
+		const hasSessionContext = attachments.some(entry => getSessionContextSourceAuthority(entry) !== undefined);
+		const targetSession = this.options.session.get();
+		const targetChat = this.options.chat ? this.options.chat.get() : targetSession?.activeChat.get();
+		const validateSessionContext = () => {
+			if (hasSessionContext && (!isEqual(targetSession?.resource, this.options.session.get()?.resource)
+				|| !isEqual(targetChat?.resource, (this.options.chat ? this.options.chat.get() : this.options.session.get()?.activeChat.get())?.resource))) {
+				this.notificationService.warn(localize('sessionContext.sendTargetChanged', "The chat target changed before sending. Review the session context and send again."));
+				return false;
+			}
+			return this._sessionReferencePicker?.validateAttachments(attachments) !== false;
+		};
+		if (!validateSessionContext()) {
+			return false;
+		}
 		if (this.options.confirmSend) {
 			const hadFocus = widget.input.hasFocus();
 			transaction(tx => {
@@ -933,7 +956,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					}
 				}
 			}
-			if (!confirmed || this._widget !== widget) {
+			if (!confirmed || this._widget !== widget || !this._canSendRequest.get() || !validateSessionContext()) {
 				return false;
 			}
 		}
@@ -969,12 +992,21 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				this.setInputValue('');
 				return true;
 			}
+			if (!validateSessionContext()) {
+				userInteraction?.cancel('notDispatched');
+				return false;
+			}
 
 			// Clear the input as a regular chat send does. The widget is bound to
 			// the draft's chat model, which the running session adopts once the
 			// host sends, so the draft must not carry the sent prompt.
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
+			if (!validateSessionContext()) {
+				userInteraction?.cancel('notDispatched');
+				restoreInput();
+				return false;
+			}
 			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
 			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset

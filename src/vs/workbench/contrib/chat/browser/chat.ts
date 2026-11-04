@@ -403,6 +403,8 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
+	/** Host validation before sending or queuing. Report the reason and return false to preserve the input. */
+	validateAttachments?: (attachedContext: readonly IChatRequestVariableEntry[]) => boolean;
 	/**
 	 * Horizontal space the input part reserves around itself. Hosts that render the
 	 * input flush with their own content set this to `0`.

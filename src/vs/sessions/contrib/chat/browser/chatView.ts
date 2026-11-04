@@ -51,6 +51,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { SessionReferenceContextPicker } from './sessionReferenceContext.js';
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
@@ -338,6 +339,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private readonly _widget: ChatWidget;
+	private readonly _sessionReferencePicker: SessionReferenceContextPicker;
 	override readonly onDidSubmitRequest: Event<IChatViewRequestSubmission>;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
@@ -480,6 +482,7 @@ export class ChatView extends AbstractChatView {
 					);
 				}),
 				supportsFileReferences: true,
+				validateAttachments: attachments => this._sessionReferencePicker.validateAttachments(attachments),
 				rendererOptions: {
 					renderInputRequests: options.inputOnly ? false : undefined,
 					referencesExpandedWhenEmptyResponse: false,
@@ -510,6 +513,12 @@ export class ChatView extends AbstractChatView {
 		}));
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._sessionReferencePicker = this._register(instantiationService.createInstance(SessionReferenceContextPicker, this._widget, () => {
+			const session = this._currentSessionObs.get();
+			const resource = this._currentChatResourceObs.get();
+			const chat = session?.chats.get().find(chat => isEqual(chat.resource, resource));
+			return session && chat ? { session, chat } : undefined;
+		}));
 		const updateExperimentalComposerLayout = () => {
 			const enabled = !isPhoneLayout(this.layoutService);
 			usesExperimentalComposerLayout.set(enabled);

@@ -14,7 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -64,7 +64,7 @@ export async function readAgentHostSavedChat(resource: URI, connection: IAgentCo
 export function savedChatDraftInput(saved: IAgentHostSavedChat, resourceUris: IAgentHostResourceUriMapper): ISerializableChatModelInputState | undefined {
 	return saved.draft ? {
 		inputText: saved.draft.text,
-		attachments: messageAttachmentsToVariableData(saved.draft.attachments, '', saved.draft.text, resourceUris)?.variables ?? [],
+		attachments: messageAttachmentsToVariableData(saved.draft.attachments, resourceUris.authority ?? AMBIENT_AGENT_HOST_AUTHORITY, saved.draft.text, resourceUris)?.variables ?? [],
 		selections: [],
 		mode: { id: 'agent', kind: ChatModeKind.Agent },
 		selectedModel: undefined,
@@ -94,7 +94,7 @@ class PolicyUnavailableAgentHostSession extends Disposable implements IChatSessi
 
 	constructor(readonly sessionResource: URI, saved: IAgentHostSavedChat, connection: IAgentConnection) {
 		super();
-		this.history = turnsToHistory(saved.session, saved.turns, sessionResource.scheme, '', undefined, undefined, undefined, connection.resourceUris);
+		this.history = turnsToHistory(saved.session, saved.turns, sessionResource.scheme, connection.resourceUris.authority ?? AMBIENT_AGENT_HOST_AUTHORITY, undefined, undefined, undefined, connection.resourceUris);
 		this.title = saved.title;
 		this.transferredState = { editingSession: undefined, inputState: savedChatDraftInput(saved, connection.resourceUris) };
 	}

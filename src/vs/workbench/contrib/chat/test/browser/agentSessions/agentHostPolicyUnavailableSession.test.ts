@@ -11,11 +11,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
-import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createEditorRemoteAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ResponsePartKind, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agentSessions/agentHost/agentHostPolicyUnavailableSession.js';
+import { createChatReferenceVariableEntry, withSessionContextSource } from '../../../common/attachments/chatVariableEntries.js';
 
 suite('Policy unavailable Agent Host history', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,12 +35,12 @@ suite('Policy unavailable Agent Host history', () => {
 		workspace: { kind: 'none' },
 	};
 
-	function setup(read: (session: URI, chat?: URI) => Promise<IAgentHostSavedChat> = async () => saved) {
+	function setup(read: (session: URI, chat?: URI) => Promise<IAgentHostSavedChat> = async () => saved, resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper) {
 		const services = store.add(new TestInstantiationService());
 		services.stub(IAgentHostService, {
 			listSessions: async () => [{ session: backend, provider: 'claude', startTime: 0, modifiedTime: 0, chats: [{ chat: peer, kind: 'peer' }] }],
 			readSavedChat: read,
-			resourceUris: identityAgentHostResourceUriMapper,
+			resourceUris,
 			getSubscription: () => assert.fail('Saved history must not subscribe to the source'),
 			dispatch: () => assert.fail('Saved history must not dispatch to the source'),
 		});
@@ -75,11 +76,29 @@ suite('Policy unavailable Agent Host history', () => {
 			resolved = true;
 			return store.add(session);
 		});
+
 		await Promise.resolve();
 		assert.strictEqual(resolved, false);
 		history.complete(saved);
 		await loading;
 	});
+
+	for (const resourceUris of [identityAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper('wsl+Ubuntu', 'editor-remote')]) {
+		test(`restores session context on its ambient host for saved history and continuation drafts (${resourceUris.authority ?? 'local'})`, async () => {
+			const entry = withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), resourceUris.authority ?? 'local');
+			const attachment = { type: MessageAttachmentKind.Chat, resource: entry.value.toString(), label: entry.name, _meta: entry._meta } as const;
+			const session = store.add(await setup(async () => ({
+				...saved,
+				turns: [{ ...saved.turns[0], message: { ...saved.turns[0].message, attachments: [attachment] } }],
+				draft: { ...saved.draft!, attachments: [attachment] },
+			}), resourceUris).provideChatSessionContent(resource, CancellationToken.None));
+			const request = session.history[0];
+			assert.deepStrictEqual({
+				history: request.type === 'request' ? request.variableData?.variables : undefined,
+				draft: session.transferredState?.inputState?.attachments,
+			}, { history: [entry], draft: [entry] });
+		});
+	}
 
 	test('reads the catalog peer identity rather than the default chat', async () => {
 		const calls: string[][] = [];

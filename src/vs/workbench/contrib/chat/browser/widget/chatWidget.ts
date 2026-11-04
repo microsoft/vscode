@@ -3853,6 +3853,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return;
 		}
+		if (!options.preserveInput && this.viewOptions.validateAttachments?.(this.input.getAttachedContext().asArray()) === false) {
+			return;
+		}
 
 		let savedBeforeSend = false;
 		// Check if a custom submit handler wants to handle this submission
@@ -4089,6 +4092,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const selectedModelRequestOptions = resolveEditedRequestSelection(editedModelRequestOptions, this.getSelectedModelRequestOptions());
 
 		const transcriptContext = this.transcriptContextValue;
+		if (this.viewOptions.validateAttachments?.(requestInputs.attachedContext.asArray()) === false) {
+			return;
+		}
 		if (transcriptContext) {
 			requestInputs.attachedContext.insertFirst(transcriptContext);
 			this.setTranscriptContext(undefined);

@@ -56,7 +56,7 @@ import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chat
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type ChatRequestSource, type IChatRequestVariableData, type IChatSessionCost } from '../../../common/model/chatModel.js';
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
-import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, restoreSessionContextSource, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -1427,7 +1427,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		}
 		const v = messageAttachmentToVariableEntry(a, resourceUris, messageText);
 		if (v) {
-			variables.push(v);
+			variables.push(v.kind === 'chatReference' ? restoreSessionContextSource(v, connectionAuthority) : v);
 		}
 	}
 	return variables.length > 0 ? { variables } : undefined;
