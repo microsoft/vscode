@@ -33,9 +33,6 @@ import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
-import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
-import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
-import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
@@ -645,14 +642,6 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 		container.insertBefore(titlebarPartContainer, container.firstChild);
 
 		const disposables = new DisposableStore();
-
-		// An editor window shows no session, so its title bar reads no session's keys rather than those of the main
-		// window's session; a window that shows a session, such as a chat window, binds those of its own.
-		if (!(editorGroupsContainer instanceof ContentPart)) {
-			const contextKeyService = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)).createScoped(titlebarPartContainer));
-			setActiveSessionContextKeys(undefined, contextKeyService, undefined);
-			instantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		}
 
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer, instantiationService);
 		disposables.add(this.registerPart(titlebarPart));
