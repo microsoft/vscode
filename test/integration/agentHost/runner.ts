@@ -508,7 +508,8 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
 		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
-		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label} ${process.env['AGENT_HOST_TEST_PROFILE'] ?? 'full'}${storage ? ` ${storage}` : ''}`;
+		// Display labels contain parentheses that break Windows batch argument forwarding.
+		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.id} ${process.env['AGENT_HOST_TEST_PROFILE'] ?? 'full'}${storage ? ` ${storage}` : ''}`;
 	}
 	return result;
 }

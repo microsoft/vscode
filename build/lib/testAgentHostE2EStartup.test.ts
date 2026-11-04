@@ -184,3 +184,39 @@ test('Agent Host E2E shards take the processes of the listed suites in turn, and
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}
 });
+
+test('Agent Host E2E forwards unique report names and test shards through the Windows integration launcher', { skip: process.platform !== 'win32' }, async () => {
+	const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-e2e-reports-'));
+	try {
+		const { run } = await createRunnerRepository(repoRoot);
+		const sourceRoot = path.resolve(import.meta.dirname, '../..');
+		await fs.copyFile(path.join(sourceRoot, 'scripts/test-integration.bat'), path.join(repoRoot, 'scripts/test-integration.bat'));
+		await fs.writeFile(path.join(repoRoot, 'scripts/test.bat'), '@echo off\r\nnode capture-arguments.ts %*\r\nexit /b %errorlevel%\r\n');
+		await fs.writeFile(path.join(repoRoot, 'capture-arguments.ts'), `
+			import { appendFileSync } from 'node:fs';
+			appendFileSync('.build/arguments.jsonl', JSON.stringify(process.argv.slice(2)) + '\\n');
+		`);
+		run({ AGENT_HOST_E2E_STORAGE_BACKING: undefined }, ['--tfs', 'Integration Tests']);
+		run({ AGENT_HOST_TEST_PROFILE: 'pr', AGENT_HOST_E2E_STORAGE_BACKING: 'disk' }, ['--tfs', 'Integration Tests']);
+		const argumentsByWorker: string[][] = (await fs.readFile(path.join(repoRoot, '.build/arguments.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+		const workers = [
+			{ id: 'copilot-1', file: 'providers/copilotAgentHostE2E', shard: '1/2' },
+			{ id: 'copilot-2', file: 'providers/copilotAgentHostE2E', shard: '2/2' },
+			{ id: 'conformance-1', file: 'conformance/agentHostConformance', shard: '1/2' },
+			{ id: 'conformance-2', file: 'conformance/agentHostConformance', shard: '2/2' },
+			{ id: 'claude-1', file: 'providers/claudeAgentHostE2E', shard: '1/2' },
+			{ id: 'claude-2', file: 'providers/claudeAgentHostE2E', shard: '2/2' },
+			{ id: 'codex-1', file: 'providers/codexAgentHostE2E', shard: '1/2' },
+			{ id: 'codex-2', file: 'providers/codexAgentHostE2E', shard: '2/2' },
+			{ id: 'copilot-otel', file: 'providers/copilotOtelAgentHostE2E' },
+			{ id: 'copilot-managed-settings', file: 'providers/copilotManagedSettingsAgentHostE2E' },
+		];
+		assert.deepStrictEqual(argumentsByWorker, ['full', 'pr disk'].flatMap(profile => workers.map(worker => [
+			'--run', `src/vs/platform/agentHost/test/node/e2e/${worker.file}.integrationTest.ts`,
+			...(worker.shard ? ['--testShard', worker.shard] : []),
+			'--tfs', `Integration Tests ${worker.id} ${profile}`,
+		])));
+	} finally {
+		await fs.rm(repoRoot, { recursive: true, force: true });
+	}
+});
