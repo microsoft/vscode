@@ -5,17 +5,11 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { Schemas } from '../../../../../base/common/network.js';
 import * as Platform from '../../../../../base/common/platform.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IOutputService } from '../../../../services/output/common/output.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { TaskService } from '../../browser/taskService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { createTaskService, taskSystemInfo } from './taskTestUtils.js';
 
 suite('AbstractTaskService', function () {
 
@@ -24,37 +18,46 @@ suite('AbstractTaskService', function () {
 	teardown(() => sinon.restore());
 
 	test('removes task system info and emits a change when disposed', function () {
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
-			override readonly remoteAuthority = undefined;
-		});
-		instantiationService.stub(IOutputService, { getChannel: () => undefined });
-		instantiationService.stub(IConfigurationResolverService, { contributeVariable: () => { } });
-		instantiationService.stub(ITerminalService, { whenConnected: Promise.resolve(), instances: [] });
-		const registerCommand = sinon.spy(CommandsRegistry, 'registerCommand');
-		let taskService: TaskService;
-		try {
-			taskService = store.add(instantiationService.createInstance(TaskService));
-		} finally {
-			for (const call of registerCommand.getCalls()) {
-				store.add(call.returnValue);
-			}
-			registerCommand.restore();
-		}
-		taskService.registerSupportedExecutions(true, true, true);
+		const { taskService } = createTaskService(store);
 
 		const states: boolean[] = [];
 		store.add(taskService.onDidChangeTaskSystemInfo(() => states.push(taskService.hasTaskSystemInfo)));
-		const registration = store.add(taskService.registerTaskSystem('file', {
-			platform: Platform.Platform.Linux,
-			context: undefined,
-			uriProvider: path => URI.file(path),
-			resolveVariables: async () => undefined,
-			findExecutable: async () => undefined
-		}));
+		const registration = store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Linux)));
 
 		registration.dispose();
 
 		assert.deepStrictEqual(states, [true, false]);
 	});
+
+	for (const webFirst of [false, true]) {
+		for (const disposeNativeFirst of [false, true]) {
+			test(`preserves same-scheme task system selection (web registered first: ${webFirst}, native disposed first: ${disposeNativeFirst})`, () => {
+				const { taskService, instantiationService } = createTaskService(store);
+				const nativeInfo = taskSystemInfo(Platform.Platform.Linux);
+				const webInfo = taskSystemInfo(Platform.Platform.Web);
+				// Web registrations use the first workspace folder's scheme.
+				const scheme = instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.scheme;
+				const [firstInfo, secondInfo] = webFirst ? [webInfo, nativeInfo] : [nativeInfo, webInfo];
+				const first = store.add(taskService.registerTaskSystem(scheme, firstInfo));
+				const second = store.add(taskService.registerTaskSystem(scheme, secondInfo));
+				const native = webFirst ? second : first;
+				const web = webFirst ? first : second;
+				const states: (typeof nativeInfo | undefined)[] = [];
+				const recordSelection = () => states.push(taskService.getTaskSystemInfo(scheme));
+				store.add(taskService.onDidChangeTaskSystemInfo(recordSelection));
+				recordSelection();
+
+				const removed = disposeNativeFirst ? native : web;
+				const survivor = disposeNativeFirst ? web : native;
+				removed.dispose();
+				// Repeated disposal must leave the survivor and notification count intact.
+				removed.dispose();
+				survivor.dispose();
+
+				assert.deepStrictEqual({ states, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, {
+					states: [nativeInfo, disposeNativeFirst ? webInfo : nativeInfo, undefined], hasTaskSystemInfo: false
+				});
+			});
+		}
+	}
 });
