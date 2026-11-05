@@ -1838,7 +1838,10 @@ class InnerMinimap extends Disposable {
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
 		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
-		const { canvasInnerWidth } = this._model.options;
+		const { canvasInnerWidth, canvasOuterWidth, pixelRatio } = this._model.options;
+		// With `minimap.size: fill` the canvas backing store can be wider than its CSS size, which would squeeze the text horizontally
+		const horizontalScale = Math.max(1, canvasInnerWidth / (canvasOuterWidth * pixelRatio));
+		const labelAreaWidth = canvasInnerWidth / horizontalScale;
 
 		const backgroundColor = this._model.options.backgroundColor;
 		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b} / .7)`;
@@ -1851,12 +1854,14 @@ class InnerMinimap extends Disposable {
 		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
 		canvasContext.lineWidth = 0.4;
+		canvasContext.save();
+		canvasContext.scale(horizontalScale, 1);
 
 		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
 		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
 
 		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
-			canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
+			labelAreaWidth - MINIMAP_GUTTER_WIDTH);
 
 		for (const decoration of decorations) {
 			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
@@ -1870,12 +1875,14 @@ class InnerMinimap extends Disposable {
 				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
 				backgroundFill,
 				foregroundFill,
-				canvasInnerWidth,
+				labelAreaWidth,
 				backgroundFillY,
 				backgroundFillHeight,
 				y,
 				separatorY);
 		}
+
+		canvasContext.restore();
 	}
 
 	private static _fitSectionHeader(

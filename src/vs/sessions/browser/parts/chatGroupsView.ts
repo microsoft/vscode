@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatGroupsView.css';
-import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
+import { $, getWindow, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -22,6 +22,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { ChatOriginKind, IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { getWindowHost, ISessionHost } from '../../services/sessions/browser/sessionHost.js';
 import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, ISessionViewHostOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
@@ -136,9 +137,12 @@ export class ChatGroupsView extends Themable {
 
 	constructor(
 		private readonly _hostOptions: ISessionViewHostOptions | undefined,
+		/** Whether the document of a window has focus; injectable for tests. */
+		private readonly _hasWindowFocus: (targetWindow: Window) => boolean = targetWindow => targetWindow.document.hasFocus(),
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
@@ -758,8 +762,12 @@ export class ChatGroupsView extends Themable {
 	 */
 	async openChatInNewGroup(resource: URI, referenceChatResource?: URI): Promise<void> {
 		await this._openChatInNewGroup(resource, referenceChatResource, 'right');
+		// Only while its window still shows the session and has focus: the user may have moved to another window meanwhile,
+		// such as one still loading its chat, or to another application.
+		const windowHost = getWindowHost(this._sessionHost);
 		if (referenceChatResource
-			&& this._session?.sessionId === this._sessionsService.activeSession.get()?.sessionId
+			&& this._session?.sessionId === windowHost.session.get()?.sessionId
+			&& this._hasWindowFocus(getWindow(this.element))
 			&& this._activeGroup?.activeResourceId.get() === resource.toString()) {
 			this._activeGroup.view.focus();
 		}

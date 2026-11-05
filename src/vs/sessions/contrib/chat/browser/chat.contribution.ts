@@ -24,7 +24,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { AgentHostSandboxNotifications } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSandboxNotifications.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveGridCommandView } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
@@ -209,9 +209,8 @@ class FocusNewSessionWorkspacePickerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusWorkspacePicker();
+		(sessionsPartService.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.focusWorkspacePicker();
 	}
 }
 
@@ -234,9 +233,8 @@ class FocusNewSessionEnvironmentPickerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusEnvironmentPicker();
+		(sessionsPartService.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.focusEnvironmentPicker();
 	}
 }
 
@@ -259,9 +257,8 @@ class FocusNewSessionHarnessPickerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusHarnessPicker();
+		(sessionsPartService.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.focusHarnessPicker();
 	}
 }
 
@@ -284,9 +281,8 @@ class FocusNewSessionBranchPickerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusBranchPicker();
+		(sessionsPartService.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.focusBranchPicker();
 	}
 }
 
@@ -309,9 +305,8 @@ class FocusNewSessionWorktreePickerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusWorktreePicker();
+		(sessionsPartService.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.focusWorktreePicker();
 	}
 }
 
@@ -334,9 +329,8 @@ class FocusSessionSyncActionAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()))?.focusSyncAction();
+		(sessionsPartService.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.focusSyncAction();
 	}
 }
 

@@ -375,7 +375,8 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 	readonly when = SessionComparisonResultFocused;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
-		const session = accessor.get(ISessionsService).activeSession.get();
+		// Comparisons show in the grid: the comparison of its active pane.
+		const session = accessor.get(ISessionsPartService).getActiveSessionView()?.getSession();
 		const comparison = session
 			? accessor.get(ISessionComparisonService).comparisons.get().find(candidate => isJudgeSession(candidate, session, session.activeChat.get().resource))
 			: undefined;
@@ -394,14 +395,12 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 
 function createSessionsChatFocusRestorer(accessor: ServicesAccessor): () => void {
 	const sessionsPartService = accessor.get(ISessionsPartService);
-	const sessionsService = accessor.get(ISessionsService);
 	const previouslyFocused = getActiveElement();
 	return () => {
 		if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
 			previouslyFocused.focus();
 			return;
 		}
-		const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
-		view?.focus();
+		sessionsPartService.getActiveSessionView()?.focus();
 	};
 }

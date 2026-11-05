@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -18,6 +18,8 @@ import { IChat } from '../../../../services/sessions/common/session.js';
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
+import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 suite('Fix Checks', () => {
 
@@ -56,6 +58,8 @@ suite('Fix Checks', () => {
 				override readonly resource = secondChat;
 			}());
 		}();
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ windowSessions: constObservable([session]) }));
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(FIX_CI_CHECKS_COMMAND_ID)!.handler(accessor, session));
 

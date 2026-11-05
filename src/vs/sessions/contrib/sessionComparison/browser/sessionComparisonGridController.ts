@@ -15,17 +15,13 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getSessionPaneId, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
 
 const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';
 const COMPARISON_GRID_ACTIVE_CLASS = 'session-comparison-grid-active';
-
-function getPaneId(session: IActiveSession | undefined): string | undefined {
-	return session?.scopedChatResource?.toString() ?? session?.sessionId;
-}
 
 export class SessionComparisonGridController extends Disposable implements IWorkbenchContribution {
 
@@ -59,7 +55,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		);
 		this._register(autorun(reader => {
 			const visibleSessions = this.sessionsService.visibleSessionPanes.read(reader);
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this._activePane(visibleSessions, this.sessionsService.activePaneId.read(reader));
 			const comparisons = this.comparisonService.comparisons.read(reader);
 			const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons, reader);
 			const previousComparison = this._visibleComparison;
@@ -80,9 +76,9 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			);
 			if (!this._comparisonGridActive && this._isolatedJudge
 				&& (visibleSessions.length !== 1
-					|| getPaneId(visibleSessions[0]) !== this._isolatedJudge.paneId
+					|| getSessionPaneId(visibleSessions[0]) !== this._isolatedJudge.paneId
 					|| !activeSession
-					|| getPaneId(activeSession) !== this._isolatedJudge.paneId
+					|| getSessionPaneId(activeSession) !== this._isolatedJudge.paneId
 					|| !isEqual(activeSession.activeChat.read(reader).resource, this._isolatedJudge.chatResource)
 					|| !comparisons.some(candidate => candidate.archivedAt === undefined && candidate.participants.some(participant =>
 						participant.role === SessionComparisonParticipantRole.Judge
@@ -110,6 +106,11 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		}));
 	}
 
+	/** The active pane of the grid, of its panes. */
+	private _activePane(visibleSessions: readonly (IActiveSession | undefined)[], activePaneId: string | undefined): IActiveSession | undefined {
+		return activePaneId === undefined ? undefined : visibleSessions.find(session => getSessionPaneId(session) === activePaneId);
+	}
+
 	private _scheduleComparisonGridCollapse(
 		comparison: ISessionComparison,
 		visibleSessions: readonly (IActiveSession | undefined)[],
@@ -117,14 +118,14 @@ export class SessionComparisonGridController extends Disposable implements IWork
 	): void {
 		const isParticipant = (session: IActiveSession | undefined) => !!session && comparison.participants.some(participant =>
 			participant.sessionResource && isEqual(participant.sessionResource, session.resource));
-		const preferredSession = visibleSessions.find(session => getPaneId(session) === getPaneId(activeSession) && !isParticipant(session))
+		const preferredSession = visibleSessions.find(session => getSessionPaneId(session) === getSessionPaneId(activeSession) && !isParticipant(session))
 			?? visibleSessions.find(session => session && !isParticipant(session));
 		const request = ++this._comparisonGridCollapseRequest;
 		queueMicrotask(() => {
 			if (request !== this._comparisonGridCollapseRequest) {
 				return;
 			}
-			this._collapseComparisonGrid(getPaneId(preferredSession));
+			this._collapseComparisonGrid(getSessionPaneId(preferredSession));
 		});
 	}
 
@@ -133,12 +134,12 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		if (visibleSessions.length <= 1 || this._isComparisonGrid(visibleSessions, this.comparisonService.comparisons.get())) {
 			return;
 		}
-		const activeSession = this.sessionsService.activeSession.get();
+		const activeSession = this._activePane(visibleSessions, this.sessionsService.activePaneId.get());
 		let survivor = preferredSessionId
-			? visibleSessions.find(session => getPaneId(session) === preferredSessionId)
+			? visibleSessions.find(session => getSessionPaneId(session) === preferredSessionId)
 			: undefined;
 		if (!survivor && activeSession) {
-			survivor = visibleSessions.find(session => getPaneId(session) === getPaneId(activeSession));
+			survivor = visibleSessions.find(session => getSessionPaneId(session) === getSessionPaneId(activeSession));
 		}
 		if (!survivor && !visibleSessions.some(session => session === undefined)) {
 			survivor = visibleSessions.find(session => session);
@@ -151,7 +152,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return;
 		}
 		const visibleSessions = this.sessionsService.visibleSessionPanes.get();
-		const active = this.sessionsService.activeSession.get();
+		const active = this._activePane(visibleSessions, this.sessionsService.activePaneId.get());
 		const focusedSession = active?.sessionId === sessionId ? active : visibleSessions.find(session => session?.sessionId === sessionId);
 		const judgePaneId = this._getJudgeSessionId(focusedSession, visibleSessions, this.comparisonService.comparisons.get());
 		if (!judgePaneId) {
@@ -176,12 +177,12 @@ export class SessionComparisonGridController extends Disposable implements IWork
 
 	private _isolateJudge(sessionId: string): void {
 		const visibleSessions = this.sessionsService.visibleSessionPanes.get();
-		const judgeSession = visibleSessions.find(session => getPaneId(session) === sessionId);
+		const judgeSession = visibleSessions.find(session => getSessionPaneId(session) === sessionId);
 		if (!judgeSession || this._getJudgeSessionId(judgeSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
 			return;
 		}
 		this._isolatedJudge = { paneId: sessionId, chatResource: judgeSession.activeChat.get().resource };
-		if (judgeSession.scopedChatResource || visibleSessions.some(session => session !== judgeSession && session?.sessionId === judgeSession.sessionId)) {
+		if (this.sessionsService.isDetachedPane(judgeSession) || visibleSessions.some(session => session !== judgeSession && session?.sessionId === judgeSession.sessionId)) {
 			this.sessionsService.collapseToSession(judgeSession);
 			this._setSidePaneSuppressed(true);
 			return;
@@ -207,7 +208,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		const participant = comparison?.participants.find(candidate =>
 			candidate.sessionResource && isEqual(candidate.sessionResource, session.resource)
 			&& (!candidate.chatResource || isEqual(candidate.chatResource, session.activeChat.read(reader).resource)));
-		return participant?.role === SessionComparisonParticipantRole.Judge ? getPaneId(session) : undefined;
+		return participant?.role === SessionComparisonParticipantRole.Judge ? getSessionPaneId(session) : undefined;
 	}
 
 	private _getComparisonForVisibleSessions(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[], reader?: IReader): ISessionComparison | undefined {

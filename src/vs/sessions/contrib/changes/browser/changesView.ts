@@ -70,12 +70,11 @@ import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEdit
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -150,10 +149,12 @@ interface IChangesButtonBarWidget extends IDisposable {
 	readonly hasActions: boolean;
 }
 
-/** Resolves the session of the given scope together with its changes observables. */
-export function createChangesSessionScope(changesViewService: IChangesViewService, sessionsService: ISessionsService, scope: ISessionScope): IChangesSessionScope {
-	const session = scope.session;
-	return { session, changes: session === sessionsService.mainWindowActiveSession ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session) };
+/** Resolves the session and chat of the window of `host` together with their changes observables. */
+export function createChangesSessionScope(changesViewService: IChangesViewService, host: ISessionHost): IChangesSessionScope {
+	const windowHost = getWindowHost(host);
+	const isMainWindow = windowHost.kind === SessionHostKind.MainWindow;
+	const { session, chat } = windowHost;
+	return { session, chat, isMainWindow, changes: isMainWindow ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session, chat) };
 }
 
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
@@ -311,11 +312,11 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
  */
 export const CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP = 'primary';
 
-export function isChangesActionsWorkspaceReady(activeSession: IActiveSession | undefined, mountedFolders: readonly IWorkspaceFolder[], reader: IReader | undefined): boolean {
-	if (!activeSession?.isCreated.read(reader) || activeSession.isQuickChat?.read(reader)) {
+export function isChangesActionsWorkspaceReady(session: IHostSession | undefined, chat: IChat | undefined, mountedFolders: readonly IWorkspaceFolder[], reader: IReader | undefined): boolean {
+	if (!session?.isCreated.read(reader) || session.isQuickChat?.read(reader)) {
 		return true;
 	}
-	const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
+	const workspace = chat?.workspace.read(reader);
 	return !!workspace
 		&& workspace.folders.length === mountedFolders.length
 		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
@@ -340,11 +341,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
-		const { session: sessionObs, changes } = source;
+		const { session: sessionObs, chat: chatObs, changes, isMainWindow } = source;
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const createPullRequestContextView = this._register(instantiationService.createInstance(CreatePullRequestContextView));
@@ -386,7 +386,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			menuChanged.read(reader);
 			// A bar of a session other than the main window's, such as in a chat window, names its session to its actions,
 			// as the bar of a non-agent-host session does, rather than leaving them to act on whichever session is active.
-			const session = sessionObs !== sessionsService.mainWindowActiveSession ? sessionObs.read(reader) : undefined;
+			const session = !isMainWindow ? sessionObs.read(reader) : undefined;
 			if (!session) {
 				return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			}
@@ -467,7 +467,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 						const state = changes.stateObs.read(undefined);
 						const session = sessionObs.read(undefined);
 						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
-						const chat = session?.activeChat.read(undefined);
+						const chat = chatObs.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
 							chat: chat?.resource,
 							branchName: state?.branchName,
@@ -530,7 +530,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
 			// Only the main window's session is mounted: the bar of another session, such as in a chat window, never waits.
-			if (sessionObs === sessionsService.mainWindowActiveSession && !isChangesActionsWorkspaceReady(sessionObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
+			if (isMainWindow && !isChangesActionsWorkspaceReady(sessionObs.read(reader), chatObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
 				if (buttonBar.buttons.length > 0) {
 					buttonBar.update([], []);
 				}
@@ -709,17 +709,16 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 		options: IActionViewItemOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionScope private readonly sessionScope: ISessionScope,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 	) {
 		super(undefined, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		const scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+		const scope = createChangesSessionScope(this.changesViewService, this.sessionHost);
 		let instantiationService = this.instantiationService;
-		if (scope.session !== this.sessionsService.mainWindowActiveSession) {
+		if (!scope.isMainWindow) {
 			// The globally bound session action context keys belong to the active session.
 			const host = createSessionActionsInstantiationService(this.instantiationService, container, scope);
 			this._register(host.store);
@@ -761,7 +760,6 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChangesViewService changesViewService: IChangesViewService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -776,8 +774,8 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 				return undefined;
 			}
 			// The shared summary and label follow the active session; other sessions get their own.
-			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionsService), accessor.get(ISessionScope)));
-			if (scope.session === sessionsService.mainWindowActiveSession) {
+			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionHost)));
+			if (scope.isMainWindow) {
 				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
 			}
 			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);
@@ -861,18 +859,17 @@ export class ChangesViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
-		@ISessionScope private readonly sessionScope: ISessionScope,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
-		this.scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+		this.scope = createChangesSessionScope(this.changesViewService, this.sessionHost);
 
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
@@ -1521,7 +1518,7 @@ export class ChangesViewPane extends ViewPane {
 		if (this.scope.changes.changesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
 			return activeSession?.workspace.read(reader);
 		}
-		return activeSession?.activeChat.read(reader).workspace.read(reader);
+		return this.scope.chat.read(reader)?.workspace.read(reader);
 	}
 
 	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {
@@ -1794,7 +1791,7 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
-		const source = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+		const source = createChangesSessionScope(this.changesViewService, this.sessionHost);
 		this.renderDisposables.add(autorun(reader => {
 			dom.clearNode(this.actionsContainer!);
 
@@ -2323,7 +2320,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 						if (scope && !session) {
 							return;
 						}
-						changesViewService.setChangesetId(changeset.id, session);
+						changesViewService.setChangesetId(changeset.id, session, scope?.chat.get());
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
 					}
 				} satisfies IActionWidgetDropdownAction));

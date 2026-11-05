@@ -13,7 +13,7 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import './chatWindowActions.js';
 import './chatWindowDragOut.js';
 import './openChatInWindow.js';
-import './sessionChatViewEditor.js';
+import '../../chatEditor/browser/chatEditor.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { SessionsChatWindowProvider } from './sessionsChatWindowProvider.js';
 

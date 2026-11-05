@@ -15,7 +15,7 @@ import { CancellationError, isCancellationError, onUnexpectedError } from '../..
 import { Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableSignal } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -449,6 +449,13 @@ export class AgentHostChatInputPicker extends Disposable {
 	private readonly _pickerDisposables = this._register(new DisposableStore());
 	private readonly _draftListeners = this._register(new DisposableStore());
 	private readonly _sandboxConfigChanged = observableSignal(this);
+	readonly sandboxToggleChecked = derived(this, reader => {
+		this._sandboxConfigChanged.read(reader);
+		this._agentHostEnablementService.managedSandboxEnforced.read(reader);
+		this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
+		const permissions = this._readContext();
+		return !!permissions && this._canEdit(permissions) && !!getSessionApprovalProperty(permissions.configSchema) && this._getSandboxStandaloneToggle()?.checked === true;
+	});
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & {
 		readonly sub: IAgentSubscription<SessionState>;
@@ -576,6 +583,14 @@ export class AgentHostChatInputPicker extends Disposable {
 		container.classList.add('agent-host-chat-input-picker-host');
 		container.classList.add(`agent-host-chat-input-picker-host-${this._property}`);
 		this._renderChip();
+	}
+
+	unrender(): void {
+		this._hidePicker();
+		this._container = undefined;
+		this._trigger = undefined;
+		this._splitTrigger.clear();
+		this._renderDisposables.clear();
 	}
 
 	show(anchor: HTMLElement): void {
@@ -742,7 +757,6 @@ export class AgentHostChatInputPicker extends Disposable {
 					const chatSubscription = store.add(resolution.connection.getSubscription(StateComponents.Chat, URI.parse(member), 'AgentHostChatInputPicker.chat'));
 					store.add(chatSubscription.object.onDidChange(() => {
 						this._renderChip();
-						this._sandboxConfigChanged.trigger(undefined);
 					}));
 					subscriptions.set(member, chatSubscription.object);
 				}
@@ -760,7 +774,6 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._hidePicker();
 			}
 			this._renderChip();
-			this._sandboxConfigChanged.trigger(undefined);
 		});
 		const creationListener = retrySessionConfigSubscriptionOnCreation(resolution.connection, resolution.backendSession, sub, () => this._reattach());
 		this._subRef.value = {
@@ -787,6 +800,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _renderChip(): void {
+		this._sandboxConfigChanged.trigger(undefined);
 		if (!this._container || this._renderDisposables.isDisposed) {
 			return;
 		}
@@ -1498,9 +1512,9 @@ export class AgentHostChatInputPicker extends Disposable {
 }
 
 export class AgentHostChatInputPickerActionViewItem extends BaseActionViewItem {
-	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker, onDidDispose?: () => void) {
+	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker, onDidDispose?: () => void, retainPicker = false) {
 		super(undefined, action);
-		this._register(this._picker);
+		this._register(retainPicker ? toDisposable(() => this._picker.unrender()) : this._picker);
 		if (onDidDispose) {
 			this._register(toDisposable(onDidDispose));
 		}

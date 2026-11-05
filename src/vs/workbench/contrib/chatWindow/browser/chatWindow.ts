@@ -34,6 +34,15 @@ export interface IChatWindowEditors {
 export interface IChatWindowOpenOptions {
 	/** Whether to open it without focusing it, such as when restoring it. */
 	readonly preserveFocus?: boolean;
+	/**
+	 * The open chat window to show the chat in, beside its other chats, rather than a window of its own. Ignored when the
+	 * chat shows in a window already, which reveals it.
+	 */
+	readonly window?: IChatWindow;
+	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
+	readonly chats?: readonly URI[];
+	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
+	readonly beside?: URI;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
 	/**
@@ -54,34 +63,42 @@ export interface IChatWindowOpenOptions {
 
 /**
  * The groups of a chat window's chat part besides the chat's own, such as an editor split beside the chat, with their
- * editors: the state of the part, which leaves out the chat, and where the chat goes in it.
+ * editors: the state of the part, which leaves out the chats, and where the chats go in it.
  */
 export interface IChatWindowChatPart {
 	/** The state of the part, from {@link IContentPart.createState}. */
 	readonly state: unknown;
-	/** The index of the chat's group among the groups of the part, in the order they appear in. */
+	/** The index of the group of the chat the window opens for among the groups of the part, in the order they appear in. */
 	readonly chatGroup: number;
+	/** The index of the group of each of {@link IChatWindowOpenOptions.chats}, in their order; by default the chat's group. */
+	readonly chatGroups?: readonly number[];
 }
 
 
-/**
- * The content facet: what a chat window shows for a chat, resolved once per window by its provider. Disposed when the
- * window closes.
- */
-export interface IChatWindowContent extends IDisposable {
+/** A chat a chat window shows: one of its chats, each an editor of the window's chat part. Disposed when it leaves the window. */
+export interface IChatWindowChat extends IDisposable {
 	/**
-	 * The chat the window shows. It changes when the provider replaces the chat, such as when its resource changes: the
-	 * window then shows, restores and reveals as the replacement.
+	 * The chat. It changes when the provider replaces the chat, such as when its resource changes: the window then shows,
+	 * restores and reveals it as the replacement.
 	 */
 	readonly chat: IObservable<URI>;
 	/** The editor that shows the chat in the window's chat part, such as a view editor. */
 	readonly input: EditorInput;
-	/** The title of the window. */
+	/** The title of the chat, which is the window's while it is the active chat. */
 	readonly title: IObservable<string>;
-	/** Services scoped to the window, created for it: what its chat, its parts and its chrome act on. */
-	readonly services?: ServiceCollection;
-	/** Fires when the chat is gone, such as deleted or archived: the window closes. */
+	/** Fires when the chat is gone, such as deleted or archived: it leaves the window, which closes once it has no chat. */
 	readonly onDidEnd: Event<void>;
+}
+
+/**
+ * The content facet: what a chat window shows, resolved once per window by its provider, and the chats it shows, each
+ * resolved by it. Disposed when the window closes.
+ */
+export interface IChatWindowContent extends IDisposable {
+	/** Services scoped to the window, created for it: what its chats, its parts and its chrome act on. */
+	readonly services?: ServiceCollection;
+	/** Resolves a chat for the window to show; undefined when the chat is unknown. */
+	resolveChat(chat: URI): Promise<IChatWindowChat | undefined>;
 	/**
 	 * Called once the window's services exist, before its parts show anything: `instantiationService` has the window's
 	 * services, those of its content and the window's context, such as to bind what the window shows on that context.
@@ -144,8 +161,8 @@ export interface IChatWindowProvider {
 	resolveContent(chat: URI): Promise<IChatWindowContent | undefined>;
 	readonly chrome?: IChatWindowChrome;
 	readonly look: IChatWindowLook;
-	/** Shows `chat` in the main window again, with `editors`, once its chat window closed. */
-	moveToMainWindow(chat: URI, editors: IChatWindowEditors): Promise<void>;
+	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed; the first is the one that was active there. */
+	moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void>;
 	/**
 	 * Whether a chat window of `chat` that was open when the window last closed opens again, waiting as long as it needs
 	 * to know, such as for the chat to load. A chat that is gone does not.
@@ -157,12 +174,18 @@ export interface IChatWindowProvider {
 	readonly onDidRemoveChats: Event<readonly URI[]>;
 }
 
-/** An open chat window: a window of its own that shows a chat in its chat part, beside its main part. */
+/** An open chat window: a window of its own that shows chats in its chat part, each an editor of it, beside its main part. */
 export interface IChatWindow {
 	/** The id of the window it shows in. */
 	readonly windowId: number;
-	/** The chat it shows. */
+	/** The chats it shows, in the order they joined it. It closes once the last one leaves. */
+	readonly chats: IObservable<readonly URI[]>;
+	/**
+	 * The active chat: the chat whose editor was last active in the window, whichever part shows it. It does not change as
+	 * focus moves to another editor, such as of the main part.
+	 */
 	readonly chat: IObservable<URI>;
+	/** The title of the active chat. */
 	readonly title: IObservable<string>;
 	/** How it shows its chat part and its main part. */
 	readonly layoutMode: IObservable<ChatWindowLayoutMode>;
@@ -179,8 +202,10 @@ export interface IChatWindow {
 	readonly mainPart: IContentPart;
 	/** The part that shows the chat. */
 	readonly chatPart: IEditorPart;
-	/** The editor that shows the chat, in its chat part. */
+	/** The editor that shows the active chat, in its chat part. */
 	readonly chatEditor: EditorInput;
+	/** Whether `editor` shows one of its chats. */
+	isChatEditor(editor: EditorInput): boolean;
 	/**
 	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
 	 * chat can move into another part of the window, and parts can move, such as when dragged.
@@ -249,8 +274,9 @@ export interface IChatWindowService {
 	registerProvider(provider: IChatWindowProvider): IDisposable;
 
 	/**
-	 * Opens a chat window that shows `chat`, or reveals the one that does. Resolves to `undefined` without a provider or
-	 * when the provider does not know the chat.
+	 * Opens a chat window that shows `chat`, or reveals the one that does; with {@link IChatWindowOpenOptions.window}, shows
+	 * it in that window, beside its other chats. Resolves to `undefined` without a provider or when the provider does not
+	 * know the chat.
 	 */
 	open(chat: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined>;
 
@@ -260,6 +286,6 @@ export interface IChatWindowService {
 	/** The chat window whose window has focus, which commands act on; undefined while another window has focus. */
 	readonly activeWindow: IChatWindow | undefined;
 
-	/** Closes `window`, and shows its chat in the main window again, with the editors of its main part. */
+	/** Closes `window`, and shows its chats in the main window again, with the editors of its main part. */
 	moveToMainWindow(window: IChatWindow): Promise<void>;
 }

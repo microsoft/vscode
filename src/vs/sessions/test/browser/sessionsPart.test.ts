@@ -18,6 +18,10 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { mock } from '../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { VisibleSessions } from '../../services/sessions/browser/visibleSessions.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +32,59 @@ suite('Sessions - Sessions Part', () => {
 		const session = createTestActiveSession('session');
 		part.updateVisibleSessions([undefined, session], session);
 		assert.deepStrictEqual([part.getSessionAtPosition(0), part.getSessionAtPosition(-1)?.sessionId, part.getSessionAtPosition(2)], [null, session.sessionId, undefined]);
+	});
+
+	test('focusing the view of a pane the grid clips reveals it and moves focus into it', () => {
+		const { part, container } = createSessionsPartTestHarness(store);
+		const sessions = ['first', 'second', 'third', 'fourth'].map(id => createTestActiveSession(id));
+		part.updateVisibleSessions(sessions, sessions[0]);
+		part.layout(500, 600, 0, 0);
+		const grid = container.querySelector<HTMLElement>('.session-grid')!;
+		const target = part.getSessionView(sessions[3].sessionId)!;
+		const isFullyVisible = () => {
+			const gridRect = grid.getBoundingClientRect();
+			const viewRect = target.element.getBoundingClientRect();
+			return viewRect.left >= gridRect.left - 1 && viewRect.right <= gridRect.right + 1;
+		};
+		const before = isFullyVisible();
+
+		part.focusSessionView(sessions[3]);
+
+		assert.deepStrictEqual({ before, after: isFullyVisible(), focused: target.element.contains(mainWindow.document.activeElement) }, { before: false, after: true, focused: true });
+	});
+
+	test('focusing the view of a detached pane reveals and focuses that pane, not the slot of its session', () => {
+		const { part, container } = createSessionsPartTestHarness(store);
+		const uriIdentityService = new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		};
+		const grid = store.add(new VisibleSessions(session => session.mainChat.get(), () => [], () => [], () => { }, uriIdentityService));
+		const session = createTestActiveSession('session', true, { chatCount: 2 });
+		const others = ['first', 'second', 'third'].map(id => createTestActiveSession(id));
+		grid.restoreGrid([session, ...others].map(candidate => ({ session: candidate, sticky: false })), 0);
+		grid.moveChatToGrid(session, session.chats.get()[1], grid.getGridSlots()[3].id, Direction.Right);
+		const panes = grid.gridSessions.get();
+		const [slot, detached] = [panes[0]!, panes.at(-1)!];
+		grid.setActive(slot);
+		part.updateVisibleSessions(panes, grid.activeSession.get(), grid.getRenderedGridSlots());
+		part.layout(500, 600, 0, 0);
+		const gridElement = container.querySelector<HTMLElement>('.session-grid')!;
+		const isFullyVisible = (element: HTMLElement) => {
+			const gridRect = gridElement.getBoundingClientRect();
+			const viewRect = element.getBoundingClientRect();
+			return viewRect.left >= gridRect.left - 1 && viewRect.right <= gridRect.right + 1;
+		};
+		const target = part.getViewOfSession(detached)!;
+		const before = isFullyVisible(target.element);
+
+		part.focusSessionView(detached);
+
+		assert.deepStrictEqual({
+			before,
+			after: isFullyVisible(target.element),
+			focused: target.element.contains(mainWindow.document.activeElement),
+			slotFocused: part.getViewOfSession(slot)!.element.contains(mainWindow.document.activeElement),
+		}, { before: false, after: true, focused: true, slotFocused: false });
 	});
 
 	test('session gaps omit separators while compact density preserves themed separators', () => {

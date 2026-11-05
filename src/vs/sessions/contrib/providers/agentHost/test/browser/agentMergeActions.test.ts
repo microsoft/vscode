@@ -186,6 +186,7 @@ suite('Agent Merge Actions', () => {
 		};
 		disposables.add(bindSessionActionContextKeys(instantiationService, {
 			session: constObservable(undefined),
+			chat: constObservable(undefined),
 			changes: {
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),

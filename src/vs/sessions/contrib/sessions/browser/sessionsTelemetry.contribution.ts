@@ -26,6 +26,7 @@ import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.j
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
@@ -89,6 +90,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -110,7 +112,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// registered: disposing flushes buffered typing, which needs a live
 		// lifecycle tracker to attribute it to.
 		this._typedCharactersTracker = this._register(new SessionsTypedCharactersTracker(
-			() => this._sessionsService.activeSession.get(),
+			() => this._focusedSessionHostService.focusedHost.get().session.get(),
 			entries => this._recordTypedCharacters(entries),
 			modelService,
 		));

@@ -772,28 +772,31 @@ function toFusionTier(tier: string, logService: ILogService, sessionId: string, 
 
 /**
  * The tier inline chat, editor or terminal, runs Copilot Fusion at, whatever effort level the picker
- * holds, as latency matters more than routing depth there. Matches the Copilot extension's inline chat tier.
+ * holds, as latency matters more than routing depth there. Inline chat offers no Fusion effort level.
+ * Matches the Copilot extension's inline chat tier.
  */
 const InlineChatFusionAutoTier = 'fast';
 
 /**
  * The tier inline chat runs Copilot Fusion at, or `undefined` when Auto is not presented as Fusion or the
- * provider does not accept the tier. Advertised on Fusion's model, so clients hide its effort level in
- * inline chat only while the host pins it.
+ * provider does not accept the tier, in which case inline chat runs at the runtime's default.
  */
 export function getInlineChatFusionAutoTier(support = getAdvertisedAutoModeTierSupport()): string | undefined {
 	return isAutoAdvertisedAsFusion(support) && isSupportedAutoModeTier(InlineChatFusionAutoTier, support) ? InlineChatFusionAutoTier : undefined;
 }
 
-/** Fusion's tier for inline chat, or `undefined` when the model is not Fusion or the provider does not accept the tier. */
-function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | undefined {
+/**
+ * Fusion's tier for inline chat, or `undefined` when the model is not Fusion. When the provider does not
+ * accept the tier, `null` leaves the tier to the runtime rather than to a deeper saved effort level.
+ */
+function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | null | undefined {
 	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion(support)) {
 		return undefined;
 	}
 	const tier = getInlineChatFusionAutoTier(support);
 	if (tier === undefined) {
-		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers(support).join(', ')}]`);
-		return undefined;
+		logService.warn(`[Copilot:${sessionId}] Leaving inline chat on Fusion to the runtime's default, since the provider does not accept Fusion's '${InlineChatFusionAutoTier}' tier; expected one of [${getSupportedAutoModeTiers(support).join(', ')}]`);
+		return null;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Fusion's '${tier}' tier for inline chat`);
 	return tier;
@@ -801,7 +804,7 @@ function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logS
 
 /**
  * Resolves the tiers that take precedence over the picker: the shared override, then inline chat's
- * Fusion tier. `null` applies the override by leaving the tier to the runtime.
+ * Fusion tier. `null` leaves the tier to the runtime.
  */
 function resolveForcedAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat: boolean, support: IAutoModeTierSupport): string | null | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId, support);
@@ -821,7 +824,7 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	if (forced !== undefined) {
 		return forced ?? undefined;
 	}
-	// Inline chat pins Fusion's fast tier, which needs the provider's tiers; until they are known, it runs at the runtime's
+	// Inline chat offers no Fusion effort level, so until the provider's tiers are known, it runs at the runtime's
 	// default rather than at a deeper saved preference.
 	if (isInlineChat && !support.tiers) {
 		return undefined;
@@ -1196,7 +1199,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const raw = await this._resumeSession(session, plan, config);
-			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config, runtime);
+			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config, runtime, undefined, built.resetAutoTier);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -1208,7 +1211,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig, runtime);
+					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig, runtime, undefined, built.resetAutoTier);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -1293,7 +1296,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config, runtime, trustWorkingDirectory);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: SessionConfig['trustWorkingDirectory']): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: SessionConfig['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
@@ -1313,6 +1316,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
+		}
+		if (resetAutoTier) {
+			await this._resetAutoTier(raw, plan.sessionId);
 		}
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
 			// Reconciliation restarts the session's Connector MCP servers and resolves only after their remote handshake,
@@ -1348,6 +1354,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			return true;
 		}
 		return false;
+	}
+
+	/** Returns a resumed session's Auto routing to the provider's default, which a resume config cannot express. */
+	private async _resetAutoTier(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
+		try {
+			const result = await session.setAutoTier(null);
+			this._logService.info(`[Copilot:${sessionId}] Returned Auto routing to the provider's default: status=${result.status}`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to return Auto routing to the provider's default`, err);
+		}
 	}
 
 	/** Sets output verbosity after session creation. */
@@ -1404,7 +1420,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined }> {
+	/**
+	 * Builds the SDK session config. `resetAutoTier` is set for a resume whose forced Auto tier leaves routing to the
+	 * runtime: a resume config cannot clear the journaled tier, so the launch clears it once the session is open.
+	 */
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined; resetAutoTier: boolean }> {
 		const plugins = plan.snapshot.plugins;
 		const canvasRuntimeEnabled = !plan.isEphemeral
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
@@ -1485,6 +1505,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...plan.snapshot.additionalRootInstructions,
 		]);
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
+		// A resumed session keeps its journaled Auto tier unless a tier takes precedence over the picker.
+		const resumeAutoTier = plan.kind === 'resume' ? resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true, plan.autoTierSupport?.() ?? getAdvertisedAutoModeTierSupport()) : undefined;
 		// Keyed by the real, un-aliased model id; a model-less "Auto" session
 		// matches the `*` entry only.
 		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
@@ -1680,7 +1702,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// while a resumed session keeps the effort the runtime journaled unless
 			// an override is configured (encoded like every other path).
 			...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
-			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true, plan.autoTierSupport?.() ?? getAdvertisedAutoModeTierSupport()) ?? undefined) : {}),
+			...toSdkCapiSessionOptions(resumeAutoTier ?? undefined),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },
@@ -1738,6 +1760,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			memory: { enabled: memoryEnabled },
 			enableManagedSettings: true,
 		};
-		return { config, modelPolicy: resolved };
+		return { config, modelPolicy: resolved, resetAutoTier: resumeAutoTier === null };
 	}
 }

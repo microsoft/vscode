@@ -47,7 +47,7 @@ import { readSessionWorkspaceless, SessionStatus } from '../../../../../../platf
 import { readSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -64,7 +64,7 @@ import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../..
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionItemArchiveProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxStartupError.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
@@ -269,6 +269,7 @@ const CLOUD_SANDBOX_GROUP: IAgentHostGroup = {
 };
 
 interface ITestHarness {
+	readonly archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	readonly preparation: ICloudSandboxDraftPreparationService;
 	readonly contribution: TestCloudSandboxContribution;
 	readonly providersService: SessionsProvidersService;
@@ -315,6 +316,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
+	readonly getAccountKey?: (accountKey: string | undefined) => Promise<string | undefined>;
 	readonly listSessions?: (token: CancellationToken, options?: ICloudSandboxDiscoveryOptions) => Promise<ICloudSandboxDiscoveryResult>;
 	readonly connectSessionFeed?: (token: CancellationToken) => Promise<ICloudSandboxSessionFeedConnection | undefined>;
 	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
@@ -340,6 +342,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const hostGroups: IAgentHostGroup[] = [];
 	const readOnlySessionTypes: string[] = [];
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
+	let archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -374,6 +377,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const workspaceTrust = store.add(new TestWorkspaceTrustManagementService(false));
 	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
 	const harness: ITestHarness = {
+		get archiveProvider() { return archiveProvider; },
 		get preparation() { return preparation; },
 		workspaceTrust,
 		discovered: sessions,
@@ -439,7 +443,9 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		override readonly onDidChangeAccount = accountChanges.event;
 		override invalidateSessionHistory(): void { }
 		override clearSessionHistory(taskId?: string): void { options?.clearSessionHistory?.(taskId); }
-		override async getAccountKey(): Promise<string | undefined> { return accountKey; }
+		override async getAccountKey(): Promise<string | undefined> {
+			return options?.getAccountKey ? options.getAccountKey(accountKey) : accountKey;
+		}
 		override async reserveSession() {
 			return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new', reservationExpiresAt: Date.UTC(2100, 0, 1) };
 		}
@@ -563,6 +569,13 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		}
 	}());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		override registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable {
+			archiveProvider = provider;
+			return toDisposable(() => {
+				provider.setRequested(false);
+				archiveProvider = undefined;
+			});
+		}
 		override getContentProviderSchemes(): string[] { return [...readOnlySessionTypes]; }
 		override registerChatSessionContentProvider(sessionType: string, provider: IChatSessionContentProvider): IDisposable {
 			readOnlySessionTypes.push(sessionType);
@@ -604,6 +617,290 @@ function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>):
 suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('requests archives only on demand, coalesces expansion and reuses the loaded account cache', async () => {
+		const requests: (boolean | undefined)[] = [];
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const entered = new DeferredPromise<void>();
+		const archived = discoveredSession({ isArchived: true });
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				if (options?.includeArchived) {
+					void entered.complete();
+					return pending.p;
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		const before = [...requests];
+		h.archiveProvider!.setRequested(true);
+		await entered.p;
+		h.archiveProvider!.setRequested(false);
+		h.archiveProvider!.setRequested(true);
+		await pending.complete({ kind: 'complete', sessions: [archived] });
+		await h.runDiscovery();
+		const afterLoad = requests.length;
+		h.archiveProvider!.setRequested(false);
+		h.archiveProvider!.setRequested(true);
+		assert.deepStrictEqual({
+			before, requests, afterLoad, state: h.archiveProvider!.state.get(),
+			cached: h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary),
+		}, {
+			before: [false], requests: [false, true], afterLoad: 2, state: 'loaded', cached: [archived.name],
+		});
+	});
+
+	test('captures archive demand before asynchronous authentication when startup expansion is restored', async () => {
+		const authentication = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const requests: (boolean | undefined)[] = [];
+		const h = await createContribution(store, [], {
+			waitForDiscovery: false,
+			getAccountKey: async account => {
+				if (!entered.isSettled) {
+					void entered.complete();
+					await authentication.p;
+				}
+				return account;
+			},
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				return options?.includeArchived
+					? { kind: 'complete', sessions: [] }
+					: { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		await entered.p;
+		h.archiveProvider!.setRequested(true);
+		const finished = h.runDiscovery();
+		await authentication.complete();
+		await finished;
+		assert.deepStrictEqual({ requests, state: h.archiveProvider!.state.get() }, {
+			requests: [false, true], state: 'loaded',
+		});
+	});
+
+	test('retains the in-flight archive demand through authentication and collapse/re-expansion', async () => {
+		const authentication = new DeferredPromise<void>();
+		const authenticationEntered = new DeferredPromise<void>();
+		const inventory = new DeferredPromise<void>();
+		const inventoryEntered = new DeferredPromise<void>();
+		const requests: (boolean | undefined)[] = [];
+		let hold = false;
+		const h = await createContribution(store, [], {
+			getAccountKey: async account => {
+				if (hold) {
+					void authenticationEntered.complete();
+					await authentication.p;
+				}
+				return account;
+			},
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				if (hold) {
+					void inventoryEntered.complete();
+					await inventory.p;
+				}
+				return options?.includeArchived
+					? { kind: 'complete', sessions: [] }
+					: { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		hold = true;
+		h.archiveProvider!.setRequested(true);
+		await authenticationEntered.p;
+		h.archiveProvider!.setRequested(false);
+		await authentication.complete();
+		await inventoryEntered.p;
+		h.archiveProvider!.setRequested(true);
+		const finished = h.runDiscovery();
+		await inventory.complete();
+		await finished;
+		assert.deepStrictEqual({ requests, state: h.archiveProvider!.state.get() }, {
+			requests: [false, true], state: 'loaded',
+		});
+	});
+
+	test('keeps loaded archive state through background refresh success and failure', async () => {
+		const archived = discoveredSession({ isArchived: true });
+		const warnings: string[] = [];
+		let result: ICloudSandboxDiscoveryResult = { kind: 'scoped', sessions: [], removedTaskIds: [] };
+		const h = await createContribution(store, [], {
+			listSessions: async () => result,
+			logService: new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}(),
+		});
+		result = { kind: 'complete', sessions: [archived] };
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		const states: string[] = [];
+		const archiveState = h.archiveProvider!.state;
+		store.add(autorun(reader => states.push(archiveState.read(reader))));
+		for (const refresh of [
+			{ kind: 'incremental', sessions: [], removedTaskIds: [] },
+			{ kind: 'partial', sessions: [], failedTaskIds: ['active-task'] },
+			{ kind: 'failed', reason: 'service unavailable' },
+		] satisfies ICloudSandboxDiscoveryResult[]) {
+			result = refresh;
+			await h.contribution.refreshFeed('renewal');
+		}
+		assert.deepStrictEqual({
+			states,
+			cached: h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary),
+			failureLogged: warnings.some(message => message.includes('service unavailable')),
+		}, { states: ['loaded'], cached: [archived.name], failureLogged: true });
+	});
+
+	test('scoped windows evict absent active rows without scanning beyond the window or dropping cached archives', async () => {
+		const active = discoveredSession();
+		const archive = discoveredSession({ sessionId: 'old', taskId: 'old-task', isArchived: true });
+		let phase = 0;
+		const requests: { includeArchived: boolean | undefined; taskIds: readonly string[] | undefined }[] = [];
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push({ includeArchived: options?.includeArchived, taskIds: options?.taskIds });
+				if (phase === 0) {
+					return { kind: 'scoped', sessions: [active], removedTaskIds: [] };
+				}
+				if (phase === 1) {
+					return { kind: 'complete', sessions: [active, archive] };
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		phase = 1;
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		h.archiveProvider!.setRequested(false);
+		phase = 2;
+		await h.runDiscovery();
+		const provider = h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		assert.deepStrictEqual({
+			lastRequests: requests.slice(-1),
+			sessions: provider.seeded.map(session => ({ id: AgentSession.id(session.session), archived: !!((session.status ?? 0) & SessionStatus.IsArchived) })),
+			archivedTaskOwned: provider.taskArchiveHandlers.has(archive.sessionId),
+			disposed: provider.disposed,
+		}, {
+			lastRequests: [{ includeArchived: false, taskIds: undefined }],
+			sessions: [{ id: 'old', archived: true }],
+			archivedTaskOwned: true,
+			disposed: false,
+		});
+	});
+
+	test('archive errors retry on expansion and an account change invalidates the archive cache', async () => {
+		const requests: (boolean | undefined)[] = [];
+		let fail = true;
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				return options?.includeArchived && fail
+					? { kind: 'failed', reason: 'unavailable' }
+					: options?.includeArchived ? { kind: 'complete', sessions: [] } : { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		const failed = h.archiveProvider!.state.get();
+		h.archiveProvider!.setRequested(false);
+		fail = false;
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		h.archiveProvider!.setRequested(false);
+		h.changeAccount('other-account');
+		await h.runDiscovery();
+		const reset = h.archiveProvider!.state.get();
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		assert.deepStrictEqual({ failed, reset, requests }, { failed: 'error', reset: 'idle', requests: [false, true, true, false, true] });
+	});
+
+	test('a mutation during scoped discovery cannot overwrite archived UI or persisted state', async () => {
+		const storage: IStorageService = store.add(new InMemoryStorageService());
+		const first = discoveredSession();
+		const missing = discoveredSession({ sessionId: 'missing', taskId: 'missing-task' });
+		const entered = new DeferredPromise<void>();
+		const inventory = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		let refreshing = false;
+		const h = await createContribution(store, [first, missing], {
+			storageService: storage,
+			listSessions: async () => {
+				if (!refreshing) {
+					return { kind: 'complete', sessions: [first, missing] };
+				}
+				void entered.complete();
+				return inventory.p;
+			},
+		});
+		refreshing = true;
+		const discovering = h.runDiscovery();
+		await entered.p;
+		const provider = h.contribution.stubProviders.get(cloudSandboxAddress(first.environmentId))!;
+		await provider.taskArchiveHandlers.get(first.sessionId)!(true);
+		provider.setSessionArchived(first.sessionId, true);
+		await inventory.complete({ kind: 'scoped', sessions: [first], removedTaskIds: [] });
+		await discovering;
+		const key = `sessions.cloudSandbox.inventory.["github","account-1"].${JSON.stringify([first.environmentId, first.sessionId])}`;
+		const persisted = storage.getObject<{ sessions: ICloudSandboxDiscoveredSession[] }>(key, StorageScope.PROFILE);
+		assert.deepStrictEqual({
+			archived: !!((provider.seeded[0].status ?? 0) & SessionStatus.IsArchived),
+			persisted: persisted?.sessions[0].isArchived,
+		}, { archived: true, persisted: true });
+	});
+
+	test('manual, renewal and reconnect refreshes follow current archive demand', async () => {
+		const requests: { trigger: string | undefined; includeArchived: boolean | undefined }[] = [];
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push({ trigger: options?.trigger, includeArchived: options?.includeArchived });
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: options?.includeArchived ? { kind: 'complete', sessions: [] } : { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		await h.contribution.refreshFeed('renewal');
+		await h.contribution.refreshFeed('reconnect');
+		await h.runDiscovery();
+		h.archiveProvider!.setRequested(false);
+		await h.contribution.refreshFeed('renewal');
+		assert.deepStrictEqual(requests, [
+			{ trigger: 'startup', includeArchived: false },
+			{ trigger: 'manual', includeArchived: true },
+			{ trigger: 'feedRenewal', includeArchived: true },
+			{ trigger: 'feedReconnect', includeArchived: true },
+			{ trigger: 'manual', includeArchived: true },
+			{ trigger: 'feedRenewal', includeArchived: false },
+		]);
+	});
+
+	test('disabling discovery cancels an archive read and prevents late publication', async () => {
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const entered = new DeferredPromise<CancellationToken>();
+		const h = await createContribution(store, [], {
+			listSessions: async (token, options) => {
+				if (options?.includeArchived) {
+					void entered.complete(token);
+					return pending.p;
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		h.archiveProvider!.setRequested(true);
+		const finished = h.runDiscovery();
+		const token = await entered.p;
+		await h.setEnabled(false);
+		await pending.complete({ kind: 'complete', sessions: [discoveredSession({ isArchived: true })] });
+		await finished;
+		assert.deepStrictEqual({
+			cancelled: token.isCancellationRequested,
+			registered: !!h.archiveProvider,
+			providers: h.contribution.stubProviders.size,
+		}, { cancelled: true, registered: false, providers: 0 });
+	});
 
 	for (const claimed of [true, false]) {
 		test(`Agents reuses a confirmed ${claimed ? 'claim' : 'fallback'} after connection failure`, async () => {
@@ -2394,10 +2691,10 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		await harness.contribution.refreshFeed('reconnect');
 
 		assert.deepStrictEqual(requests, [
-			{ incremental: false, trigger: 'startup' },
-			{ incremental: true, trigger: 'feedChange', taskIds: ['changed-task'] },
-			{ incremental: true, trigger: 'feedRenewal' },
-			{ incremental: false, trigger: 'feedReconnect' },
+			{ incremental: false, includeArchived: false, trigger: 'startup' },
+			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
+			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+			{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
 		]);
 	});
 
@@ -2425,10 +2722,10 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		await harness.contribution.refreshFeed('reconnect');
 		assert.deepStrictEqual({ requests, retainedAfterRenewal, removedAfterPeriodicFullScan }, {
 			requests: [
-				{ incremental: false, trigger: 'startup' },
-				{ incremental: true, trigger: 'feedRenewal' },
-				{ incremental: false, trigger: 'feedRenewal' },
-				{ incremental: false, trigger: 'feedReconnect' },
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: false, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
 			],
 			retainedAfterRenewal: true,
 			removedAfterPeriodicFullScan: true,
@@ -2463,9 +2760,9 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
 			await Promise.all([first, queued, queuedAgain, full]);
 			assert.deepStrictEqual(requests, [
-				{ incremental: false, trigger: 'startup' },
-				{ incremental: true, trigger: 'feedRenewal' },
-				{ incremental: !manual, trigger: manual ? 'manual' : 'feedRenewal' },
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: !manual, includeArchived: false, trigger: manual ? 'manual' : 'feedRenewal' },
 			]);
 		});
 	}

@@ -14309,7 +14309,19 @@ suite('AgentHostChatContribution', () => {
 				}));
 			}
 
-			test('recovers the same pending tool after subscription failure and reports its unseen turn error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			test('restores and clears a failed subagent status without loading its settled chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.Error);
+				const { pills } = await scenario.open();
+				const isError = () => pills[0].toolSpecificData?.kind === 'subagent' ? pills[0].toolSpecificData.isError : undefined;
+				const failed = isError();
+				scenario.fire({ type: ActionType.SessionChatUpdated, chat: scenario.children[0].resource, changes: { status: SessionStatus.Idle } });
+				await timeout(0);
+				assert.deepStrictEqual({ failed, recovered: isError(), subscriptions: scenario.childSubscriptions() }, {
+					failed: true, recovered: false, subscriptions: [],
+				});
+			}));
+
+			test('recovers the same pending tool after subscription failure and reports its unseen error on the subagent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1, SessionStatus.InProgress);
 				const { agentHostService, children, fire } = scenario;
 				const child = children[0].resource;
@@ -14322,7 +14334,7 @@ suite('AgentHostChatContribution', () => {
 						status: ToolCallStatus.PendingConfirmation, invocationMessage: 'Run tests', confirmationTitle: 'Run Tests',
 					},
 				}];
-				const { session } = await scenario.open();
+				const { session, pills } = await scenario.open();
 				agentHostService.fireSubscriptionError(child, new Error('Connection interrupted'));
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InputNeeded } });
 				await timeout(0);
@@ -14347,7 +14359,8 @@ suite('AgentHostChatContribution', () => {
 					approvedChannels: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed && entry.action.approved).map(entry => entry.channel),
 					completedMessage: tool?.pastTenseMessage,
 					errors: parts().flatMap(part => part.kind === 'markdownContent' && part.content.value.includes('Late child failure') ? [part.content.value.trim()] : []),
-				}, { approvedChannels: [child], completedMessage: 'Tests passed', errors: ['Error: (unknown) Late child failure'] });
+					failed: pills[0].toolSpecificData?.kind === 'subagent' ? pills[0].toolSpecificData.isError : undefined,
+				}, { approvedChannels: [child], completedMessage: 'Tests passed', errors: [], failed: true });
 			}));
 
 			test('releases a settled child after its terminal action and resumes without duplicating tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -18734,6 +18747,113 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(session.isCompleteObs?.get(), true, 'Should be complete after turnComplete');
 		}));
+
+		for (const publication of ['beforeFailure', 'afterFailure', 'beforeRequest'] as const) {
+			for (const quotaExceeded of [false, true]) {
+				test(`reconnected failures use structured error details (quota=${quotaExceeded}, publication=${publication})`, async () => {
+					const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+					const backendSession = URI.parse('ahp-session:/reconnected-failure');
+					const chatUri = 'ahp-chat:/host-assigned-failure-chat';
+					const resource = URI.parse('agent-host-copilot:/reconnected-failure');
+					const turnId = 'turn-active';
+					const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+						initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+					}));
+					const addRequest = () => {
+						const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+							undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, turnId);
+						request.response?.setResult({ metadata: { existing: true } });
+						return request;
+					};
+					let request = publication !== 'beforeRequest' ? addRequest() : undefined;
+					if (publication === 'beforeFailure') {
+						chatService.setSession(resource, model);
+					}
+
+					const state = makeSessionStateWithActiveTurn(backendSession.toString());
+					agentHostService.seedSessionMetadata(backendSession, 'copilot');
+					agentHostService.sessionStates.set(backendSession.toString(), {
+						...state,
+						defaultChat: chatUri,
+						chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+						turns: [],
+						activeTurn: { ...state.activeTurn!, id: turnId },
+					});
+					const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+					assert.ok(session.isCompleteObs);
+					const completed = waitForState(session.isCompleteObs, complete => complete);
+					agentHostService.fireAction({
+						channel: chatUri,
+						action: {
+							type: ActionType.ChatError, turnId, duration: 1000,
+							part: {
+								kind: ResponsePartKind.Error,
+								error: quotaExceeded
+									? { errorType: 'quota', message: 'Quota exceeded', _meta: { chatError: { fetchError: { type: 'quotaExceeded' } } } }
+									: { errorType: 'query', message: 'Model temporarily unavailable' },
+								...(!quotaExceeded ? { resumable: true } : {}),
+							},
+						},
+						serverSeq: 100, origin: undefined,
+					});
+					await completed;
+					if (publication !== 'beforeFailure') {
+						chatService.setSession(resource, model);
+						await timeout(0);
+						if (publication === 'beforeRequest') {
+							request = addRequest();
+							await timeout(0);
+						}
+					}
+					assert.ok(request?.response);
+
+					assert.deepStrictEqual({
+						errorDetails: request.response.result?.errorDetails,
+						existingMetadata: request.response.result?.metadata?.existing,
+						markdown: session.progressObs?.get().filter(part => part.kind === 'markdownContent').map(part => part.content.value),
+						complete: session.isCompleteObs.get(),
+					}, {
+						errorDetails: quotaExceeded
+							? { code: 'quotaExceeded', message: 'Quota Exceeded', isQuotaExceeded: true }
+							: {
+								message: 'Error: (query) Model temporarily unavailable',
+								confirmationButtons: [{ label: 'Try Again', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
+							},
+						existingMetadata: true,
+						markdown: ['Partial response so far'],
+						complete: true,
+					});
+				});
+			}
+		}
+
+		test('discarding a reconnect before model publication does not apply its failure to a later model', async () => {
+			const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'discarded-reconnect');
+			const resource = URI.parse('agent-host-copilot:/discarded-reconnect');
+			agentHostService.sessionStates.set(backendSession.toString(), makeSessionStateWithActiveTurn(backendSession.toString()));
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			assert.ok(session.isCompleteObs);
+			const completed = waitForState(session.isCompleteObs, complete => complete);
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.ChatError, turnId: 'turn-active', duration: 1000,
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Discarded failure' } },
+				},
+				serverSeq: 100, origin: undefined,
+			});
+			await completed;
+			session.dispose();
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+			}));
+			const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'turn-active');
+			chatService.setSession(resource, model);
+			await timeout(0);
+			assert.strictEqual(request.response?.result, undefined);
+		});
 
 		test('handles active turn with running tool call', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -23232,6 +23352,98 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 			assert.deepStrictEqual(records.map(record => record.rootToolCallsBeforeFirstText), [1]);
 		}));
+
+		for (const alreadyFailed of [false, true]) {
+			test(`subagent failures stay out of parent markdown (alreadyFailed=${alreadyFailed})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const backendSession = AgentSession.uri('copilot', 'subagent-failure');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(), provider: 'copilot', title: 'Parent', status: SessionStatus.Idle,
+						createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+					}),
+					lifecycle: SessionLifecycle.Ready,
+				});
+				const { turnPromise, collected, chatSession, session: parentChat, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					sessionResource: URI.parse('agent-host-copilot:/subagent-failure'),
+				});
+				const parentToolCallId = 'failed-subagent';
+				const childChatUri = 'ahp-chat:/host-assigned-failed-subagent';
+				const errorPart = {
+					kind: ResponsePartKind.Error as const,
+					error: {
+						errorType: 'query',
+						message: 'Model temporarily unavailable',
+						_meta: { chatError: { fetchError: { type: 'failed', requestId: 'client-request', serverRequestId: 'server-request', reason: 'Model temporarily unavailable' } } },
+					},
+				};
+				const childState = {
+					...createChatState({
+						resource: childChatUri, title: 'Review', status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z',
+						origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: parentToolCallId },
+						interactivity: ChatInteractivity.ReadOnly,
+					}),
+					activeTurn: makeChildState(childChatUri, 'child-tool').activeTurn,
+				};
+				if (alreadyFailed) {
+					childState.turns = [{
+						...childState.activeTurn!,
+						state: TurnState.Error,
+						responseParts: [...childState.activeTurn!.responseParts, errorPart],
+						usage: undefined,
+					}];
+					childState.activeTurn = undefined;
+				}
+				agentHostService.chatStates.set(childChatUri, childState);
+				fire(chatToolCallStart(turnId, parentToolCallId, 'task', 'Task', { _meta: { toolKind: 'subagent', subagentDescription: 'Review changes' } }));
+				fire(chatToolCallReady(turnId, parentToolCallId, 'Reviewing changes', { confirmed: ToolCallConfirmationReason.NotNeeded }));
+				fire({
+					type: ActionType.ChatToolCallContentChanged, turnId, toolCallId: parentToolCallId,
+					content: [{ type: ToolResultContentType.Subagent, resource: childChatUri, title: 'Review' }],
+				});
+				await timeout(0);
+				if (!alreadyFailed) {
+					agentHostService.fireAction({
+						channel: childChatUri,
+						action: { type: ActionType.ChatError, turnId: 'child-turn-1', duration: 1000, part: errorPart },
+						serverSeq: 100, origin: undefined,
+					});
+					await timeout(0);
+				}
+				fire(chatToolCallComplete(turnId, parentToolCallId, {
+					success: false,
+					pastTenseMessage: 'Design review failed',
+					error: { code: 'failure', message: 'Model temporarily unavailable' },
+					content: [{ type: ToolResultContentType.Subagent, resource: childChatUri, title: 'Review' }],
+				}));
+				fire({ type: ActionType.ChatResponsePart, turnId, part: { kind: ResponsePartKind.Markdown, id: 'parent-response', content: 'Continuing the parent task.' } });
+				fire(chatTurnComplete(turnId, 1000));
+				const result = await turnPromise;
+				const childResource = getSubagentEditorResource({ chatResource: childChatUri, parentSessionResource: chatSession.sessionResource.toString() });
+				assert.ok(childResource);
+				const childSession = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+				const parent = collected.flat().find(part => part.kind === 'toolInvocation' && part.toolCallId === parentToolCallId);
+
+				assert.deepStrictEqual({
+					parentError: result.errorDetails,
+					parentMarkdown: collected.flat().filter(part => part.kind === 'markdownContent').map(part => part.content.value),
+					toolError: parent?.kind === 'toolInvocation' ? IChatToolInvocation.resultError(parent) : undefined,
+					childErrors: childSession.history.flatMap(item => item.type === 'response' && item.errorDetails ? [item.errorDetails] : []),
+					childActive: parent?.kind === 'toolInvocation' && parent.toolSpecificData?.kind === 'subagent' ? parent.toolSpecificData.isActive : undefined,
+					childFailed: parent?.kind === 'toolInvocation' && parent.toolSpecificData?.kind === 'subagent' ? parent.toolSpecificData.isError : undefined,
+				}, {
+					parentError: undefined,
+					parentMarkdown: ['Continuing the parent task.'],
+					toolError: 'Model temporarily unavailable',
+					childErrors: [{
+						code: 'failed',
+						message: 'Sorry, your request failed. Please try again.\n\nClient Request Id: client-request\n\nGH Request Id: server-request\n\nReason: Model temporarily unavailable',
+					}],
+					childActive: false,
+					childFailed: true,
+				});
+			}));
+		}
 
 		for (const completed of [false, true]) {
 			test(`clears ${completed ? 'completed' : 'active'} subagent availability after a hydrated subscription errors`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

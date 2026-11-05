@@ -28,12 +28,24 @@
 
 .inbox-notifications-tabs {
 	display: flex;
-	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size40);
+	overflow-x: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
 .inbox-notifications-tabs .monaco-button {
 	width: auto;
+	flex: none;
+	white-space: nowrap;
+}
+
+.inbox-notifications-view.compact {
+	padding-inline: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-view.compact .inbox-notifications-search {
+	flex-basis: 100%;
 }
 
 .inbox-notifications-view .inbox-notifications-tabs .monaco-button.active {
@@ -762,6 +774,39 @@
 
 .inbox-notifications-row-trailing > * {
 	grid-area: 1 / 1;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-item {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	column-gap: var(--vscode-spacing-size60);
+	row-gap: var(--vscode-spacing-size20);
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-icon {
+	grid-area: 1 / 1;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-content {
+	display: contents;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-titles {
+	grid-area: 1 / 2;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-metadata {
+	grid-area: 2 / 2;
+	max-width: none;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-item-kind-label {
+	display: none;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-trailing {
+	grid-area: 1 / 3;
+	min-width: 0;
 }
 
 .inbox-notifications-row-actions {
