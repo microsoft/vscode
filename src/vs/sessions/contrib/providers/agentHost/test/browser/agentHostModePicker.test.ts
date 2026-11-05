@@ -53,6 +53,7 @@ import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker
 import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 suite('AgentHostModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -205,8 +206,8 @@ suite('AgentHostModePicker', () => {
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced, managedSandboxAllowsBypass: constObservable(false) });
 		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
 
-		const picker = store.add(instantiationService.createInstance(AgentHostModePicker, session));
-		const permissionDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
+		const picker = store.add(instantiationService.createInstance(AgentHostModePicker, sessionChatSourceOf(session)));
+		const permissionDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, sessionChatSourceOf(session)));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const trigger = picker.render(container);

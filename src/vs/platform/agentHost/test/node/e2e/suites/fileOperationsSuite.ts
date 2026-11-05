@@ -12,14 +12,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
-import { getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
-import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
@@ -178,7 +178,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				context.client,
 				sessionUri,
 				turnId,
-				'Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".',
+				'Create cancelled.lock containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".',
 				1,
 			);
 			const started = await context.client.waitForNotification(n =>
@@ -189,13 +189,20 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				90_000,
 			);
 			const toolCallId = (getActionEnvelope(started).action as ChatToolCallStartAction).toolCallId;
-			await context.client.waitForNotification(n =>
+			const readyNotification = await context.client.waitForNotification(n =>
 				isActionNotification(n, 'chat/toolCallReady')
 				&& getActionEnvelope(n).channel === chatUri
 				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).turnId === turnId
-				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId,
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId
+				&& !(getActionEnvelope(n).action as ChatToolCallReadyAction).confirmed,
 				90_000,
 			);
+			const ready = getActionEnvelope(readyNotification).action as ChatToolCallReadyAction;
+			assert.deepStrictEqual({
+				confirmed: ready.confirmed,
+				fileExists: existsSync(join(workspace, 'cancelled.lock')),
+				activeTurn: (await fetchSessionWithChat(context.client, sessionUri)).activeTurn?.id,
+			}, { confirmed: undefined, fileExists: false, activeTurn: turnId });
 			context.client.dispatch({
 				channel: chatUri,
 				clientSeq: 2,
@@ -215,12 +222,31 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				3,
 			);
 
+			const state = await fetchSessionWithChat(context.client, sessionUri);
 			assert.deepStrictEqual({
-				fileExists: existsSync(join(workspace, 'cancelled.txt')),
+				fileExists: existsSync(join(workspace, 'cancelled.lock')),
 				replacement: replacement.responseText.trim(),
+				cancelledTurn: state.turns.find(turn => turn.id === turnId)?.state,
+				sawInputRequest: replacement.sawInputRequest,
+				sawPendingConfirmation: replacement.sawPendingConfirmation,
+				replacementTurns: state.turns.filter(turn => turn.id === 'turn-after-file-approval-cancel').map(turn => ({
+					message: turn.message.text,
+					state: turn.state,
+					response: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []).join('').trim(),
+				})),
+				errors: context.client.receivedNotifications(n => isActionNotification(n, 'chat/error') && getActionEnvelope(n).channel === chatUri),
+				activeTurn: state.activeTurn,
+				inputNeeded: state.inputNeeded,
 			}, {
 				fileExists: false,
 				replacement: 'replacement',
+				cancelledTurn: TurnState.Cancelled,
+				sawInputRequest: false,
+				sawPendingConfirmation: false,
+				replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete, response: 'replacement' }],
+				errors: [],
+				activeTurn: undefined,
+				inputNeeded: undefined,
 			});
 		});
 	}

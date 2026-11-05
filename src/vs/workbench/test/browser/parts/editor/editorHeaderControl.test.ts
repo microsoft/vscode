@@ -59,7 +59,7 @@ suite('EditorHeaderControl', () => {
 			override relayout() { heights.push(control.height); }
 		}();
 		const container = $('.title');
-		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace));
+		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace, options.showHeaderFor));
 		return {
 			control,
 			heights,
@@ -113,6 +113,24 @@ suite('EditorHeaderControl', () => {
 			});
 		}));
 	}
+
+	test('shows the header with its actions only for the editors it shows for, such as not for a terminal, as the active editor changes', () => {
+		const changes = store.add(new TestHeaderEditorInput());
+		const terminal = store.add(new TestHeaderEditorInput());
+		const header = createHeader({ showHeader: true, showHeaderFor: editor => editor !== terminal });
+		header.hasActions.set(true);
+		header.activate(changes);
+		const states = [header.state()];
+		header.activate(terminal);
+		states.push(header.state());
+		header.activate(changes);
+		states.push(header.state());
+		assert.deepStrictEqual(states, [
+			{ height: EditorHeaderControl.DEFAULT_HEIGHT, display: '', actionsDisplay: '' },
+			{ height: 0, display: 'none', actionsDisplay: '' },
+			{ height: EditorHeaderControl.DEFAULT_HEIGHT, display: '', actionsDisplay: '' },
+		]);
+	});
 
 	test('does not reserve an empty header for other editors or an empty group', () => {
 		const reservedEditor = store.add(new TestHeaderEditorInput());

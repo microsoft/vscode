@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildDelegationTranscript, createDelegationTranscriptAttachment, IDelegationTranscriptRequest } from '../../browser/actions/chatContinueInAction.js';
+import { buildDelegationTranscript, createDelegationTranscriptAttachment, holdsImportedTurns, IDelegationTranscriptRequest } from '../../browser/actions/chatContinueInAction.js';
 import { ChatPasteAttachmentMetadata } from '../../common/attachments/chatVariableEntries.js';
+import type { IChatModel } from '../../common/model/chatModel.js';
+import type { Turn } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 suite('ChatContinueInAction - delegation transcript', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,5 +57,27 @@ suite('ChatContinueInAction - delegation transcript', () => {
 			[ChatPasteAttachmentMetadata.FileName]: 'Previous conversation',
 			[ChatPasteAttachmentMetadata.PastedLines]: 'Previous conversation',
 		});
+	});
+});
+
+suite('ChatContinueInAction - imported history', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const turn = (text: string) => ({ message: { text } }) as Turn;
+	const session = (requests: { text: string; systemInitiated?: boolean }[]) => ({
+		getRequests: () => requests.map(request => ({ message: { text: request.text }, isSystemInitiated: request.systemInitiated })),
+	}) as unknown as IChatModel;
+
+	test('holdsImportedTurns confirms the destination begins with the imported prompts', () => {
+		const imported = [turn('first'), turn('second')];
+		assert.deepStrictEqual({
+			imported: holdsImportedTurns(session([{ text: 'first' }, { text: '', systemInitiated: true }, { text: 'second' }, { text: 'follow-up' }]), imported),
+			// The import failed but the follow-up was still sent.
+			importFailed: holdsImportedTurns(session([{ text: 'follow-up' }]), imported),
+			partial: holdsImportedTurns(session([{ text: 'first' }]), imported),
+			// Opening was cancelled or failed, so there is no destination.
+			notOpened: holdsImportedTurns(undefined, imported),
+			nothingImported: holdsImportedTurns(session([{ text: 'follow-up' }]), []),
+		}, { imported: true, importFailed: false, partial: false, notOpened: false, nothingImported: false });
 	});
 });

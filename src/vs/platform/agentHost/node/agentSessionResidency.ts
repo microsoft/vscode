@@ -27,7 +27,7 @@ function readNonNegativeIntegerEnv(name: string, defaultValue: number): number {
 
 export interface IAgentSessionRelease {
 	canRelease(chats: readonly URI[]): Promise<boolean>;
-	release(chats: readonly URI[]): Promise<void>;
+	release(chats: readonly URI[], canContinue?: () => boolean): Promise<void>;
 }
 
 export interface IAgentSessionReleaseDelegate {
@@ -402,8 +402,19 @@ export class AgentSessionResidency extends Disposable {
 			if (!this._stateManager.getSessionState(sessionKey) || !this._canContinueRelease(sessionKey, expectedRecency)) {
 				return false;
 			}
-			await release.release(chats);
-			if (!this._canContinueRelease(sessionKey, expectedRecency)) {
+			let vetoed = false;
+			const canContinue = () => {
+				if (vetoed) {
+					return false;
+				}
+				if (!this._canContinueRelease(sessionKey, expectedRecency)) {
+					vetoed = true;
+					return false;
+				}
+				return true;
+			};
+			await release.release(chats, canContinue);
+			if (!canContinue()) {
 				return false;
 			}
 			this._delegate.evictSessionState(session, chats);

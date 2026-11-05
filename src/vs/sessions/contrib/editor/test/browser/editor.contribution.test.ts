@@ -17,7 +17,8 @@ import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -83,6 +84,10 @@ import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contri
 import '../../../../browser/media/workbench.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+
+/** The editor parts of a Files tab of the main window: no part other than the main part. */
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	const element = mainWindow.document.createElement('div');
@@ -138,6 +143,11 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The actions run in the main window: no chat window has focus. */
+	function stubNoChatWindow(instantiationService: TestInstantiationService): void {
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+	}
 
 	function createFileSearch(instantiationService: TestInstantiationService): EmptyFileEditorSearch {
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
@@ -558,13 +568,14 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 7);
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({
+			readonly activeSession = constObservable({
 				workspace: constObservable(sessionWorkspace),
 				activeChat: constObservable({
 					workspace: constObservable(chatWorkspace),
 				}),
 			} as IActiveSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -576,6 +587,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1376,6 +1388,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewBrowserTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
@@ -1427,6 +1440,7 @@ suite('Sessions - Editor Contribution', () => {
 				}
 			});
 
+			stubNoChatWindow(instantiationService);
 			await new OpenBrowserAction().run(instantiationService);
 			return calls;
 		};
@@ -1635,8 +1649,8 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
-		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService, noOtherEditorParts));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService, noOtherEditorParts));
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
@@ -1648,6 +1662,29 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('the Files tab of a part of another window, such as a chat window, closes while that part shows, whatever the main window shows', () => {
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			// The editor area of the main window is hidden
+			override isVisible(): boolean { return false; }
+		};
+		const partVisible = { value: true };
+		const mainPart = upcastPartial<IEditorPart>({ groups: [] });
+		let input: EmptyFileEditorInput | undefined = undefined;
+		const chatWindowPart = upcastPartial<IEditorPart>({
+			groups: [upcastPartial<IEditorGroup>({
+				contains: (editor: unknown) => editor === input,
+				scopedContextKeyService: upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => partVisible.value as T }),
+			})],
+		});
+		input = store.add(new EmptyFileEditorInput(undefined, layoutService, upcastPartial<IEditorGroupsService>({ mainPart, parts: [mainPart, chatWindowPart] })));
+		const closable = () => !input!.hasCapability(EditorInputCapabilities.CannotClose);
+		const whileShown = closable();
+		partVisible.value = false;
+
+		assert.deepStrictEqual({ whileShown, whileHidden: closable() }, { whileShown: true, whileHidden: false });
+	});
+
 	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
@@ -1657,7 +1694,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService, noOtherEditorParts));
 		let capabilitiesChanges = 0;
 		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -1692,7 +1729,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, noOtherEditorParts));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
@@ -1715,7 +1752,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, false);
 		const serializer = new EmptyFileEditorSerializer();
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService, noOtherEditorParts));
 		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
 		if (restored) {
 			store.add(restored);
@@ -1737,6 +1774,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewSearchTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(invoked, [openNewSearchEditor]);
@@ -1747,8 +1785,9 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:1');
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
+			readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(sessionResource: URI): URI {
@@ -1760,6 +1799,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
@@ -1770,8 +1810,9 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:new');
 		stubEditorGroupCount(instantiationService, 2);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
+			readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(sessionResource: URI): URI {
@@ -1783,6 +1824,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 2 }]);
@@ -1792,8 +1834,9 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		stubEditorGroupCount(instantiationService, 0);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		let opened = false;
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(): Promise<undefined> {
@@ -1802,6 +1845,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
@@ -1816,12 +1860,13 @@ suite('Sessions - Editor Contribution', () => {
 		const existingFiles = store.add(instantiationService.createInstance(EmptyFileEditorInput, workspace));
 		stubEditorGroupCount(instantiationService, 3, [existingChanges, existingFiles]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({
+			readonly activeSession = constObservable({
 				resource,
 				isCreated: constObservable(true),
 				activeChat: constObservable({ workspace: constObservable(workspace) }),
 			} as unknown as IActiveSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(sessionResource: URI): URI {
@@ -1842,6 +1887,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 		});
 
+		stubNoChatWindow(instantiationService);
 		await new NewChangesTabAction().run(instantiationService);
 		await new NewFileTabAction().run(instantiationService);
 

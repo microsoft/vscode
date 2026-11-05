@@ -13,6 +13,7 @@ import { ICustomViewGridPartService } from '../../services/customView/browser/cu
 import { CustomViewGridPart } from './customViewGridPart.js';
 import { MobileCustomViewGridPart } from './mobile/mobileCustomViewGridPart.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link CustomViewGridPart}. Selects the mobile vs.
@@ -36,7 +37,8 @@ export class CustomViewGridParts extends Disposable implements ICustomViewGridPa
 			? layoutService.initialViewportClass === 'phone'
 			: getClientArea(mainWindow.document.body).width < 640;
 
-		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileCustomViewGridPart : CustomViewGridPart));
+		const mainWindowInstantiationService = this._register(createMainWindowInstantiationService(instantiationService));
+		this._mainPart = this._register(mainWindowInstantiationService.createInstance(isPhoneLayout ? MobileCustomViewGridPart : CustomViewGridPart));
 	}
 
 	setView(descriptor: ICustomViewDescriptor | undefined): void {

@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
 import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
 
 /**
@@ -32,8 +32,12 @@ export interface IDesktopLayoutContext {
 	chatLayoutActive(reader?: IReader): boolean;
 	chatLayoutSuspended(reader?: IReader): boolean;
 	readonly sharedChatLayout: boolean;
-	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
-	compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	/** The session and chat the main window shows, from its host. */
+	shownByMainWindow(reader?: IReader): IShownChat | undefined;
+	/** The session the main window shows, from its host. */
+	readonly mainWindowSession: IObservable<IHostSession | undefined>;
+	ownerKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
+	compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
 	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 

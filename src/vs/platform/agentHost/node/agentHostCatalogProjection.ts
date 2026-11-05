@@ -518,6 +518,21 @@ export function encodeAgentHostCatalogPayload(data: AgentHostCatalogData): Agent
 
 /** Validates a stored payload without building an unused canonical serialization. */
 export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
+	return decodePayloadData(payload, false);
+}
+
+/**
+ * Validates a stored payload of the current version or of an older version whose data the current version reads
+ * unchanged, so a row whose source no longer resolves can still be re-projected from what it stored (#345377).
+ */
+export function decodeUpgradableAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
+	return decodePayloadData(payload, true);
+}
+
+/** Payload versions the current version reads unchanged: version 2 only added the optional per-chat read state. */
+const UPGRADABLE_AGENT_HOST_CATALOG_PAYLOAD_VERSIONS: ReadonlySet<number> = new Set([1]);
+
+function decodePayloadData(payload: string, acceptUpgradable: boolean): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
 	if (Buffer.byteLength(payload, 'utf8') > AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT) {
 		return invalidPayload(`Payload exceeds ${AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT} bytes.`);
 	}
@@ -534,7 +549,7 @@ export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCat
 	if (typeof payloadVersion !== 'number' || !Number.isSafeInteger(payloadVersion) || payloadVersion < 0) {
 		return invalidPayload('Expected a non-negative safe integer payloadVersion.');
 	}
-	if (payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+	if (payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION && !(acceptUpgradable && UPGRADABLE_AGENT_HOST_CATALOG_PAYLOAD_VERSIONS.has(payloadVersion))) {
 		return { ok: false, reason: 'outdated', error: `Expected payload version ${AGENT_HOST_CATALOG_PAYLOAD_VERSION}, but got ${payloadVersion}.` };
 	}
 	const result = payloadValidator.validate(parsed);
