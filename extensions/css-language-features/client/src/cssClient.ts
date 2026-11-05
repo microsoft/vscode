@@ -25,17 +25,6 @@ interface FormatterRegistration {
 	provider: Disposable | undefined;
 }
 
-interface CSSFormatSettings {
-	newlineBetweenSelectors?: boolean;
-	newlineBetweenRules?: boolean;
-	spaceAroundSelectorSeparator?: boolean;
-	braceStyle?: 'collapse' | 'expand';
-	preserveNewLines?: boolean;
-	maxPreserveNewLines?: number | null;
-}
-
-const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['newlineBetweenSelectors', 'newlineBetweenRules', 'spaceAroundSelectorSeparator', 'braceStyle', 'preserveNewLines', 'maxPreserveNewLines'];
-
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
 	const customDataSource = getCustomDataSource(context.subscriptions);
@@ -167,16 +156,6 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 						range: client.code2ProtocolConverter.asRange(range),
 						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 					};
-					// add the css formatter options from the settings
-					const formatterSettings = workspace.getConfiguration(registration.languageId, document).get<CSSFormatSettings>('format');
-					if (formatterSettings) {
-						for (const key of cssFormatSettingKeys) {
-							const val = formatterSettings[key];
-							if (val !== undefined && val !== null) {
-								params.options[key] = val;
-							}
-						}
-					}
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
 						(error) => {
