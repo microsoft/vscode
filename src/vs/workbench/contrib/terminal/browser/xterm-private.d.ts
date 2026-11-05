@@ -5,9 +5,16 @@
 
 import { IBufferCell } from '@xterm/xterm';
 
-export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XtermAttributes };
+export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & {
+	clone?(): XtermAttributes;
+	hasExtendedAttrs?(): number;
+};
 
 export interface IXtermCore {
+	coreService: {
+		isCursorHidden: boolean;
+	};
+
 	viewport?: {
 		readonly scrollBarWidth: number;
 		_innerRefresh(): void;
@@ -15,6 +22,10 @@ export interface IXtermCore {
 
 	_inputHandler: {
 		_curAttrData: XtermAttributes;
+	};
+
+	_writeBuffer: {
+		_pendingData: number;
 	};
 
 	_renderService: {

@@ -6688,8 +6688,7 @@
       {
         "path": "./assets/prompts/skills/agent-customization/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {

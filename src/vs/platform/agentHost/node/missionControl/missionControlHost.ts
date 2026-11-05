@@ -427,7 +427,7 @@ export class MissionControlHost extends Disposable {
 			relay,
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
-				allowExtensionMethods: false,
+				allowExtensionMethods: true,
 				scopedRelayCredentials: true,
 				resolveRelayCredentials: useLocalCredentials ? async (principal, resource) => {
 					const copilotResource = this._gitHubEndpoints.getCopilotResource();
