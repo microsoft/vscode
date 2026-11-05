@@ -8,7 +8,7 @@ import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/d
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -25,6 +25,7 @@ import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart
 import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
+import { SessionActivityBarColumn } from '../../browser/parts/sessionActivityBarHost.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -1261,22 +1262,30 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({ size: editorNode.size, visible: editorNode.visible }, { size: 300, visible: true });
 	});
 
-	test('desktop descriptor supports spanning and chat-aligned panels', () => {
-		const topology = (alignment: PanelAlignment) => {
-			const host = createHost({ single: true }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment };
+	test('desktop descriptor supports spanning and chat-aligned panels, with the Session Activity Bar column, hidden, last in the content row', () => {
+		const topology = (alignment: PanelAlignment, withColumn = false) => {
+			const host = createHost({ single: true }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment; sessionActivityBarColumn?: { minimumWidth: number } };
 			host._panelAlignment = alignment;
+			host.sessionActivityBarColumn = withColumn ? { minimumWidth: 34 } : undefined;
 			host.layoutPolicy = {
 				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
 				viewportClass: { get: () => 'desktop' },
 			};
 			host.titleBarPartView = { minimumHeight: 30 };
-			return getPartTopology(createDesktopGridDescriptor.call(host, 1200, 800).root);
+			const root = createDesktopGridDescriptor.call(host, 1200, 800).root;
+			const contentRow = root.type === 'branch' ? root.data[1] : undefined;
+			const last = contentRow?.type === 'branch' ? contentRow.data.at(-1) : undefined;
+			return withColumn ? { last: last?.type === 'leaf' ? last.data : undefined, size: last?.size, visible: last?.visible } : getPartTopology(root);
 		};
 
 		assert.deepStrictEqual({
 			justify: topology('justify'),
 			center: topology('center'),
+			justifyColumn: topology('justify', true),
+			centerColumn: topology('center', true),
 		}, {
+			justifyColumn: { last: { type: SessionActivityBarColumn.ID }, size: 34, visible: false },
+			centerColumn: { last: { type: SessionActivityBarColumn.ID }, size: 34, visible: false },
 			justify: [
 				Parts.TITLEBAR_PART,
 				[
@@ -1296,6 +1305,49 @@ suite('Sessions - Workbench', () => {
 					Parts.CUSTOM_VIEW_GRID_PART,
 				],
 			],
+		});
+	});
+
+	test('shows the Session Activity Bar column on the next frame while a strip is in it, and not while a view is maximized', async () => {
+		const column = new SessionActivityBarColumn(constObservable(true));
+		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
+		const changes: boolean[] = [];
+		let visible = false;
+		let maximized = false;
+		const host = {
+			sessionActivityBarColumn: column,
+			mainContainer: mainWindow.document.body,
+			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
+			workbenchGrid: {
+				hasMaximizedView: () => maximized,
+				isViewVisible: () => visible,
+				setViewVisible: (_view: object, value: boolean) => { visible = value; changes.push(value); },
+				onDidChangeViewMaximized: onDidChangeViewMaximized.event,
+			},
+		};
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		(Reflect.get(Workbench.prototype, '_registerSessionActivityBarColumn') as (this: typeof host) => void).call(host);
+		const [first, second] = [{}, {}];
+
+		// A chat switch: one strip leaves as another enters.
+		column.setOccupied(first, true);
+		column.setOccupied(first, false);
+		column.setOccupied(second, true);
+		const beforeFrame = [...changes];
+		await nextFrame();
+		const shown = [...changes];
+		maximized = true;
+		column.setOccupied(second, false);
+		await nextFrame();
+		const whileMaximized = [...changes];
+		maximized = false;
+		onDidChangeViewMaximized.fire(false);
+
+		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes }, {
+			beforeFrame: [],
+			shown: [true],
+			whileMaximized: [true],
+			restored: [true, false],
 		});
 	});
 

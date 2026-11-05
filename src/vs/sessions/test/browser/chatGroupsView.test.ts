@@ -38,7 +38,7 @@ import { IWorkbenchLayoutService } from '../../../workbench/services/layout/brow
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';

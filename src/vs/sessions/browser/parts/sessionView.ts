@@ -363,7 +363,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._headerHeight.set(barHeight, undefined);
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
-		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
+		this._standaloneSessionActivityBar?.layout(barHeight);
 		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
 		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {

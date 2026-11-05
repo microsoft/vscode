@@ -30,7 +30,7 @@ import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from 
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBarHost.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
@@ -739,18 +739,16 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	 * beside the chat otherwise, as in the main window.
 	 */
 	private _createStrip(window: IChatWindow, container: HTMLElement): IChatWindowChromeElement {
-		const height = observableValue<number>(this, 0);
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
 			active: derived(reader => isChatWindowStripInColumn(window.layoutMode.read(reader))),
-			height,
 			setOccupied: () => { },
 		});
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
 			// Its column, the gap to the parts beside it included, as the grid adds the half of the gap beside its card.
 			size: derived(reader => SESSION_ACTIVITY_BAR_COLUMN_WIDTH - Math.floor(this.look.gap.read(reader) / 2)),
-			layout: (_width, columnHeight) => height.set(columnHeight, undefined),
+			layout: () => { },
 			dispose: () => registration.dispose(),
 		};
 	}
