@@ -358,6 +358,7 @@ suite('RunInTerminalTool', () => {
 
 		test('keeps the image omission notice in the UI message and out of model content', async () => {
 			runInTerminalTool.disableProcessIdAssociation();
+			setConfig(TerminalChatAgentToolsSettingId.IdlePollInterval, 1);
 			await extract(Array(11).fill(1));
 			terminalCommandOutput = Array.from({ length: 11 }, (_, index) => `./${index}.png`).join('\n');
 			stub(createdTerminalInstance, 'getCwdResource').resolves(cwd);
