@@ -8,7 +8,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -275,6 +275,14 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 	get maximumHeight(): number { return this._inputOnly.maximumHeight.get() + this._titleHeight; }
 	private get _titleHeight(): number { return this._title?.size.get() ?? 0; }
 
+	/** The services of the view's own scope, which what it shows is created with: disposed after it, see {@link dispose}. */
+	private readonly _scopedServices = new DisposableStore();
+
+	override dispose(): void {
+		super.dispose();
+		this._scopedServices.dispose();
+	}
+
 	constructor(
 		host: ISessionChatViewHost | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -293,7 +301,7 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		this._register(registerContentDropTarget(this.element));
 		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
 		// its window's main part, as the main window's chat reads the one of its editor area.
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
 		const activeEditor = ActiveEditorContext.bindTo(scopedContextKeyService);
 		this._register(autorun(reader => {
 			const mainPart = host?.window.read(reader)?.mainPart;
@@ -310,10 +318,10 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 			reader.store.add(mainPart.onDidChangeActiveGroup(trackActiveGroup));
 			trackActiveGroup();
 		}));
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		// The session header leaves the host it shows in, such as the title row of its window, with this view: a view that
-		// shows the chat again after it moved has its own.
-		this._register(toDisposable(() => this.sessionView.setHeaderHost(undefined)));
+		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// The session header leaves the host it shows in, such as the title row of its window, with this view, before its
+		// content disposes: a view that shows the chat again after it moved has its own.
+		this._register(toDisposable(() => this.sessionView.detachHeaderHost()));
 		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, SESSION_CHAT_VIEW_HOST_OPTIONS));
 		this.element.appendChild(sessionView.element);
 		// Styled as the active session of the grid is.
@@ -369,6 +377,9 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		const headerShown = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			const header = host.view.read(reader) === sessionView ? host.header.read(reader) : undefined;
+			if (disposing) {
+				return;
+			}
 			sessionView.setHeaderHost(header?.element, header?.actionsElement);
 			headerShown.value = header ? autorun(innerReader => header.setShown(sessionView.headerShown.read(innerReader))) : undefined;
 		}));
