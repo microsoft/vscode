@@ -92,6 +92,7 @@ function createSession({ id = 'draft', isCreated = false, worktree = false, unco
 		override readonly sessionId = id;
 		override readonly resource = URI.parse(`test-session:/${id}`);
 		override readonly activeChat = constObservable(chat);
+		override readonly mainChat = constObservable(chat);
 		override readonly providerId = providerId;
 		override readonly isCreated = constObservable(isCreated);
 		override readonly loading = constObservable(false);

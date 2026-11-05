@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { stub } from 'sinon';
+import { spy, stub } from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -14,10 +14,18 @@ import { ISettableObservable, observableValue } from '../../../../../../base/com
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IDiffEditorHeightCalculatorService } from '../../../browser/diff/editorHeightCalculator.js';
+import { NotebookDiffEditorEventDispatcher } from '../../../browser/diff/eventDispatcher.js';
 import { NotebookTextDiffEditor } from '../../../browser/diff/notebookDiffEditor.js';
-import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from '../../../common/notebookCommon.js';
+import { NotebookDiffViewModel } from '../../../browser/diff/notebookDiffViewModel.js';
+import { CellKind, INotebookDiffEditorModel, INotebookDiffResult, IResolvedNotebookEditorModel } from '../../../common/notebookCommon.js';
 import { NotebookDiffEditorInput } from '../../../common/notebookDiffEditorInput.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
+import { withTestNotebookDiffModel } from '../testNotebookEditor.js';
 
 suite('NotebookTextDiffEditor', () => {
 
@@ -29,7 +37,13 @@ suite('NotebookTextDiffEditor', () => {
 		_modifiedResourceDisposableStore: DisposableStore;
 		_layoutCancellationTokenSource: CancellationTokenSource | undefined;
 		_model: INotebookDiffEditorModel | null;
-		_list: { length: number; rowsContainer: HTMLElement; clear(): void; splice(start: number, deleteCount: number): void };
+		notebookDiffViewModel: NotebookDiffViewModel | undefined;
+		_eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
+		notebookEditorWorkerService: INotebookEditorWorkerService;
+		configurationService: IConfigurationService;
+		notebookService: INotebookService;
+		diffEditorCalcuator: IDiffEditorHeightCalculatorService;
+		_list: { length: number; rowsContainer: HTMLElement; onDidChangeContentHeight: Event<void>; onDidChangeFocus: Event<{ indexes: number[] }>; clear(): void; splice(start: number, deleteCount: number): void };
 		_listViewContainer: { style: { display: string } };
 		_notebookOptions: { computeDiffWebviewOptions(): object };
 		instantiationService: Pick<IInstantiationService, 'createInstance'>;
@@ -48,7 +62,7 @@ suite('NotebookTextDiffEditor', () => {
 		editor._localStore = store.add(new DisposableStore());
 		editor._modifiedResourceDisposableStore = store.add(new DisposableStore());
 		editor._model = null;
-		editor._list = { length: 0, rowsContainer: document.createElement('div'), clear() { }, splice() { } };
+		editor._list = { length: 0, rowsContainer: document.createElement('div'), onDidChangeContentHeight: Event.None, onDidChangeFocus: Event.None, clear() { }, splice() { } };
 		editor._listViewContainer = { style: { display: '' } };
 		editor._attachModel = model => { editor._model = model; };
 		editor._createOriginalWebview = async () => { };
@@ -61,10 +75,10 @@ suite('NotebookTextDiffEditor', () => {
 		return editor;
 	}
 
-	function createInput(): NotebookDiffEditorInput {
+	function createInput(resolvedModel?: INotebookDiffEditorModel): NotebookDiffEditorInput {
 		const notebook = { onDidChangeContent: Event.None };
-		const original = { notebook, viewType: 'test', resource: URI.parse('test:///original') } as IResolvedNotebookEditorModel;
-		const modified = { notebook, viewType: 'test', resource: URI.parse('test:///modified') } as IResolvedNotebookEditorModel;
+		const original = (resolvedModel?.original ?? { notebook, viewType: 'test', resource: URI.parse('test:///original') }) as IResolvedNotebookEditorModel;
+		const modified = (resolvedModel?.modified ?? { notebook, viewType: 'test', resource: URI.parse('test:///modified') }) as IResolvedNotebookEditorModel;
 		const model = new class extends mock<Awaited<ReturnType<NotebookDiffEditorInput['resolve']>>>() {
 			override original = original;
 			override modified = modified;
@@ -72,6 +86,111 @@ suite('NotebookTextDiffEditor', () => {
 		return new class extends mock<NotebookDiffEditorInput>() {
 			override async resolve() { return model; }
 		};
+	}
+
+	function createModelEditor(notebookService: INotebookService, computeDiff: () => Promise<INotebookDiffResult>): TestEditor {
+		const editor = createEditor();
+		const prototype = Object.getPrototypeOf(editor) as TestEditor;
+		editor._attachModel = prototype._attachModel;
+		editor.updateLayout = prototype.updateLayout;
+		Object.defineProperty(editor, 'window', { value: mainWindow });
+		Object.defineProperty(editor, 'fontInfo', { value: undefined });
+		editor.configurationService = new TestConfigurationService({ notebook: { diff: { ignoreMetadata: true } } });
+		editor.notebookService = notebookService;
+		editor.notebookEditorWorkerService = new class extends mock<INotebookEditorWorkerService>() {
+			override computeDiff = computeDiff;
+		};
+		editor.diffEditorCalcuator = {
+			diffAndComputeHeight: async () => 0,
+			computeHeightFromLines: () => 0
+		};
+		return editor;
+	}
+
+	const diffResult: INotebookDiffResult = {
+		cellsDiff: { changes: [{ originalStart: 0, originalLength: 1, modifiedStart: 0, modifiedLength: 1 }], quitEarly: false },
+		metadataChanged: false
+	};
+
+	for (const action of ['clear', 'replace'] as const) {
+		test(`${action} input disposes the attached view model and dispatcher`, async () => {
+			await withTestNotebookDiffModel([
+				['original', 'javascript', CellKind.Code, [], {}]
+			], [
+				['modified', 'javascript', CellKind.Code, [], {}]
+			], async (model, _disposables, accessor) => {
+				const editor = createModelEditor(accessor.get(INotebookService), async () => diffResult);
+				await editor.setInput(createInput(model), undefined, { newInGroup: true }, CancellationToken.None);
+				const viewModel = editor.notebookDiffViewModel!;
+				const dispatcher = editor._eventDispatcher!;
+				const disposeViewModel = spy(viewModel, 'dispose');
+				const disposeDispatcher = spy(dispatcher, 'dispose');
+				try {
+					assert.deepStrictEqual(viewModel.items.map(item => item.type), ['modified']);
+					if (action === 'clear') {
+						editor.clearInput();
+					} else {
+						await editor.setInput(createInput(model), undefined, { newInGroup: true }, CancellationToken.None);
+					}
+					assert.deepStrictEqual({ viewModel: disposeViewModel.callCount, dispatcher: disposeDispatcher.callCount, items: viewModel.items.length },
+						{ viewModel: 1, dispatcher: 1, items: 0 });
+					if (action === 'clear') {
+						await editor.setInput(createInput(model), undefined, { newInGroup: true }, CancellationToken.None);
+					}
+					assert.notStrictEqual(editor.notebookDiffViewModel, viewModel);
+					assert.notStrictEqual(editor._eventDispatcher, dispatcher);
+					assert.deepStrictEqual(editor.notebookDiffViewModel!.items.map(item => item.type), ['modified']);
+				} finally {
+					disposeViewModel.restore();
+					disposeDispatcher.restore();
+					editor.clearInput();
+					viewModel.dispose();
+					dispatcher.dispose();
+				}
+			});
+		});
+
+		test(`${action} input cancels a pending diff before disposing its owner`, async () => {
+			await withTestNotebookDiffModel([
+				['original', 'javascript', CellKind.Code, [], {}]
+			], [
+				['modified', 'javascript', CellKind.Code, [], {}]
+			], async (model, _disposables, accessor) => {
+				const started = new DeferredPromise<void>();
+				const pendingDiff = new DeferredPromise<INotebookDiffResult>();
+				const editor = createModelEditor(accessor.get(INotebookService), () => {
+					void started.complete();
+					return pendingDiff.p;
+				});
+				const opening = editor.setInput(createInput(model), undefined, { newInGroup: true }, CancellationToken.None);
+				await started.p;
+				const viewModel = editor.notebookDiffViewModel!;
+				const layoutToken = editor._layoutCancellationTokenSource!.token;
+				let cancelledWhenDisposed = false;
+				const disposeViewModel = spy(viewModel, 'dispose');
+				editor._localStore.add(toDisposable(() => cancelledWhenDisposed = layoutToken.isCancellationRequested));
+				try {
+					if (action === 'clear') {
+						editor.clearInput();
+					} else {
+						editor.notebookEditorWorkerService.computeDiff = async () => diffResult;
+						await editor.setInput(createInput(model), undefined, { newInGroup: true }, CancellationToken.None);
+					}
+					assert.deepStrictEqual({ cancelled: layoutToken.isCancellationRequested, cancelledWhenDisposed, disposed: disposeViewModel.callCount },
+						{ cancelled: true, cancelledWhenDisposed: true, disposed: 1 });
+					await opening;
+					await pendingDiff.complete(diffResult);
+					assert.deepStrictEqual(viewModel.items, []);
+					assert.deepStrictEqual(editor.notebookDiffViewModel?.items.map(item => item.type), action === 'replace' ? ['modified'] : undefined);
+				} finally {
+					await pendingDiff.complete(diffResult);
+					await opening;
+					disposeViewModel.restore();
+					editor.clearInput();
+					viewModel.dispose();
+				}
+			});
+		});
 	}
 
 	test('clearing and reusing an input resets the current change index', async () => {

@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
+import { load } from 'js-yaml';
 import {
 	fetchDependencyLibraries,
 	getStandardArtifacts,
@@ -27,11 +28,12 @@ suite('dictation runtime', () => {
 		const sdkRoot = resolveSdkPackageRoot();
 		const sdkPackage = JSON.parse(fs.readFileSync(path.join(sdkRoot, 'package.json'), 'utf8'));
 		const sdkDependencies = JSON.parse(fs.readFileSync(path.join(sdkRoot, 'deps_versions.json'), 'utf8'));
-		const rootPackage = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../../package.json'), 'utf8'));
+		// pnpm approves install scripts in the workspace's allowBuilds
+		const workspace = load(fs.readFileSync(path.resolve(import.meta.dirname, '../../../pnpm-workspace.yaml'), 'utf8')) as { allowBuilds?: Record<string, boolean> };
 		assert.deepStrictEqual({
 			version: sdkPackage.version,
 			artifacts: getStandardArtifacts(sdkDependencies),
-			allowedInstallScript: rootPackage.allowScripts[`${SDK_PACKAGE_NAME}@${getRuntimeVersion()}`],
+			allowedInstallScript: workspace.allowBuilds?.[`${SDK_PACKAGE_NAME}@${getRuntimeVersion()}`],
 		}, {
 			version: getRuntimeVersion(),
 			artifacts: getStandardArtifacts(dependencies),

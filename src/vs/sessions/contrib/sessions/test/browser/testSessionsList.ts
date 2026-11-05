@@ -13,11 +13,11 @@ import { SessionListItem, SessionsList, SessionsListItemReference } from '../../
  */
 export class TestSessionsList extends SessionsList {
 
-	get scrollTop(): number {
+	override get scrollTop(): number {
 		return this.tree.scrollTop;
 	}
 
-	set scrollTop(value: number) {
+	override set scrollTop(value: number) {
 		this.tree.scrollTop = value;
 	}
 

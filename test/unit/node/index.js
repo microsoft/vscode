@@ -19,7 +19,6 @@ import minimatch from 'minimatch';
 import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
-import semver from 'semver';
 import parallel from '../parallel.ts';
 
 const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles } = parallel;
@@ -105,12 +104,18 @@ const out = args.build ? 'out-build' : 'out';
 const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
 
-//@ts-ignore
-const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
-const currentNodeVersion = semver.parse(process.version);
-//@ts-ignore
-if (currentNodeVersion?.major < requiredNodeVersion?.major) {
-	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion?.major} (your version is: ${currentNodeVersion?.major})`);
+/**
+ * @param {string} version A version such as `24.11.1` or `v24.11.1`.
+ * @returns {number} The major version.
+ */
+function getMajorVersion(version) {
+	return Number(/^v?(?<major>\d+)\./.exec(version)?.groups?.major);
+}
+
+const requiredNodeVersion = getMajorVersion(JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'remote', 'package.json'), 'utf8')).nativeBuild?.target ?? '');
+const currentNodeVersion = getMajorVersion(process.version);
+if (currentNodeVersion < requiredNodeVersion) {
+	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion} (your version is: ${currentNodeVersion})`);
 	process.exit(1);
 }
 

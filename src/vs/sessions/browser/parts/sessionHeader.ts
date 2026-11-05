@@ -25,6 +25,7 @@ export class SessionHeader extends Disposable {
 	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 
 	get element(): HTMLElement { return this._bar.element; }
+	get titleElement(): HTMLElement { return this._bar.titleElement; }
 	get visible(): boolean { return this._bar.visible; }
 	get height(): number { return this._bar.height; }
 	get onDidChangeVisibility(): Event<boolean> { return this._bar.onDidChangeVisibility; }
@@ -62,6 +63,16 @@ export class SessionHeader extends Disposable {
 				closeSession,
 			});
 		}));
+	}
+
+	/** See {@link SessionHeaderBar.setWindowChrome}. */
+	setWindowChrome(shown: boolean): void {
+		this._bar.setWindowChrome(shown);
+	}
+
+	/** See {@link SessionHeaderBar.setActionsHost}. */
+	setActionsHost(host: HTMLElement | undefined): void {
+		this._bar.setActionsHost(host);
 	}
 
 	setVisible(visible: boolean): void {

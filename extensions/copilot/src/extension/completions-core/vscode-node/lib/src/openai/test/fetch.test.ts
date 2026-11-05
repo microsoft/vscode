@@ -335,7 +335,6 @@ suite('Telemetry sent on fetch', function () {
 		// assert.strictEqual(hasRestrictedContext, true, 'Restricted telemetry event should include context');
 	});
 
-	test('If context is provided, include it in `engine.prompt` telemetry events', function () { });
 });
 
 class TestStatusReporter extends StatusReporter {

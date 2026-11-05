@@ -23,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -40,6 +41,8 @@ import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION
 suite('ChatPetWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const editorWindowEnvironment = new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }();
+	const agentsWindowEnvironment = new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = true; }();
 
 	setup(() => {
 		if (mainWindow.location.protocol === `${Schemas.file}:`) {
@@ -158,7 +161,7 @@ suite('ChatPetWidget', () => {
 			}()),
 		};
 		const storageService = disposables.add(new TestStorageService());
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IStorageService, storageService);
 		service.toggle();
@@ -882,7 +885,7 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('does not rewrite pupils or redraw an accessory when the quantized gaze is unchanged', async () => {
-		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		const { button, service, widget } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
 		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.TopHatMonocle).id);
 		service.setAccessory(ChatPetAccessoryIds.TopHatMonocle);
 		await waitForPetAnimation(() => !button.querySelector('.chat-pet-eye-accessory')!.classList.contains('hidden'));
@@ -909,10 +912,11 @@ suite('ChatPetWidget', () => {
 		const unchanged = { mutations, draws: draws.callCount };
 		await move(bounds.right + 100);
 		const changed = { mutations: mutations > 0, redrawn: draws.called, facing: button.dataset.facing };
-		service.setOnTheRun(true);
-		await waitForPetAnimation(() => button.dataset.state === 'onTheRun');
+		const transientState = Reflect.get(widget, '_transientState');
+		transientState.set('cool', undefined);
+		await waitForPetAnimation(() => button.dataset.state === 'cool');
 		await move(bounds.left + bounds.width / 2);
-		service.setOnTheRun(false);
+		transientState.set(undefined, undefined);
 		await waitForPetAnimation(() => button.querySelector('.chat-pet-eyes')!.classList.contains('tracking'));
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		assert.deepStrictEqual({
@@ -1013,8 +1017,9 @@ suite('ChatPetWidget', () => {
 		const firstSprite = button.querySelector('.chat-pet-sprite:not(.hidden)')!;
 		const firstAnimation = pose.getAnimations()[0];
 		assert.ok(firstAnimation);
-		await timeout(120);
-		const firstAnimationTime = Number(firstAnimation.currentTime);
+		// Seek rather than wait: an animation's time does not advance until the browser renders a frame.
+		const firstAnimationTime = 240;
+		firstAnimation.currentTime = firstAnimationTime;
 		click();
 		await waitForPetAnimation(() => button.dataset.state === 'yapping' && button.querySelector('.chat-pet-sprite:not(.hidden)') !== firstSprite);
 		const restartedAnimationTime = Number(pose.getAnimations()[0]?.currentTime);
@@ -1030,14 +1035,12 @@ suite('ChatPetWidget', () => {
 		const leftFacingTransforms = readFacingTransforms('left');
 		random.restore();
 		assert.deepStrictEqual({
-			firstAnimationTimePassed: firstAnimationTime > 0,
 			animationRestarted: restartedAnimationTime < firstAnimationTime,
 			rightFacingTransforms,
 			leftFacingTransformsMatch: leftFacingTransforms[0] === leftFacingTransforms[1],
 			facingChangesTransform: leftFacingTransforms[0] !== rightFacingTransforms[0],
 			poseWrapsFacingLayer: propeller.parentElement === pose,
 		}, {
-			firstAnimationTimePassed: true,
 			animationRestarted: true,
 			rightFacingTransforms: ['none', 'none'],
 			leftFacingTransformsMatch: true,
@@ -1114,7 +1117,7 @@ suite('ChatPetWidget', () => {
 				}
 				return { top: input.getBoundingClientRect().top, element: input };
 			};
-			const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+			const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 			service.setHorizontalPosition({ edge: 'left', inset: 156 });
 			service.toggle();
 			disposables.add(new ChatPetWidget(
@@ -1265,7 +1268,7 @@ suite('ChatPetWidget', () => {
 			unobserve(): void { }
 			disconnect(): void { }
 		}
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.setHorizontalPosition(0.3);
 		service.toggle();
 		disposables.add(new ChatPetWidget(
@@ -1361,7 +1364,7 @@ suite('ChatPetWidget', () => {
 			dragBounds.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
 			undefined,
@@ -1408,7 +1411,7 @@ suite('ChatPetWidget', () => {
 			dragBounds.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
 			{ resizeObserverCtor: TestResizeObserver as unknown as typeof ResizeObserver },
@@ -1440,7 +1443,7 @@ suite('ChatPetWidget', () => {
 		parent.append(input);
 		mainWindow.document.body.append(parent);
 		disposables.add(toDisposable(() => parent.remove()));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			{
@@ -1491,7 +1494,7 @@ suite('ChatPetWidget', () => {
 		disposables.add(toDisposable(() => parent.remove()));
 		let menu: IContextMenuDelegate | undefined;
 		const commands: string[] = [];
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, parent, parent),
@@ -1559,7 +1562,7 @@ suite('ChatPetWidget', () => {
 				contextMenuDelegate = delegate;
 			}
 		}();
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		service.setScale(4);
 		disposables.add(new ChatPetWidget(
@@ -1604,10 +1607,9 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('stacks dragging above sticky scroll and the run cycle behind the input', () => {
+	test('stacks dragging above sticky scroll and leaves the persistent content fade to the input', () => {
 		const session = mainWindow.document.createElement('div');
 		session.className = 'interactive-session chat-floating-persistent-content';
-		session.style.setProperty('--vscode-chat-persistent-content-height', '28px');
 		const parent = mainWindow.document.createElement('div');
 		parent.className = 'interactive-input-part';
 		const persistentContent = mainWindow.document.createElement('div');
@@ -1622,7 +1624,7 @@ suite('ChatPetWidget', () => {
 			session.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, input, movementBounds),
@@ -1643,129 +1645,62 @@ suite('ChatPetWidget', () => {
 		));
 		const overlay = parent.getElementsByClassName('chat-pet-overlay')[0];
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
-		const getRunLayer = () => ({
-			runLayerClass: overlay.classList.contains('chat-pet-run-layer'),
-			isolation: mainWindow.getComputedStyle(overlay).isolation,
-			fadeVisible: mainWindow.getComputedStyle(overlay, '::before').content !== 'none',
-			persistentFadeVisible: mainWindow.getComputedStyle(persistentContent, '::before').content !== 'none',
-		});
 		const restingZIndex = mainWindow.getComputedStyle(button).zIndex;
 		button.classList.add('dragging');
 		const draggingZIndex = mainWindow.getComputedStyle(button).zIndex;
 		button.classList.remove('dragging');
 
-		service.setOnTheRun(true);
-		const onTheRun = {
-			onTheRunClass: button.classList.contains('on-the-run'),
-			returningClass: button.classList.contains('returning-from-run'),
-			zIndex: mainWindow.getComputedStyle(button).zIndex,
-			layer: getRunLayer(),
-		};
-		service.setOnTheRun(false);
-		const returning = {
-			onTheRunClass: button.classList.contains('on-the-run'),
-			returningClass: button.classList.contains('returning-from-run'),
-			zIndex: mainWindow.getComputedStyle(button).zIndex,
-			layer: getRunLayer(),
-		};
-		const transitionEnd = new mainWindow.Event('transitionend');
-		Object.defineProperty(transitionEnd, 'propertyName', { value: 'transform' });
-		button.dispatchEvent(transitionEnd);
-
 		assert.deepStrictEqual({
 			overlayPrecedesPersistentContent: !!(overlay.compareDocumentPosition(persistentContent) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING),
 			restingZIndex,
 			draggingZIndex,
-			onTheRun,
-			returning,
-			returned: {
-				returningClass: button.classList.contains('returning-from-run'),
-				zIndex: mainWindow.getComputedStyle(button).zIndex,
-				layer: getRunLayer(),
-			},
+			overlayIsolation: mainWindow.getComputedStyle(overlay).isolation,
+			overlayFadeVisible: mainWindow.getComputedStyle(overlay, '::before').content !== 'none',
+			persistentFadeVisible: mainWindow.getComputedStyle(persistentContent, '::before').content !== 'none',
 		}, {
 			overlayPrecedesPersistentContent: true,
 			restingZIndex: '1',
 			draggingZIndex: '14',
-			onTheRun: {
-				onTheRunClass: true,
-				returningClass: false,
-				zIndex: '1',
-				layer: {
-					runLayerClass: true,
-					isolation: 'isolate',
-					fadeVisible: true,
-					persistentFadeVisible: false,
-				},
-			},
-			returning: {
-				onTheRunClass: false,
-				returningClass: true,
-				zIndex: '1',
-				layer: {
-					runLayerClass: true,
-					isolation: 'isolate',
-					fadeVisible: true,
-					persistentFadeVisible: false,
-				},
-			},
-			returned: {
-				returningClass: false,
-				zIndex: '1',
-				layer: {
-					runLayerClass: false,
-					isolation: 'auto',
-					fadeVisible: false,
-					persistentFadeVisible: true,
-				},
-			},
+			overlayIsolation: 'auto',
+			overlayFadeVisible: false,
+			persistentFadeVisible: true,
 		});
 	});
 
-	test('keeps the on-the-run pet still', () => {
-		const clock = sinon.useFakeTimers();
-		const parent = mainWindow.document.createElement('div');
-		const input = mainWindow.document.createElement('div');
-		const movementBounds = mainWindow.document.createElement('div');
-		parent.append(input);
-		mainWindow.document.body.append(parent, movementBounds);
-		const storageService = new TestStorageService();
-		const service = new ChatPetService(storageService, new TestTelemetryService(), new NullLogService());
-		service.toggle();
-		const widget = new ChatPetWidget(
-			createPetHost(parent, input, movementBounds),
-			undefined,
-			service,
-			new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends mock<ICommandService>() { }(),
-			new NullLogService(),
-			new class extends mock<IHostService>() {
-				override readonly hasFocus = true;
-				override readonly onDidChangeFocus = Event.None;
-				override readonly onDidChangeActiveWindow = Event.None;
-			}(),
-			workbenchInstantiationService(undefined, disposables),
-		);
-		const cleanup = disposables.add(toDisposable(() => {
-			widget.dispose();
-			service.dispose();
-			storageService.dispose();
-			parent.remove();
-			movementBounds.remove();
-			clock.restore();
-		}));
-		try {
-			service.setOnTheRun(true);
-			clock.tick(10_000);
+	test('keeps the resting pet above pinned progress without blocking the other controls', () => {
+		const { root, firstParent, button } = createHostTransitionHarness(true);
+		root.classList.add('interactive-session');
+		firstParent.classList.add('interactive-input-part');
+		const persistentContent = mainWindow.document.createElement('div');
+		persistentContent.className = 'chat-input-persistent-content chat-persistent-content-visible';
+		const progress = mainWindow.document.createElement('div');
+		progress.className = 'chat-sticky-progress interactive-item-container chat-persistent-progress';
+		progress.textContent = 'Working';
+		persistentContent.append(progress);
+		const input = mainWindow.document.createElement('button');
+		input.style.cssText = 'width:100%;height:100%';
+		input.textContent = 'Chat input';
+		firstParent.append(persistentContent, input);
 
-			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
-		} finally {
-			// Restore the clock before ResizeObserver can queue fake animation frames between the test and teardown.
-			cleanup.dispose();
-		}
+		const hitTest = () => {
+			const petBounds = button.getBoundingClientRect();
+			const progressBounds = progress.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
+			const overlapTop = Math.max(petBounds.top, progressBounds.top);
+			const overlapBottom = Math.min(petBounds.bottom, progressBounds.bottom);
+			const overlapY = (overlapTop + overlapBottom) / 2;
+			return {
+				progressOverlapsPet: overlapTop < overlapBottom,
+				petOnTop: button.contains(mainWindow.document.elementFromPoint(petBounds.left + petBounds.width / 2, overlapY)),
+				progressClickable: progress.contains(mainWindow.document.elementFromPoint(progressBounds.left + 4, overlapY)),
+				inputClickable: mainWindow.document.elementFromPoint(inputBounds.left + 4, inputBounds.top + inputBounds.height / 2) === input,
+			};
+		};
+		const inFlow = hitTest();
+		root.classList.add('chat-floating-persistent-content');
+		const floating = hitTest();
+		const expected = { progressOverlapsPet: true, petOnTop: true, progressClickable: true, inputClickable: true };
+		assert.deepStrictEqual({ inFlow, floating }, { inFlow: expected, floating: { ...expected } });
 	});
 
 	test('moves one pet instance between chat hosts without respawning it', () => {
@@ -1782,7 +1717,7 @@ suite('ChatPetWidget', () => {
 			secondBounds.remove();
 			movementBounds.remove();
 		}));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(firstParent, firstBounds, movementBounds),
 			undefined,
@@ -2260,7 +2195,7 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('cancels pending steps and rests when disabled or sent on the run', () => {
+	test('cancels pending steps and rests when disabled', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
 		disposables.add(toDisposable(() => controller.dispose()));
@@ -2514,14 +2449,12 @@ suite('ChatPetWidget', () => {
 
 	test('blocks keyboard interaction while unavailable or already interacting', () => {
 		assert.deepStrictEqual([
-			isChatPetKeyboardInteractionEnabled(false, false, false, false, false),
-			isChatPetKeyboardInteractionEnabled(true, true, false, false, false),
-			isChatPetKeyboardInteractionEnabled(true, false, true, false, false),
-			isChatPetKeyboardInteractionEnabled(true, false, false, true, false),
-			isChatPetKeyboardInteractionEnabled(true, false, false, false, true),
-			isChatPetKeyboardInteractionEnabled(true, false, false, false, false),
+			isChatPetKeyboardInteractionEnabled(false, false, false, false),
+			isChatPetKeyboardInteractionEnabled(true, true, false, false),
+			isChatPetKeyboardInteractionEnabled(true, false, true, false),
+			isChatPetKeyboardInteractionEnabled(true, false, false, true),
+			isChatPetKeyboardInteractionEnabled(true, false, false, false),
 		], [
-			false,
 			false,
 			false,
 			false,
@@ -2662,7 +2595,7 @@ suite('ChatPetWidget', () => {
 		mainWindow.document.body.append(parent, dragBounds, movementBounds);
 		const commands: string[] = [];
 		const storageService = disposables.add(new TestStorageService());
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
 			undefined,
@@ -2734,7 +2667,7 @@ suite('ChatPetWidget', () => {
 
 	test('logs pet enablement at startup and when toggled', () => {
 		const telemetryService = new TestTelemetryService();
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), telemetryService, new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), telemetryService, new NullLogService(), editorWindowEnvironment));
 
 		service.toggle();
 		service.toggle();
@@ -2748,13 +2681,13 @@ suite('ChatPetWidget', () => {
 
 	test('persists pet scale and position across windows, dismissal, and restart', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
-		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		firstWindow.toggle();
 		firstWindow.setScale(1.4);
 		firstWindow.setHorizontalPosition({ edge: 'left', inset: 48 });
 		const dismissed = firstWindow.toggle();
-		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			firstWindow: firstWindow.scale.get(),
@@ -2776,10 +2709,10 @@ suite('ChatPetWidget', () => {
 	test('reads legacy proportional pet positions and migrates them when anchored', () => {
 		const storageService = disposables.add(new TestStorageService());
 		storageService.store('chat.vscodePet.horizontalPosition', 0.3, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		const legacyWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const legacyWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const legacyPosition = legacyWindow.horizontalPosition.get();
 		legacyWindow.setHorizontalPosition({ edge: 'right', inset: 32 });
-		const anchoredWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const anchoredWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			legacyPosition,
@@ -2794,12 +2727,12 @@ suite('ChatPetWidget', () => {
 
 	test('resets pet size to the default without changing the position', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
-		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		firstWindow.setScale(1.4);
 		firstWindow.setHorizontalPosition(0.3);
 		firstWindow.resetScale();
-		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			firstWindow: firstWindow.scale.get(),
@@ -2818,8 +2751,8 @@ suite('ChatPetWidget', () => {
 
 	test('persists idempotent achievements and synchronizes the selected accessory', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const firstService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
-		const secondService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const firstService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const secondService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const unlocks: string[] = [];
 		const synchronizedUnlocks: string[] = [];
 		disposables.add(firstService.onDidUnlockAchievement(id => unlocks.push(id)));
@@ -2868,9 +2801,46 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('gives each window kind its own hat, including no hat, until a hat is chosen for both', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const editorWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		const agentsWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), agentsWindowEnvironment));
+		const getStoredAccessories = () => ['chat.vscodePet.accessory', 'chat.vscodePet.accessory.editor', 'chat.vscodePet.accessory.agents'].map(key => storageService.get(key, StorageScope.APPLICATION_SHARED));
+		editorWindow.toggle();
+		editorWindow.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
+		editorWindow.unlockAchievement(ChatPetAchievementIds.AgentChangesReviewed);
+		editorWindow.setAccessory(ChatPetAccessoryIds.CowboyHat);
+		agentsWindow.setAccessory(undefined, 'agents');
+		editorWindow.setAccessory(ChatPetAccessoryIds.BambooHat, 'editor');
+		const separate = {
+			editorWindow: editorWindow.selectedAccessory.get(),
+			agentsWindow: agentsWindow.selectedAccessory.get(),
+			agentsSeenFromEditor: editorWindow.getWindowAccessory('agents').get(),
+			stored: getStoredAccessories(),
+		};
+		storageService.store('chat.vscodePet.accessory.editor', 'unknown', StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		const unknownOverride = editorWindow.selectedAccessory.get();
+		agentsWindow.setAccessory(ChatPetAccessoryIds.BambooHat);
+
+		assert.deepStrictEqual({
+			separate,
+			unknownOverride,
+			both: { editorWindow: editorWindow.selectedAccessory.get(), agentsWindow: agentsWindow.selectedAccessory.get(), stored: getStoredAccessories() },
+		}, {
+			separate: {
+				editorWindow: ChatPetAccessoryIds.BambooHat,
+				agentsWindow: undefined,
+				agentsSeenFromEditor: undefined,
+				stored: [ChatPetAccessoryIds.CowboyHat, ChatPetAccessoryIds.BambooHat, 'none'],
+			},
+			unknownOverride: ChatPetAccessoryIds.CowboyHat,
+			both: { editorWindow: ChatPetAccessoryIds.BambooHat, agentsWindow: ChatPetAccessoryIds.BambooHat, stored: [ChatPetAccessoryIds.BambooHat, undefined, undefined] },
+		});
+	});
+
 	test('starts fresh with no achievements and resets persisted developer state', () => {
 		const storageService = disposables.add(new TestStorageService());
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		const freshUnlocked = service.unlockedAchievements.get();
 		service.toggle();
 		service.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
@@ -2882,7 +2852,7 @@ suite('ChatPetWidget', () => {
 		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);
 		service.resetAchievements();
 		storageService.store('chat.vscodePet.achievementCatalogVersion', 3, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
-		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			freshUnlocked,
@@ -2916,7 +2886,7 @@ suite('ChatPetWidget', () => {
 	test('preserves achievements while disabled and rejects locked or malformed accessories', () => {
 		const storageService = disposables.add(new TestStorageService());
 		storageService.store('chat.vscodePet.accessory', 'unknown', StorageScope.APPLICATION_SHARED, StorageTarget.USER);
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.throws(() => service.setAccessory(ChatPetAccessoryIds.PartyHat), /disabled/);
 		service.toggle();
@@ -2942,7 +2912,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.modelSwitch', true, StorageScope.APPLICATION, StorageTarget.USER);
 		storageService.store('chat.vscodePet.accessory', ChatPetAccessoryIds.BaseballCap, StorageScope.APPLICATION, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -2970,7 +2940,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.modelSwitch', true, StorageScope.APPLICATION, StorageTarget.USER);
 		storageService.store('chat.vscodePet.accessory', ChatPetAccessoryIds.PartyHat, StorageScope.APPLICATION, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -3000,7 +2970,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.requestRevision', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.achievement.modelSwitch', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -3020,7 +2990,7 @@ suite('ChatPetWidget', () => {
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.accessory', ChatPetAccessoryIds.CowboyHat, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 
-		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 
 		assert.deepStrictEqual({
 			unlocked: service.unlockedAchievements.get(),
@@ -3438,8 +3408,6 @@ suite('ChatPetWidget', () => {
 			falling: doesChatPetStateTrackCursor('falling'),
 			wallImpact: doesChatPetStateTrackCursor('wallImpact'),
 			splat: doesChatPetStateTrackCursor('splat'),
-			onTheRun: doesChatPetStateTrackCursor('onTheRun'),
-			searching: doesChatPetStateTrackCursor('searching'),
 		}, {
 			idle: true,
 			sleep: false,
@@ -3460,8 +3428,6 @@ suite('ChatPetWidget', () => {
 			falling: false,
 			wallImpact: false,
 			splat: false,
-			onTheRun: false,
-			searching: false,
 		});
 	});
 
@@ -3549,7 +3515,6 @@ suite('ChatPetWidget', () => {
 			getChatPetSpriteName('rendering', 'stable'),
 			getChatPetSpriteName('achievementUnlocked', 'stable'),
 			getChatPetSpriteName('cool', 'stable'),
-			getChatPetSpriteName('searching', 'stable'),
 			getChatPetSpriteName('yappingMouthOpen', 'insider'),
 			getChatPetSpriteName('sing', 'stable'),
 			getChatPetSpriteName('sing', 'insider'),
@@ -3574,7 +3539,6 @@ suite('ChatPetWidget', () => {
 			'buddy-rendering-stable',
 			'buddy-rendering-stable',
 			'buddy-cool-stable',
-			'buddy-search-stable',
 			'buddy-yapping-insiders',
 			'buddy-sing-stable',
 			'buddy-sing-insiders',
@@ -3595,9 +3559,9 @@ suite('ChatPetWidget', () => {
 
 	test('maps every runtime state to a body-owned accessory track', () => {
 		assert.deepStrictEqual([
-			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'achievementUnlocked', 'buttonPress', 'complete', 'love', 'clapping', 'jump', 'cool', 'yapping', 'yappingMouthOpen', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'onTheRun', 'searching', 'searchingDown',
+			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'achievementUnlocked', 'buttonPress', 'complete', 'love', 'clapping', 'jump', 'cool', 'yapping', 'yappingMouthOpen', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat',
 		].map(state => getChatPetAccessoryTrack(state as Parameters<typeof getChatPetAccessoryTrack>[0])), [
-			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'rendering', 'buttonPress', 'idle', 'love', 'clapping', 'jump', 'cool', 'idle', 'yapping', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'search', 'search', 'search',
+			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'rendering', 'buttonPress', 'idle', 'love', 'clapping', 'jump', 'cool', 'idle', 'yapping', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat',
 		]);
 	});
 
@@ -3791,7 +3755,6 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('speechless'),
 			getChatPetFrameDurations('worry'),
 			getChatPetFrameDurations('dizzy'),
-			getChatPetFrameDurations('searching'),
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
 			getChatPetFrameDurations('falling'),
@@ -3815,7 +3778,6 @@ suite('ChatPetWidget', () => {
 			[400, 120, 1_000, 120, 1_080],
 			[600, 600],
 			Array.from({ length: 8 }, () => 120),
-			[500, 500, 500, 500],
 			[],
 			[],
 			[120, 80, 80, 120, 80, 80],
@@ -4070,7 +4032,7 @@ suite('ChatPetWidget', () => {
 		parent.append(input);
 		mainWindow.document.body.append(parent);
 		disposables.add(toDisposable(() => parent.remove()));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			{
@@ -4205,7 +4167,7 @@ suite('ChatPetWidget', () => {
 		parent.append(input);
 		mainWindow.document.body.append(parent);
 		disposables.add(toDisposable(() => parent.remove()));
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			{

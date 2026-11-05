@@ -207,9 +207,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
 				}
 			},
-			newSessionAsTarget: () => {
-				this.voiceSessionController.newSessionAsTarget();
-			},
+			newSessionAsTarget: () => this.voiceSessionController.newSessionAsTarget(),
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode
@@ -267,9 +265,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}));
 
 		// Poll for session updates
-		this.agentSessionsService.model.resolve(undefined);
+		this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
-			this.agentSessionsService.model.resolve(undefined);
+			this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		}, 3000));
 
 

@@ -34,6 +34,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -66,7 +67,7 @@ suite('Agents Window workspace handoff', () => {
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		let inputReady = true;
 		let draftReady = Promise.resolve();
-		const sessionsService = upcastPartial<ISessionsService>({
+		const sessionsService = upcastPartial<ITestSessionsService>({
 			activeSession,
 			initialRestoreComplete,
 			navigationRequest,
@@ -81,6 +82,7 @@ suite('Agents Window workspace handoff', () => {
 			},
 		});
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onWillSendRequest: onWillSend.event,
 			resolveWorkspace: folder => {
