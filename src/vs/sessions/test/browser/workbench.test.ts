@@ -1308,6 +1308,23 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('the Session Activity Bar column is inactive in the phone layout and while a custom view replaces the Sessions Part', () => {
+		const viewportClass = observableValue<string>('viewportClass', 'desktop');
+		const activeCustomViewOpen = observableValue<object | undefined>('activeCustomViewOpen', undefined);
+		const host = { layoutPolicy: { viewportClass }, customViewService: { activeCustomViewOpen } };
+		const active = (Reflect.get(Workbench.prototype, '_isSessionActivityBarColumnActive') as (this: typeof host) => IObservable<boolean>).call(host);
+
+		const desktop = active.get();
+		activeCustomViewOpen.set({}, undefined);
+		const customViewOpen = active.get();
+		activeCustomViewOpen.set(undefined, undefined);
+		const customViewClosed = active.get();
+		viewportClass.set('phone', undefined);
+		const phone = active.get();
+
+		assert.deepStrictEqual({ desktop, customViewOpen, customViewClosed, phone }, { desktop: true, customViewOpen: false, customViewClosed: true, phone: false });
+	});
+
 	test('shows the Session Activity Bar column on the next frame while a strip is in it, and not while a view is maximized', async () => {
 		const column = new SessionActivityBarColumn(constObservable(true));
 		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());

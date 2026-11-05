@@ -1636,7 +1636,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
-			const column = this.sessionActivityBarColumn = new SessionActivityBarColumn(derived(reader => this.layoutPolicy.viewportClass.read(reader) !== 'phone'));
+			const column = this.sessionActivityBarColumn = new SessionActivityBarColumn(this._isSessionActivityBarColumnActive());
 			viewMap[SessionActivityBarColumn.ID] = column;
 			this._register(registerSessionActivityBarExternalHost(this.mainContainer, column));
 		}
@@ -1727,6 +1727,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._register(this.workbenchGrid.onDidChangeViewMaximized(() => {
 			this._fireDidChangePartVisibility(Parts.PANEL_PART, this.isVisible(Parts.PANEL_PART));
 		}));
+	}
+
+	/**
+	 * Whether the strip of the active chat shows in the Session Activity Bar column: not in the phone layout, and not while
+	 * a custom view replaces the Sessions Part, which then returns the strip to its hidden chat and releases the column.
+	 */
+	protected _isSessionActivityBarColumnActive(): IObservable<boolean> {
+		return derived(reader => this.layoutPolicy.viewportClass.read(reader) !== 'phone' && !this.customViewService.activeCustomViewOpen.read(reader));
 	}
 
 	/**
