@@ -31,17 +31,22 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getWindowHost, IFocusedSessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
+import { resolveGridCommandView, resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
@@ -50,7 +55,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { OS } from '../../../../base/common/platform.js';
+import { isWeb, OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -104,13 +109,12 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const sessionsService = accessor.get(ISessionsService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const composerService = accessor.get(INewSessionComposerService);
 
-		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
+		const activeSessionId = resolveSessionCommandTarget(accessor, [])?.session?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
@@ -137,8 +141,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// left gutter).
 			const detailParts: string[] = [];
 			if (workspace?.label) {
-				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
+				const presentationWorkspace = getSessionPresentationWorkspace(session, reader);
+				const kind = getSessionWorkspaceKind(presentationWorkspace);
+				const workspaceIcon = presentationWorkspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
 				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
@@ -212,7 +217,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			composerService.notifyUserNavigation();
 			if (!selected.session) {
 				sessionsService.openNewSession();
-				sessionsPartService.focusSession(sessionsService.activeSession.get());
+				sessionsService.focusActiveSession();
 				return;
 			}
 
@@ -272,6 +277,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // -- Go Back --
 
+const sessionNavigationWhen = ContextKeyExpr.and(IsSessionsWindowContext,
+	ContextKeyExpr.or(EditorAreaFocusContext.toNegated(), ActiveEditorContext.isEqualTo(WindowCanvasInput.EDITOR_ID)));
+
 registerAction2(class GoBackAction extends Action2 {
 	constructor() {
 		super({
@@ -292,11 +300,11 @@ registerAction2(class GoBackAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: sessionNavigationWhen,
 			}, {
 				weight: KeybindingWeight.SessionsContrib,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(sessionNavigationWhen, InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
 			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
@@ -338,11 +346,11 @@ registerAction2(class GoForwardAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: sessionNavigationWhen,
 			}, {
 				weight: KeybindingWeight.SessionsContrib,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(sessionNavigationWhen, InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
 			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
@@ -391,15 +399,31 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsPartService = accessor.get(ISessionsPartService);
-		const sessionsService = accessor.get(ISessionsService);
-		sessionsPartService.focusSession(sessionsService.activeSession.get());
+		// In a chat window, the input of the chat its host shows, in that window; never another window's.
+		const host = resolveSessionCommandTarget(accessor, [])?.host;
+		if (host && getWindowHost(host).kind === SessionHostKind.ChatWindow) {
+			const chat = host.chat.get();
+			const widget = chat && accessor.get(IChatWidgetService).getWidgetBySessionResource(chat.resource);
+			widget?.focusInput();
+			return;
+		}
+		accessor.get(ISessionsService).focusActiveSession();
 	}
 });
 
+/**
+ * The Sessions grid shows in the main window only. Its commands are not enabled in a chat window, whose chats are editors
+ * with the editor groups' own commands, and do nothing while a chat window is the focused host, rather than act on the
+ * main window's grid.
+ */
+const sessionGridWindowWhen = IsAuxiliaryWindowContext.toNegated();
+
+function isChatWindowFocused(accessor: ServicesAccessor): boolean {
+	return accessor.get(IFocusedSessionHostService).getFocusedHost()?.kind === SessionHostKind.ChatWindow;
+}
+
 function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
-	const sessionsService = accessor.get(ISessionsService);
-	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	const view = resolveGridCommandView(accessor);
 	if (view) {
 		action(view);
 	}
@@ -412,6 +436,7 @@ registerAction2(class FocusPreviousChatGroupAction extends Action2 {
 			title: localize2('focusPreviousChatGroup', "Focus Previous Chat Group"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			precondition: sessionGridWindowWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow),
@@ -432,6 +457,7 @@ registerAction2(class FocusNextChatGroupAction extends Action2 {
 			title: localize2('focusNextChatGroup', "Focus Next Chat Group"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			precondition: sessionGridWindowWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.RightArrow),
@@ -452,6 +478,7 @@ registerAction2(class SplitChatGroupRightAction extends Action2 {
 			title: localize2('splitChatGroupRight', "Split Chat Group Right"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			precondition: sessionGridWindowWhen,
 		});
 	}
 
@@ -467,6 +494,7 @@ registerAction2(class SplitChatGroupDownAction extends Action2 {
 			title: localize2('splitChatGroupDown', "Split Chat Group Down"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			precondition: sessionGridWindowWhen,
 		});
 	}
 
@@ -482,6 +510,7 @@ registerAction2(class MoveChatToPreviousGroupAction extends Action2 {
 			title: localize2('moveChatToPreviousGroup', "Move Chat to Previous Group"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			precondition: sessionGridWindowWhen,
 		});
 	}
 
@@ -497,6 +526,7 @@ registerAction2(class MoveChatToNextGroupAction extends Action2 {
 			title: localize2('moveChatToNextGroup', "Move Chat to Next Group"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			precondition: sessionGridWindowWhen,
 		});
 	}
 
@@ -512,15 +542,14 @@ registerAction2(class DetachChatAction extends Action2 {
 			title: localize2('detachChat', "Detach Chat into New Pane"),
 			f1: true,
 			category: SessionsCategories.Sessions,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIsCreatedContext, SessionActiveChatIsClosableContext),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, ChatContextKeys.enabled, SessionIsCreatedContext, SessionActiveChatIsClosableContext),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const service = accessor.get(ISessionsService);
-		const session = service.activeSession.get();
+		const session = resolveGridCommandView(accessor)?.getSession();
 		if (session) {
-			await service.detachChat(session, session.activeChat.get().resource);
+			await accessor.get(ISessionsService).detachChat(session, session.activeChat.get().resource);
 		}
 	}
 });
@@ -541,6 +570,7 @@ for (let index = 0; index < 9; index++) {
 					: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
 				f1: true,
 				category: SessionsCategories.Sessions,
+				precondition: sessionGridWindowWhen,
 				keybinding: {
 					weight: KeybindingWeight.SessionsContrib,
 					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
@@ -550,6 +580,9 @@ for (let index = 0; index < 9; index++) {
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
+			if (isChatWindowFocused(accessor)) {
+				return;
+			}
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
@@ -702,7 +735,7 @@ registerAction2(class RenameChatAction extends Action2 {
 				return;
 			}
 		}
-		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session.sessionId)?.startChatTitleEditing(renameContext.chat.resource)) {
+		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session)?.startChatTitleEditing(renameContext.chat.resource)) {
 			return;
 		}
 		if (!renameContext && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
@@ -719,12 +752,12 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.list.openChatToSide',
-			title: localize2('openChatToSide', "Open to the Side"),
+			title: localize2('splitView', "Split View"),
 			f1: false,
 			menu: {
-				id: Menus.SessionChatItemContext,
+				id: Menus.SessionChatItemOpenIn,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 			},
 		});
 	}
@@ -738,6 +771,31 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		await sessionsService.openChatToSide(context.session, context.chat.resource);
+	}
+});
+
+registerAction2(class OpenSessionListChatInEditorWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.openInEditorWindow',
+			title: localize2('editorWindow', "Editor Window"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			menu: [Menus.SessionItemOpenIn, Menus.SessionChatItemOpenIn].map(id => ({
+				id,
+				group: '1_editor',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+			})),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISession[] | ISessionChatItem): Promise<void> {
+		const target = Array.isArray(context)
+			? context.length === 1 ? { session: context[0], chat: context[0].mainChat.get() } : undefined
+			: context;
+		if (target) {
+			await accessor.get(ICommandService).executeCommand(isWeb ? 'sessions.openInVSCode' : 'agents.openSessionInVSCode', target);
+		}
 	}
 });
 
@@ -949,7 +1007,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
 				// active session. Scoped so it does not steal the shortcut outside
 				// the agents window or when the session does not support multiple chats.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
 			menu: [{
@@ -969,12 +1027,12 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		const target = Array.isArray(context) ? context[0] : context ?? sessionsService.activeSession.get();
+		const target = Array.isArray(context) ? context[0] : context ?? resolveGridCommandView(accessor)?.getSession();
 		if (!target) {
 			return;
 		}
 		await sessionsService.openNewChatInSession(target);
-		const activeSession = sessionsService.activeSession.get();
+		const activeSession = sessionsPartService.getActiveSessionView()?.getSession();
 		sessionsPartService.focusSession(activeSession?.sessionId === target.sessionId ? activeSession : undefined);
 	}
 });
@@ -983,7 +1041,7 @@ function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previo
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 	const extUri = accessor.get(IUriIdentityService).extUri;
-	const session = sessionsService.activeSession.get();
+	const session = resolveGridCommandView(accessor)?.getSession();
 	if (!session) {
 		return;
 	}
@@ -1010,7 +1068,7 @@ registerAction2(class NavigateNextChatAction extends Action2 {
 			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight,
 			},
 		});
@@ -1030,7 +1088,7 @@ registerAction2(class NavigatePreviousChatAction extends Action2 {
 			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft,
 			},
 		});
@@ -1058,7 +1116,7 @@ registerAction2(class CloseChatAction extends Action2 {
 				// Intercept Ctrl/Cmd+W (which otherwise closes the session) only
 				// while the active chat is a closeable non-main chat, so it closes
 				// the chat tab instead — like closing a tab vs the window.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionActiveChatIsClosableContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, EditorAreaFocusContext.toNegated(), SessionActiveChatIsClosableContext),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
@@ -1078,13 +1136,19 @@ registerAction2(class CloseChatAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		session ??= sessionsService.activeSession.get();
+		session ??= resolveGridCommandView(accessor)?.getSession();
 		if (!session) {
 			return;
 		}
-		const sessionView = accessor.get(ISessionsPartService).getSessionView(session.sessionId);
+		const sessionView = accessor.get(ISessionsPartService).getSessionView(session);
 		chat ??= sessionView?.getActiveChat() ?? session.activeChat.get();
 		if (!chat) {
+			return;
+		}
+		// A chat another surface shows, such as a chat editor, closes there, also its session's main chat.
+		const shownBy = accessor.get(IChatHostOpenerService).getOpenerOf(chat.resource);
+		if (shownBy) {
+			await shownBy.close(chat.resource);
 			return;
 		}
 		if (extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
@@ -1131,6 +1195,7 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					sessionGridWindowWhen,
 					// While a modal editor has focus, let VS Code's own
 					// closeEditorsInGroup (same chord) act on the editor group.
 					EditorAreaFocusContext.toNegated(),
@@ -1148,7 +1213,7 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		const session = sessionsService.activeSession.get();
+		const session = resolveGridCommandView(accessor)?.getSession();
 		if (!session) {
 			return;
 		}
@@ -1181,7 +1246,7 @@ registerAction2(class DeleteChatAction extends Action2 {
 				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
 				// in the Explorer. Scoped so it never fires while typing in an input
 				// (chat composer, rename field, etc.) or on the session's main chat.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, SessionsFocusContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
 				primary: KeyCode.Delete,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -1198,9 +1263,8 @@ registerAction2(class DeleteChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session?: IActiveSession, chat?: IChat): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		session ??= sessionsService.activeSession.get();
+		session ??= resolveGridCommandView(accessor)?.getSession();
 		if (!session) {
 			return;
 		}
@@ -1231,7 +1295,7 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		const session = sessionsService.activeSession.get();
+		const session = resolveGridCommandView(accessor)?.getSession();
 		if (!session) {
 			return;
 		}
@@ -1292,7 +1356,7 @@ const CHATS_PICKER_QUICK_NAVIGATE_PREVIOUS_ID = 'sessions.chatsPicker.quickNavig
 // The Ctrl+Tab MRU switcher cycles open chats only, so it is gated on more than
 // one open tab. (The palette command, which also lists closed chats, is gated on
 // more than one committed chat instead.)
-const ChatsPickerScopeContext = ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext, inQuickPickContext.negate());
+const ChatsPickerScopeContext = ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext, inQuickPickContext.negate());
 
 function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: boolean }): void {
 	const sessionsService = accessor.get(ISessionsService);
@@ -1301,7 +1365,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	const contextKeyService = accessor.get(IContextKeyService);
 	const keybindingService = accessor.get(IKeybindingService);
 
-	const session = sessionsService.activeSession.get();
+	const session = resolveGridCommandView(accessor)?.getSession();
 	if (!session) {
 		return;
 	}
@@ -1402,7 +1466,7 @@ registerAction2(class ShowChatsPickerAction extends Action2 {
 			precondition: SessionHasMultipleCommittedChatsContext,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), inQuickPickContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, EditorAreaFocusContext.toNegated(), inQuickPickContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 			},
 		});
@@ -1895,7 +1959,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 					// active one) instead of in place; the dropdown's select handler
 					// does not forward the mouse event, so read the live modifier state.
 					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
-						const view = accessor.get(ISessionsPartService).getSessionView(target.sessionId);
+						const view = accessor.get(ISessionsPartService).getSessionView(target);
 						if (view) {
 							await view.openChatToSide(targetChat.resource);
 							return;
@@ -2007,18 +2071,19 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate(), SessionInChatEditorContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/2_organize',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate(), SessionInChatEditorContext.negate()),
 			}))],
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
+		// A chat editor's session is not the grid's, which it would pin: a pane of another surface, which shows its chat.
+		if (!session || (!accessor.get(ISessionsService).isGridPane(session) && accessor.get(IChatHostOpenerService).getOpenerOf(session.activeChat.get().resource))) {
 			return;
 		}
 		accessor.get(ISessionsService).toggleSessionStickiness(session);
@@ -2040,20 +2105,20 @@ registerAction2(class TogglePinChatAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionHeaderActiveChatIsPinnedContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionHeaderActiveChatIsPinnedContext, SessionIsArchivedContext.negate(), SessionInChatEditorContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/2_organize',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionIsArchivedContext.negate(), SessionInChatEditorContext.negate()),
 			}))],
 		});
 	}
 
 	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
-		session ??= accessor.get(ISessionsService).activeSession.get();
+		session ??= resolveGridCommandView(accessor)?.getSession();
 		if (session) {
-			accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.toggleActiveChatPin();
+			accessor.get(ISessionsPartService).getSessionView(session)?.toggleActiveChatPin();
 		}
 	}
 });
@@ -2069,6 +2134,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib + 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					sessionGridWindowWhen,
 					SessionsFocusContext,
 					SessionSupportsRenameContext,
 					SessionFocusedChatIsRenameTargetContext.negate(),
@@ -2084,7 +2150,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		session ??= accessor.get(ISessionsService).activeSession.get();
+		session ??= resolveGridCommandView(accessor)?.getSession();
 		if (!session) {
 			return;
 		}
@@ -2092,7 +2158,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		// is only available while the header shows the title (e.g. not while the
 		// single-group chat tabs row replaces it); prompt for the new title when
 		// it cannot be used.
-		if (accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing()) {
+		if (accessor.get(ISessionsPartService).getSessionView(session)?.startTitleEditing()) {
 			return;
 		}
 		await accessor.get(ICommandService).executeCommand(RENAME_SESSION_COMMAND_ID, session);
@@ -2111,6 +2177,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsNewChatSessionContext.negate(),
 					IsSessionsWindowContext,
+					sessionGridWindowWhen,
 					SessionsFocusContext,
 					EditorAreaFocusContext.negate(),
 				),
@@ -2140,9 +2207,25 @@ registerAction2(class CloseSessionAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		session ??= sessionsService.activeSession.get();
+		if (!session) {
+			// Without a pane, the grid's active pane, which may be its empty slot; none while a chat window is the focused host.
+			const view = resolveGridCommandView(accessor);
+			if (!view) {
+				return;
+			}
+			session = view.getSession();
+		}
 
-		const sessionView = session && sessionsPartService.getSessionView(session.sessionId);
+		// The session of a pane of another surface, such as a chat editor's, closes there; focus stays where it is. A pane of the
+		// grid closes in the grid, even when another surface shows its chat, such as the chat a slot falls back to.
+		const shownChat = session && !sessionsService.isGridPane(session) ? session.activeChat.get().resource : undefined;
+		const shownBy = shownChat && accessor.get(IChatHostOpenerService).getOpenerOf(shownChat);
+		if (shownBy) {
+			await shownBy.close(shownChat);
+			return;
+		}
+
+		const sessionView = session && sessionsPartService.getSessionView(session);
 		const activeChat = sessionView?.getActiveChat();
 		if (session
 			&& sessionView
@@ -2153,11 +2236,11 @@ registerAction2(class CloseSessionAction extends Action2 {
 		}
 
 		sessionsService.closeSession(session);
-		sessionsPartService.focusSession(sessionsService.activeSession.get());
+		sessionsService.focusActiveSession();
 	}
 });
 
-const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
+const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, sessionGridWindowWhen, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
 
 for (const menu of SessionHeaderMenus) {
 	MenuRegistry.appendMenuItem(menu, {
@@ -2181,6 +2264,9 @@ registerAction2(class ArrangeSessionsAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor): void {
+		if (isChatWindowFocused(accessor)) {
+			return;
+		}
 		accessor.get(ISessionsService).arrangeSessions();
 	}
 });
@@ -2216,8 +2302,11 @@ for (const item of sessionGridActions) {
 				});
 			}
 			run(accessor: ServicesAccessor, session?: IActiveSession): void {
+				if (isChatWindowFocused(accessor)) {
+					return;
+				}
 				const service = accessor.get(ISessionsService);
-				session ??= service.activeSession.get();
+				session ??= resolveGridCommandView(accessor)?.getSession();
 				if (operation === 'focus') {
 					service.focusSessionInDirection(session, item.direction);
 				} else if (operation === 'move') {
@@ -2254,7 +2343,10 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		session ??= accessor.get(ISessionsService).activeSession.get();
+		if (isChatWindowFocused(accessor)) {
+			return;
+		}
+		session ??= resolveGridCommandView(accessor)?.getSession();
 		accessor.get(ISessionsService).setActive(session);
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 	}
@@ -2273,7 +2365,8 @@ registerAction2(class CloseEditorAreaAction extends Action2 {
 				id: MenuId.EditorGroupWatermarkToolbar,
 				group: 'navigation',
 				order: 10,
-				when: IsSessionsWindowContext,
+				// A window with layout modes, such as a chat window, closes its own editor parts.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, LayoutModeContext.toNegated()),
 			},
 		});
 	}

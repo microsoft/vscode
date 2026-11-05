@@ -11,7 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
-import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
+import { ICustomViewOpenRequest, ICustomViewService } from '../../customView/browser/customViewService.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
 import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -54,6 +55,7 @@ export class SessionsNavigation extends Disposable {
 		private readonly _opener: ISessionOpener,
 		private readonly _activeSession: IObservable<IActiveSession | undefined>,
 		private readonly _customViewService: ICustomViewService,
+		private readonly _windowCanvasService: IWindowCanvasService,
 		private readonly _sessionsManagementService: ISessionsManagementService,
 		private readonly _recency: SessionsRecencyHistory,
 		contextKeyService: IContextKeyService,
@@ -68,7 +70,19 @@ export class SessionsNavigation extends Disposable {
 			const customViewOpen = this._customViewService.activeCustomViewOpen.read(reader);
 			if (customViewOpen) {
 				if (customViewOpen.source !== 'history') {
-					this.recordOpened({ kind: 'customView', id: customViewOpen.descriptor.id });
+					this.recordOpened(getCustomViewEntry(customViewOpen));
+				}
+				return;
+			}
+
+			const canvasOpen = this._windowCanvasService.activeCanvasOpen.read(reader);
+			const canvasRequest = this._windowCanvasService.navigationRequest.read(reader);
+			if (canvasRequest && canvasRequest !== canvasOpen) {
+				return;
+			}
+			if (canvasOpen) {
+				if (canvasOpen.source === 'explicit') {
+					this.recordOpened({ kind: 'canvas', id: canvasOpen.id });
 				}
 				return;
 			}
@@ -125,7 +139,7 @@ export class SessionsNavigation extends Disposable {
 					return;
 				}
 				this._pendingOpen = undefined;
-				if (!token.isCancellationRequested && navigationIntent !== 'history' && !this._customViewService.activeCustomView.get()) {
+				if (!token.isCancellationRequested && navigationIntent !== 'history' && !this._customViewService.activeCustomView.get() && !this._windowCanvasService.activeCanvasOpen.get()) {
 					this.recordOpened(this._getActiveEntry());
 				}
 			},
@@ -154,9 +168,9 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	private _getActiveEntry(reader?: IReader): SessionRecencyEntry {
-		const customView = this._customViewService.activeCustomView.read(reader);
-		if (customView) {
-			return { kind: 'customView', id: customView.id };
+		const customViewOpen = this._customViewService.activeCustomViewOpen.read(reader);
+		if (customViewOpen) {
+			return getCustomViewEntry(customViewOpen);
 		}
 
 		const session = this._activeSession.read(reader);
@@ -201,9 +215,39 @@ export class SessionsNavigation extends Disposable {
 			if (entry.kind === 'customView') {
 				const previousKey = this._currentKey.get();
 				this._currentKey.set(key, undefined);
-				this._customViewService.showCustomView(entry.id, { source: 'history' });
-				if (this._customViewService.activeCustomView.get()?.id !== entry.id) {
+				this._customViewService.showCustomView(entry.id, { source: 'history', state: entry.state });
+				const opened = this._customViewService.activeCustomViewOpen.get();
+				// A view that cannot show the recorded state, such as a removed item, declines the opening.
+				if (opened?.descriptor.id !== entry.id || opened.state !== entry.state) {
 					this._currentKey.set(previousKey, undefined);
+					this._recency.remove(e => getRecencyEntryKey(e) === key);
+					continue;
+				}
+			} else if (entry.kind === 'canvas') {
+				if (!this._windowCanvasService.canvases.get().some(canvas => canvas.id === entry.id)) {
+					this._recency.remove(e => getRecencyEntryKey(e) === key);
+					continue;
+				}
+				const previousKey = this._currentKey.get();
+				const navigation = this.beginSessionOpen('history', CancellationToken.None);
+				this._currentKey.set(key, undefined);
+				let failed = false;
+				try {
+					await this._windowCanvasService.openCanvas(entry.id, { source: 'history' });
+				} catch (error) {
+					failed = true;
+					this._logService.warn('[SessionNavigation] opening canvas failed', error);
+				} finally {
+					navigation.cancel();
+				}
+				if (this._windowCanvasService.activeCanvasOpen.get()?.id !== entry.id) {
+					if (this._currentKey.get() !== key) {
+						return;
+					}
+					this._currentKey.set(previousKey, undefined);
+					if (!failed && this._windowCanvasService.canvases.get().some(canvas => canvas.id === entry.id)) {
+						return;
+					}
 					this._recency.remove(e => getRecencyEntryKey(e) === key);
 					continue;
 				}
@@ -231,4 +275,8 @@ export class SessionsNavigation extends Disposable {
 			return;
 		}
 	}
+}
+
+function getCustomViewEntry(open: ICustomViewOpenRequest): SessionRecencyEntry {
+	return { kind: 'customView', id: open.descriptor.id, ...(open.state !== undefined ? { state: open.state } : {}) };
 }

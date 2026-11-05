@@ -19,6 +19,7 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IAgentModelPreferences } from '../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
@@ -273,6 +274,7 @@ export interface ISessionModelPickerOptions {
 }
 
 export interface ISessionModelsSnapshot {
+	readonly agentModelPreferences?: IAgentModelPreferences;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
@@ -340,6 +342,8 @@ export interface IDeleteChatOptions {
  */
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
+	/** The checked state of the terminal sandbox toggle for this chat, when the provider offers one. */
+	getSandboxToggleChecked?(session: ISession, chat: URI): IObservable<boolean>;
 	/**
 	 * Unique identifier for the provider.
 	 */
@@ -489,10 +493,10 @@ export interface ISessionsProvider {
 	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether the provider validates and applies explicit permission choices before creating the backend session. */
 	readonly supportsPermissionsForCreation?: boolean;
-	/** Current draft's provider-owned permission choice, including its policy availability. */
-	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
-	/** Translates the current draft's permission intent to a comparison participant's session type. */
-	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined;
+	/** Provider-owned permission choice for a draft or an exact running chat, including policy availability. */
+	getPermissionOptionForSession?(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined;
+	/** Translates a draft or exact running chat's permission intent to a comparison participant's session type. */
+	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string, chatResource?: URI): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -619,6 +623,21 @@ export interface ISessionsProvider {
 
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
+
+	/**
+	 * Observe one live canvas of a chat, whether or not its session is active. Holding
+	 * the reference keeps the canvas live, which may keep its session resident; the
+	 * value is `undefined` once the provider can no longer reach the canvas.
+	 */
+	observeCanvas?(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>>;
+
+	/**
+	 * Observe the live canvases of a chat whether or not its session is active, unlike
+	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
+	 * reference may keep the session resident. Returns `undefined` when the provider
+	 * cannot resolve the chat.
+	 */
+	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
 
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.

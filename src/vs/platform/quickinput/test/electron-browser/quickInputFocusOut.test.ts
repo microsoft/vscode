@@ -354,8 +354,9 @@ suite('QuickInput keeps focus while its context menus are open', () => { // http
 		const onWindowKey = (e: KeyboardEvent) => reached.push(`window ${e.type}:${e.key}`);
 		const onWidgetKey = (e: KeyboardEvent) => reached.push(`widget ${e.type}:${e.key}`);
 		mainWindow.addEventListener('keydown', onWindowKey);
-		widget().addEventListener('keydown', onWidgetKey);
-		store.add(toDisposable(() => { mainWindow.removeEventListener('keydown', onWindowKey); widget().removeEventListener('keydown', onWidgetKey); }));
+		const widgetElement = widget();
+		widgetElement.addEventListener('keydown', onWidgetKey);
+		store.add(toDisposable(() => { mainWindow.removeEventListener('keydown', onWindowKey); widgetElement.removeEventListener('keydown', onWidgetKey); }));
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const inQuickInput = () => contextKeyService.getContextKeyValue<boolean>('inQuickInput');
 

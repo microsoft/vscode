@@ -13,7 +13,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -49,8 +49,14 @@ import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../github/common
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
+
+/** The editor parts of a Files tab of the main window: no part other than the main part. */
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
 
 suite('DesktopLayoutController', () => {
 
@@ -65,8 +71,12 @@ suite('DesktopLayoutController', () => {
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
 		}
+		shown() {
+			const shown = this._shownByMainWindow();
+			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
+		}
 		getComposition(session: IActiveSession) {
-			const key = this._ownerKeyFor(session);
+			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			return key && this._compositionStore?.get(key);
 		}
 	}
@@ -98,6 +108,25 @@ suite('DesktopLayoutController', () => {
 	function makeChangesEditor(sessionResource: URI): TestStubEditorInput {
 		return store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionResource)));
 	}
+
+	test('lays out what the main window host shows, not a focused chat window that shows another session', () => {
+		harness = createTestHarness(store);
+		const sessionA = makeSession(URI.parse('session:main-window'));
+		const sessionB = makeSession(URI.parse('session:chat-window'));
+		// The chat window that shows B has focus: a window-dependent read of the focused host or of the
+		// sessions service's active session would see B.
+		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable(sessionB);
+			override readonly visibleSessions = harness.visibleSessionsObs;
+			readonly windowSessions = constObservable([]);
+		});
+		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
+		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.activeSessionObs.set(sessionA, undefined);
+
+		assert.deepStrictEqual(controller.shown(), { session: 'session:main-window', chat: sessionA.activeChat.get().resource.toString() });
+	});
 
 	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
 		const editor = Object.create(WebviewInput.prototype) as WebviewInput;
@@ -418,7 +447,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		harness.onDidActiveEditorChange.fire();
 		assert.strictEqual(hasDockedDetails(), true, 'files target should enable the editor chevron context');
 		await timeout(0);
@@ -476,7 +505,7 @@ suite('DesktopLayoutController', () => {
 		);
 
 		harness.setPartHiddenCalls = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 		assert.ok(
@@ -890,7 +919,7 @@ suite('DesktopLayoutController', () => {
 		harness.openedViewContainers = [];
 
 		// The restored managed tab becomes active; the detail must NOT re-reveal.
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -1113,6 +1142,51 @@ suite('DesktopLayoutController', () => {
 			],
 		});
 	});
+
+	for (const userChoseComposition of [false, true]) {
+		test(`[desktop] submitting a New Session seeds the Existing profile only with a composition the user chose (user chose: ${userChoseComposition})`, async () => {
+			createDesktopController({
+				activateAux: true,
+				workspaceFolders: [{ uri: URI.file('/repo') }],
+				sidePaneVisibilityState: {
+					newSession: { editorVisible: false, auxiliaryBarVisible: true },
+					existingSession: { editorVisible: true, auxiliaryBarVisible: true },
+				},
+			});
+			await settle();
+			const existing = makeSession(URI.parse('session:existing'));
+			harness.activeSessionObs.set(existing, undefined);
+			await settle();
+			await openManagedTabs();
+			harness.visibleEditorsList = [{}];
+
+			const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false });
+			harness.activeSessionObs.set(draft, undefined);
+			harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
+			harness.onDidActiveEditorChange.fire();
+			await settle();
+			const inComposer = { editorVisible: harness.partVisibility.get(Parts.EDITOR_PART), detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) };
+			if (userChoseComposition) {
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+			}
+
+			(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			await settle();
+			harness.activeSessionObs.set(existing, undefined);
+			await settle();
+
+			assert.deepStrictEqual({
+				inComposer,
+				existingProfile: JSON.parse(harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE) ?? '').existingSession,
+				afterSwitchBack: { editorVisible: harness.partVisibility.get(Parts.EDITOR_PART), detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) },
+			}, {
+				inComposer: { editorVisible: false, detailVisible: true },
+				existingProfile: userChoseComposition ? { editorVisible: false, auxiliaryBarVisible: false } : { editorVisible: true, auxiliaryBarVisible: true },
+				afterSwitchBack: userChoseComposition ? { editorVisible: false, detailVisible: false } : { editorVisible: true, detailVisible: true },
+			});
+		});
+	}
 
 	test('[desktop] New Session opening rule does not re-run after a real editor opens', async () => {
 		createDesktopController({ activateAux: true });
@@ -2888,7 +2962,7 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(hasFilesTab(), false);
 
 		// The user explicitly adds the Files tab via `+` (opens an EmptyFileEditorInput).
-		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		openEditor(userFilesTab);
 		harness.activeGroupEditors.push(userFilesTab);
 		harness.onDidEditorsChange.fire();

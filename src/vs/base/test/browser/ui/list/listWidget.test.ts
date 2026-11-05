@@ -95,6 +95,41 @@ suite('ListWidget', function () {
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'page up to next page');
 	});
 
+	test('splice preserves traits after the spliced range', function () {
+		const element = document.createElement('div');
+		element.style.height = '200px';
+		element.style.width = '200px';
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
+
+		listWidget.layout(200);
+		listWidget.splice(0, 0, range(10));
+		listWidget.setSelection([1, 3, 5, 7]);
+
+		listWidget.splice(3, 1, [100, 101]);
+
+		const renderedSelection = [...element.querySelectorAll('.monaco-list-row.selected')]
+			.map(row => parseInt(row.getAttribute('data-index')!))
+			.sort((a, b) => a - b);
+
+		assert.deepStrictEqual({ selection: listWidget.getSelection(), renderedSelection }, {
+			selection: [1, 6, 8],
+			renderedSelection: [1, 6, 8]
+		});
+	});
+
 	test('aria-activedescendant references a rendered element', function () {
 		const element = document.createElement('div');
 		element.style.height = '20px';

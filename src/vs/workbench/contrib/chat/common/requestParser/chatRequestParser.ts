@@ -13,12 +13,14 @@ import { getChatSessionType } from '../model/chatUri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService, matchesSessionType } from '../promptSyntax/service/promptsService.js';
+import { slashCommandNamePattern } from '../promptSyntax/utils/promptsServiceUtils.js';
 import { ToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
 export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 export const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+export const slashReg = new RegExp(String.raw`^/(${slashCommandNamePattern})(?=(\s|$|\b))`, 'iu'); // A / command
+const subcommandReg = new RegExp(String.raw`^[ \t]+(${slashCommandNamePattern})`, 'u');
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -263,7 +265,7 @@ export class ChatRequestParser {
 			// syntactic only — bare `<cmd>` always passes, so we must commit to the longer
 			// match here when the discovered prompt list contains it.
 			const afterSlash = remainingMessage.slice(full.length);
-			const subMatch = afterSlash.match(/^[ \t]+([\p{L}\d_\-\.]+)/u);
+			const subMatch = afterSlash.match(subcommandReg);
 			if (subMatch) {
 				const candidate = `${command}:${subMatch[1]}`;
 				if (this.promptsService.hasPromptSlashCommand(candidate)) {

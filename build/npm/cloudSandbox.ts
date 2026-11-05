@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import path from 'node:path';
 import { isExpectedElectronInstalled } from '../lib/electronVersion.ts';
+import { getPinnedPnpmVersion } from '../lib/pnpm.ts';
 
 interface SandboxSetupOptions {
 	env: NodeJS.ProcessEnv;
@@ -173,6 +174,52 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 }
 
 /**
+ * Provide the pnpm version pinned in the root `package.json` on PATH, next to the selected Node.js
+ * executable. pnpm is installed into the sandbox's own folder, not into a global npm prefix.
+ */
+export function prepareCloudSandboxPnpm(overrides: Partial<SandboxSetupOptions> = {}): void {
+	const options = sandboxOptions(overrides);
+	if (!options) {
+		return;
+	}
+	const version = getPinnedPnpmVersion(options.root);
+	if (!version) {
+		throw new Error('Cloud Sandbox setup: package.json must pin pnpm in its packageManager field.');
+	}
+	const currentVersion = () => {
+		try {
+			return options.run('pnpm', ['--version'], true).trim();
+		} catch {
+			return undefined;
+		}
+	};
+	if (currentVersion() === version) {
+		return;
+	}
+	const directory = path.join(options.home, '.local', 'share', 'vscode-cloud-sandbox', `pnpm-${version}`);
+	const target = path.join(directory, 'node_modules', '.bin', 'pnpm');
+	if (!fs.existsSync(target)) {
+		fs.mkdirSync(directory, { recursive: true });
+		options.run('npm', ['install', '--prefix', directory, '--no-save', '--no-package-lock', '--no-audit', '--no-fund', `pnpm@${version}`]);
+	}
+	const binDirectory = options.env.PATH?.split(path.delimiter).find(directory => path.isAbsolute(directory) && fs.existsSync(path.join(directory, 'node')));
+	if (!binDirectory) {
+		throw new Error('Cloud Sandbox setup: cannot find the Node.js executable on PATH.');
+	}
+	const temporaryLink = path.join(binDirectory, `.pnpm-vscode-cloud-${process.pid}`);
+	fs.symlinkSync(target, temporaryLink);
+	try {
+		fs.renameSync(temporaryLink, path.join(binDirectory, 'pnpm'));
+	} finally {
+		fs.rmSync(temporaryLink, { force: true });
+	}
+	if (currentVersion() !== version) {
+		throw new Error(`Cloud Sandbox setup: pnpm ${version} is not selected on PATH.`);
+	}
+	console.log(`Cloud Sandbox: selected pnpm ${version} on PATH.`);
+}
+
+/**
  * Raise a sandbox process's soft descriptor limit so its future children inherit it.
  */
 export function raiseCloudSandboxFileLimit(pid: number, overrides: Partial<SandboxSetupOptions> = {}): void {
@@ -219,7 +266,7 @@ export function finishCloudSandbox(overrides: Partial<SandboxSetupOptions> = {})
 	}
 	console.log('Cloud Sandbox: preparing Electron and Playwright (use xvfb-run -a for headless GUI commands).');
 	if (!isExpectedElectronInstalled(options.root)) {
-		options.run('npm', ['run', 'electron', '--', options.arch]);
+		options.run('pnpm', ['run', 'electron', options.arch]);
 	}
 
 	// Browser downloads check their own caches; only repeat apt setup for a new host or Playwright version.
@@ -229,7 +276,7 @@ export function finishCloudSandbox(overrides: Partial<SandboxSetupOptions> = {})
 		.update(fs.readFileSync(path.join(options.root, 'node_modules', 'playwright', 'package.json')))
 		.digest('hex');
 	const installed = fs.existsSync(stateFile) && fs.readFileSync(stateFile, 'utf8') === state;
-	options.run('npm', ['exec', '--', 'playwright', 'install', ...(installed ? [] : ['--with-deps'])]);
+	options.run('pnpm', ['exec', 'playwright', 'install', ...(installed ? [] : ['--with-deps'])]);
 	fs.mkdirSync(path.dirname(stateFile), { recursive: true });
 	fs.writeFileSync(stateFile, state);
 }
