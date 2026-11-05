@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -27,6 +27,9 @@ import { ChatSetupController } from '../../../browser/chatSetup/chatSetupControl
 import { ChatSetup, ChatSetupDialog } from '../../../browser/chatSetup/chatSetupRunner.js';
 import { IChatMicrosoftSignInProbeService } from '../../../browser/chatSetup/chatSetupMicrosoftProbe.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { NullAgentHostService } from '../../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { copilotAccountContextKey } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 
 suite('Chat setup dialog external sign-in', () => {
 
@@ -39,8 +42,9 @@ suite('Chat setup dialog external sign-in', () => {
 		enterprise: false,
 	};
 
-	function createSetup(allowContinueWithoutSignIn = false, initialAccount: IDefaultAccount | null = null, setupResult: Promise<boolean> = Promise.resolve(true)) {
+	function createSetup(allowContinueWithoutSignIn = false, initialAccount: IDefaultAccount | null = null, setupResult: Promise<boolean> = Promise.resolve(true), host: IAgentHostService = new NullAgentHostService()) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostService, host);
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const cancellation = store.add(new CancellationTokenSource());
 		const dialogShown = new DeferredPromise<void>();
@@ -53,6 +57,7 @@ suite('Chat setup dialog external sign-in', () => {
 		let dismissed = false;
 		let listeningDuringProviderSetup = false;
 		const state = {
+			hidden: false,
 			entitlement: initialAccount ? ChatEntitlement.Pro : ChatEntitlement.Unknown,
 			sku: undefined,
 			organisations: undefined,
@@ -87,7 +92,7 @@ suite('Chat setup dialog external sign-in', () => {
 			},
 		}));
 		instantiationService.stub(ITelemetryService, { telemetryLevel: TelemetryLevel.USAGE, publicLog2() { } });
-		instantiationService.stub(ILogService, { error: message => assert.fail(message) });
+		instantiationService.stub(ILogService, { error: message => { if (!state.hidden) { assert.fail(message); } } });
 		instantiationService.stub(IChatEntitlementService, { entitlement: state.entitlement, anonymous: false });
 		instantiationService.stub(IChatWidgetService, { revealWidget: async () => undefined });
 		instantiationService.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
@@ -126,6 +131,7 @@ suite('Chat setup dialog external sign-in', () => {
 			dialogResult,
 			setupStarted,
 			setAccount,
+			hide: () => { state.hidden = true; },
 			cancel: () => cancellation.cancel(),
 			run: (overrides?: IChatSetupRunOptions) => setup.run({
 				...options,
@@ -136,6 +142,54 @@ suite('Chat setup dialog external sign-in', () => {
 			snapshot: () => ({ dialogDisposed, completed, dismissed, setupCalls, listening: accountChanged.hasListeners(), listeningDuringProviderSetup }),
 		};
 	}
+
+	test('Microsoft mode does not auto-dismiss or complete on external GitHub authentication', async () => {
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			override get rootState() {
+				const root = { agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: { kind: 'signedOut' } } } };
+				return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			}
+		}();
+		const f = createSetup(false, null, Promise.resolve(true), host);
+		const result = f.run();
+		await f.dialogShown.p;
+		f.setAccount(account);
+		const afterAuthentication = f.snapshot();
+		f.cancel();
+		await result;
+		assert.deepStrictEqual({ disposed: afterAuthentication.dialogDisposed, completed: afterAuthentication.completed, calls: afterAuthentication.setupCalls },
+			{ disposed: false, completed: false, calls: [] });
+		const explicit = createSetup(false, null, Promise.resolve(true), host);
+		let legacyProgressShown = false;
+		await explicit.run({
+			setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider,
+			onSignInStarted: () => { legacyProgressShown = true; },
+		});
+		assert.strictEqual(legacyProgressShown, false, 'Microsoft authentication owns its progress dialog');
+		const hidden = createSetup(false, null, Promise.resolve(true), host);
+		hidden.hide();
+		const hiddenResult = await hidden.run();
+		assert.deepStrictEqual({ success: hiddenResult.success, shown: hidden.dialogShown.isSettled, calls: hidden.snapshot().setupCalls },
+			{ success: false, shown: false, calls: [] });
+	});
+
+	test('concurrent Microsoft setup callers receive the same handled failure', async () => {
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			override get rootState() {
+				const root = { agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: { kind: 'signedOut' } } } };
+				return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			}
+		}();
+		const f = createSetup(false, null, Promise.resolve(true), host);
+		f.hide();
+		const results = await Promise.all([f.run(), f.run()]);
+		assert.deepStrictEqual(results.map(result => ({ success: result.success, error: result.error?.message })), [
+			{ success: false, error: 'Copilot setup is unavailable. Check your AI feature and administrator settings.' },
+			{ success: false, error: 'Copilot setup is unavailable. Check your AI feature and administrator settings.' },
+		]);
+	});
 
 	for (const allowContinueWithoutSignIn of [false, true]) {
 		test(`completes setup after external sign-in (optional: ${allowContinueWithoutSignIn})`, async () => {

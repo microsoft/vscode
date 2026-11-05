@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -789,6 +792,13 @@ suite('ChatEntitlementContext', () => {
 			new NullLogService(),
 			new TestConfigurationService(),
 			NullTelemetryService,
+			new class extends mock<IAgentHostService>() {
+				override readonly clientConnectionKind = undefined;
+				override readonly authenticationPending = constObservable(false);
+				override readonly initializeResult = constObservable(undefined);
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+			}(),
 		));
 
 		await context.update({ entitlement: ChatEntitlement.Pro, organisations, isStaff, sku: undefined, copilotTrackingId: undefined });

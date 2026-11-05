@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellation } from '../../../../../base/common/async.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -35,6 +36,14 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../../services/accounts/common/githubEnterprise.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { CopilotAccountContext, readCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { resolveCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
+import { IAgentHostCopilotAccountService } from '../agentSessions/agentHost/agentHostCopilotAccountService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -76,6 +85,9 @@ export class ChatSetupController extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IAgentHostCopilotAccountService private readonly copilotAccountService: IAgentHostCopilotAccountService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super();
 
@@ -118,6 +130,14 @@ export class ChatSetupController extends Disposable {
 			return undefined;
 		}
 
+		const accountContext = await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None);
+		if (accountContext) {
+			return this.setupMicrosoftAccount(options);
+		}
+		return this.setupLegacyAccount(options, watch);
+	}
+
+	private async setupLegacyAccount(options: IChatSetupControllerOptions, watch: StopWatch): Promise<ChatSetupResultValue> {
 		this.context.suspend();  // reduces flicker
 
 		let success: ChatSetupResultValue = false;
@@ -165,6 +185,127 @@ export class ChatSetupController extends Disposable {
 		}
 
 		return success;
+	}
+
+	private async setupMicrosoftAccount(options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
+		const token = options.cancellationToken ?? CancellationToken.None;
+		try {
+			while (!token.isCancellationRequested) {
+				try {
+					return await this.doMicrosoftAccountSetup(token);
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						return undefined;
+					}
+					this.logService.error('[chat setup] Microsoft Copilot setup failed', error);
+					if (!await this.retryMicrosoftSetup(error)) {
+						throw new ChatSetupError(error instanceof Error ? error : new Error(toErrorMessage(error)), true);
+					}
+				}
+			}
+			return undefined;
+		} finally {
+			this.setStep(ChatSetupStep.Initial);
+		}
+	}
+
+	private async retryMicrosoftSetup(error: unknown): Promise<boolean> {
+		if (this.lifecycleService.willShutdown) {
+			return false;
+		}
+		const root = this.agentHostService.rootState.value;
+		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
+		const { confirmed } = await this.dialogService.confirm({
+			type: Severity.Error,
+			message: localize('copilotDiscoveryRetry', "Copilot setup could not be completed. Would you like to try again?"),
+			detail: context?.kind === 'error' && context.stage === 'discovery'
+				? localize('copilotDiscoveryFailedAfterSignIn', "Microsoft sign-in succeeded, but Copilot service discovery failed. Your Microsoft sign-in has been retained. Retry discovery, or check the Agent Host log for details.")
+				: toErrorMessage(error),
+			primaryButton: localize('retry', "Retry"),
+		});
+		return confirmed;
+	}
+
+	private async doMicrosoftAccountSetup(token: CancellationToken): Promise<ChatSetupResultValue> {
+		this.requireMicrosoftSetupEnabled();
+		this.setStep(ChatSetupStep.SigningIn);
+		const context = await this.discoverMicrosoftAccount(token);
+		if (!context || token.isCancellationRequested) {
+			return undefined;
+		}
+		if (context.kind !== 'ready') {
+			throw new Error(localize('copilotDiscoveryIncomplete', "Copilot service availability could not be confirmed. Your Microsoft sign-in has been retained."));
+		}
+		this.requireMicrosoftSetupEnabled();
+		this.setStep(ChatSetupStep.Installing);
+		await this.doInstall();
+		const current = await resolveCopilotAccountContext(this.agentHostService, token);
+		this.requireMicrosoftSetupEnabled();
+		return !token.isCancellationRequested && current?.kind === 'ready'
+			&& current.discoveryId === context.discoveryId && current.choice.selectionId === context.choice.selectionId;
+	}
+
+	private requireMicrosoftSetupEnabled(): void {
+		const state = this.context.state;
+		if (state.hidden || state.disabled || state.disabledInWorkspace || this.configurationService.getValue(ChatConfiguration.AgentEnabled) === false) {
+			throw new Error(localize('copilotSetupUnavailable', "Copilot setup is unavailable. Check your AI feature and administrator settings."));
+		}
+	}
+
+	private async discoverMicrosoftAccount(token: CancellationToken): Promise<CopilotAccountContext | undefined> {
+		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
+		if (authExtensionReEnabled) {
+			refreshTokens(this.commandService);
+		}
+		const context = await resolveCopilotAccountContext(this.agentHostService, token);
+		if (!context) {
+			throw new Error(localize('copilotAccountModeChanged', "Copilot account setup changed. Start setup again."));
+		}
+		const accountId = context.kind === 'signedOut' ? undefined : context.entraAccountId;
+		const session = await this.getMicrosoftSession(accountId, token);
+		if (!session || token.isCancellationRequested) {
+			return undefined;
+		}
+		this.requireMicrosoftSetupEnabled();
+		const discovered = await this.copilotAccountService.discover(this.agentHostService, session.id);
+		if (token.isCancellationRequested || discovered.kind !== 'choiceRequired') {
+			return token.isCancellationRequested ? undefined : discovered;
+		}
+		return this.chooseCopilotService(discovered, token);
+	}
+
+	private async getMicrosoftSession(accountId: string | undefined, token: CancellationToken): Promise<AuthenticationSession | undefined> {
+		const authOptions = { clientId: copilotEntraClientId, authorizationServer: URI.parse(copilotEntraAuthorizationServer) };
+		const sessions = distinct(await this.authenticationService.getSessions('microsoft', undefined, { ...authOptions, silent: true }, true), session => session.account.id);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const session = sessions.find(session => session.account.id === accountId)
+			?? (accountId === undefined && sessions.length === 1 ? sessions[0] : undefined);
+		if (session) {
+			return session;
+		}
+		if (accountId) {
+			throw new Error(localize('copilotMicrosoftIdentityMissing', "The signed-in Microsoft account is no longer available. Sign out and sign in with the intended account."));
+		}
+		return this.authenticationService.createSession('microsoft', ['User.Read'], authOptions);
+	}
+
+	private async chooseCopilotService(discovered: Extract<CopilotAccountContext, { kind: 'choiceRequired' }>, token: CancellationToken): Promise<CopilotAccountContext | undefined> {
+		const choice = await this.quickInputService.pick(discovered.choices.map(choice => ({
+			label: choice.service === 'github' ? localize('githubCopilot', "GitHub Copilot") : localize('microsoft365Copilot', "Microsoft 365 Copilot"),
+			description: choice.accountName,
+			choice,
+		})), {
+			title: localize('chooseCopilotService', "Choose a Copilot Service"),
+			placeHolder: localize('chooseCopilotServicePlaceholder', "Choose which service to use. Escape keeps Microsoft signed in without completing setup."),
+			ignoreFocusLost: true,
+		}, token);
+		if (!choice || token.isCancellationRequested) {
+			return undefined;
+		}
+		this.requireMicrosoftSetupEnabled();
+		return this.copilotAccountService.select(this.agentHostService, discovered.discoveryId, choice.choice.selectionId);
 	}
 
 	private async signIn(options: IChatSetupControllerOptions): Promise<{ defaultAccount: IDefaultAccount | undefined; entitlement: ChatEntitlement | undefined } | undefined> {
@@ -305,6 +446,10 @@ export class ChatSetupController extends Disposable {
 	async setupWithProvider(options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
 		if (options.cancellationToken?.isCancellationRequested) {
 			return undefined;
+		}
+
+		if (await resolveCopilotAccountContext(this.agentHostService, options.cancellationToken ?? CancellationToken.None)) {
+			return this.setup(options);
 		}
 
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

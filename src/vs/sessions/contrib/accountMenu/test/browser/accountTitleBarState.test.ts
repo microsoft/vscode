@@ -12,7 +12,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext, resolveAccountInfo } from '../../../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, getCopilotAccountMenuPresentation, IAccountTitleBarStateContext, resolveAccountInfo } from '../../../../browser/accountTitleBarState.js';
+import { CopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
 
 suite('Sessions - Account Title Bar State', () => {
 
@@ -29,6 +30,60 @@ suite('Sessions - Account Title Bar State', () => {
 			...overrides,
 		};
 	}
+
+	test('resolves only the selected Microsoft identity and never falls back to an arbitrary GitHub account', async () => {
+		const context: CopilotAccountContext = {
+			kind: 'ready', entraAccountId: 'selected', discoveryId: 'discovery', derivedFrom: 'base',
+			choice: { service: 'm365', selectionId: 'selection', resource: 'https://m365.example', host: 'https://m365.example', accountName: 'provider-coordinate', displayName: 'Provider name' },
+		};
+		const authentication = new class extends mock<IAuthenticationService>() {
+			override async getSessions(provider: string) {
+				assert.strictEqual(provider, 'microsoft');
+				return [{ id: 'a', accessToken: '', scopes: [], account: { id: 'other', label: 'Other account' } }, { id: 'b', accessToken: '', scopes: [], account: { id: 'selected', label: 'Selected account' } }];
+			}
+		}();
+		const defaults = new class extends mock<IDefaultAccountService>() { }();
+		const info = await resolveAccountInfo(defaults, authentication, context);
+		const presentation = getAccountTitleBarState(createState({
+			copilotAccountContext: context, accountName: info?.accountName, accountProviderLabel: info?.accountProviderLabel,
+			entitlement: ChatEntitlement.Free, quotas: { chat: { percentRemaining: 0, unlimited: false } },
+		}));
+		assert.deepStrictEqual({
+			info, signedOut: await resolveAccountInfo(defaults, authentication, { kind: 'signedOut' }),
+			badge: presentation.badge, label: presentation.ariaLabel,
+		}, {
+			info: { accountName: 'Selected account', accountProviderId: 'microsoft', accountProviderLabel: 'Microsoft 365 Copilot', accountIcon: undefined },
+			signedOut: undefined, badge: undefined, label: 'Signed in as Selected account with Microsoft 365 Copilot',
+		});
+	});
+
+	test('account menu uses only the selected service and matching GitHub subscription', () => {
+		const github: CopilotAccountContext = {
+			kind: 'ready', entraAccountId: 'account', discoveryId: 'discovery', derivedFrom: 'base',
+			choice: { service: 'github', selectionId: 'selection', resource: 'https://github.com', host: 'https://github.com', accountName: 'emu', displayName: 'EMU' },
+		};
+		const microsoft365: CopilotAccountContext = { ...github, choice: { ...github.choice, service: 'm365' } };
+		const snapshot = (context: IAccountTitleBarStateContext, login = 'emu', host = 'https://github.com/') => {
+			const { showIdentity, showSetup, showUsage } = getCopilotAccountMenuPresentation(context, login, host);
+			return { showIdentity, showSetup, showUsage };
+		};
+		const state = createState({ copilotAccountContext: github, accountName: 'EMU' });
+		assert.deepStrictEqual({
+			github: snapshot(state),
+			otherLogin: snapshot(state, 'other'),
+			otherHost: snapshot(state, 'emu', 'https://other.ghe.com/'),
+			microsoft365: snapshot({ ...state, copilotAccountContext: microsoft365 }),
+			incomplete: snapshot({ ...state, copilotAccountContext: { kind: 'incomplete', entraAccountId: 'account' } }),
+			hidden: snapshot({ ...state, copilotAccountContext: microsoft365, sentiment: { ...state.sentiment, hidden: true } }),
+		}, {
+			github: { showIdentity: true, showSetup: false, showUsage: true },
+			otherLogin: { showIdentity: true, showSetup: false, showUsage: false },
+			otherHost: { showIdentity: true, showSetup: false, showUsage: false },
+			microsoft365: { showIdentity: true, showSetup: false, showUsage: false },
+			incomplete: { showIdentity: true, showSetup: true, showUsage: false },
+			hidden: { showIdentity: false, showSetup: false, showUsage: false },
+		});
+	});
 
 	test('shows low token badge for Copilot Free users', () => {
 		const state = getAccountTitleBarState(createState({
