@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { getZoomFactor, isFullscreen, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
-import { $, append, registerWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -370,6 +370,13 @@ suite('Sessions - Titlebar Part', () => {
 		const auxiliaryWindow = iframe.contentWindow!;
 		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 1000);
 		store.add(registerWindow(auxiliaryWindow));
+		// Only the resizes a test dispatches reach the title bar: the browser resizes the frame as it lays it out, at times
+		// no test controls, which would ask the host once more.
+		store.add(addDisposableListener(auxiliaryWindow, EventType.RESIZE, e => {
+			if (e.isTrusted) {
+				e.stopImmediatePropagation();
+			}
+		}, true));
 		// A window in full screen need not cover its screen, such as below the camera notch of a display or on an external display.
 		const screen = { width: 3360, height: 1418 };
 		Object.defineProperty(auxiliaryWindow, 'screen', { configurable: true, get: () => screen });
