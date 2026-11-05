@@ -3672,6 +3672,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		turn.markCompleted();
+		turn.mcpUsage?.complete('success');
 		this._hasCompletedTurn = true;
 		this._reportToolCallDetails(turn, 'success');
 		this._attributeLocalModelTurn(turn.id, trustedRootTurn);
@@ -3688,6 +3689,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!turn) {
 			return undefined;
 		}
+		turn.mcpUsage?.complete('failed');
 		this._reportToolCallDetails(turn, 'failed');
 		this._attributeLocalModelTurn(turn.id);
 		this._emitAction({
@@ -3781,7 +3783,6 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _reportToolCallDetails(turn: CopilotTurn, responseType: 'success' | 'cancelled' | 'failed'): void {
-		turn.mcpUsage?.complete(responseType);
 		if (turn.toolCallDetailsReported) {
 			return;
 		}
@@ -4677,6 +4678,7 @@ export class CopilotAgentSession extends Disposable {
 	handleClientToolCallComplete(toolCallId: string, result: ToolCallResult) {
 		this._approvedDuplicablePermissionSignatures.delete(toolCallId);
 		if (!result.success && this._cancelMcpAuthenticationForToolCall(toolCallId)) {
+			this._currentTurn.value?.mcpUsage?.recordToolComplete(toolCallId, result);
 			this._activeToolCalls.delete(toolCallId);
 			return;
 		}
@@ -5406,6 +5408,11 @@ export class CopilotAgentSession extends Disposable {
 			recorder?.markMilestone?.('userInputRequest');
 			return measureAgentProviderOperation(recorder, 'userInputRequest', () => this._handleUserInputRequest(request, invocation));
 		}, { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input');
+		const handleMcpAuthRequest = this._guarded((request: McpAuthRequest) => {
+			const recorder = this._currentTurn.value?.timingRecorder;
+			recorder?.markMilestone?.('mcpAuthRequest');
+			return measureAgentProviderOperation(recorder, 'mcpAuthRequest', () => this._doHandleMcpAuthRequest(request));
+		}, { kind: 'cancelled' } satisfies McpAuthResult, 'mcp-auth');
 		const launch = {};
 		this._launchMcpRestartObserver = launch;
 		return {
@@ -5459,11 +5466,7 @@ export class CopilotAgentSession extends Disposable {
 				return measureAgentProviderOperation(recorder, 'elicitationRequest', () => this._handleElicitationRequest(context));
 			}, { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
 			adoptLaunchConnectorReconcile,
-			handleMcpAuthRequest: this._guarded(request => {
-				const recorder = this._currentTurn.value?.timingRecorder;
-				recorder?.markMilestone?.('mcpAuthRequest');
-				return measureAgentProviderOperation(recorder, 'mcpAuthRequest', () => this._handleMcpAuthRequest(request));
-			}, { kind: 'cancelled' } satisfies McpAuthResult, 'mcp-auth'),
+			handleMcpAuthRequest: request => this._handleMcpAuthRequest(request, () => handleMcpAuthRequest(request)),
 			requestUnsandboxedCommandConfirmation: this._guarded(request => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('unsandboxedConfirmation');
@@ -5681,13 +5684,13 @@ export class CopilotAgentSession extends Disposable {
 		return pendingRequests;
 	}
 
-	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
+	private async _handleMcpAuthRequest(request: McpAuthRequest, handle = () => this._doHandleMcpAuthRequest(request)): Promise<McpAuthResult | null | undefined> {
 		const correlation = createCopilotFailureCorrelation(this._ownerSessionUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext);
 		const hasToolCall = this._activeMcpToolCalls(request.serverName).length > 0;
 		const watch = StopWatch.create();
 		let result: 'tokenProvided' | 'runtimeRefresh' | 'cancelled' | 'unhandled' | 'failed' = 'failed';
 		try {
-			const outcome = await this._doHandleMcpAuthRequest(request);
+			const outcome = await handle();
 			result = outcome && hasKey(outcome, { accessToken: true }) ? 'tokenProvided'
 				: outcome && hasKey(outcome, { kind: true }) && outcome.kind === 'cancelled' ? 'cancelled'
 					: outcome && hasKey(outcome, { kind: true }) && outcome.kind === 'runtimeRefresh' ? 'runtimeRefresh' : 'unhandled';
@@ -10295,6 +10298,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId && !e.agentId && (tracked.turnId !== this._turnId || this._shouldDropLateRootTurnEvent('tool.execution_complete', true))) {
 				return;
 			}
+			turn?.mcpUsage?.recordToolComplete(e.data.toolCallId, { success: e.data.success, error: e.data.error, pastTenseMessage: '' });
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 			const rawCompletion: typeof e.data & { toolUsage?: unknown } = e.data;
@@ -10425,7 +10429,6 @@ export class CopilotAgentSession extends Disposable {
 					resultMetadata: getSdkMcpResultMeta(e.data.result),
 					error: e.data.error,
 				};
-				turn?.mcpUsage?.recordToolComplete(e.data.toolCallId, result);
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
 				}
@@ -10643,6 +10646,7 @@ export class CopilotAgentSession extends Disposable {
 				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
 					if (turn.isRunning) {
+						turn.mcpUsage?.complete('cancelled');
 						this._reportToolCallDetails(turn, 'cancelled');
 					}
 					this._dropLateRootTurnEvents = true;
@@ -10834,6 +10838,7 @@ export class CopilotAgentSession extends Disposable {
 			if (turn) {
 				this._reportToolCallDetails(turn, 'failed');
 				if (!parentToolCallId) {
+					turn.mcpUsage?.complete('failed');
 					this._attributeLocalModelTurn(turn.id);
 				}
 			}
@@ -13066,6 +13071,9 @@ export class CopilotAgentSession extends Disposable {
 			this._cancelActiveRepoInfoTelemetry();
 			const turn = this._currentTurn.value;
 			if (turn?.isRunning) {
+				if (!e.agentId) {
+					turn.mcpUsage?.complete('cancelled');
+				}
 				this._reportToolCallDetails(turn, 'cancelled');
 			}
 		}));
