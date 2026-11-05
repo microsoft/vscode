@@ -558,6 +558,14 @@ export class BrowserView extends Disposable {
 			}
 		});
 
+		// `input-event` is only observed on the primary main frame's widget, so it misses input to
+		// out-of-process (cross-site) iframes. `before-mouse-event` also fires for those.
+		webContents.on('before-mouse-event', (_event, mouse) => {
+			if (mouse.type === 'mouseDown' || mouse.type === 'mouseUp') {
+				this._lastUserGestureTimestamp = Date.now();
+			}
+		});
+
 		// For now, always prevent sites from blocking unload.
 		// In the future we may want to show a dialog to ask the user,
 		// with heavy restrictions regarding interaction and repeated prompts.
