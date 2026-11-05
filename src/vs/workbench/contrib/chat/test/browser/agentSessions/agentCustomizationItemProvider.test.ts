@@ -150,16 +150,16 @@ suite('AgentCustomizationItemProvider', () => {
 			const items = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
 			const folders = await provider.provideSourceFolders(session, PromptsType.agent, CancellationToken.None);
 			assert.deepStrictEqual({
-				agents: agents.map(agent => ({ id: agent.id, uri: agent.uri.toString(), editorResource: agent.editorResource?.toString(), source: agent.source.label })),
+				agents: agents.map(agent => ({ id: agent.id, uri: agent.uri.toString(), source: agent.source.label })),
 				plugins: items.filter(item => item.type === 'plugin').map(item => ({ key: item.itemKey, name: item.name, uri: item.uri.toString(), group: item.groupKey, status: item.status, actions: item.actions?.length })),
 				folders: folders.map(folder => ({ uri: folder.uri.toString(), source: folder.source })),
 				filesystemRequests,
 				ownSource: originRequests.includes(kind.toClient(URI.file('/workspace/plugins/own/agents/own.agent.md')).toString()),
 			}, {
 				agents: [
-					{ id: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), uri: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), editorResource: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), source: 'Workspace' },
-					{ id: kind.toClient(URI.file('/cache/own/agents/own.agent.md')).toString(), uri: kind.toClient(URI.file('/cache/own/agents/own.agent.md')).toString(), editorResource: kind.toClient(URI.file('/workspace/plugins/own/agents/own.agent.md')).toString(), source: 'Plugin: Own Plugin' },
-					{ id: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), uri: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), editorResource: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), source: 'Plugin: Foreign Plugin' },
+					{ id: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), uri: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), source: 'Workspace' },
+					{ id: kind.toClient(URI.file('/cache/own/agents/own.agent.md')).toString(), uri: kind.toClient(URI.file('/cache/own/agents/own.agent.md')).toString(), source: 'Plugin: Own Plugin' },
+					{ id: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), uri: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), source: 'Plugin: Foreign Plugin' },
 				],
 				plugins: [
 					{ key: 'host-plugin', name: 'Host Plugin', uri: kind.toClient(URI.file('/plugins/host')).toString(), group: 'remote-host', status: 'loaded', actions: 3 },
@@ -354,10 +354,10 @@ suite('AgentCustomizationItemProvider', () => {
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => {
 			const mode = new CustomChatMode(agent);
-			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage, editorResource: mode.editorResource.get().toString() };
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
 		}), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension, editorResource: files[0].uri.toString() },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension, editorResource: files[1].uri.toString() },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
 		]);
 	});
 
@@ -371,8 +371,8 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: CustomizationType.Agent, id: file.uri.toString(), uri: file.uri.toString(), name: 'Reviewer' },
 		]));
 		const result = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/draft'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => ({ label: agent.source.label, storage: agent.source.storage, editorResource: agent.editorResource?.toString() })), [
-			{ label: 'Extension: Draft Extension', storage: PromptsStorage.extension, editorResource: file.uri.toString() },
+		assert.deepStrictEqual(result.map(agent => ({ label: agent.source.label, storage: agent.source.storage })), [
+			{ label: 'Extension: Draft Extension', storage: PromptsStorage.extension },
 		]);
 	});
 

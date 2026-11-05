@@ -114,29 +114,6 @@ suite('ChatModeService', () => {
 		});
 	});
 
-	test('preserves original editor resources through caching and provider updates', async () => {
-		const agent: ICustomAgent = {
-			id: 'host:/cached/agent', uri: URI.parse('host:/cached/agent'), editorResource: URI.file('/original/agent.md'),
-			name: 'Reviewer', source: workspaceSource, agentInstructions: { content: '', toolReferences: [] },
-			target: Target.Undefined, visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
-		};
-		promptsService.setCustomModes([agent]);
-		await waitForRefresh();
-		const modes = await chatModeService.getLocalModes();
-		storageService.store('chat.customModes.local', modes.custom, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		const cached = testDisposables.add(chatModeService.createModes(LocalChatSessionUri.getNewSessionUri()));
-		const cachedResource = cached.findModeById(agent.id)?.editorResource?.get().toString();
-		promptsService.setCustomModes([{ ...agent, editorResource: URI.file('/updated/agent.md') }]);
-		await waitForRefresh();
-		const updated = modes.findModeById(agent.id);
-
-		assert.deepStrictEqual({
-			cachedResource, id: updated?.id, uri: updated?.uri?.get().toString(), editorResource: updated?.editorResource?.get().toString(),
-		}, {
-			cachedResource: agent.editorResource?.toString(), id: agent.id, uri: agent.uri.toString(), editorResource: URI.file('/updated/agent.md').toString(),
-		});
-	});
-
 	test('should return builtin modes', async () => {
 		const modes = await chatModeService.getLocalModes();
 

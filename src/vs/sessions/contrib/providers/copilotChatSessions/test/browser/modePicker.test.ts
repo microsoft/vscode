@@ -167,21 +167,20 @@ suite('ScopedModePickerModelCache', () => {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const fileCases: { source: IAgentSource; resource: URI; editorResource?: URI; actionLabel?: string }[] = [
+	const fileCases: { source: IAgentSource; resource: URI; actionLabel?: string }[] = [
 		{ source: { storage: PromptsStorage.local }, resource: URI.file('/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
 		{ source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('test.agents') }, resource: URI.file('/extensions/reviewer.agent.md'), actionLabel: 'View Reviewer agent' },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('vscode-agent-host://remote/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
-		{ source: { storage: PromptsStorage.local }, resource: URI.file('/cache/reviewer.agent.md'), editorResource: URI.file('/original/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.local }, resource: URI.file('/cache/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('claude-internal:/agent/Explore') },
 		{ source: { storage: PromptsStorage.local }, resource: toAgentHostUri(URI.parse('claude-internal:/agent/Explore'), 'remote') },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('unregistered:/agent') },
 	];
 	const fileService = upcastPartial<IFileService>({ hasProvider: resource => resource.scheme === Schemas.file || resource.scheme === AGENT_HOST_SCHEME });
-	for (const { source, resource, editorResource, actionLabel } of fileCases) {
+	for (const { source, resource, actionLabel } of fileCases) {
 		test(`offers file actions only for openable ${source.storage} agents (${resource.toString()})`, async () => {
 			const customAgent = new CustomChatMode({
 				id: 'reviewer', uri: resource, name: 'Reviewer',
-				editorResource,
 				source,
 				agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
 				visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
@@ -230,7 +229,7 @@ suite('ModePicker', () => {
 				actionLabel,
 				rowsWithActions: actionLabel ? ['Reviewer'] : [],
 				keyboardActions: true,
-				calls: actionLabel ? ['hide', `open:${(editorResource ?? resource).toString()}`] : [],
+				calls: actionLabel ? ['hide', `open:${resource.toString()}`] : [],
 				selected: ChatMode.Agent.id,
 			});
 		});
