@@ -284,6 +284,46 @@ suite('Sessions chat window provider', () => {
 		});
 	});
 
+	test('a chat its window closed for it to show elsewhere shows there again when restored: in that window, as long as it stays', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('subagent')]);
+		const { provider, events, chatHostOpenerService, editorGroups, window, windowInstantiationService } = createProvider(store, [session]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		store.add(content.bind!(window, windowInstantiationService));
+		const subagent = (await content.resolveChat(URI.parse('test:/subagent')))!;
+		let open = true;
+		editorGroups.push(upcastPartial<IEditorGroup>({
+			contains: editor => open && editor === subagent.input,
+			closeEditor: async () => {
+				open = false;
+				return true;
+			},
+		}));
+		const opener = chatHostOpenerService.getOpenerOf(URI.parse('test:/subagent'))!;
+
+		const closed = await opener.close(URI.parse('test:/subagent'));
+		await closed?.restore();
+
+		assert.deepStrictEqual({ closed: !!closed, events: events.filter(event => event.startsWith('window')) }, { closed: true, events: ['window open /subagent in 42'] });
+	});
+
+	test('a chat whose close its window vetoes is not closed: there is nothing to show it there again', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('subagent')]);
+		const { provider, chatHostOpenerService, editorGroups, window, windowInstantiationService } = createProvider(store, [session]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		store.add(content.bind!(window, windowInstantiationService));
+		const subagent = (await content.resolveChat(URI.parse('test:/subagent')))!;
+		editorGroups.push(upcastPartial<IEditorGroup>({
+			contains: editor => editor === subagent.input,
+			closeEditor: async () => false,
+		}));
+
+		const closed = await chatHostOpenerService.getOpenerOf(URI.parse('test:/subagent'))!.close(URI.parse('test:/subagent'));
+
+		assert.strictEqual(closed, undefined);
+	});
+
 	test('Move to Main Window, once the window closed its chats\' editors as it closes, opens every chat in the grid: no window, which is still going away, claims them, so none opens again', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main'), createChat('subagent')]);

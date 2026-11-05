@@ -23,7 +23,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDataTransfer, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -97,6 +97,8 @@ export class SessionHeaderBar extends Disposable {
 	private _activateChatGroup: (() => void) | undefined;
 	private _closeSession: (() => void) | undefined;
 	private _activeChat: IChat | undefined;
+	/** Whether it shows as the top row of its window; see {@link setWindowChrome}. */
+	private _windowChrome = false;
 	private readonly _menuActionArgs: unknown[] = [];
 	private _sessionIsCreated = false;
 	private _requestedVisible = true;
@@ -260,6 +262,18 @@ export class SessionHeaderBar extends Disposable {
 
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
+			// As the top row of its window, its title drags the editor that shows the chat, as the editor's drag handle,
+			// which fills the drag: the header only adds the session and its chat, on the drag's own data, so that the
+			// editor's drag stays as it is and the chat can also drop where chats do, such as into the main window's grid.
+			if (this._windowChrome) {
+				if (session) {
+					fillSessionDataTransfer(e, session);
+					if (this._activeChat) {
+						fillSessionChatDragData(e, session.sessionId, this._activeChat.resource);
+					}
+				}
+				return;
+			}
 			if (!session || !e.dataTransfer || this._dragFromPaneEdge) {
 				e.preventDefault();
 				return;
@@ -309,6 +323,7 @@ export class SessionHeaderBar extends Disposable {
 	 * the window rather than starting a drag of the session.
 	 */
 	setWindowChrome(shown: boolean): void {
+		this._windowChrome = shown;
 		this._container.classList.toggle('window-chrome', shown);
 		this._container.draggable = !shown;
 	}

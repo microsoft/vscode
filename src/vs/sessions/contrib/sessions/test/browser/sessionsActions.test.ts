@@ -1186,7 +1186,10 @@ suite('Sessions - Actions', () => {
 			showsChat: shown => isEqual(shown, chat.resource),
 			reveal: async () => { },
 			openBeside: async () => { },
-			close: async closed => { calls.push(`editor close ${closed.path}`); },
+			close: async closed => {
+				calls.push(`editor close ${closed.path}`);
+				return { restore: async () => { } };
+			},
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
@@ -1233,7 +1236,10 @@ suite('Sessions - Actions', () => {
 			showsChat: shown => isEqual(shown, mainChat.resource),
 			reveal: async () => { },
 			openBeside: async () => { },
-			close: async closed => { calls.push(`window close ${closed.path}`); },
+			close: async closed => {
+				calls.push(`window close ${closed.path}`);
+				return { restore: async () => { } };
+			},
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
