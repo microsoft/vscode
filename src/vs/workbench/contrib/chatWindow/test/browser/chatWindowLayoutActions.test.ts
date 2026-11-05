@@ -99,6 +99,18 @@ suite('Chat window layout actions', () => {
 		});
 	});
 
+	test('a command run from a control of a window that is not a chat window acts on no chat window, not on the one that has focus', () => {
+		const { a, b, active, run } = createEnvironment();
+		const editorOnly = chatWindowLayoutModeChoices.find(choice => choice.mode === ChatWindowLayoutMode.EditorOnly)!.id;
+		const before = [a.state.layoutMode.get(), b.state.layoutMode.get()];
+
+		active.window = a.window;
+		run(editorOnly, { windowId: 4242 } satisfies IWindowCommandContext);
+		run(TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, { windowId: 4242 } satisfies IWindowCommandContext);
+
+		assert.deepStrictEqual([a.state.layoutMode.get(), b.state.layoutMode.get()], before);
+	});
+
 	test('Show Chat and Show Editor hide one of the two, never the last one shown, and showing the other returns to how both last showed', () => {
 		const { a, run } = createEnvironment();
 		const steps: ChatWindowLayoutMode[] = [];

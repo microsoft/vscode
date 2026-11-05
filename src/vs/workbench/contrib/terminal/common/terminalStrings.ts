@@ -44,3 +44,16 @@ export const terminalStrings = {
 	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command"),
 	revealCommand: localize2('workbench.action.terminal.revealCommand', "Reveal Command in Terminal"),
 };
+
+/**
+ * Returns a terminal's title as screen readers announce it: with the name of the remote host the
+ * terminal runs on, when it has one, since the description that shows the host is not announced.
+ */
+export function getTerminalAccessibleTitle(title: string, hostLabel: string | undefined): string {
+	if (!hostLabel) {
+		return title;
+	}
+	return title
+		? localize({ key: 'terminalTitleOnHost', comment: ['{0} is the title of a terminal, such as "zsh"', '{1} is the name of the remote machine the terminal runs on'] }, "{0} on {1}", title, hostLabel)
+		: localize({ key: 'terminalOnHost', comment: ['{0} is the name of the remote machine a terminal runs on'] }, "on {0}", hostLabel);
+}

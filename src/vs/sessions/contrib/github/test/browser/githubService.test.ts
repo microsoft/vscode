@@ -23,8 +23,10 @@ import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullR
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 
 suite('GitHubService', () => {
 
@@ -42,9 +44,10 @@ suite('GitHubService', () => {
 		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		mainWindowActiveSession = observableValue<IActiveSession | undefined>('test.mainWindowActiveSession', undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = mainWindowActiveSession;
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = mainWindowActiveSession;
 		}());
+		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
 		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;

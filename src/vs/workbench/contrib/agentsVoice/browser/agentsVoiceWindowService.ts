@@ -207,9 +207,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
 				}
 			},
-			newSessionAsTarget: () => {
-				this.voiceSessionController.newSessionAsTarget();
-			},
+			newSessionAsTarget: () => this.voiceSessionController.newSessionAsTarget(),
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode

@@ -346,6 +346,9 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.container.classList.toggle('section-separator-before', element.separatorBefore === true);
+		// Leaves the separator's spacing above the row's box, so the row's hover, selection, and focus look like the other rows'.
+		templateData.container.style.marginTop = element.separatorBefore ? `${SECTION_ITEM_SEPARATOR_SPACING}px` : '';
+		templateData.container.style.maxHeight = element.separatorBefore ? `${SECTION_ITEM_HEIGHT}px` : '';
 		templateData.label.textContent = element.label;
 		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {

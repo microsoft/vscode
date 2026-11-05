@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';
@@ -46,13 +47,12 @@ export class OpenInVSCodeAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { readonly session: ISession; readonly chat: IChat }): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
@@ -67,13 +67,15 @@ export class OpenInVSCodeAction extends Action2 {
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 
-		const activeSession = sessionsService.activeSession.get();
+		const target = context?.session ? context : resolveSessionCommandTarget(accessor, []);
+		const activeSession = target?.session;
 		if (!activeSession) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
-		const workspace = activeSession.activeChat.get().workspace.get();
+		const chat = target?.chat ?? activeSession.mainChat.get();
+		const workspace = chat?.workspace.get();
 		const folder = workspace?.folders[0];
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 
@@ -87,7 +89,7 @@ export class OpenInVSCodeAction extends Action2 {
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
-		params.set('session', activeSession.resource.toString());
+		params.set('session', (context?.chat.resource ?? activeSession.resource).toString());
 
 		if (remoteAuthority) {
 			await openerService.open(URI.from({
