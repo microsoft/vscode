@@ -7,14 +7,18 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TreeProjection } from '../../../browser/explorerProjections/treeProjection.js';
 import { TestId } from '../../../common/testId.js';
 import { TestResultItemChange, TestResultItemChangeReason } from '../../../common/testResult.js';
-import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from '../../../common/testTypes.js';
+import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState, TestRunProfileBitset } from '../../../common/testTypes.js';
 import { TestTreeTestHarness } from '../testObjectTree.js';
 import { TestTestItem } from '../../common/testStubs.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { ITestResultService } from '../../../common/testResultService.js';
+import { ITestResultService, TestResultService } from '../../../common/testResultService.js';
+import { ITestResultStorage } from '../../../common/testResultStorage.js';
+import { ITestProfileService } from '../../../common/testProfileService.js';
 
 class TestHierarchicalByLocationProjection extends TreeProjection {
 }
@@ -360,4 +364,45 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'ca' }
 		]);
 	});
+});
+
+suite('Workbench - Testing Explorer result clearing', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const completed of [false, true]) {
+		test(`recomputes suite state when clearing ${completed ? 'completed' : 'active'} results and retiring tests`, () => {
+			const results = ds.add(new TestResultService(
+				new MockContextKeyService(),
+				upcastPartial<ITestResultStorage>({ read: async () => [], persist: async () => { } }),
+				upcastPartial<ITestProfileService>({}),
+				NullTelemetryService,
+			));
+			const harness = ds.add(new TestTreeTestHarness(l => new TreeProjection({}, l, results)));
+			harness.flush();
+			const suite = harness.projection.getElementByTestId('ctrlId\0id-a')!;
+			harness.tree.expand(suite);
+			harness.flush();
+			const child = harness.projection.getElementByTestId('ctrlId\0id-a\0id-aa')!;
+			const root = harness.projection.getElementByTestId('ctrlId')!;
+			const result = ds.add(results.createLiveResult({ group: TestRunProfileBitset.Run, targets: [] }));
+			result.addTask({ id: 'task', name: 'task', running: true, ctrlId: 'ctrlId' });
+			result.addTestChainToRun('ctrlId', [root.test.item, suite.test.item, child.test.item]);
+			result.updateState(child.test.item.extId, 'task', TestResultState.Passed, 7);
+			if (completed) {
+				result.updateState(suite.test.item.extId, 'task', TestResultState.Passed, 11);
+				result.markComplete();
+			}
+
+			results.clear();
+			const afterClear = [suite.state, child.state, suite.duration, child.duration];
+			result.markRetired(undefined);
+			assert.deepStrictEqual({ afterClear, afterRetirement: [suite.state, child.state, suite.duration, child.duration] }, completed ? {
+				afterClear: [TestResultState.Unset, TestResultState.Unset, undefined, undefined],
+				afterRetirement: [TestResultState.Unset, TestResultState.Unset, undefined, undefined],
+			} : {
+				afterClear: [TestResultState.Passed, TestResultState.Passed, 7, 7],
+				afterRetirement: [TestResultState.Passed, TestResultState.Passed, 7, 7],
+			});
+		});
+	}
 });

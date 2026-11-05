@@ -27,6 +27,11 @@ import { LiveTestResult } from '../../common/testResult.js';
 import { TestRunProfileBitset } from '../../common/testTypes.js';
 
 suite('Testing output terminal', () => {
+	teardown(async () => {
+		// Drain queued layout work before the fixture disposal hook runs.
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+	});
+
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let result: LiveTestResult;
 	let peek: TerminalMessagePeek;
@@ -72,11 +77,6 @@ suite('Testing output terminal', () => {
 		result.addTask({ id: 'task', name: 'task', running: true, ctrlId: 'ctrl' });
 		result.addTestChainToRun('ctrl', [{ extId: 'ctrl', label: 'test', tags: [], busy: false, uri: undefined, range: null, description: null, error: null, sortText: null }]);
 		result.appendOutput(VSBuffer.fromString('hello \u2713\r\n'), 'task', undefined, 'ctrl');
-	});
-
-	teardown(async () => {
-		// Allow the queued layout callback to run before the peek's delayer is disposed.
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 	});
 
 	test('whole-run output does not create hidden per-message markers', async () => {

@@ -132,8 +132,9 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
+				inTree.ownState = lookup?.ownComputedState ?? TestResultState.Unset;
 				inTree.ownDuration = lookup?.ownDuration;
-				refreshComputedState(computedStateAccessor, inTree, lookup?.ownComputedState ?? TestResultState.Unset).forEach(i => i.fireChange());
+				refreshComputedState(computedStateAccessor, inTree).forEach(i => i.fireChange());
 			}
 		}));
 
