@@ -5,7 +5,6 @@
 
 import type * as vscode from 'vscode';
 import { RunOnceScheduler } from '../../../base/common/async.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
@@ -24,7 +23,7 @@ import { TestId, TestPosition } from '../../contrib/testing/common/testId.js';
 import { InvalidTestItemError } from '../../contrib/testing/common/testItemCollection.js';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiff, TestsDiffOp, isStartControllerTests } from '../../contrib/testing/common/testTypes.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from './extHost.protocol.js';
+import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape, TestRunUpdate } from './extHost.protocol.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -601,6 +600,9 @@ const enum TestRunTrackerState {
 }
 
 class TestRunTracker extends Disposable {
+	private readonly pendingUpdates: TestRunUpdate[] = [];
+	private pendingOutputLength = 0;
+	private readonly updateScheduler = this._register(new RunOnceScheduler(() => this.flushUpdates(), 0));
 	private state = TestRunTrackerState.Running;
 	private running = 0;
 	private readonly tasks = new Map</* task ID */string, { cts: CancellationTokenSource; run: vscode.TestRun }>();
@@ -733,7 +735,7 @@ class TestRunTracker extends Disposable {
 				}
 			}
 
-			this.proxy.$appendTestMessagesInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), converted);
+			this.queueUpdate({ type: 'messages', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), messages: converted });
 		};
 
 		let ended = false;
@@ -767,46 +769,48 @@ class TestRunTracker extends Disposable {
 				// ID at the time when the coverage report is generated so we can reference
 				// it later if needeed.
 				this.publishedCoverage.set(id, { report: coverage, extIds: includesTests.map(t => TestId.fromExtHostTestItem(t, ctrlId).toString()) });
+				this.flushUpdates();
 				this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(ctrlId, id, coverage));
 			},
 			//#region state mutation
 			enqueued: guardTestMutation(test => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Queued);
+				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Queued });
 			}),
 			skipped: guardTestMutation(test => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Skipped);
+				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Skipped });
 			}),
 			started: guardTestMutation(test => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Running);
+				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Running });
 			}),
 			errored: guardTestMutation((test, messages, duration) => {
 				appendMessages(test, messages);
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Errored, duration);
+				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Errored, duration });
 			}),
 			failed: guardTestMutation((test, messages, duration) => {
 				appendMessages(test, messages);
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Failed, duration);
+				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Failed, duration });
 			}),
 			passed: guardTestMutation((test, duration) => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, this.dto.controllerId).toString(), TestResultState.Passed, duration);
+				this.queueUpdate({ type: 'state', taskId, testId: TestId.fromExtHostTestItem(test, ctrlId).toString(), state: TestResultState.Passed, duration });
 			}),
 			//#endregion
 			appendOutput: (output, location?: vscode.Location, test?: vscode.TestItem) => {
 				if (ended) {
 					return;
 				}
+				if (typeof output !== 'string') {
+					throw new TypeError('Test output must be a string');
+				}
 
 				if (test) {
 					this.ensureTestIsKnown(test);
 				}
 
-				this.proxy.$appendOutputToRun(
-					runId,
-					taskId,
-					VSBuffer.fromString(output),
-					location && Convert.location.from(location),
-					test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
-				);
+				this.queueUpdate({
+					type: 'output', taskId, output,
+					location: location && Convert.location.from(location),
+					testId: test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
+				});
 			},
 			end: () => {
 				if (ended) {
@@ -814,6 +818,7 @@ class TestRunTracker extends Disposable {
 				}
 
 				ended = true;
+				this.flushUpdates();
 				this.proxy.$finishedTestRunTask(runId, taskId);
 				if (!--this.running) {
 					this.markEnded();
@@ -821,6 +826,7 @@ class TestRunTracker extends Disposable {
 			}
 		};
 
+		this.flushUpdates();
 		this.running++;
 		this.tasks.set(taskId, { run, cts });
 		this.proxy.$startedTestRunTask(runId, {
@@ -873,10 +879,35 @@ class TestRunTracker extends Disposable {
 			test = test.parent || root;
 		}
 
-		this.proxy.$addTestsToRun(this.dto.controllerId, this.dto.id, chain);
+		this.queueUpdate({ type: 'tests', tests: chain });
+	}
+
+	private queueUpdate(update: TestRunUpdate): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this.pendingUpdates.push(update);
+		if (update.type === 'output') {
+			this.pendingOutputLength += update.output.length;
+		}
+		if (this.pendingUpdates.length >= 1024 || this.pendingOutputLength >= 64 * 1024) {
+			this.flushUpdates();
+		} else if (!this.updateScheduler.isScheduled()) {
+			this.updateScheduler.schedule();
+		}
+	}
+
+	private flushUpdates(): void {
+		this.updateScheduler.cancel();
+		if (this.pendingUpdates.length) {
+			const updates = this.pendingUpdates.splice(0);
+			this.pendingOutputLength = 0;
+			this.proxy.$applyTestRunUpdates(this.dto.controllerId, this.dto.id, updates);
+		}
 	}
 
 	public override dispose(): void {
+		this.flushUpdates();
 		this.markEnded();
 		super.dispose();
 	}

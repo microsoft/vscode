@@ -5,7 +5,7 @@
 
 import { Iterable } from '../../../../base/common/iterator.js';
 import { TestResultState } from './testTypes.js';
-import { makeEmptyCounts, maxPriority, statePriority } from './testingStates.js';
+import { makeEmptyCounts, maxPriority, statePriority, statesInOrder } from './testingStates.js';
 
 /**
  * Accessor for nodes in get and refresh computed state.
@@ -52,6 +52,8 @@ const getComputedState = <T extends object>(accessor: IComputedStateAccessor<T>,
 
 		if (childrenCount > LARGE_NODE_THRESHOLD) {
 			largeNodeChildrenStates.set(node, stateMap);
+		} else {
+			largeNodeChildrenStates.delete(node);
 		}
 
 		accessor.setComputedState(node, computed);
@@ -60,7 +62,9 @@ const getComputedState = <T extends object>(accessor: IComputedStateAccessor<T>,
 	return computed;
 };
 
-const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
+const durationChildrenCounts = new WeakMap<object, number>();
+
+const getComputedDuration = <T extends object>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
 	let computed = accessor.getCurrentComputedDuration(node);
 	if (computed === undefined || force) {
 		const own = accessor.getOwnDuration(node);
@@ -68,12 +72,15 @@ const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, 
 			computed = own;
 		} else {
 			computed = undefined;
+			let childrenWithDuration = 0;
 			for (const child of accessor.getChildren(node)) {
 				const d = getComputedDuration(accessor, child);
 				if (d !== undefined) {
+					childrenWithDuration++;
 					computed = (computed || 0) + d;
 				}
 			}
+			durationChildrenCounts.set(node, childrenWithDuration);
 		}
 
 		accessor.setComputedDuration(node, computed);
@@ -144,7 +151,9 @@ export const refreshComputedState = <T extends object>(
 					break;
 				}
 
-				moveToState = getComputedState(accessor, parent, true);
+				moveToState = lnm
+					? maxPriority(accessor.getOwnState(parent) ?? TestResultState.Unset, statesInOrder.find(state => lnm[state] > 0) ?? TestResultState.Unset)
+					: getComputedState(accessor, parent, true);
 				accessor.setComputedState(parent, moveToState);
 				toUpdate.add(parent);
 			}
@@ -154,15 +163,28 @@ export const refreshComputedState = <T extends object>(
 	}
 
 	if (isDurationAccessor(accessor) && refreshDuration) {
+		let previousChildDuration: number | undefined;
+		let childDuration: number | undefined;
 		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
 			const oldDuration = accessor.getCurrentComputedDuration(parent);
-			const newDuration = getComputedDuration(accessor, parent, true);
+			const childCount = durationChildrenCounts.get(parent);
+			let newDuration: number | undefined;
+			if (parent !== node && childCount !== undefined && accessor.getOwnDuration(parent) === undefined
+				&& Number.isFinite(oldDuration ?? 0) && Number.isFinite(previousChildDuration ?? 0) && Number.isFinite(childDuration ?? 0)) {
+				const newChildCount = childCount + Number(childDuration !== undefined) - Number(previousChildDuration !== undefined);
+				durationChildrenCounts.set(parent, newChildCount);
+				newDuration = newChildCount ? (oldDuration ?? 0) - (previousChildDuration ?? 0) + (childDuration ?? 0) : undefined;
+			} else {
+				newDuration = getComputedDuration(accessor, parent, true);
+			}
 			if (oldDuration === newDuration) {
 				break;
 			}
 
 			accessor.setComputedDuration(parent, newDuration);
 			toUpdate.add(parent);
+			previousChildDuration = oldDuration;
+			childDuration = newDuration;
 		}
 	}
 

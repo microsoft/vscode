@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TreeProjection } from '../../../browser/explorerProjections/treeProjection.js';
@@ -154,6 +155,56 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'a', data: String(TestResultState.Failed) },
 			{ e: 'b', data: String(TestResultState.Unset) }
 		]);
+	});
+
+	test('does not recompute children for a computed state notification', () => {
+		harness.flush();
+		const parent = harness.projection.getElementByTestId('ctrlId\0id-a')!;
+		harness.tree.expand(parent);
+		harness.flush();
+		const child = harness.projection.getElementByTestId('ctrlId\0id-a\0id-aa')!;
+		onTestChanged.fire({
+			reason: TestResultItemChangeReason.OwnStateChange,
+			result: undefined!,
+			previousState: TestResultState.Unset,
+			previousOwnDuration: undefined,
+			item: { ...child.test, tasks: [], ownComputedState: TestResultState.Running, computedState: TestResultState.Running },
+		});
+
+		const children = sinon.spy(parent.children, 'values');
+		try {
+			onTestChanged.fire({
+				reason: TestResultItemChangeReason.ComputedStateChange,
+				result: undefined!,
+				item: { ...parent.test, tasks: [], ownComputedState: TestResultState.Unset, computedState: TestResultState.Running, retired: true },
+			});
+			assert.deepStrictEqual({ state: parent.state, retired: parent.retired, scans: children.callCount }, { state: TestResultState.Running, retired: true, scans: 0 });
+		} finally {
+			children.restore();
+		}
+	});
+
+	test('updates durations after removing a child with a zero duration', () => {
+		harness.flush();
+		const parent = harness.projection.getElementByTestId('ctrlId\0id-a')!;
+		harness.tree.expand(parent);
+		harness.flush();
+		const first = harness.projection.getElementByTestId('ctrlId\0id-a\0id-aa')!;
+		const second = harness.projection.getElementByTestId('ctrlId\0id-a\0id-ab')!;
+		const updateDuration = (item: typeof first, ownDuration: number | undefined, previousOwnDuration?: number) => onTestChanged.fire({
+			reason: TestResultItemChangeReason.OwnStateChange,
+			result: undefined!,
+			previousState: TestResultState.Passed,
+			previousOwnDuration,
+			item: { ...item.test, tasks: [], ownComputedState: TestResultState.Passed, computedState: TestResultState.Passed, ownDuration },
+		});
+		updateDuration(first, 0);
+		harness.c.root.children.get('id-a')!.children.delete('id-aa');
+		harness.flush();
+		assert.strictEqual(parent.duration, undefined);
+		updateDuration(second, 2);
+		updateDuration(second, undefined, 2);
+		assert.strictEqual(parent.duration, undefined);
 	});
 
 	test('applies test changes (resort)', async () => {
