@@ -131,6 +131,15 @@ export function reserveChatWindowControls(titlebar: HTMLElement, controls: HTMLE
 	}
 }
 
+/**
+ * Floats the window controls of the title of a chat window at the top right of the window, beside it, while it spans only a
+ * column of the window (`inChatColumn`), and keeps their room above the tab row below it.
+ */
+export function setChatWindowTitleInChatColumn(titlebar: HTMLElement, controls: HTMLElement | undefined, inChatColumn: boolean): void {
+	titlebar.classList.toggle(CHAT_COLUMN_TITLE_CLASS, inChatColumn);
+	reserveChatWindowControls(titlebar, controls);
+}
+
 export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
 	const actions = actionsHost.firstElementChild?.getBoundingClientRect().width ?? 0;
 	const inset = actions ? Math.max(0, Math.round((SESSION_ACTIVITY_BAR_COLUMN_WIDTH - actions) / 2)) : undefined;
@@ -393,11 +402,7 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			return (active && chats.find(chat => isEqual(chat.chat.read(reader), active))) ?? chats[0];
 		});
 		this.title = derived(this, reader => this.activeChat.read(reader)?.title.read(reader) ?? '');
-		this.titleRowsShow = derived(this, reader => {
-			const window = this.window.read(reader);
-			const mode = window?.layoutMode.read(reader);
-			return (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) && !!window?.chatLeads.read(reader);
-		});
+		this.titleRowsShow = derived(this, reader => !!this.window.read(reader)?.titleMerged.read(reader));
 		this.showsTitle = derived(this, reader => this.activeChat.read(reader)?.showsTitle.read(reader) ?? false);
 		// What the window shows acts on its active chat and its session, not on what the main window shows.
 		const session = derived(this, reader => this.activeChat.read(reader)?.session.read(reader));
@@ -714,10 +719,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			store.add(autorun(reader => titlebar.setHeight(this._titleHeight.read(reader))));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
 			if (overChat) {
-				store.add(autorun(reader => {
-					titlebar.element.classList.toggle(CHAT_COLUMN_TITLE_CLASS, window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide);
-					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);
-				}));
+				store.add(autorun(reader => setChatWindowTitleInChatColumn(titlebar.element, titlebar.rightWindowControlsContainer, window.titleInChatColumn.read(reader))));
 				// From the element it is in, which stays in the window as the title bar goes.
 				store.add(toDisposable(() => reserveChatWindowControls(container, undefined)));
 			}
