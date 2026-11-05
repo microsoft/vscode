@@ -207,12 +207,13 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 		));
 
 		this._register(autorun(reader => {
-			for (const session of sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (!session) {
 					continue;
 				}
 				const syncEnabled = derived(reader => {
-					const chat = session.activeChat.read(reader);
+					const chat = pane.chat.read(reader);
 					const sync = getSyncChangesOperation(chat, reader);
 					return sync && shouldShowSyncChanges(session, chat, reader) ? isSyncChangesEnabled(sync.operation) : undefined;
 				});
@@ -229,7 +230,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 							group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, SessionSyncChangesAction.ID),
 							order: Number.MAX_SAFE_INTEGER,
 							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId),
-								SessionActiveChatResourceContext.isEqualTo(session.activeChat.read(reader).resource.toString())),
+								SessionActiveChatResourceContext.isEqualTo(pane.chat.read(reader)?.resource.toString() ?? '')),
 						}));
 					}
 				}));

@@ -66,6 +66,7 @@ import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../.
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../customView/browser/customViewService.js';
 import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -277,7 +278,7 @@ function createSessionsManagementService(
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
 	openTelemetryService?: ISessionOpenTelemetryService,
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; canvasService: TestWindowCanvasService; layoutService: IWorkbenchLayoutService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; canvasService: TestWindowCanvasService; layoutService: IWorkbenchLayoutService; focusPane: Emitter<string>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
@@ -310,10 +311,10 @@ function createSessionsManagementService(
 	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	const focusSession = disposables.add(new Emitter<string | undefined>());
-	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
+	const focusPane = disposables.add(new Emitter<string>());
+	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusPane.event);
 	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService, canvasService, layoutService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, canvasService, layoutService, focusSession, sessionsPartService, notifications };
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, canvasService, layoutService, focusPane, sessionsPartService, notifications };
 }
 
 function createSessionLayoutService(): IWorkbenchLayoutService {
@@ -329,7 +330,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	readonly sessionViews = new Map<string | undefined, SessionView>();
 	readonly focusedSessions: (string | undefined)[] = [];
 	focusedSessionView: SessionView | undefined;
-	constructor(override readonly onDidFocusSession: Event<string | undefined> = Event.None, private readonly part?: SessionsPart) {
+	constructor(override readonly onDidFocusPane: Event<string> = Event.None, private readonly part?: SessionsPart) {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
@@ -345,6 +346,10 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override focusSession(session: IActiveSession | undefined): void {
 		this.focusedSessions.push(session?.sessionId);
 		this.part?.focusSession(session?.sessionId, session?.scopedChatResource);
+	}
+	override focusPane(pane: ISessionGridPane): void {
+		this.focusedSessions.push(pane.session.get()?.sessionId);
+		this.part?.focusPane(pane.id);
 	}
 	override getSessionView(session: string | ISession | undefined): SessionView | undefined {
 		const sessionId = typeof session === 'object' ? session.sessionId : session;
@@ -470,7 +475,7 @@ suite('SessionsManagementService', () => {
 				override async resolveSessionResource(resource: URI): Promise<URI | undefined> { return options.resolve?.(resource); }
 				override async createNewChat(): Promise<IChat> { return options.createChat ? options.createChat() : super.createNewChat(); }
 			}(sessions[0]);
-			const partService = new TestSessionsPartService(ui.part.onDidFocusSession, ui.part);
+			const partService = new TestSessionsPartService(ui.part.onDidFocusPane, ui.part);
 			const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
 				override async requestResourcesTrust(): Promise<boolean> { return options.trust?.() ?? true; }
 			};
@@ -602,7 +607,7 @@ suite('SessionsManagementService', () => {
 				const chat = pane?.chat.get();
 				return pane && `${pane.kind}:${pane.session.get()?.sessionId ?? 'new session'}:${chat ? chat.resource.fragment || 'main' : 'no chat'}`;
 			};
-			const of = (host: ISessionHost | undefined) => host && { active: view.isActivePaneHost(host), detached: view.isDetachedPaneHost(host), grid: view.isGridPaneHost(host), pane: paneOf(host) };
+			const of = (host: ISessionHost | undefined) => host && { active: view.isActivePane(host), detached: view.isDetachedPane(host), grid: !!view.getPaneOfHost(host) || host === view.gridHost, pane: paneOf(host) };
 			const empty = { grid: of(view.gridHost), emptySlot: of(part.getSessionView(undefined)?.host) };
 			await view.openSession(parent.resource);
 			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
@@ -621,6 +626,36 @@ suite('SessionsManagementService', () => {
 				slot: { active: false, detached: false, grid: true, pane: 'slot:parent:main' },
 				detached: { active: true, detached: true, grid: true, pane: 'detached:parent:child' },
 				chatWindow: { active: false, detached: false, grid: false, pane: undefined },
+			});
+		});
+
+		test('the pane members act on the panes the grid shows: a pane that has left the grid is a no-op, the live new-session slot\'s pane closes', async () => {
+			const [a, b] = ['a', 'b'].map(created);
+			const { view } = harness([a, b]);
+			await view.openSessionsInGrid([a, b]);
+			await view.openNewSession({ toSide: true });
+			const removed = view.slotPanes.get()[0];
+			view.closePane(removed);
+			const grid = () => ({
+				slots: view.slotPanes.get().map(pane => pane.session.get()?.sessionId ?? 'new session'),
+				active: view.activePane.get()?.session.get()?.sessionId ?? 'new session',
+			});
+			const afterClosing = grid();
+			view.activatePane(removed);
+			view.focusPaneInDirection(removed, Direction.Right);
+			view.movePaneInDirection(removed, Direction.Right);
+			view.resizePaneInDirection(removed, Direction.Right);
+			view.collapseToPane(removed);
+			view.closePane(removed);
+			const afterRemovedPane = grid();
+			const slotOf = (sessionId: string | undefined) => view.slotPanes.get().find(pane => pane.session.get()?.sessionId === sessionId)!;
+			view.activatePane(slotOf('b'));
+			view.closePane(slotOf(undefined));
+
+			assert.deepStrictEqual({ afterClosing, afterRemovedPane, afterClosingNewSessionPane: grid() }, {
+				afterClosing: { slots: ['new session', 'b'], active: 'new session' },
+				afterRemovedPane: { slots: ['new session', 'b'], active: 'new session' },
+				afterClosingNewSessionPane: { slots: ['b'], active: 'b' },
 			});
 		});
 
@@ -891,10 +926,10 @@ suite('SessionsManagementService', () => {
 			const { view, part, container } = harness([parent]);
 			await view.openSession(parent.resource);
 			await view.openChat(parent, child.resource);
-			await view.detachChat(view.activeSession.get()!, child.resource);
+			await view.detachChat(view.activePane.get()!, child.resource);
 			const pane = part.getFocusedSessionView();
 			view.closeSession(parent);
-			await view.detachChat(view.activeSession.get()!, child.resource);
+			await view.detachChat(view.activePane.get()!, child.resource);
 			assert.deepStrictEqual({
 				roots: view.visibleSessions.get().length,
 				panes: container.querySelectorAll('.session-view').length,
@@ -1061,7 +1096,7 @@ suite('SessionsManagementService', () => {
 				await view.openSession(parent.resource);
 				const parentView = part.getFocusedSessionView()!;
 				if (detached) {
-					await view.detachChat(view.activeSession.get()!, child.resource);
+					await view.detachChat(view.activePane.get()!, child.resource);
 				}
 				const childView = detached ? part.getFocusedSessionView() : undefined;
 				view.insertAt(undefined, parent.sessionId, 'right');
@@ -2759,12 +2794,13 @@ suite('SessionsManagementService', () => {
 
 	test('activates an existing empty composer from part focus without replacing its sibling session', async () => {
 		const session = stubSession({ sessionId: 'existing', providerId: 'test' });
-		const { view, focusSession } = createSessionsManagementService(session, disposables);
+		const { view, focusPane } = createSessionsManagementService(session, disposables);
 		await view.openSession(session.resource);
 		await view.openNewSession({ toSide: true });
-		focusSession.fire(session.sessionId);
+		const [existingPane, emptyPane] = view.slotPanes.get();
+		focusPane.fire(existingPane.id);
 		const before = view.activeSession.get()?.sessionId;
-		focusSession.fire(undefined);
+		focusPane.fire(emptyPane.id);
 
 		assert.deepStrictEqual({
 			before,
@@ -4602,12 +4638,12 @@ suite('SessionsManagementService', () => {
 
 		test('focusing an already-visible session leaves canvas navigation without replacing its pane', async () => {
 			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
-			const { view, canvasService, focusSession } = createSessionsManagementService(session, disposables);
+			const { view, canvasService, focusPane } = createSessionsManagementService(session, disposables);
 			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
 			await view.openSession(session.resource);
 			const active = view.activeSession.get();
 			await canvasService.openCanvas('inbox');
-			focusSession.fire(session.sessionId);
+			focusPane.fire(view.activePane.get()!.id);
 			const unchanged = active === view.activeSession.get();
 			await view.openPreviousSession();
 			assert.deepStrictEqual({ unchanged, canvas: canvasService.activeCanvasOpen.get()?.id }, { unchanged: true, canvas: 'inbox' });
@@ -9811,7 +9847,7 @@ suite('SessionsManagementService', () => {
 				override getSessions(): ISession[] { return sessions; }
 			};
 			const { part } = createSessionsPartTestHarness(disposables);
-			const partService = new TestSessionsPartService(part.onDidFocusSession, part);
+			const partService = new TestSessionsPartService(part.onDidFocusPane, part);
 			const { view, contextKeyService } = createSessionsManagementService(sessions[0], disposables, provider, undefined, undefined, undefined, partService);
 			part.layout(1202, 802, 0, 0);
 			// The context key drives the command's palette visibility, and is the

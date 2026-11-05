@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,10 +19,11 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
-import { getSessionPaneId, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 
@@ -107,16 +108,38 @@ suite('Session comparison grid controller', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override readonly onDidFocusSession = focused.event;
+			override readonly onDidFocusPane = focused.event;
 		}());
+		// The panes of the grid, one per session it shows: a detached pane shows one chat of its session. Its id is the chat it
+		// shows of its own, else its session, else the new-session slot's.
+		const paneObjects = new Map<IActiveSession | undefined, ISessionGridPane>();
+		const paneOf = (session: IActiveSession | undefined) => {
+			let pane = paneObjects.get(session);
+			if (!pane) {
+				pane = upcastPartial<ISessionGridPane>({
+					id: session?.scopedChatResource?.toString() ?? session?.sessionId ?? 'new-session',
+					kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+					session: constObservable(session),
+					chat: session ? session.activeChat : constObservable(undefined),
+				});
+				paneObjects.set(session, pane);
+			}
+			return pane;
+		};
+		const panes = derived(reader => visibleSessions.read(reader).map(paneOf));
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
-			override readonly visibleSessionPanes = visibleSessions;
-			override readonly activePaneId = activeSession.map(getSessionPaneId);
-			// As the grid tells its panes apart: a detached pane shows one chat of its session.
-			override isDetachedPane(pane: IActiveSession | undefined): boolean {
-				return !!pane?.scopedChatResource;
+			override readonly panes = panes;
+			override readonly activePane = derived(reader => {
+				const active = activeSession.read(reader);
+				return panes.read(reader).find(pane => pane.session.read(reader) === active);
+			});
+			override closePane(pane: ISessionGridPane): void {
+				this.closeSession(pane.session.get());
+			}
+			override collapseToPane(pane: ISessionGridPane): void {
+				this.collapseToSession(pane.session.get() as IActiveSession | undefined);
 			}
 			override closeSession(session: ISession | undefined): void {
 				if (session) {

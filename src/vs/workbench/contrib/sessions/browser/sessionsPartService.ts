@@ -15,6 +15,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import type { ISessionHost } from './sessionHost.js';
+import type { ISessionGridPane } from './sessionGridPane.js';
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -121,10 +122,10 @@ export interface ISessionsPartService {
 	setContentVisible(visible: boolean): void;
 
 	/**
-	 * Fires with the session id, a standalone chat's grid slot id, or undefined for the empty new-session slot.
-	 * The view service promotes that slot to active.
+	 * Fires with the id of the grid slot whose view receives focus, which is the id of its pane, including the new-session
+	 * slot's. The sessions service makes that pane the active one.
 	 */
-	readonly onDidFocusSession: Event<string | undefined>;
+	readonly onDidFocusPane: Event<string>;
 
 	/**
 	 * Toggles the maximized state of the session view hosting the given session
@@ -145,6 +146,9 @@ export interface ISessionsPartService {
 	 * is `undefined`. No-op if no matching slot is currently mounted.
 	 */
 	focusSession(session: IActiveSession | undefined): void;
+
+	/** Moves keyboard focus into the view of the grid slot of `pane`, first revealing it like {@link focusSession}. */
+	focusPane(pane: ISessionGridPane): void;
 
 	/**
 	 * Returns the {@link ISessionView} hosting the given session id, or the

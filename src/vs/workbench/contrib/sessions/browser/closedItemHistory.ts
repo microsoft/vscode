@@ -136,7 +136,10 @@ export class ClosedItemHistory extends Disposable {
 			suspension.dispose();
 		}
 
-		this._sessionsPartService.focusSession(this._visibility.activeSession.get());
+		const activePane = this._visibility.activePane.get();
+		if (activePane) {
+			this._sessionsPartService.focusPane(activePane);
+		}
 	}
 
 	private _reopenSession(item: IClosedSessionItem, session: ISession): void {

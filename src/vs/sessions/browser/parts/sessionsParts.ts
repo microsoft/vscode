@@ -19,6 +19,7 @@ import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, Se
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { createMainWindowInstantiationService, ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionGridPane } from '../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -28,7 +29,7 @@ import { createMainWindowInstantiationService, ISessionHost } from '../../../wor
  *
  * The part is a passive renderer: the {@link ISessionsService} drives the
  * grid via {@link updateVisibleSessions}/{@link focusSession} and listens to
- * {@link onDidFocusSession}. The part observes neither the model nor the view.
+ * {@link onDidFocusPane}. The part observes neither the model nor the view.
  */
 export class SessionsParts extends Disposable implements ISessionsPartService {
 
@@ -39,8 +40,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
-	get onDidFocusSession(): Event<string | undefined> {
-		return this._mainPart.onDidFocusSession;
+	get onDidFocusPane(): Event<string> {
+		return this._mainPart.onDidFocusPane;
 	}
 
 	get shownChatCount() {
@@ -89,6 +90,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	focusSession(session: IActiveSession | undefined): void {
 		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
+	}
+
+	focusPane(pane: ISessionGridPane): void {
+		this._mainPart.focusPane(pane.id);
 	}
 
 	getSessionView(session: string | ISession | undefined): SessionView | undefined {

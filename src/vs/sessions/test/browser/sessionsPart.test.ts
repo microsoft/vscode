@@ -253,8 +253,8 @@ suite('Sessions - Sessions Part', () => {
 		const minimizedView = part.getSessionView('minimized')!;
 		const widerView = part.getSessionView('wider')!;
 		const emptyView = part.getSessionView(undefined)!;
-		const focused: (string | undefined)[] = [];
-		store.add(part.onDidFocusSession(id => focused.push(id)));
+		const focused: string[] = [];
+		store.add(part.onDidFocusPane(id => focused.push(id)));
 		const minimum = minimizedView.element.style.width;
 		minimizedView.element.dispatchEvent(eventFactory());
 		const expanded = Number.parseFloat(minimizedView.element.style.width) > Number.parseFloat(minimum);
@@ -263,7 +263,7 @@ suite('Sessions - Sessions Part', () => {
 
 		assert.deepStrictEqual({ expanded, focused }, {
 			expanded: true,
-			focused: ['minimized', 'wider', undefined],
+			focused: ['minimized', 'wider', 'initial'],
 		});
 	}
 

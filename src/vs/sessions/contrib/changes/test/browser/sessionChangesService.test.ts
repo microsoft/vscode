@@ -36,7 +36,7 @@ import { IChangesViewService } from '../../../../../workbench/contrib/sessions/c
 /** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
 function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>): [ISessionHostService, IFocusedSessionHostService, ISessionsService] {
 	// A grid without panes of its own: no pane is its active or a detached one.
-	const gridPanes = upcastPartial<ISessionsService>({ isActivePane: () => false, isDetachedPane: () => false, isActivePaneHost: () => false, isDetachedPaneHost: () => false });
+	const gridPanes = upcastPartial<ISessionsService>({ isActivePane: () => false, isDetachedPane: () => false });
 	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)), gridPanes];
 }
 

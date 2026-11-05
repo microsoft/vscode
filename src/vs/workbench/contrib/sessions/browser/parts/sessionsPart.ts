@@ -79,9 +79,9 @@ export class SessionsPart extends Part {
 		return this._slots.reduce((count, slot) => count + slot.view.shownChatCount.read(reader), 0);
 	});
 
-	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
-	/** Fired when a session view in the grid receives keyboard focus. */
-	readonly onDidFocusSession: Event<string | undefined> = this._onDidFocusSession.event;
+	private readonly _onDidFocusPane = this._register(new Emitter<string>());
+	/** Fired with the slot id of a view of the grid that receives keyboard focus. */
+	readonly onDidFocusPane: Event<string> = this._onDidFocusPane.event;
 
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
@@ -382,6 +382,16 @@ export class SessionsPart extends Part {
 		slot.view.focus();
 	}
 
+	/** Moves keyboard focus into the view of the grid slot `id`, first revealing it like {@link focusSession}. No-op without one. */
+	focusPane(id: string): void {
+		const slot = this._slots.find(candidate => candidate.id === id);
+		if (!slot) {
+			return;
+		}
+		this._revealView(slot.view);
+		slot.view.focus();
+	}
+
 	/** Moves keyboard focus into the view of exactly `session`, of those the grid shows, first revealing it like {@link focusSession}. */
 	focusSessionView(session: ISession): void {
 		const slot = this._slots.find(candidate => candidate.session === session);
@@ -442,7 +452,7 @@ export class SessionsPart extends Part {
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
 		const fireFocus = () => {
 			this._restoreSessionOnActivation(slot);
-			this._onDidFocusSession.fire(slot.session?.scopedChatResource ? slot.id : slot.boundSessionId);
+			this._onDidFocusPane.fire(slot.id);
 		};
 		disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, fireFocus, true));
 		disposables.add(addDisposableGenericMouseDownListener(view.element, fireFocus, true));

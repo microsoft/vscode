@@ -10,10 +10,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
 import { isWindowCommandContext } from '../../../common/windowCommandContext.js';
 import { IChat, ISession } from '../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getChatHostOpenerOfHost, IChatHostOpener, IChatHostOpenerService } from './chatHostOpener.js';
 import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionGridPanes, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';
 import { ISessionsPartService, ISessionView } from './sessionsPartService.js';
+import { ISessionGridPane } from './sessionGridPane.js';
 import { ISessionsService } from './sessionsService.js';
 
 /** What a Sessions command acts on; see {@link resolveSessionCommandTarget}. */
@@ -135,8 +136,8 @@ export interface IPaneCommandTarget {
 	readonly host: ISessionHost;
 	/** The view of the grid pane the host stands for; `undefined` for a host outside the grid, such as a chat editor's. */
 	readonly view: ISessionView | undefined;
-	/** The session of that pane, the grid's view of it; `undefined` also for the new-session slot. */
-	readonly session: IActiveSession | undefined;
+	/** The pane of the grid the host stands for; `undefined` for a host outside the grid. */
+	readonly pane: ISessionGridPane | undefined;
 	/** For a host outside the grid, the opener of the surface that shows its chat, through which a command acts instead. */
 	readonly opener: IChatHostOpener | undefined;
 }
@@ -152,7 +153,7 @@ export function resolvePaneCommandTarget(accessor: ServicesAccessor, args: reado
 	const hostContext = args.find(isSessionHostCommandContext);
 	if (!hostContext) {
 		const view = resolveGridCommandView(accessor);
-		return view && { host: view.host, view, session: view.getSession(), opener: undefined };
+		return view && { host: view.host, view, pane: accessor.get(ISessionsService).getPaneOfHost(view.host), opener: undefined };
 	}
 	const host = accessor.get(ISessionHostService).getHost(hostContext.sessionHostId);
 	if (!host) {
@@ -160,10 +161,11 @@ export function resolvePaneCommandTarget(accessor: ServicesAccessor, args: reado
 		return undefined;
 	}
 	const sessionsService = accessor.get(ISessionsService);
-	if (sessionsService.isGridPaneHost(host)) {
+	const pane = sessionsService.getPaneOfHost(host);
+	if (pane || host === sessionsService.gridHost) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const view = host === sessionsService.gridHost ? sessionsPartService.getActiveSessionView() : sessionsPartService.getSessionViewOfHost(host);
-		return { host, view, session: sessionsService.getPaneSessionOfHost(host), opener: undefined };
+		return { host, view, pane, opener: undefined };
 	}
-	return { host, view: undefined, session: undefined, opener: getChatHostOpenerOfHost(accessor.get(IChatHostOpenerService), sessionsService, host) };
+	return { host, view: undefined, pane: undefined, opener: getChatHostOpenerOfHost(accessor.get(IChatHostOpenerService), sessionsService, host) };
 }

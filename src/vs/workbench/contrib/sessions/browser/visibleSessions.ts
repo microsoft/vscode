@@ -404,6 +404,8 @@ export class VisibleSessions extends Disposable {
 	private readonly _panes = observableValue<readonly SessionGridPane[]>(this, []);
 	/** The panes of the grid, in the order of {@link getRenderedGridSlots}: its slots, then its detached panes. */
 	readonly panes: IObservable<readonly ISessionGridPane[]> = this._panes;
+	/** The slots of {@link panes}, without its detached panes. */
+	readonly slotPanes: IObservable<readonly ISessionGridPane[]> = derived(this, reader => this._panes.read(reader).filter(pane => pane.kind === SessionGridPaneKind.Slot));
 
 	getRenderedGridSlots(): readonly ISessionGridSlot[] {
 		return [...this.getGridSlots(), ...[...this._detached.values()].map(entry => entry.slot)];
@@ -1292,6 +1294,15 @@ export class VisibleSessions extends Disposable {
 	/** The pane of the grid slot `id`. */
 	getPane(id: string, reader?: IReader): ISessionGridPane | undefined {
 		return this._panes.read(reader).find(pane => pane.id === id);
+	}
+
+	/**
+	 * The adapter of the session incarnation `pane` shows, which the grid's `IActiveSession` members take; `undefined` for
+	 * the new-session slot and a pane that is not the grid's.
+	 */
+	getAdapterOfPane(pane: ISessionGridPane | undefined): VisibleSession | undefined {
+		const own = pane && this._panesById.get(pane.id);
+		return own === pane ? own?.adapter.get() : undefined;
 	}
 
 	private _getOrCreateVisibleSession(session: ISession): VisibleSession {

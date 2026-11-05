@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -862,7 +863,7 @@ suite('AgentFeedbackService - State', () => {
 					: undefined;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly IActiveSession[]>('visibleSessionPanes', []) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly IActiveSession[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
@@ -998,7 +999,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				return { providerId, sessionId: 'session-1' } as unknown as ISession;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly IActiveSession[]>('visibleSessionPanes', []) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly IActiveSession[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());

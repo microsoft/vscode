@@ -39,7 +39,7 @@ import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.c
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -246,6 +246,7 @@ suite('SessionsTelemetryContribution', () => {
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable(visibleSessions);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			readonly activeSession = activeSession ?? constObservable(undefined);
 			override readonly onDidToggleSessionStickiness = Event.None;
 		}();

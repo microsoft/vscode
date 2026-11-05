@@ -45,6 +45,7 @@ import { ISessionHost, SessionHostKind } from '../../../../../../workbench/contr
 import { SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
@@ -1748,6 +1749,7 @@ suite('AgentHostSessionChangesets', () => {
 				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable([session]);
 				override readonly visibleSessionPanes = constObservable([session]);
+				override readonly panes = testGridPanes(constObservable([session]));
 			}();
 			instantiationService.stub(ISessionsService, sessionsService);
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {

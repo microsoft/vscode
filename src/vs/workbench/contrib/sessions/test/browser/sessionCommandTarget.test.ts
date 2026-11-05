@@ -174,11 +174,9 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		const paneOfHost = (host: ISessionHost) => host === mainHost ? model.activeSession.get() : host.session.get();
 		const sessionsService = upcastPartial<ISessionsService>({
 			gridHost: mainHost,
-			isActivePane: pane => model.isActivePane(pane),
-			isDetachedPane: pane => model.isDetachedPane(pane),
-			isActivePaneHost: host => host === mainHost || model.isActivePane(paneOfHost(host)),
-			isDetachedPaneHost: host => model.isDetachedPane(paneOfHost(host)),
-			isGridPaneHost: host => host === mainHost || model.isGridPane(paneOfHost(host)),
+			isActivePane: host => host === mainHost || model.isActivePane(paneOfHost(host)),
+			isDetachedPane: host => model.isDetachedPane(paneOfHost(host)),
+			getPaneOfHost: host => model.panes.get().find(pane => model.getAdapterOfPane(pane) === paneOfHost(host)),
 		});
 		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 		const panes = new Map<ISessionHost, string>();

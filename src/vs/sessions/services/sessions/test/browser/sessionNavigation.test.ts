@@ -331,7 +331,7 @@ suite('SessionsNavigation', () => {
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
-			store.activeSession,
+			store.activeSession.map(session => session && { session: constObservable(session), chat: session.activeChat }),
 			customViewService,
 			canvasService,
 			store,

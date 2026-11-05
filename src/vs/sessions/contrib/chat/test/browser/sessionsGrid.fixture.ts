@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -23,7 +23,8 @@ import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -214,25 +215,23 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		override setActive(session: IActiveSession | undefined): void {
 			this.activeSession.set(session, undefined);
 		}
-		// Its panes are the grid's slots: none is detached.
-		override isGridPane(pane: IHostSession | undefined): boolean {
-			return !!pane && this.visibleSessions.get().some(session => session === pane);
+		// Its panes are the grid's slots, whose ids are their sessions' ids: none is detached. A pane's host stands for the pane
+		// whose session it shows.
+		override getPaneOfHost(host: ISessionHost): ISessionGridPane | undefined {
+			const session = host.session.get();
+			return session && this.visibleSessions.get().some(candidate => candidate === session) ? upcastPartial<ISessionGridPane>({
+				id: session.sessionId,
+				kind: SessionGridPaneKind.Slot,
+				session: constObservable(session),
+				chat: constObservable(host.chat.get()),
+			}) : undefined;
 		}
-		override isActivePane(pane: IHostSession | undefined): boolean {
-			return !!pane && this.activeSession.get() === pane;
+		override isActivePane(host: ISessionHost): boolean {
+			const session = host.session.get();
+			return !!session && this.activeSession.get() === session;
 		}
 		override isDetachedPane(): boolean {
 			return false;
-		}
-		// A pane's host stands for the pane whose session it shows.
-		override isActivePaneHost(host: ISessionHost): boolean {
-			return this.isActivePane(host.session.get());
-		}
-		override isDetachedPaneHost(): boolean {
-			return false;
-		}
-		override isGridPaneHost(host: ISessionHost): boolean {
-			return this.isGridPane(host.session.get());
 		}
 		override toggleSessionStickiness(session: ISession): void {
 			const target = sessions.find(candidate => candidate.sessionId === session.sessionId);
@@ -390,7 +389,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			);
 		}
 	}
-	context.disposableStore.add(part.onDidFocusSession(id => sessionsService.setActive(sessions.find(session => session.sessionId === id))));
+	context.disposableStore.add(part.onDidFocusPane(id => sessionsService.setActive(sessions.find(session => session.sessionId === id))));
 	if (options.maximized) {
 		part.toggleMaximizeSession(left.sessionId);
 	}

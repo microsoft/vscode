@@ -39,7 +39,7 @@ import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 
 
@@ -109,6 +109,7 @@ suite('Session Sync Changes', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessions;
+			override readonly panes = testGridPanes(visibleSessions);
 			readonly activeSession = activeSession;
 		}();
 		let factory: IActionViewItemFactory | undefined;

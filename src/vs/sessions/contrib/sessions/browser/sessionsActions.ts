@@ -583,9 +583,12 @@ registerAction2(class DetachChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const session = resolveGridCommandView(accessor)?.getSession();
-		if (session) {
-			await accessor.get(ISessionsService).detachChat(session, session.activeChat.get().resource);
+		const sessionsService = accessor.get(ISessionsService);
+		const view = resolveGridCommandView(accessor);
+		const pane = view && sessionsService.getPaneOfHost(view.host);
+		const chat = pane?.chat.get();
+		if (pane && chat) {
+			await sessionsService.detachChat(pane, chat.resource);
 		}
 	}
 });
@@ -1176,9 +1179,9 @@ registerAction2(class CloseChatAction extends Action2 {
 		if (!target) {
 			return;
 		}
-		const session = target.session;
+		const session = target.pane?.session.get();
 		const sessionView = target.view;
-		chat ??= sessionView?.getActiveChat() ?? session?.activeChat.get() ?? target.host.chat.get();
+		chat ??= sessionView?.getActiveChat() ?? target.pane?.chat.get() ?? target.host.chat.get();
 		if (!chat) {
 			return;
 		}
@@ -1943,7 +1946,8 @@ export class SessionConversationActionsContribution extends Disposable implement
 		super();
 		this._register(autorun(reader => {
 			const owners = new Set<string>();
-			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of this._sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (session && !owners.has(session.sessionId)) {
 					owners.add(session.sessionId);
 					reader.store.add(this._registerSessionConversationActions(session, reader));
@@ -1952,7 +1956,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 		}));
 	}
 
-	private _registerSessionConversationActions(session: IActiveSession, reader: IReader): IDisposable {
+	private _registerSessionConversationActions(session: ISession, reader: IReader): IDisposable {
 		const store = new DisposableStore();
 		const that = this;
 		const extUri = this._uriIdentityService.extUri;
@@ -2123,7 +2127,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		// Only a pane of the grid pins: a chat editor's host has no pane of the grid, which it would pin.
-		const session = resolvePaneCommandTarget(accessor, args)?.session;
+		const session = resolvePaneCommandTarget(accessor, args)?.pane?.session.get();
 		if (!session) {
 			return;
 		}
@@ -2190,7 +2194,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 	override async run(accessor: ServicesAccessor, sessionArg: IActiveSession | undefined, ...rest: unknown[]): Promise<void> {
 		const target = resolvePaneCommandTarget(accessor, [sessionArg, ...rest]);
 		// The session a host outside the grid shows, such as a chat editor's, which has no title to edit in the grid.
-		const session = target?.session ?? (target && !target.view ? sessionArg : undefined);
+		const session = target?.pane?.session.get() ?? (target && !target.view ? sessionArg : undefined);
 		if (!session) {
 			return;
 		}
@@ -2263,7 +2267,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			return;
 		}
 
-		const session = target.session;
+		const session = target.pane?.session.get();
 		const sessionView = target.view;
 		const activeChat = sessionView.getActiveChat();
 		if (session
@@ -2273,7 +2277,11 @@ registerAction2(class CloseSessionAction extends Action2 {
 			return;
 		}
 
-		sessionsService.closeSession(session);
+		if (target.pane) {
+			sessionsService.closePane(target.pane);
+		} else {
+			sessionsService.closeSession(undefined);
+		}
 		sessionsService.focusActiveSession();
 	}
 });
@@ -2345,16 +2353,15 @@ for (const item of sessionGridActions) {
 				}
 				const service = accessor.get(ISessionsService);
 				const target = resolvePaneCommandTarget(accessor, args);
-				if (!target?.view) {
+				if (!target?.view || !target.pane) {
 					return;
 				}
-				const session = target.session;
 				if (operation === 'focus') {
-					service.focusSessionInDirection(session, item.direction);
+					service.focusPaneInDirection(target.pane, item.direction);
 				} else if (operation === 'move') {
-					service.moveSessionInDirection(session, item.direction);
+					service.movePaneInDirection(target.pane, item.direction);
 				} else {
-					service.resizeSession(session, item.direction);
+					service.resizePaneInDirection(target.pane, item.direction);
 				}
 			}
 		});
@@ -2392,8 +2399,8 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 		if (!target?.view) {
 			return;
 		}
-		accessor.get(ISessionsService).setActive(target.session);
-		accessor.get(ISessionsPartService).toggleMaximizeSession(target.session);
+		accessor.get(ISessionsService).activatePane(target.pane);
+		accessor.get(ISessionsPartService).toggleMaximizeSession(target.view.getSession());
 	}
 });
 

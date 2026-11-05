@@ -142,36 +142,23 @@ export function getFocusedSessionChatSource(focusedSessionHostService: IFocusedS
 }
 
 /**
- * What only the main window's grid knows of its panes, which hosts do not show. A pane is named by its own session: the
- * session of its pane host, a view of the session with the pane's own state, such as the chats its tab strip shows.
+ * What only the main window's grid knows of its panes, which hosts do not show. A pane is named by the host that stands for
+ * it: the grid host for the active pane, the host of a pane's view for that pane.
  */
 export interface ISessionGridPanes {
-	/** Whether `pane` is the grid's active pane. */
-	isActivePane(pane: IHostSession | undefined): boolean;
-	/** Whether `pane` is a pane of the grid that shows one chat of its session apart from the session's own slot. */
-	isDetachedPane(pane: IHostSession | undefined): boolean;
-	/** Whether `pane` is a pane of the grid, a slot or a detached pane, rather than of another surface, such as a chat editor. */
-	isGridPane(pane: IHostSession | undefined): boolean;
-
-	/**
-	 * Whether `host` stands for the grid's active pane: the grid host, which shows the active pane, or the host of the
-	 * active pane's view. `false` for other hosts, such as a chat window's.
-	 */
-	isActivePaneHost(host: ISessionHost): boolean;
-	/** Whether `host` stands for a detached pane: the host of a detached pane's view, or the grid host while one is active. */
-	isDetachedPaneHost(host: ISessionHost): boolean;
-	/**
-	 * Whether `host` stands for a pane of the grid: the grid host, or the host of a slot's or detached pane's view, including
-	 * the new-session slot's. `false` for the hosts of chat windows, chat editors, composers and dialogs.
-	 */
-	isGridPaneHost(host: ISessionHost): boolean;
-
 	/**
 	 * The pane of the grid `host` stands for: the active pane, including the new-session slot, for the grid host; the pane of
 	 * its view for the host of a slot's or detached pane's view. `undefined` for the hosts of chat windows, chat editors,
 	 * composers and dialogs, and for hosts that are gone.
 	 */
 	getPaneOfHost(host: ISessionHost, reader?: IReader): ISessionGridPane | undefined;
+	/**
+	 * Whether `host` stands for the grid's active pane: the grid host, which shows the active pane, or the host of the
+	 * active pane's view. `false` for other hosts, such as a chat window's.
+	 */
+	isActivePane(host: ISessionHost): boolean;
+	/** Whether `host` stands for a detached pane: the host of a detached pane's view, or the grid host while one is active. */
+	isDetachedPane(host: ISessionHost): boolean;
 }
 
 /**
@@ -190,13 +177,13 @@ export function getHostOfSession(sessionHostService: ISessionHostService, gridPa
 		return inWindow[0];
 	}
 	const isActive = (host: ISessionHost) => preferredWindowHost?.kind === SessionHostKind.MainWindow
-		? gridPanes.isActivePaneHost(host)
+		? gridPanes.isActivePane(host)
 		: isEqual(host.chatResource.get(), preferredWindowHost?.chatResource.get());
 	const active = inWindow.filter(isActive);
 	if (active.length === 1) {
 		return active[0];
 	}
-	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPaneHost(host));
+	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPane(host));
 	return ofGrid.length === 1 ? ofGrid[0] : undefined;
 }
 

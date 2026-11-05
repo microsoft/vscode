@@ -50,7 +50,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, IHostSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
@@ -79,7 +79,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, stubPaneHost, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 suite('Sessions - Actions', () => {
 
@@ -1194,8 +1195,6 @@ suite('Sessions - Actions', () => {
 			override async closeChat() { calls.push('grid closeChat'); }
 			override closeSession() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
-			// The chat editor's pane is not one of the grid's.
-			override isGridPane() { return false; }
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
@@ -1244,10 +1243,9 @@ suite('Sessions - Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable<IActiveSession | undefined>(pane);
-			override closeSession() { calls.push('grid closeSession'); }
+			override closePane() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
 			override focusActiveSession() { }
-			override isGridPane(candidate: IHostSession | undefined) { return grid.isGridPane(candidate); }
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
@@ -1285,13 +1283,15 @@ suite('Sessions - Actions', () => {
 		const active = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(child) });
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, session: constObservable(active), chat: constObservable(child) }) }));
+		const viewHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane });
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => active }); }
+			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => active, host: viewHost }); }
 		});
-		const calls: { session: IActiveSession; resource: string }[] = [];
+		const calls: { session: ISession | undefined; resource: string }[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(active);
-			override async detachChat(session: IActiveSession, resource: URI): Promise<void> { calls.push({ session, resource: resource.toString() }); }
+			override getPaneOfHost(host: ISessionHost) { return host === viewHost ? testGridPane(active, child) : undefined; }
+			override async detachChat(pane: ISessionGridPane, resource: URI): Promise<void> { calls.push({ session: pane.session.get(), resource: resource.toString() }); }
 		});
 		const command = CommandsRegistry.getCommand(DETACH_CHAT_COMMAND_ID);
 		assert.ok(command);
@@ -1575,11 +1575,11 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 		const closedSessions: Array<IActiveSession | undefined> = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			// The grid's active pane.
-			override isGridPane() { return true; }
 			readonly activeSession = constObservable(activeSession);
-			override closeSession(session: IActiveSession | undefined): void {
-				closedSessions.push(session);
+			// The grid's active pane.
+			override getPaneOfHost() { return testGridPane(activeSession); }
+			override closePane(pane: ISessionGridPane): void {
+				closedSessions.push(pane.session.get() as IActiveSession | undefined);
 			}
 			override focusActiveSession(): void { }
 		});
@@ -1607,10 +1607,10 @@ suite('Sessions - Actions', () => {
 		let closeSessionCalls = 0;
 		const closedGroups: string[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			// The grid's active pane.
-			override isGridPane() { return true; }
 			readonly activeSession = constObservable(activeSession);
-			override closeSession(): void {
+			// The grid's active pane.
+			override getPaneOfHost() { return testGridPane(activeSession); }
+			override closePane(): void {
 				closeSessionCalls++;
 			}
 		});
@@ -1841,6 +1841,7 @@ suite('Sessions - Actions', () => {
 		const panes = observableValue<readonly IActiveSession[]>('panes', [activeSession]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessionPanes = panes;
+			override readonly panes = testGridPanes(panes);
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 

@@ -16,6 +16,7 @@ import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHo
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { IChat, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
@@ -44,7 +45,7 @@ export type ITestSessionsService = ISessionsService & ITestSessionsGridState;
 /** A sessions service whose grid host is `gridHost`, for a real {@link SessionHostService}. */
 export function sessionsServiceWithGridHost(gridHost: ISessionHost): ISessionsService {
 	// A grid without panes of its own: no pane is its active or a detached one.
-	return upcastPartial<ISessionsService>({ gridHost, isActivePane: () => false, isDetachedPane: () => false, isActivePaneHost: () => false, isDetachedPaneHost: () => false, isGridPaneHost: () => false });
+	return upcastPartial<ISessionsService>({ gridHost, isActivePane: () => false, isDetachedPane: () => false, getPaneOfHost: () => undefined });
 }
 
 /**
@@ -239,6 +240,42 @@ export function stubMissingSessionHostsFromSessionsService(instantiationService:
 let paneHostIds = 0;
 
 /**
+ * A pane of the grid that shows `session` and `chat`, its active chat by default: a detached pane when `session` is scoped
+ * to one chat, else a slot; the new-session slot without a session.
+ */
+export function testGridPane(session: IActiveSession | undefined, chat: IChat | undefined = session?.activeChat?.get(), id = `pane:test:${paneHostIds++}`): ISessionGridPane {
+	return upcastPartial<ISessionGridPane>({
+		id,
+		kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+		session: constObservable(session),
+		chat: constObservable(chat),
+		sticky: constObservable(false),
+	});
+}
+
+/**
+ * The panes of a fake grid that shows `sessions`, as `ISessionsService.panes` gives them: one per entry, the new-session slot
+ * for `undefined`, a detached pane for a session scoped to one chat. A session keeps its pane while it stays in the list.
+ */
+export function testGridPanes(sessions: IObservable<readonly (IActiveSession | undefined)[]>): IObservable<readonly ISessionGridPane[]> {
+	const panes = new Map<IActiveSession | undefined, ISessionGridPane>();
+	return derived(reader => sessions.read(reader).map(session => {
+		let pane = panes.get(session);
+		if (!pane) {
+			pane = upcastPartial<ISessionGridPane>({
+				id: `pane:test:${paneHostIds++}`,
+				kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+				session: constObservable(session),
+				chat: session?.activeChat ?? constObservable(undefined),
+				sticky: constObservable(false),
+			});
+			panes.set(session, pane);
+		}
+		return pane;
+	}));
+}
+
+/**
  * Stubs the host of a pane for tests of the commands its menus run, which find the pane by its host
  * (`resolvePaneCommandTarget`): the host lookups know the host, and, for a pane of the grid, the sessions and part services
  * take it for the pane of `session` and `view`; else, as a chat editor's, for no pane. Keeps the other lookups of the
@@ -269,9 +306,9 @@ export function stubPaneHost(instantiationService: TestInstantiationService, opt
 		instantiationService.stub(service, Object.assign(Object.create(current ?? null), members(current)));
 	};
 	extend(ISessionHostService, current => ({ getHost: candidate => candidate === id ? host : current?.getHost?.(candidate) }));
+	const pane = options.grid ? testGridPane(options.session, shown, id) : undefined;
 	extend(ISessionsService, current => ({
-		isGridPaneHost: candidate => candidate === host ? options.grid : current?.isGridPaneHost?.(candidate) ?? false,
-		getPaneSessionOfHost: candidate => candidate === host ? (options.grid ? options.session : undefined) : current?.getPaneSessionOfHost?.(candidate),
+		getPaneOfHost: (candidate, reader) => candidate === host ? pane : current?.getPaneOfHost?.(candidate, reader),
 	}));
 	extend(ISessionsPartService, current => ({
 		getSessionViewOfHost: candidate => candidate === host ? (options.grid ? options.view : undefined) : current?.getSessionViewOfHost?.(candidate),

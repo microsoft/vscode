@@ -27,7 +27,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +46,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessionPanes;
+			override readonly panes = testGridPanes(visibleSessionPanes);
 		}());
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 	}

@@ -25,7 +25,7 @@ import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../.
 import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
@@ -55,6 +55,7 @@ class TestSessionsService extends mock<ISessionsService>() {
 	readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 	override readonly visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
 	override readonly visibleSessionPanes = this.visibleSessions;
+	override readonly panes = testGridPanes(this.visibleSessionPanes);
 
 	override async openSession(sessionResource: URI): Promise<void> {
 		this.opened.push(sessionResource);
