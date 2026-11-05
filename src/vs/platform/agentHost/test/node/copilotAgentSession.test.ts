@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, MessageOptions, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
@@ -32,13 +32,14 @@ import { getCopilotMcpConfigurationPath, ICopilotHomeService } from '../../../en
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -71,7 +72,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { chatToolCallComplete, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -81,6 +82,8 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { createCopilotSessionPathMapper, createCopilotSdkPathMapper, toCopilotWorkspace, type ICopilotSdkPathMapper } from '../../node/copilot/copilotWorkspace.js';
+import { CopilotVirtualSessionFs } from '../../node/copilot/copilotVirtualSessionFs.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { CopilotSandboxCertificate } from '../../node/copilot/copilotSandboxCertificate.js';
@@ -175,6 +178,8 @@ class MockCopilotSession {
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	canvasCloseGate: Promise<void> | undefined;
+	canvasCloseError: Error | undefined;
+	canvasListOpenGate: Promise<void> | undefined;
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
 	canvasListGate: Promise<void> | undefined;
@@ -248,6 +253,10 @@ class MockCopilotSession {
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
 	readonly agentSelections: (string | null)[] = [];
+	currentName: string | null = null;
+	nameGetGate: Promise<void> | undefined;
+	nameGetError: Error | undefined;
+	readonly nameSetCalls: Parameters<CopilotSession['rpc']['name']['set']>[0][] = [];
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
@@ -523,6 +532,19 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
+		name: {
+			get: async () => {
+				await this.nameGetGate;
+				if (this.nameGetError) {
+					throw this.nameGetError;
+				}
+				return { name: this.currentName };
+			},
+			set: async (params: Parameters<CopilotSession['rpc']['name']['set']>[0]) => {
+				this.nameSetCalls.push(params);
+				this.currentName = params.name;
+			},
+		},
 		model: {
 			list: async () => ({ list: [] }),
 			getCurrent: async () => {
@@ -604,7 +626,8 @@ class MockCopilotSession {
 			},
 			listOpen: async () => {
 				this.onCanvasListOpen?.();
-				return { openCanvases: this.listedOpenCanvases };
+				await this.canvasListOpenGate;
+				return { openCanvases: [...this.listedOpenCanvases] };
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
@@ -617,6 +640,9 @@ class MockCopilotSession {
 			close: async (params: Parameters<CopilotSession['rpc']['canvas']['close']>[0]) => {
 				this.canvasCloseCalls.push(params);
 				await this.canvasCloseGate;
+				if (this.canvasCloseError) {
+					throw this.canvasCloseError;
+				}
 			},
 		},
 		metadata: {
@@ -1381,6 +1407,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Coordinates the session's edit tool calls with the host's changes of their files. */
 	fileEditCoordinator?: AgentHostFileEditCoordinator;
 	workingDirectory?: URI;
+	pathMapper?: ICopilotSdkPathMapper;
+	virtualSessionFs?: CopilotVirtualSessionFs;
 	customizationDirectory?: URI;
 	shellManager?: ShellManager;
 	/** Per-key effective config values returned by the fake configuration service. */
@@ -1527,6 +1555,18 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sessionUri = options?.sessionUri ?? parentSessionUri;
 	const chatChannelUri = options?.chatChannelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 	const mockSession = new MockCopilotSession();
+	for (const projection of options?.canvasHandoff?.projections ?? []) {
+		const canvas = projection.canvas;
+		if (!mockSession.canvases.some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId)) {
+			mockSession.canvases.push({
+				canvasId: canvas.canvasId,
+				extensionId: canvas.extensionId,
+				...(canvas.extensionName !== undefined ? { extensionName: canvas.extensionName } : {}),
+				displayName: canvas.title ?? canvas.canvasId,
+				description: 'Test canvas provider.',
+			});
+		}
+	}
 	options?.configureMockSession?.(mockSession);
 	const sandboxCertificateRpc = options?.sandboxCertificateRpc ?? new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
 		override checkRelevance = async (): Promise<boolean> => false;
@@ -1541,6 +1581,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
+		workspace: options?.workingDirectory && toCopilotWorkspace(options.workingDirectory),
+		virtualSessionFs: options?.virtualSessionFs,
 		resolvedAgentName: options?.resolvedAgentName,
 		snapshot: options?.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
@@ -1616,6 +1658,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
+		stat: async (resource: URI) => ({
+			isDirectory: !storedFileContents.has(resource.toString()) && [...storedFileContents.keys()].some(key => key.startsWith(`${resource.toString()}/`)),
+		}) as Awaited<ReturnType<IFileService['stat']>>,
 		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
 			options?.fileAtomicWrite === true &&
 			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
@@ -1842,6 +1887,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resource: options?.resource,
 			chatChannelUri,
 			rawSessionId: 'test-session-1',
+			pathMapper: options?.pathMapper ?? createCopilotSdkPathMapper(toCopilotWorkspace(options?.workingDirectory ?? URI.file(process.cwd()))),
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
 			sandboxCertificate: options?.sandboxCertificate ?? new CopilotSandboxCertificate(logService),
@@ -3530,6 +3576,77 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('title synchronization', () => {
+		test('does not rewrite a matching normalized runtime title after resume', async () => {
+			const name = '\u{1F600}'.repeat(100);
+			const { session, mockSession } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.currentName = name; },
+			});
+
+			await session.synchronizeTitle(`  ${name}truncated suffix  `);
+
+			assert.deepStrictEqual(mockSession.nameSetCalls, []);
+		});
+
+		test('writes missing or changed runtime titles but skips repeated synchronization', async () => {
+			const results = [];
+			for (const currentName of [null, 'Old title']) {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					resume: true,
+					configureMockSession: mock => { mock.currentName = currentName; },
+				});
+				await session.synchronizeTitle(' New title ');
+				await session.synchronizeTitle('New title');
+				results.push(mockSession.nameSetCalls);
+			}
+
+			assert.deepStrictEqual(results, [[{ name: 'New title' }], [{ name: 'New title' }]]);
+		});
+
+		test('a failed or timed-out title read neither writes nor requires SDK resynchronization', async () => {
+			const results = [];
+			for (const failure of ['error', 'timeout']) {
+				const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
+				if (failure === 'error') {
+					mockSession.nameGetError = new Error('Name lookup failed');
+				} else {
+					mockSession.nameGetGate = new Promise<void>(() => { });
+				}
+
+				await assert.rejects(session.synchronizeTitle('New title'), /Name lookup failed|Mission Control title synchronization timed out/);
+				results.push({ writes: mockSession.nameSetCalls, requiresResync: session.requiresControlPlaneResync });
+			}
+
+			assert.deepStrictEqual(results, [
+				{ writes: [], requiresResync: false },
+				{ writes: [], requiresResync: false },
+			]);
+		});
+
+		test('cancels synchronization after disposal or wrapper replacement during the title read', async () => {
+			const writes = [];
+			for (const replaceWrapper of [false, true]) {
+				const { session, mockSession } = await createAgentSession(disposables);
+				const read = new DeferredPromise<void>();
+				mockSession.nameGetGate = read.p;
+
+				const synchronization = assert.rejects(session.synchronizeTitle('New title'), isCancellationError);
+				if (replaceWrapper) {
+					session.markTelemetryRevocationRequiresRestart();
+					await session.revalidateTelemetryBeforeRegistration();
+				} else {
+					session.dispose();
+				}
+				await read.complete();
+				await synchronization;
+				writes.push(mockSession.nameSetCalls);
+			}
+
+			assert.deepStrictEqual(writes, [[], []]);
+		});
+	});
+
 	test('skips unchanged SDK agent selections and reapplies them after resume and relaunch', async () => {
 		const selections = [];
 		for (const resume of [false, true]) {
@@ -4673,6 +4790,365 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('republishes canvas states before membership after host chat registration', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			replacement.signals.length = 0;
+
+			replacement.session.republishCanvasProjection([]);
+			const republished = summarizeCanvasSignals(replacement.signals);
+			replacement.signals.length = 0;
+			replacement.session.republishCanvasProjection([resource]);
+
+			assert.deepStrictEqual({
+				republished,
+				unchanged: summarizeCanvasSignals(replacement.signals),
+			}, {
+				republished: {
+					states: [{ resource, url: 'https://example.test/replacement' }],
+					membership: [[resource]],
+				},
+				unchanged: {
+					states: [{ resource, url: 'https://example.test/replacement' }],
+					membership: [],
+				},
+			});
+			replacement.session.dispose();
+		});
+
+		test('discards an invalidated handoff without leaving membership suppressed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			replacement.signals.length = 0;
+
+			const discarded = replacement.session.discardCanvasHandoff(handoff);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({
+				discarded,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				discarded: true,
+				states: [],
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('applies pending closes even when a handoff carries no projections', async () => {
+			const handoff: ICopilotCanvasHandoff = {
+				projections: [],
+				pendingCloseInstanceIds: new Set([preview.instanceId]),
+			};
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/restored' });
+				},
+			});
+
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+
+			assert.deepStrictEqual({
+				adopted,
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				adopted: true,
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [],
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('takes a handoff when only deferred close intent remains', async () => {
+			const { session } = await createAgentSession(disposables);
+			(session as unknown as { _deferredCanvasCloseInstanceIds: Set<string> })._deferredCanvasCloseInstanceIds.add(preview.instanceId);
+
+			const handoff = session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				projections: handoff?.projections,
+				pendingCloses: [...(handoff?.pendingCloseInstanceIds ?? [])],
+			}, {
+				projections: [],
+				pendingCloses: [preview.instanceId],
+			});
+			session.dispose();
+		});
+
+		test('does not carry an applied close into the next handoff once the instance is reopened', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+			await replacement.session.openCanvas(preview);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/reopened' });
+
+			const next = replacement.session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				projections: next?.projections.map(projection => projection.canvas.instanceId),
+				pendingCloses: [...next?.pendingCloseInstanceIds ?? []],
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				projections: [preview.instanceId],
+				pendingCloses: [],
+			});
+			replacement.session.dispose();
+		});
+
+		test('resumes when a deferred close fails during reconciliation and retries it after adoption', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/restored' });
+					mock.canvasCloseError = new Error('provider close failed');
+				},
+			});
+			const resumed = summarizeCanvasSignals(replacement.signals);
+			replacement.mockSession.canvasCloseError = undefined;
+			replacement.signals.length = 0;
+
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resumedStates: resumed.states,
+				adopted,
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				afterAdoption: summarizeCanvasSignals(replacement.signals),
+				next: replacement.session.takeCanvasProjection(),
+			}, {
+				resumedStates: [{ resource: handoff.projections[0].resource.toString(), url: undefined }],
+				adopted: true,
+				closeCalls: [{ instanceId: preview.instanceId }, { instanceId: preview.instanceId }],
+				afterAdoption: { states: [], membership: [[]] },
+				next: undefined,
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not carry an applied close into a later handoff when the canvas stays closed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+
+			const next = replacement.session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				next,
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				next: undefined,
+			});
+			replacement.session.dispose();
+		});
+
+		test('waits for an in-flight deferred close before reopening the same instance', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const listOpenReached = new DeferredPromise<void>();
+			const listOpenGate = new DeferredPromise<void>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			replacement.mockSession.onCanvasListOpen = () => listOpenReached.complete();
+			replacement.mockSession.canvasListOpenGate = listOpenGate.p;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await listOpenReached.p;
+
+			const opening = replacement.session.openCanvas(preview);
+			await timeout(0);
+			const openCallsWhileClosePending = [...replacement.mockSession.canvasOpenCalls];
+			listOpenGate.complete();
+			await opening;
+			replacement.mockSession.fire('session.canvas.closed', preview);
+			await timeout(0);
+			const next = replacement.session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				openCallsWhileClosePending,
+				openCalls: replacement.mockSession.canvasOpenCalls,
+				projections: next?.projections.map(projection => projection.canvas.instanceId),
+				pendingCloses: [...next?.pendingCloseInstanceIds ?? []],
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				openCallsWhileClosePending: [],
+				openCalls: [preview],
+				projections: [preview.instanceId],
+				pendingCloses: [],
+			});
+			replacement.session.dispose();
+		});
+
+		test('projects a model-opened canvas after its deferred close finishes during the turn', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const listOpenReached = new DeferredPromise<void>();
+			const listOpenGate = new DeferredPromise<void>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			replacement.mockSession.onCanvasListOpen = () => listOpenReached.complete();
+			replacement.mockSession.canvasListOpenGate = listOpenGate.p;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await listOpenReached.p;
+
+			replacement.mockSession.fire('user.message', { content: 'Open the canvas again', messageId: 'message-1' } as SessionEventPayload<'user.message'>['data']);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/too-early' });
+			const beforeCloseSettled = summarizeCanvasSignals(replacement.signals);
+			listOpenGate.complete();
+			await (replacement.session as unknown as { _deferredCanvasCloseFlush: Promise<void> })._deferredCanvasCloseFlush;
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/model-opened' });
+			const afterCloseSettled = summarizeCanvasSignals(replacement.signals);
+			const reopenedResource = afterCloseSettled.states.at(-1)?.resource;
+
+			assert.deepStrictEqual({
+				beforeCloseSettled: {
+					urls: beforeCloseSettled.states.map(state => state.url),
+					membership: beforeCloseSettled.membership,
+				},
+				afterCloseSettled: {
+					urls: afterCloseSettled.states.map(state => state.url),
+					membership: afterCloseSettled.membership,
+					reopenedUsesNewResource: reopenedResource !== handoff.projections[0].resource.toString(),
+				},
+			}, {
+				beforeCloseSettled: {
+					urls: [undefined, 'https://example.test/replacement'],
+					membership: [[]],
+				},
+				afterCloseSettled: {
+					urls: [undefined, 'https://example.test/replacement', 'https://example.test/model-opened'],
+					membership: [[], [reopenedResource]],
+					reopenedUsesNewResource: true,
+				},
+			});
+			replacement.session.dispose();
+		});
+
+		test('applies a close added after handoff reconciliation but before adoption', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const pendingCloseInstanceIds = handoff.pendingCloseInstanceIds;
+			assert.ok(pendingCloseInstanceIds instanceof Set);
+			pendingCloseInstanceIds.add(preview.instanceId);
+			replacement.signals.length = 0;
+
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				adopted,
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				adopted: true,
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [],
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not remove a reopened canvas when a deferred close event arrives late', async () => {
+			const resource = URI.parse('ahp-canvas:/preview');
+			const handoff: ICopilotCanvasHandoff = {
+				projections: [{
+					resource,
+					canvas: preview,
+				}],
+				pendingCloseInstanceIds: new Set([preview.instanceId]),
+			};
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/restored' });
+				},
+			});
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await replacement.session.openCanvas(preview);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/reopened' });
+			const beforeClosed = summarizeCanvasSignals(replacement.signals).membership.at(-1);
+
+			replacement.mockSession.fire('session.canvas.closed', preview);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				beforeClosed,
+				afterClosed: summarizeCanvasSignals(replacement.signals).membership.at(-1),
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				beforeClosed,
+				afterClosed: beforeClosed,
+			});
+			replacement.session.dispose();
+		});
+
 		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
 			const replacement = await createAgentSession(disposables, {
@@ -4687,9 +5163,10 @@ suite('CopilotAgentSession', () => {
 			const membershipBeforeAdoption = summarizeCanvasSignals(replacement.signals).membership;
 			const adopted = replacement.session.adoptCanvasHandoff(handoff);
 
-			assert.deepStrictEqual({ membershipBeforeAdoption, adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+			assert.deepStrictEqual({ membershipBeforeAdoption, adopted, openCalls: replacement.mockSession.canvasOpenCalls, ...summarizeCanvasSignals(replacement.signals) }, {
 				membershipBeforeAdoption: [],
 				adopted: true,
+				openCalls: [],
 				states: [
 					{ resource: previewResource, url: undefined },
 					{ resource: chartResource, url: undefined },
@@ -6475,6 +6952,41 @@ suite('CopilotAgentSession', () => {
 				displayName: 'file:test.js',
 			}],
 		}]);
+	});
+
+	test('makes host snapshots readable through the virtual session filesystem, skips host folders, and keeps the read-only reminder aligned', async () => {
+		const snapshot = URI.file('/data/attachments/id/snapshot.txt');
+		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
+		const workspace = { kind: 'virtual' as const, root: workingDirectory };
+		const stateDirectory = URI.file('/sdk-state');
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const virtualSessionFs = new CopilotVirtualSessionFs(workspace, '/session-state', stateDirectory, () => undefined, files);
+		const { session, mockSession } = await createAgentSession(disposables, {
+			workingDirectory, virtualSessionFs,
+			pathMapper: createCopilotSessionPathMapper(workspace, stateDirectory),
+			fileContents: { [snapshot.toString()]: 'shared content' },
+		});
+		await session.send('read this', [{
+			type: MessageAttachmentKind.Resource, label: 'snapshot.txt', displayKind: 'document',
+			uri: snapshot.toString(), _meta: toHostSnapshotAttachmentMeta('text/plain'),
+		}, {
+			type: MessageAttachmentKind.Resource, label: 'attachments', displayKind: 'directory', uri: URI.file('/data/attachments').toString(),
+		}]);
+		const attachments = (mockSession.sendRequests[0] as MessageOptions).attachments;
+		const attachment = attachments?.[0];
+		const path = attachment?.type === 'file' ? attachment.path : '';
+		assert.deepStrictEqual({
+			statePath: path.startsWith('/session-state/files/attachments/') && path.endsWith('/snapshot.txt'),
+			attachmentCount: attachments?.length,
+			content: await virtualSessionFs.readFile(path),
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			statePath: true,
+			attachmentCount: 1,
+			content: 'shared content',
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([path]) },
+		});
 	});
 
 	test('sends a host-created text snapshot as a read-only file reference with a read-only additionalContext note (#331154)', async () => {
@@ -24257,7 +24769,7 @@ Use the attached image as context.
 			assert.ok(hasPart, 'should have surfaced the message content');
 		});
 
-		test('history replay renders assistant tool requests when lifecycle events are missing', async () => {
+		test('history replay skips assistant tool requests without a recorded completion', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			mockSession.messages = [
 				{
@@ -24317,6 +24829,7 @@ Use the attached image as context.
 								toolCallId: part.toolCall.toolCallId,
 								toolName: part.toolCall.toolName,
 								status: part.toolCall.status,
+								reason: part.toolCall.status === ToolCallStatus.Cancelled ? part.toolCall.reason : undefined,
 								success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
 								content: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined,
 							});
@@ -24335,8 +24848,8 @@ Use the attached image as context.
 				message: 'inspect the workspace',
 				parts: [
 					{ kind: ResponsePartKind.Markdown, content: 'I will inspect the workspace.' },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Completed, success: true, content: undefined },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Skipped, success: undefined, content: undefined },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, reason: undefined, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
 					{ kind: ResponsePartKind.Markdown, content: 'Done.' },
 				],
 			}]);
@@ -26001,13 +26514,14 @@ Use the attached image as context.
 
 	suite('Computer Use activation', () => {
 
-		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials }) {
+		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials; readonly telemetryService?: ITelemetryService }) {
 			const plugin = { name: 'computer-use', marketplace: '', source: 'builtin', enabled: options?.enabled ?? false };
 			let pluginListGate = Promise.resolve();
 			const harness = await createAgentSession(disposables, {
 				rootValues: { [AgentHostComputerUseEnabledConfigKey]: options?.settingEnabled ?? true },
 				configValues: options?.mode ? { [SessionConfigKey.Mode]: options.mode } : undefined,
 				githubCredentials: options?.githubCredentials,
+				telemetryService: options?.telemetryService,
 				getInstalledPlugins: async () => {
 					await pluginListGate;
 					return [{ ...plugin }];
@@ -26044,6 +26558,29 @@ Use the attached image as context.
 				result: { resultType: 'success', textResultForLlm: 'Computer Use is on. Its tools, from the computer-use MCP server, are available now.' },
 				enableCalls: [{ names: ['computer-use'] }],
 				toolsAfter: 0,
+			});
+		});
+
+		test('reports the state at launch and how a request ended for the chat\'s turn, only while VS Code offers Computer Use', async () => {
+			const computerUseEvents = (telemetry: TestDataTelemetryService) => telemetry.events.filter(event => event.name.startsWith('agentHost.computerUse'));
+			const telemetry = new TestDataTelemetryService();
+			const { session, runtime, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			const request = getInputRequest(await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested)));
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+			await result;
+			const settingOff = new TestDataTelemetryService();
+			await (await createActivationSession({ settingEnabled: false, telemetryService: settingOff })).runtime.createComputerUseActivationTools!();
+			assert.deepStrictEqual({
+				events: computerUseEvents(telemetry).map(({ name, data }) => ({ name, state: data.state, outcome: data.outcome, turnId: data.turnId, sdkSessionId: data.sdkSessionId === session.sessionId })),
+				settingOff: computerUseEvents(settingOff).length,
+			}, {
+				events: [
+					{ name: 'agentHost.computerUseState', state: 'off', outcome: undefined, turnId: 'turn-computer-use', sdkSessionId: true },
+					{ name: 'agentHost.computerUseActivation', state: undefined, outcome: 'turnedOn', turnId: 'turn-computer-use', sdkSessionId: true },
+				],
+				settingOff: 0,
 			});
 		});
 
@@ -26093,6 +26630,20 @@ Use the attached image as context.
 			});
 		});
 
+		test('reports a request that the end of its turn cancels against that turn', async () => {
+			const telemetry = new TestDataTelemetryService();
+			const { runtime, mockSession, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested));
+			// Ending a turn clears it before it cancels the request.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await result;
+			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'agentHost.computerUseActivation').map(({ data }) => ({ outcome: data.outcome, turnId: data.turnId })), [
+				{ outcome: 'cancelled', turnId: 'turn-computer-use' },
+			]);
+		});
+
 		test('shows no card outside a running turn, also when the turn stops while the plugin is checked', async () => {
 			const idle = await createActivationSession({ activeTurn: false });
 			const [idleTool] = await idle.runtime.createComputerUseActivationTools!();
@@ -26120,7 +26671,7 @@ Use the attached image as context.
 
 		async function createComputerUseSession(options?: { readonly source?: 'builtin' | 'user'; readonly withSetup?: boolean; readonly mode?: string; readonly activeTurn?: boolean }) {
 			const configuration = disposables.add(new TestComputerUseConfiguration());
-			const setup = disposables.add(new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService()));
+			const setup = disposables.add(new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService(), new NullTelemetryServiceShape()));
 			const source = options?.source ?? 'builtin';
 			const harness = await createAgentSession(disposables, {
 				configureMockSession: m => {

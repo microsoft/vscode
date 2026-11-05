@@ -38,6 +38,7 @@ suite('Session Action Context Keys', () => {
 		const requiredChecks: RequiredPullRequestChecks = { everyCheck: false, checks: failed, failed, missing: [], pending: false };
 		return {
 			session: constObservable(undefined),
+			chat: constObservable(undefined),
 			changes: {
 				changesObs: constObservable([{ uri: undefined!, modifiedUri: undefined, originalUri: undefined, insertions: 0, deletions: 0, reviewed: overrides.reviewed }] as never),
 				changesetsLoadingObs: constObservable(false),

@@ -60,7 +60,9 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
+		const titlebarConfiguration = new TestConfigurationService();
+		store.add(titlebarConfiguration.onDidChangeConfigurationEmitter);
+		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), titlebarConfiguration, new TestCommandService());
 
 		const summarize = (menu: MenuId, id: string) => {
 			const item = findToggle(menu, id);
@@ -125,7 +127,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
-		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService()));
+		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), configuration, commandService));
 
 		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
 		assert.ok(command);
@@ -153,7 +155,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
 			override async setEnabled(enabled: boolean) { calls.push(enabled); }
 		}());
-		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService()));
+		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), configuration, commandService));
 		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
 		assert.ok(command);
 		await instantiation.invokeFunction(command.handler);

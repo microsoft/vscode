@@ -345,6 +345,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
 				isActive: this.isActive,
+				isError: (data?.kind === 'subagent' ? data.isError : undefined) ?? !!IChatToolInvocation.resultError(this._subagentToolInvocation),
 				...(this.credits ? { credits: this.credits } : {}),
 				...(data?.kind === 'subagent' && data.modelId ? { modelId: data.modelId } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),

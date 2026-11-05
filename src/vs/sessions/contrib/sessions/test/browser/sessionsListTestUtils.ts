@@ -6,7 +6,8 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,6 +36,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -48,6 +50,12 @@ export class TestCommandService extends mock<ICommandService>() {
 }
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: false, state: 'loaded' });
+	archiveRequests = 0;
+	override acquireArchivedSessionItems() {
+		this.archiveRequests++;
+		return toDisposable(() => this.archiveRequests--);
+	}
 	override readonly onDidChangeSessions = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
@@ -324,8 +332,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		override readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
@@ -522,6 +529,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 	configure?.(instantiationService);
+	stubSessionHostsFromSessionsService(instantiationService);
 
 	const createContainer = (width = 400, height = 300) => {
 		const container = mainWindow.document.createElement('div');

@@ -803,7 +803,6 @@ suite('LanguageModels', function () {
 	function readModelPreferences(storageService: IStorageService, scope: StorageScope) {
 		return {
 			pinned: storageService.getObject('chatModelPinned', scope),
-			recent: storageService.getObject('chatModelRecentlyUsed', scope),
 			hidden: storageService.getObject('chatModelVisibility', scope),
 		};
 	}
@@ -818,17 +817,14 @@ suite('LanguageModels', function () {
 
 		storageService.storeAll([
 			{ key: 'chatModelPinned', value: ['other/pinned'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
-			{ key: 'chatModelRecentlyUsed', value: ['other/recent'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
 			{ key: 'chatModelVisibility', value: { hiddenModels: ['other/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
 		], true);
 		service.pinModel('this/pinned');
-		service.addToRecentlyUsedList('this/recent');
 		service.setModelHidden('this/hidden', true);
 
 		assert.deepStrictEqual({ events, ...readModelPreferences(storageService, StorageScope.PROFILE) }, {
 			events: ['pinned', 'visibility', 'pinned', 'visibility'],
 			pinned: ['other/pinned', 'this/pinned'],
-			recent: ['this/recent', 'other/recent'],
 			hidden: { hiddenModels: ['other/hidden', 'this/hidden'] },
 		});
 	});
@@ -892,9 +888,7 @@ suite('LanguageModels', function () {
 		const agentsProfileService = createTestProfileService(createTestProfile('agents'));
 		agentsStorage.storeAll([
 			{ key: 'chatModelPinned', value: ['both', 'application'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
-			{ key: 'chatModelRecentlyUsed', value: ['application/recent'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
 			{ key: 'chatModelPinned', value: ['agents', 'both'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
-			{ key: 'chatModelRecentlyUsed', value: ['agents/recent'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
 			{ key: 'chatModelVisibility', value: { hiddenModels: ['agents/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
 		], false);
 
@@ -904,7 +898,6 @@ suite('LanguageModels', function () {
 
 		assert.deepStrictEqual({ ...readModelPreferences(agentsStorage, StorageScope.APPLICATION), laterPinned: service.isModelPinned('agents/later') }, {
 			pinned: ['both', 'application', 'agents'],
-			recent: ['application/recent', 'agents/recent'],
 			hidden: { hiddenModels: ['agents/hidden'] },
 			laterPinned: false,
 		});

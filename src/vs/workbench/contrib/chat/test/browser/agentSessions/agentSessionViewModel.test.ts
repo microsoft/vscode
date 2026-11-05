@@ -235,6 +235,33 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('keeps rows of a provider that registered while a sibling provider was still activating', async () => {
+			return runWithFakedTimers({}, async () => {
+				const activated = new DeferredPromise<void>();
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-cloud', {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					refresh: () => activated.p,
+				}));
+				viewModel = createViewModel();
+				// Registration reads the provider's items once its initial refresh completes, which
+				// waits for its extension to activate.
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: 'type-cloud' });
+				await timeout(1_000);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-agenthost', new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })])));
+				await viewModel.resolve('type-agenthost');
+				const beforeActivation = viewModel.sessions.map(s => s.resource.toString());
+
+				activated.complete();
+				await viewModel.resolve('type-cloud');
+
+				assert.deepStrictEqual({ beforeActivation, afterActivation: viewModel.sessions.map(s => s.resource.toString()) }, {
+					beforeActivation: ['type-agenthost://ah-1'],
+					afterActivation: ['type-agenthost://ah-1'],
+				});
+			});
+		});
+
 		test('should preserve change summaries when lazy refresh omits changes', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([

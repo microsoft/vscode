@@ -10,6 +10,8 @@ import { hasKey } from '../../../../base/common/types.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { COMPUTER_USE_REQUEST_KEY, type ComputerUsePermission } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readComputerUseSetupCard } from '../../common/meta/computerUse.js';
@@ -57,8 +59,9 @@ suite('CopilotComputerUsePermissionSetup', () => {
 	function createSetup(helperApp?: ICopilotComputerUseHelperApp) {
 		const configuration = store.add(new TestComputerUseConfiguration());
 		const accessibilityTrust = new AgentHostMacAccessibilityTrustService();
-		const setup = store.add(new CopilotComputerUsePermissionSetup(helperApp, configuration, new NullLogService(), accessibilityTrust));
-		return { configuration, setup, accessibilityTrust };
+		const telemetry = new TestDataTelemetryService();
+		const setup = store.add(new CopilotComputerUsePermissionSetup(helperApp, configuration, new NullLogService(), accessibilityTrust, telemetry));
+		return { configuration, setup, accessibilityTrust, telemetry };
 	}
 
 	function prompt(setup: CopilotComputerUsePermissionSetup, chat: ICopilotComputerUseSetupChat, missing: readonly ComputerUsePermission[], settings: readonly ComputerUsePermission[] = []) {
@@ -338,6 +341,48 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		});
 	});
 
+	test('reports how each setup ended, which permissions it was missing, its rounds and how long it took', () => runWithFakedTimers({}, async () => {
+		const report = async (run: (setup: CopilotComputerUsePermissionSetup, chat: TestSetupChat, configuration: TestComputerUseConfiguration) => Promise<void>) => {
+			const { configuration, setup, telemetry } = createSetup();
+			await run(setup, new TestSetupChat('chat:a'), configuration);
+			return telemetry.events.map(event => ({ name: event.name, ...event.data }));
+		};
+		assert.deepStrictEqual({
+			ready: await report(async (setup, chat, configuration) => {
+				const first = prompt(setup, chat, ['accessibility', 'screenRecording']);
+				await timeout(1000);
+				const setupId = configuration.status?.setups[0]?.id ?? '';
+				configuration.send({ setupId, round: 1, action: 'recheck' });
+				await first.done;
+				prompt(setup, chat, ['screenRecording']);
+				configuration.send({ setupId, round: 2, action: 'recheck' });
+				await timeout(500);
+				setup.onToolCallCompleted(chat, true);
+			}),
+			declined: await report(async (setup, chat) => {
+				const pending = prompt(setup, chat, ['screenRecording']);
+				setup.respondToInput(chat, chat.requests[0].id, ChatInputResponseKind.Decline, undefined);
+				await pending.done;
+			}),
+			chatStopped: await report(async (setup, chat) => {
+				const pending = prompt(setup, chat, ['accessibility', 'screenRecording']);
+				await timeout(2000);
+				setup.cancelChat(chat);
+				await pending.done;
+			}),
+			turnedOff: await report(async (setup, chat) => {
+				const pending = prompt(setup, chat, ['screenRecording']);
+				setup.dispose();
+				await pending.done;
+			}),
+		}, {
+			ready: [{ name: 'agentHost.computerUseSetup', result: 'ready', missingAtStart: 'accessibility,screenRecording', missingAtEnd: 'none', rounds: 2, durationMs: 1500 }],
+			declined: [{ name: 'agentHost.computerUseSetup', result: 'decline', missingAtStart: 'screenRecording', missingAtEnd: 'screenRecording', rounds: 1, durationMs: 0 }],
+			chatStopped: [{ name: 'agentHost.computerUseSetup', result: 'notWaiting', missingAtStart: 'accessibility,screenRecording', missingAtEnd: 'accessibility,screenRecording', rounds: 1, durationMs: 2000 }],
+			turnedOff: [{ name: 'agentHost.computerUseSetup', result: 'notWaiting', missingAtStart: 'screenRecording', missingAtEnd: 'screenRecording', rounds: 1, durationMs: 0 }],
+		});
+	}));
+
 	test('lets the other waiting setups check again on their own once one is ready, even right after macOS asked for Accessibility', () => runWithFakedTimers({}, async () => {
 		const { configuration, setup } = createSetup();
 		const [chatA, chatB] = [new TestSetupChat('chat:a'), new TestSetupChat('chat:b')];
@@ -590,7 +635,7 @@ suite('CopilotComputerUsePermissionSetup', () => {
 	test('withdraws its status and cancels waiting prompts when disposed, and discards a request from before it existed', async () => {
 		const configuration = store.add(new TestComputerUseConfiguration());
 		configuration.values[COMPUTER_USE_REQUEST_KEY] = { nonce: 'early', setupId: 'unknown', round: 1, action: 'recheck' };
-		const setup = new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService());
+		const setup = new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
 		const discarded = configuration.values[COMPUTER_USE_REQUEST_KEY];
 		const pending = prompt(setup, new TestSetupChat('chat:a'), ['accessibility']);
 		setup.dispose();

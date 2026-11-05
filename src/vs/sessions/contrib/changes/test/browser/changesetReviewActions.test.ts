@@ -12,9 +12,10 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ISessionChangeset, ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
 
@@ -45,19 +46,20 @@ suite('ChangesetReviewAction', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		}();
 		const editorService = new class extends mock<IEditorService>() {
 			override readonly activeEditorPane = undefined;
 		}();
-		return disposables.add(new TestInstantiationService(new ServiceCollection(
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChangesViewService, changesViewService],
 			[IEditorService, editorService],
 			[ISessionsService, sessionsService],
 			[ILogService, new NullLogService()],
 		)));
+		stubSessionHostsFromSessionsService(instantiationService);
+		return instantiationService;
 	}
 
 	test('ignores a resource that is not part of the active changeset', () => {
@@ -89,7 +91,7 @@ suite('ChangesetReviewAction', () => {
 
 	test('toggles a file of the session it is invoked for instead of the active one', () => {
 		const resource = URI.file('/workspace/other.ts');
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other') });
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other'), mainChat: constObservable(upcastPartial<IChat>({})) });
 		const setReviewStateCalls: ISetReviewStateCall[] = [];
 		const instantiationService = createInstantiationService(
 			[{ modifiedUri: URI.file('/workspace/current.ts'), insertions: 1, deletions: 0, reviewed: false }],

@@ -74,6 +74,7 @@ import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceComman
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
 const MAX_DISMISSED_NOTIFICATION_IDS = 1000;
 const WORKFLOW_STORAGE_KEY = 'sessions.inboxNotifications.workflow';
+const COMPLETION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.completionStartTime';
 
 /** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
@@ -412,6 +413,12 @@ interface INeedsInputPartCandidate {
 	readonly part: IInboxNotificationNeedsInputPart;
 }
 
+interface IInboxWorkflowState {
+	readonly hold?: boolean;
+	readonly done?: string;
+	readonly resumedCompletion?: number;
+}
+
 export class InboxNotificationsService extends Disposable implements IInboxNotificationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -468,7 +475,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
 	readonly attentionCount: IObservable<number>;
-	private readonly _workflow = observableValue<ReadonlyMap<string, { hold?: boolean; done?: string }>>(this, new Map());
+	private readonly _workflow = observableValue<ReadonlyMap<string, IInboxWorkflowState>>(this, new Map());
+	private readonly _completionStartTime = observableValue(this, Number.POSITIVE_INFINITY);
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _enabled: IObservable<boolean>;
@@ -513,6 +521,20 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, COMPLETION_START_TIME_STORAGE_KEY, this._store)(event => {
+			if (event.external) {
+				this._completionStartTime.set(this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION, Number.POSITIVE_INFINITY), undefined);
+			}
+		}));
+		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
+				return;
+			}
+			// Enabling Inbox must not backfill completed history, even when it is still unread.
+			const startTime = this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION) ?? Date.now();
+			this.storageService.store(COMPLETION_START_TIME_STORAGE_KEY, startTime, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this._completionStartTime.set(startTime, undefined);
+		}));
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
 			for (const type of removed) {
 				this._unregisteredChatProviders.add(type);
@@ -672,7 +694,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
 					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou;
+						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge
+							: status === SessionStatus.Completed && !this.hasPendingCompletion(session, reader) ? InboxTab.Done : InboxTab.ReadyForYou;
 				const lead = notifications[0];
 				const title = this.getRowActionTitle(tab, lead, sessionTitle);
 				const chatResource = lead?.chatResource ?? lead?.needsInputPart?.chatResource;
@@ -702,7 +725,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					...notifications.map(item => { const detail = this.describeItemForPreview(item); return `${detail.contextLabel}: ${detail.detailText}`; }),
 					`Fallback action: ${title}`,
 				].join('\n').slice(0, PREVIEW_MAX_INPUT_CHARS);
-				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash([inputText, notifications.map(item => item.previewSignature)])}` });
+				const previewKey = status === SessionStatus.Completed && row.kind === InboxNotificationKind.Completed
+					? [id, occurrence, timestamp, tab, sessionTitle, workTitle] : [inputText, notifications.map(item => item.previewSignature)];
+				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash(previewKey)}` });
 			}
 			const represented = new Set(rows.flatMap(row => row.notifications.map(item => item.id)));
 			for (const item of allItems.filter(item => !represented.has(item.id) && !dismissed.has(item.id))) {
@@ -1110,6 +1135,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						contextLabel: 'tool run waiting for the user to approve',
 						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message), part.commandLine, part.toolInput].filter(Boolean).join(' — '),
 					};
+				case 'planReview':
+					return {
+						contextLabel: 'plan waiting for the user to review',
+						detailText: [part.title, toPreviewPlainText(part.content), part.actions.map(action => action.label).join(', ')].join(' — '),
+					};
 				case 'confirmation':
 					return {
 						contextLabel: 'action waiting for the user to confirm',
@@ -1147,16 +1177,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.sortMode.set(sortMode, undefined);
 	}
 
-	requestDetailSummary(item: IInboxNotificationItem): void {
+	requestDetailSummary(item: IInboxNotificationItem, source: 'visibility' | 'interaction' = 'interaction'): void {
 		if (!this._enabled.get() || this._store.isDisposed || this._dismissedIds.get().has(item.id) || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart && !item.pullRequestStates?.length)) {
 			return;
 		}
 		const key = item.id;
 		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource ?? this.getMainChatResource(item);
 		const request = chatResource && this.chatService.getSession(chatResource)?.getRequests().at(-1);
+		const completed = this.sessionsManagementService.getSession(item.sessionResource)?.status.get() === SessionStatus.Completed;
 		const signature = JSON.stringify([
 			item.previewSignature, item.timestamp, chatResource?.toString(),
-			request?.id, request?.response?.isComplete, request?.response?.isCanceled,
+			completed ? undefined : [request?.id, request?.response?.isComplete, request?.response?.isCanceled],
 		]);
 		if (this._detailSummarySignatures.get(key) !== signature) {
 			this._detailSummarySignatures.set(key, signature);
@@ -1167,9 +1198,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 		const existing = this._detailSummaryCache.get(key);
-		// A transient empty result (deps not ready / model unavailable) is re-attemptable;
-		// only a real summary or an in-flight request should block regeneration.
-		if ((existing && existing !== EMPTY_DETAIL_SUMMARY) || this._detailSummaryInFlight.has(key)) {
+		// Re-observing a card must not retry an empty result from loading and releasing its history.
+		if ((existing && (source === 'visibility' || existing !== EMPTY_DETAIL_SUMMARY)) || this._detailSummaryInFlight.has(key)) {
 			return;
 		}
 		void this.generateDetailSummary(key, item);
@@ -1226,7 +1256,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				if (summary) {
 					this.publishDetailSummary(key, summary);
 				} else {
-					// Empty summaries settle loading but remain retryable.
+					// Interactions or invalidated inputs can retry an empty summary.
 					this.publishDetailSummary(key, EMPTY_DETAIL_SUMMARY);
 				}
 			}
@@ -1497,16 +1527,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			if (!Array.isArray(entries)) {
 				throw new Error('Invalid Inbox workflow state');
 			}
-			const state = new Map<string, { hold?: boolean; done?: string }>();
+			const state = new Map<string, IInboxWorkflowState>();
 			for (const entry of entries) {
 				if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'object' || !entry[1]) {
 					throw new Error('Invalid Inbox workflow entry');
 				}
 				const value = entry[1];
-				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')) {
+				if ((value.hold !== undefined && typeof value.hold !== 'boolean') || (value.done !== undefined && typeof value.done !== 'string')
+					|| (value.resumedCompletion !== undefined && (typeof value.resumedCompletion !== 'number' || !Number.isFinite(value.resumedCompletion)))) {
 					throw new Error('Invalid Inbox workflow value');
 				}
-				state.set(entry[0], { hold: value.hold, done: value.done });
+				state.set(entry[0], { hold: value.hold, done: value.done, resumedCompletion: value.resumedCompletion });
 			}
 			this._workflow.set(state, undefined);
 		} catch (error) {
@@ -1514,10 +1545,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private saveWorkflow(id: string, value: { hold?: boolean; done?: string }): void {
+	private saveWorkflow(id: string, value: IInboxWorkflowState): void {
 		const state = new Map(this._workflow.get());
 		state.delete(id);
-		if (value.hold || value.done) {
+		if (value.hold || value.done || value.resumedCompletion !== undefined) {
 			state.set(id, value);
 		}
 		while (state.size > MAX_DISMISSED_NOTIFICATION_IDS) {
@@ -1528,7 +1559,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void {
-		this.saveWorkflow(row.id, { hold: onHold });
+		const session = row.sessionResource && this.sessionsManagementService.getSession(row.sessionResource);
+		const resumedCompletion = !onHold && session?.status.get() === SessionStatus.Completed
+			? session.lastTurnEnd.get()?.getTime() ?? session.updatedAt.get().getTime() : undefined;
+		this.saveWorkflow(row.id, { hold: onHold, resumedCompletion });
 	}
 
 	markSessionDone(row: IInboxSessionRow): void {
@@ -1669,7 +1703,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		// Use provider state rather than a resident chat model, so loading/unloading history
 		// does not change the id or resurrect a dismissed notification.
-		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
+		if (status === SessionStatus.Completed && this.hasPendingCompletion(session, reader) && itemsById.size === sizeBeforePullRequests) {
 			const turnId = session.lastTurnEnd.read(reader)?.getTime() ?? updatedAt;
 			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
@@ -1684,6 +1718,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				actions: this.sessionActions(true),
 			});
 		}
+	}
+
+	private hasPendingCompletion(session: ISession, reader: IReader): boolean {
+		const turnEnd = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
+		const saved = this._workflow.read(reader).get(`session:${session.sessionId}`);
+		return turnEnd >= this._completionStartTime.read(reader) || !!saved?.hold || saved?.resumedCompletion === turnEnd;
 	}
 
 	private ensureGitHubModels(session: ISession, reader: IReaderWithStore): void {
@@ -2134,6 +2174,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			case 'toolConfirmation':
 				return `tc:${part.requestId}:${part.toolCallId}:${part.confirmationKind}`;
+			case 'planReview':
+				return `pr:${part.requestId}:${part.resolveId ?? part.reviewIndex}`;
 			case 'confirmation':
 				return `cf:${part.requestId}:${hash(toPreviewPlainText(part.title))}`;
 		}
@@ -2155,7 +2197,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 		}
 
-		for (const part of response.response.value) {
+		for (const [reviewIndex, part] of response.response.value.entries()) {
 			if (part.kind === 'questionCarousel' && !part.isUsed) {
 				if (!part.questions.length) {
 					continue;
@@ -2170,6 +2212,20 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					questions: part.questions,
 				};
 				return questionPart;
+			}
+
+			if (part.kind === 'planReview' && !part.isUsed && !response.isComplete) {
+				return {
+					kind: 'planReview',
+					chatResource,
+					requestId: response.requestId,
+					reviewIndex,
+					resolveId: part.resolveId,
+					title: part.title,
+					content: part.content,
+					actions: part.actions,
+					planUri: part.planUri,
+				};
 			}
 
 			if (part.kind !== 'toolInvocation') {
@@ -2235,6 +2291,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	private getNeedsInputPartDescription(part: IInboxNotificationNeedsInputPart): string {
+		if (part.kind === 'planReview') {
+			return localize('inboxNotifications.needsInput.description.planReview', "Review the plan below.");
+		}
 		if (part.kind === 'questionCarousel') {
 			return localize('inboxNotifications.needsInput.description.questionCarousel', "Answer the pending questions below.");
 		}
