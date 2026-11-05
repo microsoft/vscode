@@ -18,7 +18,6 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -68,6 +67,8 @@ import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
@@ -2604,6 +2605,41 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(isVisible.get(), false);
 	});
 
+	test('sandbox indicator drops stale state when the composer changes session or the provider disconnects', () => {
+		const first = new class extends mock<ISession>() { override readonly providerId = 'test'; }();
+		const second = new class extends mock<ISession>() { override readonly providerId = 'test'; }();
+		const main = URI.parse('chat:/main');
+		const peer = URI.parse('chat:/peer');
+		const resource = observableValue(disposables, main);
+		const firstChecked = observableValue(disposables, true);
+		const secondChecked = observableValue(disposables, false);
+		const provider = new class extends mock<ISessionsProvider>() {
+			override getSandboxToggleChecked(session: ISession, chat: URI): IObservable<boolean> { return session === first && chat === main ? firstChecked : secondChecked; }
+		}();
+		const changed = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
+		let connected = true;
+		const providers = new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = changed.event;
+			override getProvider<T extends ISessionsProvider>(): T | undefined { return connected ? provider as ISessionsProvider as T : undefined; }
+		}();
+		const session = observableValue<ISession | undefined>(disposables, first);
+		const checked = observeSessionSandboxToggle(session, resource, providers);
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => states.push(checked.read(reader))));
+		resource.set(peer, undefined);
+		resource.set(main, undefined);
+		session.set(second, undefined);
+		firstChecked.set(false, undefined);
+		firstChecked.set(true, undefined);
+		secondChecked.set(true, undefined);
+		connected = false;
+		changed.fire({ added: [], removed: [provider] });
+		connected = true;
+		changed.fire({ added: [provider], removed: [] });
+		session.set(undefined, undefined);
+		assert.deepStrictEqual(states, [true, false, true, false, true, false, true, false]);
+	});
+
 	test('configures the peer chat composer with its own chat, repository controls and pet platform', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
@@ -2636,6 +2672,7 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
+			new SessionContext(sessionsService.activeSession),
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
@@ -2685,6 +2722,7 @@ suite('Sessions - Chat View', () => {
 					new class extends mock<IFileDialogService>() { }(),
 					new class extends mock<ISessionsManagementService>() { }(),
 					sessionsService,
+					new SessionContext(sessionsService.activeSession),
 					disposables.add(new InMemoryStorageService()),
 					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),

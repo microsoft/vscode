@@ -548,6 +548,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previousSessionResource = this._viewModel?.sessionResource;
+		if (!viewModel && this._viewModel?.inputPlaceholder) {
+			this._updateInputPlaceholder(undefined);
+		}
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -2828,6 +2831,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
 			ownsDraftVoiceSession: this.viewOptions.ownsDraftVoiceSession,
 			hostSubmit: this.viewOptions.hostSubmit,
+			sandboxToggleChecked: this.viewOptions.sandboxToggleChecked,
+			inputPlaceholder: this.viewOptions.inputPlaceholder,
 		};
 
 		let input: ChatInputPart;

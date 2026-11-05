@@ -382,6 +382,9 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/** Checked state of a permissions picker hosted outside the chat input. */
+	readonly sandboxToggleChecked?: IObservable<boolean>;
+
 	/** Tab index for the transcript tree root. Use `-1` to exclude it from sequential keyboard navigation while preserving programmatic focus. */
 	transcriptTabIndex?: 0 | -1;
 

@@ -51,7 +51,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getHarnessPresentationOrDefault, ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -530,6 +530,7 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
+				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,
 				enableFind: true,
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,

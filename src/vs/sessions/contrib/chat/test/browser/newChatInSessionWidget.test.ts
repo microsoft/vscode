@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -78,6 +79,7 @@ suite('NewChatInSessionWidget', () => {
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			new class extends mock<ISessionsService>() { override readonly activeSession = constObservable<IActiveSession | undefined>(session); }(),
+			new SessionContext(constObservable(session)),
 			store.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
