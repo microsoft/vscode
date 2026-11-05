@@ -46,6 +46,8 @@ suite('RemoteWorkspaceHandoffService', () => {
 		readonly listTunnels?: (authProvider: 'github' | 'microsoft' | undefined) => Promise<ITunnelInfo[]>;
 		readonly signIn?: (authProvider: 'github' | 'microsoft') => Promise<void>;
 		readonly confirmSignIn?: boolean;
+		/** Whether any account is signed in to tunnels; signed in with GitHub by default. */
+		readonly signedIn?: boolean;
 		/** Holds SSH config, WSL and tunnel lookups until it settles. */
 		readonly lookupGate?: Promise<void>;
 		readonly dismissedTunnels?: readonly string[];
@@ -75,7 +77,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 			getCachedTunnels: () => [...(options.cachedTunnels ?? [])],
 			isTunnelDismissed: tunnelId => !!options.dismissedTunnels?.includes(tunnelId),
 			clearTunnelDismissal: tunnelId => { calls.push(`clearTunnelDismissal:${tunnelId}`); },
-			getAuthProvider: async () => 'github',
+			getAuthProvider: async () => options.signedIn === false ? undefined : 'github',
 			listTunnels: async discovery => {
 				await options.lookupGate;
 				return options.listTunnels ? options.listTunnels(discovery?.authProvider) : [];
@@ -347,6 +349,32 @@ suite('RemoteWorkspaceHandoffService', () => {
 			stored: [],
 		});
 		cancellation.dispose();
+	});
+
+	test('offers to sign in before connecting a known tunnel whose account is signed out', async () => {
+		// Connecting without a token would fail, or start a sign-in that does not explain why.
+		const known: IRemoteAgentHostEntry = { name: 'my-tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'tunnel-id', clusterId: 'usw2', label: 'my-tunnel', authProvider: 'github' } };
+		const resolve = async (confirmSignIn: boolean) => {
+			let signedIn = false;
+			const harness = createHarness({
+				entries: [known],
+				signedIn: false,
+				confirmSignIn,
+				listTunnels: async () => {
+					if (!signedIn) {
+						throw new TunnelAuthenticationRequiredError('github');
+					}
+					return [];
+				},
+				signIn: async () => { signedIn = true; },
+			});
+			const result = describe(await harness.service.resolveFolder({ remoteAuthority: 'tunnel+my-tunnel', path: '/project' }, CancellationToken.None));
+			return { result, calls: harness.calls, dialogs: harness.dialogs.map(dialog => dialog.message) };
+		};
+		assert.deepStrictEqual([await resolve(true), await resolve(false)], [
+			{ result: { authority: agentHostAuthority('tunnel:tunnel-id'), folder: 'file:///project' }, calls: ['confirm', 'signIn:github'], dialogs: ['Sign in to open your folder from tunnel \'my-tunnel\'?'] },
+			{ result: { unavailableReason: 'Sign in to connect to tunnel \'my-tunnel\'.' }, calls: ['confirm'], dialogs: ['Sign in to open your folder from tunnel \'my-tunnel\'?'] },
+		]);
 	});
 
 	test('reveals and connects the host once its provider registers, reporting failures', async () => {

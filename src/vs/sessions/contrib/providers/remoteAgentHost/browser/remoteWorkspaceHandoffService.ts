@@ -131,6 +131,10 @@ function matchesTunnel(tunnel: { readonly name: string; readonly tunnelId: strin
 	return equalsIgnoreCase(tunnel.name, name) || equalsIgnoreCase(`${tunnel.tunnelId}.${tunnel.clusterId}`, name);
 }
 
+function getTunnelConnectSignInReason(name: string): string {
+	return localize('remoteWorkspaceHandoff.tunnelConnectSignIn', "Sign in to connect to tunnel '{0}'.", name);
+}
+
 /**
  * Whether the entry connects to the machine. An SSH machine without a config alias carries the
  * user and port that SSH config supplies when its authority omits them, and an entry without a
@@ -218,8 +222,14 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 					return { unavailableReason: added };
 				}
 				entry = added;
-			} else if (entry.connection.type === RemoteAgentHostEntryType.Tunnel && this._tunnelService.isTunnelDismissed(entry.connection.tunnelId)) {
-				this._tunnelService.clearTunnelDismissal(entry.connection.tunnelId);
+			} else if (entry.connection.type === RemoteAgentHostEntryType.Tunnel) {
+				const tunnelName = entry.connection.label ?? entry.name;
+				if (!await this._ensureTunnelSignIn(tunnelName, entry.connection.authProvider, token)) {
+					return { unavailableReason: getTunnelConnectSignInReason(tunnelName) };
+				}
+				if (this._tunnelService.isTunnelDismissed(entry.connection.tunnelId)) {
+					this._tunnelService.clearTunnelDismissal(entry.connection.tunnelId);
+				}
 			}
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -287,6 +297,9 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 			case 'tunnel': {
 				const cached = this._tunnelService.getCachedTunnels().find(tunnel => matchesTunnel(tunnel, machine.name));
 				if (cached) {
+					if (!await this._ensureTunnelSignIn(cached.name, cached.authProvider, token)) {
+						return getTunnelConnectSignInReason(cached.name);
+					}
 					this._tunnelService.clearTunnelDismissal(cached.tunnelId);
 					return { name: cached.name, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: cached.tunnelId, clusterId: cached.clusterId, label: cached.name, authProvider: cached.authProvider } };
 				}
@@ -323,26 +336,11 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 						}
 					}
 				}
-				const signInMessage = localize('remoteWorkspaceHandoff.tunnelSignIn', "Sign in to find tunnel '{0}'.", machine.name);
+				const signInReason = localize('remoteWorkspaceHandoff.tunnelSignIn', "Sign in to find tunnel '{0}'.", machine.name);
 				// The tunnel may belong to an account that is not signed in yet; offer to sign in, explaining why first.
 				if (signInProvider && this._tunnelService.signIn) {
-					const { confirmed } = await whileCurrent(this._dialogService.confirm({
-						type: 'info',
-						message: localize('remoteWorkspaceHandoff.tunnelSignInConfirmation', "Sign in to open your folder from tunnel '{0}'?", machine.name),
-						detail: localize('remoteWorkspaceHandoff.tunnelSignInDetail', "Your editor window is connected to tunnel '{0}'. To open the same folder here, the Agents Window needs to sign in with your {1} account to find the tunnel and connect to its agent host.", machine.name, signInProvider === 'github' ? 'GitHub' : 'Microsoft'),
-						primaryButton: localize('remoteWorkspaceHandoff.tunnelSignInButton', "&&Sign In"),
-					}), token);
-					if (!confirmed) {
-						return signInMessage;
-					}
-					try {
-						await whileCurrent(this._tunnelService.signIn(signInProvider), token);
-					} catch (error) {
-						// Cancelling the sign-in leaves the handoff without the tunnel, but cancelling the handoff ends it.
-						if (isCancellationError(error) && !token.isCancellationRequested) {
-							return signInMessage;
-						}
-						throw error;
+					if (!await this._signInToTunnel(machine.name, signInProvider, token)) {
+						return signInReason;
 					}
 					const entry = await findTunnel(signInProvider);
 					if (entry) {
@@ -352,13 +350,64 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 				}
 				// Another account failing for an unrelated reason, such as having no tunnel configuration, must not hide the sign-in.
 				if (!listed && signInProvider) {
-					return signInMessage;
+					return signInReason;
 				}
 				if (!listed && failure) {
 					throw failure;
 				}
 				return localize('remoteWorkspaceHandoff.tunnelNotFound', "Tunnel '{0}' was not found for the signed-in accounts.", machine.name);
 			}
+		}
+	}
+
+	/**
+	 * Whether a known tunnel's account can authenticate its connection, offering to sign in first when it cannot.
+	 * Connecting would otherwise fail without a token, or start a sign-in that does not explain why.
+	 */
+	private async _ensureTunnelSignIn(name: string, authProvider: 'github' | 'microsoft' | undefined, token: CancellationToken): Promise<boolean> {
+		const signedIn = await whileCurrent(this._tunnelService.getAuthProvider({ silent: true }), token);
+		if (signedIn !== undefined && (authProvider === undefined || signedIn === authProvider)) {
+			return true;
+		}
+		// Another account may be the most recent one, so ask the tunnel's own account.
+		try {
+			await whileCurrent(this._tunnelService.listTunnels({ silent: true, authProvider }), token);
+			return true;
+		} catch (error) {
+			if (error instanceof TunnelAuthenticationRequiredError) {
+				return this._signInToTunnel(name, error.authProvider, token);
+			}
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			// Connecting reports any other failure itself.
+			return true;
+		}
+	}
+
+	/** Explains why the account is needed and signs in once the user confirms, returning whether they signed in. */
+	private async _signInToTunnel(name: string, authProvider: 'github' | 'microsoft', token: CancellationToken): Promise<boolean> {
+		if (!this._tunnelService.signIn) {
+			return false;
+		}
+		const { confirmed } = await whileCurrent(this._dialogService.confirm({
+			type: 'info',
+			message: localize('remoteWorkspaceHandoff.tunnelSignInConfirmation', "Sign in to open your folder from tunnel '{0}'?", name),
+			detail: localize('remoteWorkspaceHandoff.tunnelSignInDetail', "Your editor window is connected to tunnel '{0}'. To open the same folder here, the Agents Window needs to sign in with your {1} account to find the tunnel and connect to its agent host.", name, authProvider === 'github' ? 'GitHub' : 'Microsoft'),
+			primaryButton: localize('remoteWorkspaceHandoff.tunnelSignInButton', "&&Sign In"),
+		}), token);
+		if (!confirmed) {
+			return false;
+		}
+		try {
+			await whileCurrent(this._tunnelService.signIn(authProvider), token);
+			return true;
+		} catch (error) {
+			// Cancelling the sign-in leaves the handoff without the tunnel, but cancelling the handoff ends it.
+			if (isCancellationError(error) && !token.isCancellationRequested) {
+				return false;
+			}
+			throw error;
 		}
 	}
 
