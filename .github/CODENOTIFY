@@ -63,7 +63,6 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 # Sessions Contributions
 src/vs/sessions/contrib/browserView/** @kycutler @jruales
 src/vs/sessions/contrib/canvases/** @ulugbekna @jruales
-src/vs/sessions/contrib/inboxOne/**/*Canvas* @jruales
 
 # Build
 build/azure-pipelines/** @lszomoru
