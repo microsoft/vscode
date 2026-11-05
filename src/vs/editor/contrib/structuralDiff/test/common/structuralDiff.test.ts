@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { Range } from '../../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffNode, StructuralDiffResult, StructuralDiffTag, SymbolKind } from '../../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffEntity, StructuralDiffNode, StructuralDiffResult, StructuralDiffTag, SymbolKind } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
@@ -223,12 +223,17 @@ suite('Structural diff', () => {
 			['valid', valid, 'valid'],
 			['incomplete results may omit coverage', { ...withInner({ originalChanges: [], modifiedChanges: [] }), isIncomplete: true }, 'valid'],
 			['complete result without coverage of a change', withInner({ modifiedChanges: [] }), 'Invalid structural diff: the modified side of text change 0 is not completely covered, although the result is not marked as incomplete'],
+			['incompleteness that is not a boolean', { ...withInner({ modifiedChanges: [] }), isIncomplete: 'false' as unknown as boolean }, 'Invalid structural diff: isIncomplete must be true or false'],
 			['duplicate id', withInner({ id: 'outer' }), problem('outer', 'must have an identifier that is unique within the result')],
 			['no entity', withInner({ original: undefined, modified: undefined, originalChanges: [], modifiedChanges: [] }), problem('inner', 'must have an original or a modified entity')],
 			['changes without entity', withInner({ original: undefined }), problem('inner', 'has original changes but no original entity')],
-			['unknown kind', withInner({ modified: { ...inner.modified!, kind: 99 as SymbolKind } }), problem('inner', 'has an invalid modified entity name or kind')],
+			['entity that is not an object', withInner({ original: null as unknown as StructuralDiffEntity, originalChanges: [] }), problem('inner', 'has an invalid original entity')],
+			['unknown kind', withInner({ modified: { ...inner.modified!, kind: 99 as SymbolKind } }), problem('inner', 'has an invalid modified entity name, detail, kind or language kind')],
+			['detail that is not a string', withInner({ original: { ...inner.original!, detail: 1 as unknown as string } }), problem('inner', 'has an invalid original entity name, detail, kind or language kind')],
+			['language kind that is not a string', withInner({ modified: { ...inner.modified!, languageKind: 1 as unknown as string } }), problem('inner', 'has an invalid modified entity name, detail, kind or language kind')],
 			['range outside the document', withInner({ original: { ...inner.original!, range: new Range(1, 7, 9, 1) } }), problem('inner', 'has a range outside the original document')],
 			['selection outside the entity', withInner({ modified: { ...inner.modified!, selectionRange: new Range(2, 1, 2, 1) } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the entity range')],
+			['selection that is not a range', withInner({ modified: { ...inner.modified!, selectionRange: null as unknown as Range } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the entity range')],
 			['entity outside its parent', withInner({ modified: { ...inner.modified!, range: new Range(2, 1, 2, 1), selectionRange: undefined } }), problem('inner', 'has an entity in the modified document that is not contained in its parent')],
 			['parent missing on a side', withOuter({ original: undefined }), problem('inner', 'has an entity in the original document that is not contained in its parent')],
 			['unknown text change', withInner({ modifiedChanges: [{ ...coverage, textChangeIndex: 1 }] }), problem('inner', 'has modified changes that refer to a text change that does not exist')],
