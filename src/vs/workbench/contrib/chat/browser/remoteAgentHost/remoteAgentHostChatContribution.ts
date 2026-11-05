@@ -647,6 +647,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			: undefined;
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
+			challengeReason: reason,
 			logPrefix: '[RemoteAgentHost]',
 			isCurrent: () => this._connections.get(address) === connState,
 			renewAuthentication: renewAuthentication ? async resource => {

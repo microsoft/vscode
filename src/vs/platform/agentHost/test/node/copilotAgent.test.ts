@@ -5182,12 +5182,12 @@ suite('CopilotAgent', () => {
 			const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
 			assert.ok(provider);
 			const acquisition = provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
-			await waitForState(agent.authenticationRequired);
+			assert.deepStrictEqual(await acquisition, { kind: 'unavailable' });
 			await agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
 			}, connection.token);
-			await acquisition;
+			assert.deepStrictEqual(await provider({ kind: 'identity', clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' }, { isCancellationRequested: false, onCancellationRequested: Event.None }), { kind: 'identity', accountId: 'selected' });
 
 			const settled: string[] = [];
 			const disposed: string[] = [];
