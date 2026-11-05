@@ -200,7 +200,7 @@
     },
     {
       "name": "skill",
-      "description": "Load a skill into the main conversation\n\n<skills_instructions>\nBefore acting on a task, check current or previously listed <available_skills>. If a skill matches, invoking it is mandatory and must be your first action, before any response; never merely announce it.\n\nCall this tool with only the skill name (for example `skill: \"pdf\"` or `skill: \"xlsx\"`). Use only listed skills unless the user explicitly requests an unlisted skill by name, in which case invoke it. Do not reinvoke a running skill or use this tool for built-in CLI commands such as /help or /clear.\n</skills_instructions>",
+      "description": "Load a skill into the main conversation\n\n<skills_instructions>\nBefore acting on a task, check current or previously listed <available_skills>. If a skill matches, invoking it is mandatory and must be your first action, before any response; never merely announce it.\n\nCall this tool with only the skill name (for example `skill: \"pdf\"` or `skill: \"xlsx\"`). Use only listed skills unless the user explicitly requests an unlisted skill by name, in which case invoke it. Do not reinvoke a running skill. If a skill's <skill-context> is already present in the conversation, follow its instructions without calling this tool for it again, including when the user loaded it. Do not use this tool for built-in CLI commands such as /help or /clear.\n</skills_instructions>",
       "parameters": {
         "type": "object",
         "properties": {

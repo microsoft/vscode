@@ -20,6 +20,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
 
 const SIDE_CHAT_SOURCE_REVEAL_TIMEOUT = 2_000;
@@ -38,6 +39,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -63,7 +65,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, this.sessionHostService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection);
 	}
 
 	/** Observes the source metadata for a side chat. */

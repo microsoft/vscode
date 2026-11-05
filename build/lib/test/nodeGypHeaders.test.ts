@@ -40,7 +40,7 @@ async function withFakeNodeGyp(plan: string, fn: (script: string, runs: () => st
 suite('installNodeGypHeaders', () => {
 	test('runs node-gyp install once when it succeeds', () => withFakeNodeGyp('ok', async (script, runs) => {
 		await installNodeGypHeaders(script, 'https://nodejs.org/dist', '24.22.1', { retryDelaysMs: [0, 0], log: () => { } });
-		assert.deepStrictEqual(runs(), ['install --dist-url https://nodejs.org/dist 24.22.1']);
+		assert.deepStrictEqual(runs(), ['install --ensure --dist-url https://nodejs.org/dist 24.22.1']);
 	}));
 
 	test('retries a failed install', () => withFakeNodeGyp('fail,fail,ok', async (script, runs) => {

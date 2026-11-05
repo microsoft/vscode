@@ -35,11 +35,13 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
@@ -281,7 +283,8 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelFusion?: boolean;
 	/**
 	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
-	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 * effort level is selected. Absent when the host pins no tier there. Inline chat offers no Fusion
+	 * effort level either way.
 	 */
 	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
@@ -744,22 +747,6 @@ export interface ILanguageModelsService {
 	migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void>;
 
 	/**
-	 * Returns the most recently used model identifiers, ordered by most-recent-first.
-	 * @param maxCount Maximum number of entries to return (default 7).
-	 */
-	getRecentlyUsedModelIds(): string[];
-
-	/**
-	 * Records that a model was used, updating the recently used list.
-	 */
-	addToRecentlyUsedList(modelIdentifier: string): void;
-
-	/**
-	 * Clears the recently used model list.
-	 */
-	clearRecentlyUsedList(): void;
-
-	/**
 	 * Returns the pinned model identifiers, in the order they were pinned.
 	 */
 	getPinnedModelIds(): string[];
@@ -1071,9 +1058,10 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 	}
 });
 
-const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
 const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
 const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
+/** Application-scoped marker set once the Agents window's own model preferences were merged into application storage. */
+const CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY = 'chatModelPreferences.agentsWindowMigrated';
 
 /**
  * The identifier for the Auto model which dynamically routes to the best backend.
@@ -1260,7 +1248,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
-	private _recentlyUsedModelIds: string[] = [];
+	/** Where pinned and hidden models are stored, see the constructor. */
+	private readonly _modelPreferencesScope: StorageScope.APPLICATION | StorageScope.PROFILE;
 	private _pinnedModelIds: string[] = [];
 
 	private _hiddenModelIds = new Set<string>();
@@ -1296,12 +1285,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
-		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+
+		// The Agents window always runs in its own `agents` profile, which has separate profile storage.
+		// It keeps model preferences in application storage instead, which is the default profile's
+		// storage, so they are shared with editor windows using the default profile.
+		const profile = userDataProfileService.currentProfile;
+		this._modelPreferencesScope = profile.isAgentsWindowProfile ? StorageScope.APPLICATION : StorageScope.PROFILE;
+		if (profile.isAgentsWindowProfile) {
+			this._mergeAgentsWindowModelPreferences(profile);
+		}
 		this._pinnedModelIds = this._readPinnedModels();
-		this._readVisibility();
+		this._hiddenModelIds = new Set(this._readHiddenModelIds());
+		this._listenForModelPreferenceChanges();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
@@ -2597,57 +2596,70 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
 
-	//#region Recently used models
+	//#region Model preferences shared across windows
 
-	private _readRecentlyUsedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, StorageScope.PROFILE, []);
+	/**
+	 * Picks up pinned and hidden models that other windows changed, so this window
+	 * shows them and does not overwrite them with a stale list on its next write.
+	 */
+	private _listenForModelPreferenceChanges(): void {
+		const scope = this._modelPreferencesScope;
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_PINNED_STORAGE_KEY, this._store)(() => {
+			const pinnedModelIds = this._readPinnedModels();
+			if (!equals(pinnedModelIds, this._pinnedModelIds)) {
+				this._pinnedModelIds = pinnedModelIds;
+				this._onDidChangePinnedModels.fire();
+			}
+		}));
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_VISIBILITY_STORAGE_KEY, this._store)(() => {
+			const hiddenModelIds = this._readHiddenModelIds();
+			if (!equals(hiddenModelIds, Array.from(this._hiddenModelIds))) {
+				this._hiddenModelIds = new Set(hiddenModelIds);
+				this._onDidChangeModelVisibility.fire();
+			}
+		}));
 	}
 
-	private _saveRecentlyUsedModels(): void {
-		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, StorageScope.PROFILE, StorageTarget.USER);
-	}
-
-	getRecentlyUsedModelIds(): string[] {
-		// Filter to only include models that still exist in the cache
-		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id) && id !== AUTO_MODEL_IDENTIFIER)
-			.slice(0, 4);
-	}
-
-	addToRecentlyUsedList(modelIdentifier: string): void {
-		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
+	/**
+	 * The Agents window used to keep model preferences in its own profile storage. Merges them
+	 * into application storage once so they are not lost. Profile values are left in place for
+	 * older builds.
+	 */
+	private _mergeAgentsWindowModelPreferences(profile: IUserDataProfile): void {
+		if (isProfileUsingDefaultStorage(profile) || this._storageService.getBoolean(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
 			return;
 		}
 
-		// Remove if already present (to move to front)
-		const index = this._recentlyUsedModelIds.indexOf(modelIdentifier);
-		if (index !== -1) {
-			this._recentlyUsedModelIds.splice(index, 1);
-		}
-		// Add to front
-		this._recentlyUsedModelIds.unshift(modelIdentifier);
-		// Cap at a reasonable max to avoid unbounded growth
-		if (this._recentlyUsedModelIds.length > 20) {
-			this._recentlyUsedModelIds.length = 20;
-		}
-		this._saveRecentlyUsedModels();
+		const merge = (key: string, read: (scope: StorageScope) => string[], toStorageValue: (ids: string[]) => object) => {
+			const profileIds = read(StorageScope.PROFILE);
+			if (profileIds.length === 0) {
+				return;
+			}
+			const applicationIds = read(StorageScope.APPLICATION);
+			const merged = [...applicationIds, ...profileIds.filter(id => !applicationIds.includes(id))];
+			this._storageService.store(key, toStorageValue(merged), StorageScope.APPLICATION, StorageTarget.USER);
+		};
+		merge(CHAT_MODEL_PINNED_STORAGE_KEY, scope => this._readPinnedModels(scope), ids => ids);
+		merge(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope => this._readHiddenModelIds(scope), ids => ({ hiddenModels: ids }));
+
+		this._storageService.store(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	clearRecentlyUsedList(): void {
-		this._recentlyUsedModelIds = [];
-		this._saveRecentlyUsedModels();
+	private _readModelIds(key: string, scope: StorageScope): string[] {
+		const value = this._storageService.getObject<unknown[]>(key, scope, []);
+		return Array.isArray(value) ? value.filter(isString) : [];
 	}
 
 	//#endregion
 
 	//#region Pinned models
 
-	private _readPinnedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_PINNED_STORAGE_KEY, StorageScope.PROFILE, []);
+	private _readPinnedModels(scope: StorageScope = this._modelPreferencesScope): string[] {
+		return this._readModelIds(CHAT_MODEL_PINNED_STORAGE_KEY, scope);
 	}
 
 	private _savePinnedModels(): void {
-		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, this._modelPreferencesScope, StorageTarget.USER);
 	}
 
 	getPinnedModelIds(): string[] {
@@ -2730,16 +2742,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private _readVisibility(): void {
-		const raw = this._storageService.getObject<{ hiddenModels?: string[] }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, StorageScope.PROFILE, {});
-		this._hiddenModelIds = new Set(Array.isArray(raw?.hiddenModels) ? raw.hiddenModels : []);
+	private _readHiddenModelIds(scope: StorageScope = this._modelPreferencesScope): string[] {
+		const raw = this._storageService.getObject<{ hiddenModels?: unknown }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope, {});
+		return Array.isArray(raw?.hiddenModels) ? raw.hiddenModels.filter(isString) : [];
 	}
 
 	private _saveVisibility(): void {
 		this._storageService.store(
 			CHAT_MODEL_VISIBILITY_STORAGE_KEY,
 			{ hiddenModels: Array.from(this._hiddenModelIds) },
-			StorageScope.PROFILE,
+			this._modelPreferencesScope,
 			StorageTarget.USER,
 		);
 	}

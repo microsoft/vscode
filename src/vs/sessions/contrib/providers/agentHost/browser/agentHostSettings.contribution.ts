@@ -13,7 +13,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
 import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
@@ -77,8 +77,7 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
-		const session = (Array.isArray(context) ? context[0] : context) ?? sessionsService.activeSession.get();
+		const session = resolveSessionCommandTarget(accessor, Array.isArray(context) ? context.slice(0, 1) : [context])?.session;
 		if (!session) {
 			return;
 		}

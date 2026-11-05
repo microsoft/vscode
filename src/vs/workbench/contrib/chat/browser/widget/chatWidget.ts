@@ -98,6 +98,8 @@ import { IChatAttachmentResolveService } from '../attachments/chatAttachmentReso
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
+import { ChatEditorOverflowWidgetsHost } from './chatEditorOverflowWidgetsHost.js';
+import { ChatWindowBlurListener } from './chatWindowBlurListener.js';
 import { resolveEditedRequestSelection } from './input/chatInputModelUtils.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { setChatInputStackInputWorking } from './input/chatInputStack.js';
@@ -448,6 +450,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOverflowWidgetsDomNode: HTMLElement | undefined;
+	private editorOverflowWidgetsHost: ChatEditorOverflowWidgetsHost | undefined;
+	private windowBlurListener: ChatWindowBlurListener | undefined;
 	private editorOptions!: ChatEditorOptions;
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 	private readonly policyRequiresAgentHost: IObservable<boolean>;
@@ -544,6 +548,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previousSessionResource = this._viewModel?.sessionResource;
+		if (!viewModel && this._viewModel?.inputPlaceholder) {
+			this._updateInputPlaceholder(undefined);
+		}
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -1180,18 +1187,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
-		const targetWindow = dom.getWindow(this.container);
 		const focusTracker = this._register(dom.trackFocus(this.container));
 		this._register(focusTracker.onDidFocus(() => this.markSessionStateIndicatorVisited()));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => this.markSessionStateIndicatorVisited()));
-		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, () => this.updateSessionStateIndicator()));
+		this.windowBlurListener = this._register(new ChatWindowBlurListener(this.container, () => this.updateSessionStateIndicator()));
 		this.updateSessionStateIndicator();
 		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
 		if (!this.editorOverflowWidgetsDomNode) {
-			const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
-			this.editorOverflowWidgetsDomNode = editorOverflowWidgetsDomNode;
-			this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
+			this.editorOverflowWidgetsHost = this._register(new ChatEditorOverflowWidgetsHost(this.container, this.layoutService));
+			this.editorOverflowWidgetsDomNode = this.editorOverflowWidgetsHost.element;
 		}
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
@@ -2820,13 +2825,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
-			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
 			inputPartHorizontalPadding: this.viewOptions.inputPartHorizontalPadding,
 			hostModelSelection: this.viewOptions.hostModelSelection,
 			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
 			ownsDraftVoiceSession: this.viewOptions.ownsDraftVoiceSession,
 			hostSubmit: this.viewOptions.hostSubmit,
+			sandboxToggleChecked: this.viewOptions.sandboxToggleChecked,
+			inputPlaceholder: this.viewOptions.inputPlaceholder,
 		};
 
 		let input: ChatInputPart;
@@ -4480,6 +4486,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth); // no min width of inline chat
 
 		this.bodyDimension = new dom.Dimension(width, height);
+		this.editorOverflowWidgetsHost?.update();
+		this.windowBlurListener?.update();
 		this._findController?.layout(width);
 
 		if (this.viewModel?.editing) {
