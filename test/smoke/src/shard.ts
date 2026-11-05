@@ -23,6 +23,7 @@ const suiteDurations = new Map<string, number>([
 	['Terminal', 150],
 	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 115 : 5], // skips itself without Docker
 	['Chat Sessions', 85],
+	['Chat Sessions (Agent Host)', 85],
 	['Agents Window (SSH Dev Container AgentHost)', 75],
 	['Agents Window (Codex)', 65],
 	['Integrated Browser', 65],
@@ -46,6 +47,7 @@ const win32SuiteDurations = new Map<string, number>([
 	['Terminal', 140],
 	['Data Loss (insiders -> insiders)', 125],
 	['Chat Sessions', 75],
+	['Chat Sessions (Agent Host)', 75],
 	['Agents Window (Codex)', 45],
 	['Integrated Browser', 45],
 	['Agents Window (local AgentHost)', 35],

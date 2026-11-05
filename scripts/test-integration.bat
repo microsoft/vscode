@@ -3,6 +3,8 @@ setlocal
 
 :: Capture script directory before any call :label changes %~dp0
 set "SCRIPT_DIR=%~dp0"
+:: shift also shifts %0, so after parsing %~nx0 is the last argument, which can contain ")" and end a ( ) block
+set "SCRIPT_NAME=%~nx0"
 
 pushd %SCRIPT_DIR%\..
 
@@ -38,7 +40,7 @@ goto parse_args
 :done_parsing
 
 if defined SHOW_HELP (
-	echo Usage: %~nx0 [options]
+	echo Usage: %SCRIPT_NAME% [options]
 	echo.
 	echo Runs integration tests. When no filters are given, all integration tests
 	echo ^(node.js integration tests + extension host tests^) are run.
@@ -79,13 +81,13 @@ if defined SHOW_HELP (
 	echo Note: extra options are not forwarded to extension host suites ^(--suite mode^).
 	echo.
 	echo Examples:
-	echo   %~nx0
-	echo   %~nx0 --run src\vs\editor\test\browser\controller.integrationTest.ts
-	echo   %~nx0 --grep "some test name"
-	echo   %~nx0 --runGlob "**\*.integrationTest.js"
-	echo   %~nx0 --suite git                             # run only Git tests
-	echo   %~nx0 --suite "api-folder,api-workspace"       # run multiple suites
-	echo   %~nx0 --suite api-folder --grep "some test"   # grep within a suite
+	echo   %SCRIPT_NAME%
+	echo   %SCRIPT_NAME% --run src\vs\editor\test\browser\controller.integrationTest.ts
+	echo   %SCRIPT_NAME% --grep "some test name"
+	echo   %SCRIPT_NAME% --runGlob "**\*.integrationTest.js"
+	echo   %SCRIPT_NAME% --suite git                             # run only Git tests
+	echo   %SCRIPT_NAME% --suite "api-folder,api-workspace"       # run multiple suites
+	echo   %SCRIPT_NAME% --suite api-folder --grep "some test"   # grep within a suite
 	exit /b 0
 )
 

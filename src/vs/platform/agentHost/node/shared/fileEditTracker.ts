@@ -9,6 +9,7 @@ import { IArcTextEdit } from '../../../../base/common/editArcTracker.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -97,6 +98,7 @@ export class FileEditTracker extends Disposable {
 		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
 		private readonly _owner: () => string,
 		private readonly _provider: string | undefined,
+		private readonly _paths: { toUri(path: string): URI; toFileServiceUri(path: string): URI } = { toUri: URI.file, toFileServiceUri: URI.file },
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
@@ -132,7 +134,7 @@ export class FileEditTracker extends Disposable {
 			throw new CancellationError();
 		}
 		const lease = this._runningEdits.add(new DisposableStore());
-		const resource = URI.file(filePath);
+		const resource = this._paths.toUri(filePath);
 		const acquired = this._fileEditCoordinator.isCoordinatedProvider(this._provider)
 			? this._fileEditCoordinator.beginEdit(resource)
 			: this._fileEditCoordinator.markEditing(resource);
@@ -315,6 +317,22 @@ export class FileEditTracker extends Disposable {
 
 		const autoTier = isThenable<string | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
 
+		const content: ToolResultFileEditContent = {
+			type: ToolResultContentType.FileEdit,
+			before: {
+				uri: this._paths.toUri(filePath).toString(),
+				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
+			},
+			after: {
+				uri: this._paths.toUri(filePath).toString(),
+				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
+			},
+			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
+		};
+		if (this._paths.toUri(filePath).scheme !== Schemas.file) {
+			return content;
+		}
+
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
@@ -333,18 +351,6 @@ export class FileEditTracker extends Disposable {
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 
-		const content: ToolResultFileEditContent = {
-			type: ToolResultContentType.FileEdit,
-			before: {
-				uri: URI.file(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
-			},
-			after: {
-				uri: URI.file(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
-			},
-			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
-		};
 		let marker: IFileEditAttributionMarker | undefined;
 		try {
 			marker = await this._editAttributionService.recordEdit({
@@ -411,7 +417,7 @@ export class FileEditTracker extends Disposable {
 
 	private async _readFileWithExistence(filePath: string): Promise<IFileSnapshot> {
 		try {
-			const content = await this._fileService.readFile(URI.file(filePath));
+			const content = await this._fileService.readFile(this._paths.toFileServiceUri(filePath));
 			return { content: content.value, existed: true };
 		} catch (err) {
 			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);

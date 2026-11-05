@@ -27,6 +27,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, type NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -323,6 +324,9 @@ suite('SessionBackgroundShellsControl', () => {
 		instantiationService.stub(IModelService, {});
 		instantiationService.stub(IFileService, {});
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+		instantiationService.stub(ILayoutService, new class extends mock<ILayoutService>() {
+			override getContainer() { return mainWindow.document.body; }
+		}());
 		const shells = constObservable<readonly IChatBackgroundShell[]>([{
 			id: 'stream', description: 'Stream', command: 'stream.sh', startedAt: new Date(0).toISOString(),
 			output: constObservable<ChatBackgroundShellOutput>({ status: 'running', text: 'step 1\n' }),

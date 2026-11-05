@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
-import { basicMarkupHtmlTags, defaultAllowedAttrs } from '../../../../../base/browser/domSanitize.js';
+import { basicMarkupHtmlTags, defaultAllowedAttrs, safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
@@ -88,6 +88,27 @@ suite('Markdown Katex Support Test', () => {
 		const rendered = await renderMarkdownWithKatex('$.getJSON, $.ajax, $.get and $("#dialogDetalleZona").dialog(...) / $("#dialogDetallePDC").dialog(...)');
 		assert.ok(!rendered.element.innerHTML.includes('katex'));
 		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should only allow relative positioning in math styles', () => {
+		const config = MarkedKatexSupport.getSanitizerOptions({ allowedTags: basicMarkupHtmlTags, allowedAttributes: defaultAllowedAttrs });
+		const element = document.createElement('div');
+		safeSetInnerHtml(element, '<span style="position: fixed; top: 1px">a</span><span style="position: absolute">b</span><span style="position: relative; top: 1px">c</span>', {
+			allowedTags: config.allowedTags,
+			allowedAttributes: config.allowedAttributes,
+		});
+		assert.deepStrictEqual([...element.querySelectorAll('span')].map(e => e.getAttribute('style')), ['top: 1px', '', 'position: relative; top: 1px']);
+	});
+
+	test('Should show math that fails to render as text, not as HTML', async () => {
+		const rendered = await renderMarkdownWithKatex('$\\undefinedcommand <span class="monaco-button" style="position: relative; top: -40px">x</span>$');
+		assert.deepStrictEqual({
+			elements: rendered.element.querySelectorAll('p *').length,
+			text: rendered.element.textContent,
+		}, {
+			elements: 0,
+			text: '$\\undefinedcommand <span class="monaco-button" style="position: relative; top: -40px">x</span>$',
+		});
 	});
 });
 

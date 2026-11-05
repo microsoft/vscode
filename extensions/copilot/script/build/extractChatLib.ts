@@ -10,7 +10,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as yaml from 'yaml';
-import { copyLockedDependencies, DependencyKind, PnpmLockfile } from './chatLibLockfile';
+import { DependencyKind, lockChatLibDependencies, PnpmLockfile } from './chatLibLockfile';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const CHAT_LIB_DIR = path.join(REPO_ROOT, 'chat-lib');
@@ -801,39 +801,44 @@ class ChatLibExtractor {
 			changes.forEach(change => console.log(change));
 		}
 
-		// Keep chat-lib's pnpm-lock.yaml in sync with the package.json written above
+		// Keep chat-lib's project in Copilot's pnpm-lock.yaml in sync with the package.json written above
 		if (updatedPackages.size > 0 || removedPackages.size > 0) {
 			this.updateChatLibLockfile(updatedPackages, removedPackages);
 		}
 	}
 
 	/**
-	 * Updates chat-lib's `pnpm-lock.yaml` after its `package.json` dependencies changed, using the
-	 * versions that Copilot's `pnpm-lock.yaml` locks (see `copyLockedDependencies`). Nothing is
-	 * resolved, also not in the pipelines that publish chat-lib: `pnpm install --frozen-lockfile
-	 * --lockfile-only` only checks the result against chat-lib's `package.json` (and pnpm's
-	 * supply-chain policies), and writes it in pnpm's format.
+	 * Updates chat-lib's project in Copilot's `pnpm-lock.yaml` (chat-lib is a member of Copilot's
+	 * pnpm workspace) after its `package.json` dependencies changed, using the versions that
+	 * Copilot's own project locks (see `lockChatLibDependencies`). Nothing is resolved, also not in
+	 * the pipelines that publish chat-lib: `pnpm install --frozen-lockfile --lockfile-only` only
+	 * checks the result against the workspace's `package.json` files (and pnpm's supply-chain
+	 * policies), and writes it in pnpm's format. Then `pnpm install --frozen-lockfile
+	 * --ignore-scripts` updates `node_modules` to those versions: chat-lib is installed with the
+	 * workspace, and its own `node_modules` can still hold the versions of its previous
+	 * `package.json`, which the TypeScript check below would otherwise use.
 	 */
 	private updateChatLibLockfile(updatedPackages: ReadonlyMap<string, DependencyKind>, removedPackages: ReadonlySet<string>): void {
-		const copilotLockfilePath = path.join(REPO_ROOT, 'pnpm-lock.yaml');
-		const chatLibLockfilePath = path.join(CHAT_LIB_DIR, 'pnpm-lock.yaml');
-		if (!fs.existsSync(copilotLockfilePath) || !fs.existsSync(chatLibLockfilePath)) {
-			throw new Error(`Cannot update ${chatLibLockfilePath}: ${copilotLockfilePath} and ${chatLibLockfilePath} must exist.`);
+		const lockfilePath = path.join(REPO_ROOT, 'pnpm-lock.yaml');
+		if (!fs.existsSync(lockfilePath)) {
+			throw new Error(`Cannot update ${lockfilePath}: it doesn't exist.`);
 		}
 
-		console.log('Updating chat-lib pnpm-lock.yaml for changed dependencies...');
-		const copilotLockfile = yaml.parse(fs.readFileSync(copilotLockfilePath, 'utf-8')) as PnpmLockfile;
-		const chatLibLockfile = yaml.parse(fs.readFileSync(chatLibLockfilePath, 'utf-8')) as PnpmLockfile;
-		const copied = copyLockedDependencies(copilotLockfile, chatLibLockfile, updatedPackages, removedPackages);
-		fs.writeFileSync(chatLibLockfilePath, yaml.stringify(chatLibLockfile));
-		console.log(`Copied ${copied} lockfile entries from Copilot's pnpm-lock.yaml`);
+		console.log('Updating chat-lib in pnpm-lock.yaml for changed dependencies...');
+		const lockfile = yaml.parse(fs.readFileSync(lockfilePath, 'utf-8')) as PnpmLockfile;
+		const chatLibImporterId = path.relative(REPO_ROOT, CHAT_LIB_DIR).split(path.sep).join('/');
+		const locked = lockChatLibDependencies(lockfile, chatLibImporterId, updatedPackages, removedPackages);
+		fs.writeFileSync(lockfilePath, yaml.stringify(lockfile));
+		console.log(`Locked ${locked} chat-lib dependencies to Copilot's versions`);
 
 		const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-		const result = spawnSync(pnpm, ['install', '--lockfile-only', '--ignore-scripts', '--frozen-lockfile'], { cwd: CHAT_LIB_DIR, stdio: 'inherit', shell: process.platform === 'win32' });
-		if (result.error || result.status !== 0) {
-			throw new Error(`pnpm install --frozen-lockfile --lockfile-only failed in ${CHAT_LIB_DIR} (${result.error?.message ?? `exit code ${result.status}`}; see its output above). If pnpm reports that the lockfile is not up to date, the pnpm-lock.yaml of ${REPO_ROOT} or ${CHAT_LIB_DIR} doesn't match its package.json: run \`pnpm install\` in that folder, then extract again.`);
+		for (const args of [['install', '--lockfile-only', '--ignore-scripts', '--frozen-lockfile'], ['install', '--ignore-scripts', '--frozen-lockfile']]) {
+			const result = spawnSync(pnpm, args, { cwd: REPO_ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
+			if (result.error || result.status !== 0) {
+				throw new Error(`pnpm ${args.join(' ')} failed in ${REPO_ROOT} (${result.error?.message ?? `exit code ${result.status}`}; see its output above). If pnpm reports that the lockfile is not up to date, the pnpm-lock.yaml of ${REPO_ROOT} doesn't match its package.json files: run \`pnpm install\` there, then extract again.`);
+			}
 		}
-		console.log('Chat-lib pnpm-lock.yaml updated');
+		console.log('pnpm-lock.yaml and node_modules updated');
 	}
 
 	private async compileTypeScript(): Promise<void> {

@@ -26,6 +26,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ParallelTasksTourContribution } from '../../browser/parallelTasksTourContribution.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
 import { createParallelTasksTour, PARALLEL_TASKS_ONBOARDING_SEEN_KEY, PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ParallelTasksTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,9 +60,10 @@ suite('ParallelTasksTour', () => {
 				override readonly onDidStartSession = started.event;
 			}(),
 			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
+				readonly activeSession = activeSession;
 				override readonly initialRestoreComplete = initialRestoreComplete;
 			}(),
+			focusedSessionHostServiceOf(activeSession),
 			storage,
 			new class extends mock<IViewsService>() { }(),
 		));

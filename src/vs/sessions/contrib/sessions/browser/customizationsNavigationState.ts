@@ -21,7 +21,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
@@ -35,7 +35,7 @@ export class CustomizationsNavigationState extends Disposable {
 
 	constructor(
 		enabled: IObservable<boolean>,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IAICustomizationItemsModel itemsModel: IAICustomizationItemsModel,
 		@IAICustomizationMcpServerCountService mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
@@ -51,7 +51,7 @@ export class CustomizationsNavigationState extends Disposable {
 		super();
 
 		this.totalCount = derived(this, reader => {
-			if (!enabled.read(reader) || !sessionsService.activeSession.read(reader)) {
+			if (!enabled.read(reader) || !focusedSessionHostService.focusedHost.read(reader).session.read(reader)) {
 				return 0;
 			}
 			return readTotalCustomizationCount(
@@ -85,7 +85,7 @@ export class CustomizationsNavigationState extends Disposable {
 			customizationsChanged.read(reader);
 			ignoredGroupsChanged.read(reader);
 			harnessService.availableHarnesses.read(reader);
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!session) {
 				this.migrationAvailableValue.set(false, undefined);
 				return;

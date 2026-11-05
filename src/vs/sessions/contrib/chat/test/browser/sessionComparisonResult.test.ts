@@ -28,6 +28,7 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { AccessibilityCommandId } from '../../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, SessionComparisonResult, SessionComparisonResultFocused } from '../../browser/sessionComparisonResult.js';
 
@@ -101,6 +102,7 @@ suite('Sessions - Comparison Result', () => {
 		};
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const currentSession = observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource: judgeResource }));
+		const currentChat = observableValue<URI | undefined>('chat', undefined);
 		let selected: string | undefined;
 		let opened: URI | undefined;
 		let synthesisPlan: ISessionComparisonSynthesisPlan | undefined;
@@ -110,6 +112,9 @@ suite('Sessions - Comparison Result', () => {
 		let synthesized = 0;
 		let layouts = 0;
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override getSession(): ISession | undefined { return currentSession.get(); }
+		}());
 		const configurationService = new TestConfigurationService({
 			[AccessibilityVerbositySettingId.SessionsChat]: true,
 		});
@@ -144,6 +149,9 @@ suite('Sessions - Comparison Result', () => {
 			override async openSession(resource: URI): Promise<void> {
 				opened = resource;
 			}
+			override async openChat(_session: ISession, resource: URI): Promise<void> {
+				opened = resource;
+			}
 		}());
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 			override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
@@ -166,7 +174,7 @@ suite('Sessions - Comparison Result', () => {
 				return { element, dispose: () => { } };
 			},
 		};
-		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => layouts++, markdownRenderer));
+		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => layouts++, markdownRenderer, currentChat));
 		result.domNode.style.width = '800px';
 		mainWindow.document.body.append(result.domNode);
 		store.add({ dispose: () => result.domNode.remove() });
@@ -291,6 +299,20 @@ suite('Sessions - Comparison Result', () => {
 			synthesize: !!findButton('Synthesize'),
 			instructions: !!result.domNode.querySelector('.session-comparison-synthesis-instructions'),
 		}, { winner: true, synthesize: false, instructions: false });
+		comparisons.set([{
+			...comparison,
+			participants: comparison.participants.map(participant => ({
+				...participant, sessionResource: judgeResource, chatResource: participant.sessionResource,
+			})),
+		}], undefined);
+		currentChat.set(attempt1Resource, undefined);
+		const hiddenInAttempt = result.domNode.hidden;
+		currentChat.set(judgeResource, undefined);
+		findButton('Open Attempt 2')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			hiddenInAttempt, hiddenInJudge: result.domNode.hidden, opened: opened?.toString(),
+		}, { hiddenInAttempt: true, hiddenInJudge: false, opened: attempt2Resource.toString() });
 	});
 
 	test('keeps validation in attempt details without a scorecard column', () => {
@@ -356,6 +378,7 @@ suite('Sessions - Comparison Result', () => {
 			override getComparison(): ISessionComparison { return comparison; }
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { }());
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { });
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
 		const hoverCalls: { target: HTMLElement; content: unknown; keyboard: boolean }[] = [];
@@ -380,7 +403,7 @@ suite('Sessions - Comparison Result', () => {
 				return { element, dispose: () => { } };
 			},
 		};
-		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => { }, markdownRenderer));
+		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => { }, markdownRenderer, undefined));
 		result.domNode.style.width = '800px';
 		mainWindow.document.body.append(result.domNode);
 		store.add({ dispose: () => result.domNode.remove() });

@@ -40,9 +40,9 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
-import { IActiveSession } from './sessionsManagement.js';
+import { IActiveSession, IHostSession } from './sessionsManagement.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.
@@ -208,12 +208,20 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
 export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+	setHostSessionContextKeys(session, session?.activeChat.read(reader), contextKeyService, reader, changesStatsCache);
+}
+
+/**
+ * Sets the keys of {@link setActiveSessionContextKeys} for the session a host shows and the chat it shows of it, which
+ * the session does not select for every place that shows it.
+ */
+export function setHostSessionContextKeys(session: IHostSession | undefined, chat: IChat | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	contextKeyService.bufferChangeEvents(() => {
 		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
 		const keys = getBoundKeys(contextKeyService);
 		keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 		keys.sticky.set(session?.sticky.read(reader) ?? false);
-		const focusedChat = session?.activeChat.read(reader);
+		const focusedChat = chat;
 		const activeChatStats = focusedChat ? readChatChangesStats(focusedChat, reader) : undefined;
 		const worktreePending = session?.worktreePending?.read(reader) ?? false;
 		keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
@@ -242,7 +250,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		// The active chat can be closed (hidden) from the tab strip when it is a
 		// non-main chat — including read-only subagent chats, which surface as
 		// closeable tabs. The main chat lives and dies with its session.
-		const activeChat = session?.activeChat.read(reader);
+		const activeChat = chat;
 		const mainResource = session?.mainChat.read(reader).resource;
 		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
 		keys.activeChatCanvasReferenceKeys.set(activeChat && session ? (activeChat.canvases?.read(reader) ?? []).map(canvas => getCanvasReferenceKey({

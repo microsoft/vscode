@@ -18,7 +18,7 @@ import { IListService } from '../../../../../platform/list/browser/listService.j
 import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey } from '../../../../../workbench/common/contextkeys.js';
 import { IEditorIdentifier } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { CanvasInput, getCanvasInputResource, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, ICanvasContextService, getCanvasInputResource, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -114,6 +114,7 @@ suite('PinnedCanvasActions', () => {
 		const input = store.add(new CanvasInput(reference, undefined,
 			upcastPartial<IEditorGroupsService>({}),
 			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+			upcastPartial<ICanvasContextService>({}),
 		));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			activeEditor: undefined,
@@ -142,6 +143,7 @@ suite('PinnedCanvasActions', () => {
 		const createInput = (name: string) => store.add(new CanvasInput({ ...reference, canvas: URI.parse(`ahp-canvas:/${name}`) }, undefined,
 			upcastPartial<IEditorGroupsService>({}),
 			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+			upcastPartial<ICanvasContextService>({}),
 		));
 		const [plan, preview, unselected] = ['plan', 'preview', 'unselected'].map(createInput);
 		const file = upcastPartial<EditorInput>({});

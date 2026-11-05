@@ -19,6 +19,7 @@ export abstract class Strip extends Disposable {
 	protected overlay: HTMLElement;
 	protected slider: HTMLElement;
 	private height!: number;
+	private readonly monitor = this._register(new GlobalPointerMoveMonitor());
 
 	private readonly _onDidChange = this._register(new Emitter<number>());
 	readonly onDidChange: Event<number> = this._onDidChange.event;
@@ -59,7 +60,6 @@ export abstract class Strip extends Disposable {
 		if (!e.target || !(e.target instanceof Element)) {
 			return;
 		}
-		const monitor = this._register(new GlobalPointerMoveMonitor());
 		const origin = dom.getDomNodePagePosition(this.domNode);
 		this.domNode.classList.add('grabbing');
 
@@ -67,12 +67,12 @@ export abstract class Strip extends Disposable {
 			this.onDidChangeTop(e.offsetY);
 		}
 
-		monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
+		this.monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
 
 		const pointerUpListener = dom.addDisposableListener(e.target.ownerDocument, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
 			pointerUpListener.dispose();
-			monitor.stopMonitoring(true);
+			this.monitor.stopMonitoring(true);
 			this.domNode.classList.remove('grabbing');
 		}, true);
 	}

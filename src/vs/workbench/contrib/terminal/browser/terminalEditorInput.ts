@@ -181,9 +181,11 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			this._isShuttingDown = true;
 			dispose(disposeListeners);
 
-			// Don't touch processes if the shutdown was a result of reload as they will be reattached
+			// Don't touch processes if the shutdown was a result of reload as they will be reattached. As in the panel, only
+			// those that persist: a detached process nothing reattaches to, such as of an agent host terminal, would outlive
+			// the window.
 			const shouldPersistTerminals = this._configurationService.getValue<boolean>(TerminalSettingId.EnablePersistentSessions) && e.reason === ShutdownReason.RELOAD;
-			if (shouldPersistTerminals) {
+			if (shouldPersistTerminals && instance.shouldPersist) {
 				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			} else {
 				instance.dispose(TerminalExitReason.Shutdown);

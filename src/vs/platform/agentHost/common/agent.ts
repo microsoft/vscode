@@ -199,6 +199,23 @@ export interface IAgentDiscoveredChat extends IAgentListedChat {
 	readonly external: boolean;
 }
 
+/** Options for {@link IAgent.importChat}. */
+export interface IAgentImportChatOptions {
+	/**
+	 * Import the chat even though another process holds it. In-use records are
+	 * best effort: one left behind by a process that exited abnormally would
+	 * otherwise block the chat for good.
+	 */
+	readonly takeOver?: boolean;
+}
+
+/** The selection an imported chat continues with, as its provider's runtime restored it. */
+export interface IAgentImportedChat {
+	readonly model: ModelSelection | undefined;
+	/** `undefined` when the chat runs without a custom agent, or with one this host does not offer. */
+	readonly agent: AgentSelection | undefined;
+}
+
 /** A fresh provider transcript for a chat being observed without running a host turn. */
 export interface IAgentChatHistoryChange {
 	readonly chat: URI;
@@ -1250,6 +1267,13 @@ export interface IAgentPrepareChatResult {
 	readonly error?: ErrorInfo;
 }
 
+export type AgentChatReleaseReason = 'idle' | 'archived' | 'other';
+
+export interface IAgentChatReleaseOptions {
+	readonly reason: () => AgentChatReleaseReason;
+	readonly canContinue?: () => boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1309,7 +1333,7 @@ export interface IAgentChats {
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
+	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
@@ -1517,6 +1541,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: AgentPermissionKind;
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * Host-only resource that {@link permissionPath} names, for providers whose
+	 * paths are not local disk paths (such as virtual workspaces). Defaults to
+	 * `URI.file(permissionPath)`.
+	 */
+	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
@@ -1809,12 +1839,19 @@ export interface IAgentSessionPlan {
 	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
 }
 
+export interface IAgentChatCanvasWatchHost {
+	readonly published: () => readonly string[] | undefined;
+	resolveContext(): Promise<IAgentChatContext>;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
 export interface IAgent {
+	/** Host-internal opt-in to client-backed, non-file working directories. */
+	readonly supportsVirtualWorkspaces?: true;
 	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 
@@ -1854,6 +1891,12 @@ export interface IAgent {
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Observe one hydrated chat's canvas projection and restore provider-owned continuity when needed. */
+	watchChatCanvases?(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable;
+
+	/** Invalidate retained canvas continuity when a chat or session is archived or removed. */
+	clearCanvasContinuity?(session: URI, chat?: URI): void;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -2094,6 +2137,27 @@ export interface IAgent {
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
+
+	/**
+	 * Classifies one provider-native session for an explicit import that names a
+	 * session the host has not registered, for example one that discovery hides or
+	 * has not scanned yet. Applies the same eligibility rules as discovery and
+	 * returns `undefined` for a session discovery would not surface.
+	 */
+	discoverChat?(session: URI): Promise<IAgentDiscoveredChat | undefined>;
+
+	/**
+	 * Takes over a restored default chat that a client explicitly imports, before
+	 * the host adopts its session. Rejects when the chat cannot move to this host;
+	 * a chat that another process is using is rejected with `Conflict` unless
+	 * {@link IAgentImportChatOptions.takeOver} is set. A provider may wait briefly
+	 * for that process to release it first, as a process that just handed the
+	 * chat off may still be exiting. A provider may also align
+	 * the chat's configuration with the state its runtime persisted for the chat,
+	 * and returns the model and agent the chat continues with so the host can
+	 * offer them for the next turn.
+	 */
+	importChat?(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void>;
 
 	// ---- Legacy migration ---------------------------------------------------
 
