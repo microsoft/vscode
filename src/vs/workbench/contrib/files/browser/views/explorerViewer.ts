@@ -23,7 +23,7 @@ import { dirname, joinPath, distinctParents, relativePath } from '../../../../..
 import { localize } from '../../../../../nls.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
-import * as path from '../../../../../base/common/path.js';
+import { posix, relative, sep } from '../../../../../base/common/path.js';
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from '../../../../../base/common/comparers.js';
 import { CodeDataTransfers, containsDragType } from '../../../../../platform/dnd/browser/dnd.js';
@@ -1152,6 +1152,25 @@ interface CachedParsedExpression {
 const NO_EXCLUDES = glob.parseExcludeExpression(glob.getEmptyExpression());
 
 /**
+ * Returns the path of a resource relative to its explorer root, with the separator of the platform path module.
+ */
+function getRootRelativePath(rootResource: URI, resource: URI): string {
+	// URI paths always use `/`. On Windows, the platform path module resolves them against the current working
+	// directory, which is expensive for every item of a large folder. Only fall back to it when it could produce a
+	// different result: it compares paths ignoring case, and normalizes backslashes in names from remote file systems.
+	const relativePath = posix.relative(rootResource.path, resource.path);
+	if (sep === posix.sep) {
+		return relativePath;
+	}
+
+	if (relativePath === '..' || relativePath.startsWith('../') || rootResource.path.includes('\\') || resource.path.includes('\\')) {
+		return relative(rootResource.path, resource.path);
+	}
+
+	return relativePath.replace(/\//g, sep);
+}
+
+/**
  * Respects files.exclude setting in filtering out content from the explorer.
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
  */
@@ -1338,7 +1357,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		const parent = stat.parent;
 		const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(this.hiddenExpressionPerRoot.get(stat.root.resource.toString())?.parsed ?? NO_EXCLUDES, {
-			path: path.relative(stat.root.resource.path, stat.resource.path),
+			path: getRootRelativePath(stat.root.resource, stat.resource),
 			basename: stat.name,
 			isDirectory: stat.isDirectory,
 			isParentExcluded: !!parent && (parent.isExcluded || this.foldersLeadingToExceptions.has(parent)),
@@ -1374,7 +1393,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			return false;
 		}
 
-		const relativePath = path.relative(rootResource.path, resource.path);
+		const relativePath = getRootRelativePath(rootResource, resource);
 		const parsed = this.hiddenExpressionPerRoot.get(rootResource.toString())?.parsed;
 		return !parsed?.isExcepted(relativePath) && !(isDirectory && parsed?.couldExceptionMatchBeneath(relativePath));
 	}
