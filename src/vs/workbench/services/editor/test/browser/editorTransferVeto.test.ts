@@ -22,6 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { DraggedEditorGroupIdentifier } from '../../../../browser/dnd.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { CopyEditorToNewindowAction, MoveEditorGroupToNewWindowAction, MoveEditorToNewWindowAction } from '../../../../browser/parts/editor/editorActions.js';
+import { MoveModalEditorToMainWindowAction } from '../../../../browser/parts/editor/editorCommands.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { getEditorsTransferVeto, IEditorTransferVeto, INewWindowTransfer, NEW_WINDOW_TARGET, transferToNewWindow } from '../../../../browser/parts/editor/editorTransferVeto.js';
 import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
@@ -29,7 +30,7 @@ import { EditorInput, IEditorCloseHandler } from '../../../../common/editor/edit
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../common/editorGroupsService.js';
 
 /** Records the errors it is asked to show, as a veto is shown. */
 class RecordingDialogService extends TestDialogService {
@@ -514,6 +515,61 @@ suite('Editor transfer vetoes', () => {
 			await instantiationService.invokeFunction(accessor => new MoveEditorToNewWindowAction().run(accessor, { groupId: group.id, editorIndex: group.getIndexOfEditor(ordinary) }));
 
 			assert.deepStrictEqual({ created: created.length, parts: parts.parts.length, editors: editorsOf(group) }, { created: 1, parts: partsBefore, editors: ['/vetoing', '/ordinary'] });
+		});
+	});
+
+	suite('Open Modal Editor in Main Window', () => {
+
+		async function openModal(veto: boolean): Promise<{ parts: TestEditorParts; dialogs: RecordingDialogService; instantiationService: TestInstantiationService; modal: IModalEditorPart; isClosed: () => boolean }> {
+			const services = await createServices();
+			const modal = await services.parts.createModalEditorPart();
+			const modalElement = modal.modalElement as HTMLElement;
+			await modal.activeGroup.openEditors([{ editor: createInput('/ordinary'), options: { pinned: true } }, { editor: createInput('/later', { veto }), options: { pinned: true, inactive: true } }]);
+
+			return { ...services, modal, isClosed: () => !modalElement.parentElement };
+		}
+
+		test('with an editor that cannot go, moves nothing and keeps the modal editor, with no events', async () => {
+			const { parts, dialogs, instantiationService, modal, isClosed } = await openModal(true);
+			const mainGroup = parts.mainPart.activeGroup;
+			const activeElement = mainWindow.document.activeElement;
+			const events = recordEvents(modal, parts.mainPart);
+			const mainGroupCount = parts.mainPart.count;
+
+			await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
+
+			assert.deepStrictEqual({
+				modalOpen: !isClosed(),
+				modalEditors: editorsOf(modal.activeGroup),
+				modalActive: modal.activeGroup.activeEditor?.resource?.path,
+				mainEditors: editorsOf(mainGroup),
+				mainGroupCount: parts.mainPart.count,
+				focusUnchanged: mainWindow.document.activeElement === activeElement,
+				events,
+				dialogs: dialogs.errors,
+			}, {
+				modalOpen: true,
+				modalEditors: ['/ordinary', '/later'],
+				modalActive: '/ordinary',
+				mainEditors: [],
+				mainGroupCount,
+				focusUnchanged: true,
+				events: [],
+				dialogs: [{ message: VETO, detail: undefined }],
+			});
+
+			await modal.close();
+		});
+
+		test('with editors that can go, moves them all into the main window and closes the modal editor', async () => {
+			const { parts, dialogs, instantiationService, isClosed } = await openModal(false);
+			const mainGroup = parts.mainPart.activeGroup;
+
+			await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
+
+			assert.deepStrictEqual({ modalOpen: !isClosed(), mainEditors: editorsOf(mainGroup), dialogs: dialogs.errors }, {
+				modalOpen: false, mainEditors: ['/ordinary', '/later'], dialogs: []
+			});
 		});
 	});
 });

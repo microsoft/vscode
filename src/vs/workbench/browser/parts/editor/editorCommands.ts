@@ -1464,39 +1464,57 @@ function registerOtherEditorCommands(): void {
 	});
 }
 
-function registerModalEditorCommands(): void {
+/**
+ * Opens the editors of the modal editor part in the main window: an explicit transfer, so all its editors go, or none
+ * when one cannot (see `EditorInput.canMove`).
+ */
+export class MoveModalEditorToMainWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
+			title: localize2('moveToMainWindow', 'Open Modal Editor in Main Window'),
+			category: Categories.View,
+			f1: true,
+			icon: Codicon.openInProduct,
+			precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
+			menu: {
+				id: MenuId.ModalEditorTitle,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
+			}
+		});
+	}
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
-				title: localize2('moveToMainWindow', 'Open Modal Editor in Main Window'),
-				category: Categories.View,
-				f1: true,
-				icon: Codicon.openInProduct,
-				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
-				menu: {
-					id: MenuId.ModalEditorTitle,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const dialogService = accessor.get(IDialogService);
+
+		for (const part of editorGroupsService.parts) {
+			if (isModalEditorPart(part)) {
+				if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+					return;
 				}
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const editorGroupsService = accessor.get(IEditorGroupsService);
 
-			for (const part of editorGroupsService.parts) {
-				if (isModalEditorPart(part)) {
-					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+				// Before anything moves: closing the part merges back what can go, one editor after another
+				for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+					const veto = getGroupTransferVeto(group, editorGroupsService.mainPart.activeGroup.id);
+					if (veto) {
+						showEditorTransferVeto(dialogService, veto);
 						return;
 					}
-					await part.close({ mergeAllEditorsToMainPart: true });
-					break;
 				}
+
+				await part.close({ mergeAllEditorsToMainPart: true });
+				break;
 			}
 		}
-	});
+	}
+}
+
+function registerModalEditorCommands(): void {
+
+	registerAction2(MoveModalEditorToMainWindowAction);
 
 	registerAction2(class extends Action2 {
 		constructor() {
