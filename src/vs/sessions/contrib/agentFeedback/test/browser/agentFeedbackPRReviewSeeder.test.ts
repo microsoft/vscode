@@ -18,6 +18,7 @@ import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewComment, IPRReviewS
 import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { AgentFeedbackPRReviewSeederContribution } from '../../browser/agentFeedbackPRReviewSeeder.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentFeedbackPRReviewSeederContribution', () => {
 
@@ -96,11 +97,10 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			override getPRReviewState(_sessionResource: URI) { return prReviewState; }
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override activeSession = activeSession;
-			override readonly mainWindowActiveSession = this.activeSession;
+			activeSession = activeSession;
 		};
 
-		store.add(new AgentFeedbackPRReviewSeederContribution(feedbackService, codeReviewService, sessionsService));
+		store.add(new AgentFeedbackPRReviewSeederContribution(feedbackService, codeReviewService, focusedSessionHostServiceOf(sessionsService.activeSession)));
 	});
 
 	test('seeds a created PR-review mirror for each un-accepted PR comment', () => {

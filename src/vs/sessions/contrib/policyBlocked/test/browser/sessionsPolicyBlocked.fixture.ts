@@ -10,7 +10,6 @@ import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from '../../browser/sessionsPolicyBlocked.js';
-import { constObservable } from '../../../../../base/common/observable.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
@@ -31,7 +30,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 			}());
 			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container, onDidLayoutMainContainer: Event.None });
 			reg.definePartialInstance(ISessionsPartService, { focusSession: () => { } });
-			reg.definePartialInstance(ISessionsService, { activeSession: constObservable(undefined) });
+			reg.definePartialInstance(ISessionsService, { focusActiveSession: () => { } });
 		},
 	});
 

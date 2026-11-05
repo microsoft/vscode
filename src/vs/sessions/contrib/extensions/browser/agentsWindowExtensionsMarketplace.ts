@@ -11,7 +11,7 @@ import { ActionRunner, IAction, Separator, toAction } from '../../../../base/com
 import { Delayer } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -150,9 +150,9 @@ export function getMarketplaceStatisticsLabels(extension: IExtension): string[] 
 
 /**
  * Describes a Marketplace extension like its row: its name, publisher, install count, and rating, and whether it is
- * being installed, or why it can't be installed.
+ * being installed, or why it can't be installed, followed by its warning, like installed extensions.
  */
-export function getMarketplaceExtensionAriaLabel(extension: IExtension, installBlocker: IMarkdownString | undefined): string {
+export function getMarketplaceExtensionAriaLabel(extension: IExtension, installBlocker: IMarkdownString | undefined, warning: string | undefined): string {
 	const details = [extension.displayName, extension.publisherDisplayName];
 	if (extension.publisherDomain?.verified) {
 		details.push(localize('agentsWindowExtensions.marketplace.verifiedPublisher', "Verified publisher"));
@@ -163,7 +163,21 @@ export function getMarketplaceExtensionAriaLabel(extension: IExtension, installB
 		: installBlocker
 			? localize('agentsWindowExtensions.marketplace.cannotInstall', "Can't be installed: {0}", renderAsPlaintext(installBlocker))
 			: localize('agentsWindowExtensions.marketplace.notInstalled', "Not installed"));
-	return details.join(', ');
+	const label = details.join(', ');
+	return warning ? localize('agentsWindowExtensions.marketplace.rowAriaLabelWithWarning', "{0}. Warning: {1}", label, warning) : label;
+}
+
+/**
+ * Explains the warning icon of a Marketplace extension: why it can't be installed, and the contributions that the Agents
+ * window doesn't support, like for installed extensions.
+ */
+function getWarningHoverContent(installBlocker: IMarkdownString | undefined, warning: string | undefined): IMarkdownString | string | undefined {
+	if (!installBlocker || !warning) {
+		return installBlocker ?? warning;
+	}
+	return new MarkdownString(installBlocker.value, { isTrusted: installBlocker.isTrusted, supportThemeIcons: installBlocker.supportThemeIcons, supportHtml: installBlocker.supportHtml })
+		.appendMarkdown('\n\n')
+		.appendText(warning);
 }
 
 /**
@@ -213,6 +227,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 
 	constructor(
 		private readonly getInstallBlocker: (extension: IExtension) => IMarkdownString | undefined,
+		private readonly getWarning: (extension: IExtension) => string | undefined,
 		private readonly onDidInstall: (extension: IExtension) => void,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -228,7 +243,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		const details = DOM.append(container, $('.agents-window-extension-details'));
 		const nameRow = DOM.append(details, $('.agents-window-extension-name-row'));
 		const name = DOM.append(nameRow, $('span.agents-window-extension-name'));
-		// The row's accessible name includes the publisher, install count, rating, and why it can't be installed.
+		// The row's accessible name includes the publisher, install count, rating, why it can't be installed, and its warning.
 		const publisher = templateDisposables.add(this.instantiationService.createInstance(PublisherWidget, DOM.append(nameRow, $('span.agents-window-extension-publisher', { 'aria-hidden': 'true' })), true));
 		const installCount = templateDisposables.add(this.instantiationService.createInstance(InstallCountWidget, DOM.append(nameRow, $('span.agents-window-extension-install-count', { 'aria-hidden': 'true' })), true));
 		const ratings = templateDisposables.add(this.instantiationService.createInstance(RatingsWidget, DOM.append(nameRow, $('span.agents-window-extension-rating', { 'aria-hidden': 'true' })), true));
@@ -297,12 +312,14 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		templateData.description.textContent = extension.description;
 		templateData.description.style.display = extension.description ? '' : 'none';
 
-		// Explains why the Install action is disabled, such as when policy doesn't allow the extension.
+		// Explains why the Install action is disabled, such as when policy doesn't allow the extension, and like for installed
+		// extensions, warns about contributions that the Agents window doesn't support.
 		const installBlocker = extension.state === ExtensionState.Uninstalled ? this.getInstallBlocker(extension) : undefined;
-		if (installBlocker) {
-			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.warning, { content: installBlocker }));
+		const warning = getWarningHoverContent(installBlocker, this.getWarning(extension));
+		if (warning) {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.warning, { content: warning }));
 		}
-		templateData.warning.style.display = installBlocker ? '' : 'none';
+		templateData.warning.style.display = warning ? '' : 'none';
 
 		this.updateFocusable(templateData);
 		this.renderedTemplates.set(key, templateData);

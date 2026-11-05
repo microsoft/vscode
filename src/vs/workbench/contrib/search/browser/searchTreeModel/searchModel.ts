@@ -260,6 +260,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 				}
 			*/
 			event?.dispose();
+			this._store.delete(progressEmitter);
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 

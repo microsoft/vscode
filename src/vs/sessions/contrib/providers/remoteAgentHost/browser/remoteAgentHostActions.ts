@@ -672,7 +672,7 @@ async function promptForRemoteFolder(
 
 	provider.showInEnvironmentPicker?.();
 	await sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get())?.selectWorkspace(folderUri, { providerId: provider.id });
+	sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {

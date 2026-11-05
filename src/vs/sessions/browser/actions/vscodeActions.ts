@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
@@ -53,7 +53,6 @@ export class OpenInVSCodeAction extends Action2 {
 
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
@@ -68,13 +67,14 @@ export class OpenInVSCodeAction extends Action2 {
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 
-		const activeSession = context?.session ?? sessionsService.activeSession.get();
+		const target = context?.session ? context : resolveSessionCommandTarget(accessor, []);
+		const activeSession = target?.session;
 		if (!activeSession) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
-		const chat = context?.chat ?? sessionsService.activeSession.get()?.activeChat.get();
+		const chat = target?.chat ?? activeSession.mainChat.get();
 		const workspace = chat?.workspace.get();
 		const folder = workspace?.folders[0];
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;

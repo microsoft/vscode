@@ -166,10 +166,6 @@
 	background-color: transparent;
 }
 
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-view .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
-	content: none;
-}
-
 .monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-view .interactive-item-container.chat-sticky-progress {
 	--vscode-chat-list-background: var(--vscode-editorWidget-background, var(--session-view-background));
 	inset-inline: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));

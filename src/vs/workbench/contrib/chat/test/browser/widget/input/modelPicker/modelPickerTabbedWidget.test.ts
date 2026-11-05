@@ -1894,7 +1894,7 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
-	test('in inline chat, Fusion whose host pins its tier there shows no effort level, offers none, and offers no HydraFusion; otherwise it keeps them', () => {
+	test('in inline chat, Fusion shows no effort level and no details, and offers no HydraFusion, whether or not its host pins a tier there', () => {
 		const open = (inlineChatTier: string | undefined) => {
 			const base = createFusionModel();
 			const fusion = { ...base, metadata: { ...base.metadata, autoModelFusionInlineChatTier: inlineChatTier } };
@@ -1908,24 +1908,14 @@ suite('TabbedModelPicker', () => {
 			const result = createPicker({ models: available, access, selectedModelId: models[0].identifier });
 			const fusionRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === copilotFusionName)!;
 			const row = { readout: fusionRow.querySelector('.action-label')?.textContent, ariaLabel: fusionRow.getAttribute('aria-label') };
-			const rows = listRows(result.popup);
-			openDetails(result.popup, copilotFusionName);
-			return { rows, row, tiers: autoTiers(result.popup), saved: values.get(fusion.identifier) };
+			return { rows: listRows(result.popup), row, saved: values.get(fusion.identifier) };
 		};
-		assert.deepStrictEqual({ pinned: open('fast'), notPinned: open(undefined) }, {
-			pinned: {
-				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
-				row: { readout: 'Details', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
-				tiers: [],
-				saved: { tier: 'hydrafusion' },
-			},
-			notPinned: {
-				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
-				row: { readout: 'High', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task, Effort Level: High' },
-				tiers: ['Standard', 'High', 'Max'],
-				saved: { tier: 'hydrafusion' },
-			},
-		});
+		const expected = {
+			rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+			row: { readout: undefined, ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
+			saved: { tier: 'hydrafusion' },
+		};
+		assert.deepStrictEqual({ pinned: open('fast'), notPinned: open(undefined) }, { pinned: expected, notPinned: expected });
 	});
 
 	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {

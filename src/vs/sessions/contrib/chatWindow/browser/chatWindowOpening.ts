@@ -5,11 +5,10 @@
 
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChat } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** How long a chat model stays held for its view to bind to it, when the view never reports having done so. */
 export const CHAT_MODEL_HOLD_TIMEOUT = 10_000;
@@ -80,60 +79,3 @@ export function isChatWindowChatGone(session: Pick<IChatWindowChatSession, 'load
 	return chat ? chat.isArchived.read(reader) : !session.loading.read(reader);
 }
 
-/** A chat window as {@link followReplacedWindowSessions} sees it. */
-export interface IReplaceableChatWindow {
-	/** The window session it shows. */
-	readonly session: IObservable<IActiveSession | undefined>;
-	/** Shows `session` in place of its window session, which knows it by its resource from then on. */
-	setSession(session: IActiveSession): void;
-	close(): unknown;
-}
-
-/**
- * Keeps each chat window on its session for as long as the session shows in a window. When its provider replaces the
- * session, such as when its resource changes, the window shows the replacement, and knows it by its resource, so that
- * moving it to the main window, restoring it and finding its window work with the replacement; otherwise the window
- * closes.
- */
-export function followReplacedWindowSessions(windows: IObservable<readonly IReplaceableChatWindow[]>, windowSessions: IObservable<readonly IActiveSession[]>): IDisposable {
-	return autorun(reader => {
-		const sessions = windowSessions.read(reader);
-		for (const window of windows.read(undefined)) {
-			const session = window.session.read(undefined);
-			if (!session || sessions.includes(session)) {
-				continue;
-			}
-			const replacement = sessions.find(candidate => isEqual(candidate.scopedChatResource, session.scopedChatResource));
-			if (replacement) {
-				window.setSession(replacement);
-			} else {
-				window.close();
-			}
-		}
-	});
-}
-
-/** A chat window as {@link closeChatWindowsOfGoneChats} sees it. */
-export interface IGoneChatWindow {
-	readonly session: IObservable<(Pick<IChatWindowChatSession, 'loading' | 'chats'> & { readonly scopedChatResource?: URI }) | undefined>;
-	close(): unknown;
-}
-
-/**
- * Closes each chat window whose chat was deleted or archived, including the windows opened after this started:
- * the windows and their sessions are tracked, as the first run has no window to track.
- */
-export function closeChatWindowsOfGoneChats(windows: IObservable<readonly IGoneChatWindow[]>): IDisposable {
-	return autorun(reader => {
-		for (const window of windows.read(reader)) {
-			const session = window.session.read(reader);
-			const chatResource = session?.scopedChatResource;
-			if (!session || !chatResource) {
-				continue;
-			}
-			if (isChatWindowChatGone(session, chatResource, reader)) {
-				window.close();
-			}
-		}
-	});
-}

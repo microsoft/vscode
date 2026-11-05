@@ -660,11 +660,11 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
-	/** Provider-owned timing must not be inferred from client observation or replay, even when no duration is supplied. */
+	/** Marks provider-managed reasoning boundaries, including runs without recorded timing. */
 	reasoningTimingSource?: 'provider';
-	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
+	/** Provider-reported epoch milliseconds when reasoning started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
-	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	/** Provider-reported reasoning duration in milliseconds; never inferred from client observation or replay. */
 	reasoningDurationMs?: number;
 }
 
@@ -1297,6 +1297,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
+	/** Whether the latest observed child turn failed, independently of the task tool's result. */
+	isError?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	/** Provider-supplied display name for the subagent type. */
