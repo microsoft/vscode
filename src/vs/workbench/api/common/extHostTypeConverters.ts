@@ -894,6 +894,10 @@ export namespace StructuralDiffContext {
 }
 
 export namespace StructuralDiff {
+	/**
+	 * Converts the result of a provider. The main thread validates the result, so values are passed on unchanged or
+	 * checked before they are converted, because a conversion must not turn an invalid value into a valid one.
+	 */
 	export function from(diff: vscode.StructuralDiff): languages.StructuralDiff {
 		return {
 			root: nodeFrom(diff.root),
@@ -906,15 +910,15 @@ export namespace StructuralDiff {
 			id: node.id,
 			original: node.original && entityFrom(node, 'original', node.original),
 			modified: node.modified && entityFrom(node, 'modified', node.modified),
-			originalChanges: node.originalChanges.map(coverageFrom),
-			modifiedChanges: node.modifiedChanges.map(coverageFrom),
+			originalChanges: node.originalChanges.map(coverage => coverageFrom(node, 'original', coverage)),
+			modifiedChanges: node.modifiedChanges.map(coverage => coverageFrom(node, 'modified', coverage)),
 			children: node.children.map(nodeFrom),
 		};
 	}
 
 	function entityFrom(node: vscode.StructuralDiffNode, side: 'original' | 'modified', entity: vscode.StructuralDiffEntity): languages.StructuralDiffEntity {
-		// SymbolKind.from maps unknown kinds to a valid kind, which would hide them from the validation of the result.
-		if (typeof types.SymbolKind[entity.kind] !== 'string') {
+		// SymbolKind.from turns unknown kinds and numeric strings, such as '0', into valid kinds.
+		if (typeof entity.kind !== 'number' || typeof types.SymbolKind[entity.kind] !== 'string') {
 			throw new Error(`Invalid structural diff: node '${node.id}' has an invalid ${side} entity kind`);
 		}
 		return {
@@ -922,18 +926,26 @@ export namespace StructuralDiff {
 			detail: entity.detail,
 			kind: SymbolKind.from(entity.kind),
 			languageKind: entity.languageKind,
-			range: Range.from(entity.range),
-			selectionRange: entity.selectionRange && Range.from(entity.selectionRange),
+			range: rangeFrom(node, `${side} entity range`, entity.range),
+			selectionRange: entity.selectionRange && rangeFrom(node, `${side} selection range`, entity.selectionRange),
 		};
 	}
 
-	function coverageFrom(coverage: vscode.StructuralDiffCoverage): languages.StructuralDiffCoverage {
+	function coverageFrom(node: vscode.StructuralDiffNode, side: 'original' | 'modified', coverage: vscode.StructuralDiffCoverage): languages.StructuralDiffCoverage {
 		return {
 			textChangeIndex: coverage.textChangeIndex,
-			range: Range.from(coverage.range),
+			range: rangeFrom(node, `${side} change range`, coverage.range),
 			classification: coverage.classification,
-			tags: coverage.tags?.slice(),
+			tags: Array.isArray(coverage.tags) ? coverage.tags.slice() : coverage.tags,
 		};
+	}
+
+	function rangeFrom(node: vscode.StructuralDiffNode, description: string, range: vscode.Range): editorRange.IRange {
+		// Range.from turns lines and characters that are not numbers, such as null, into numbers.
+		if (!types.Range.isRange(range)) {
+			throw new Error(`Invalid structural diff: node '${node.id}' has an invalid ${description}`);
+		}
+		return Range.from(range);
 	}
 
 	export function to(result: languages.StructuralDiffResult): vscode.StructuralDiffResult {
