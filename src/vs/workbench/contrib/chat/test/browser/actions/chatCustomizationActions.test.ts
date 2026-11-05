@@ -23,19 +23,12 @@ suite('Chat customization actions', () => {
 	const types = ['init', ...Object.values(PromptsType)] as const;
 	const workspaceFolder = URI.file('/workspace/project');
 	const requests = {
-		init: 'Analyze this codebase and create agent instructions for it.',
-		instructions: 'Create a new on-demand instructions file.',
-		prompt: 'Create a new reusable prompt file.',
-		skill: 'Create a new skill with a SKILL.md file.',
-		agent: 'Create a new custom agent file.',
-		hook: 'Create a new hook configuration file.',
-	};
-	const invitations = {
-		instructions: 'Tell me what you\'d like the instructions to cover, and I\'ll put together a first draft.',
-		prompt: 'Tell me what you\'d like the prompt to do, and I\'ll put together a first draft.',
-		skill: 'Tell me what you\'d like the skill to do, and I\'ll put together a first draft.',
-		agent: 'Tell me what you\'d like the agent to do, and I\'ll put together a first draft.',
-		hook: 'Tell me when you\'d like the hook to run and what it should do, and I\'ll put together a first draft.',
+		init: 'Analyze this codebase and create agent instructions for it. Follow the attached documentation.',
+		instructions: `Create a new on-demand instructions file. Ask me for the instructions name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.instructions)}. Finish with a file link to the generated instructions.`,
+		prompt: `Create a new reusable prompt file. Ask me for the prompt name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.prompt)}. Finish with a file link to the generated prompt.`,
+		skill: `Create a new skill with a SKILL.md file. Ask me for the skill name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.skill)}. Finish with a file link to the generated skill.`,
+		agent: `Create a new custom agent file. Ask me for the agent name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.agent)}. Finish with a file link to the generated agent.`,
+		hook: `Create a new hook configuration file. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check ${getDocumentationUrl(PromptsType.hook)}. Finish with a file link to the generated hook.`,
 	};
 
 	function setup(sessionResource: URI | undefined, available = true) {
@@ -93,7 +86,7 @@ suite('Chat customization actions', () => {
 				commandId: CHAT_OPEN_ACTION_ID,
 				options: {
 					mode: 'agent',
-					query: `${requests[type]} Follow the attached documentation.${type === 'init' ? '' : ` ${invitations[type]} `}`,
+					query: `${requests[type]}${type === 'init' ? '' : '\n'}`,
 					isPartialQuery: type !== 'init',
 					attachFiles: [workspaceFolder],
 				},
