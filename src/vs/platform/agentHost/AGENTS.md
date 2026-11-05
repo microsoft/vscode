@@ -116,6 +116,14 @@ SDK-discovered plugin agents retain their SDK selection `id`, which can differ f
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
+### Customization installation (Skills, MCP servers, catalog plugins)
+
+Installation is local-only: the workbench calls `IAgentHostService`, which routes through Management IPC to `CopilotCustomizationInstallations`. Remote Agent Hosts expose no installation methods.
+
+Prepare returns a review, or a configuration request when values or secrets are needed. Records are bound to a host generation, an expiry and a random ownership token; a mismatch behaves like an unknown ID. The client sends any `answers` once on `apply`, which is one-shot and never resent. There is no client cancel; unused records expire.
+
+Submitted values and secrets must never appear in reviews, errors or logs. The runtime owns URL/header expansion and configuration validation; shared value rules live in `common/customizationInstallationValues.ts`.
+
 ### SDK hook and MCP discovery
 
 `SessionCustomizationDiscovery` publishes `hooks.discover` and `mcp.discover` from the selected host's SDK client and primary working directory. Hook actions retain their opaque IDs and individual enablement; warnings and partial errors produce a degraded inventory, and RPC failures remain visible without discarding successful discovery of other kinds. Filesystem hook locations remain writable creation targets and refresh triggers, not an independent action inventory.
