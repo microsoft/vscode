@@ -13,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService, OpenOptions } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -22,6 +23,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 
 /**
@@ -50,6 +52,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -94,10 +97,11 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 
 	/**
 	 * The chat window the user activated the link in, if one. Only a user gesture redirects: a link a tool, an extension
-	 * or a command opens keeps opening in the main window, whichever window has focus.
+	 * or a command opens keeps opening in the main window, whichever window has focus. So does any link while chat windows
+	 * are off. The window's active chat is the clicked one: activating a group of the window makes its chat the active one.
 	 */
 	private _getSourceChatWindow(options: OpenOptions): IChatWindow | undefined {
-		if (!options.fromUserGesture) {
+		if (!options.fromUserGesture || !this._configurationService.getValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING)) {
 			return undefined;
 		}
 		// A page such as a canvas has focus outside the workbench, so it names its window.

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -178,6 +180,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
+			new TestConfigurationService(),
 		));
 
 		if (!registeredOpener) {
@@ -229,6 +232,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const chatWindow = upcastPartial<IChatWindow>({ windowId: 42, chat: observableValue('chat', clickedChat) });
+		const configurationService = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
 		const chatWindowService = new class extends mock<IChatWindowService>() {
 			override getWindow(windowId: number): IChatWindow | undefined {
 				return windowId === 42 ? chatWindow : undefined;
@@ -262,6 +266,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			createSessionSummaryHoverService().service,
 			new class extends mock<ILabelService>() { },
 			chatWindowService,
+			configurationService,
 		));
 		if (!registeredOpener) {
 			throw new Error('Expected the contribution to register an opener');
@@ -275,11 +280,15 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		// A link of the main window, and one a tool or command opens, whichever window has focus.
 		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 1 });
 		await registeredOpener.open(link, { sourceWindowId: 42 });
+		// A link of a chat window while chat windows are off
+		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, false);
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
 
 		assert.deepStrictEqual(log, [
 			`window:copilotcli:/session-1#chat-2:tabOf=${clickedChat}:beside=undefined:in=true`,
 			`window:copilotcli:/session-1#chat-2:tabOf=undefined:beside=${clickedChat}:in=true`,
 			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true`,
+			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 		]);
@@ -336,6 +345,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
+			new TestConfigurationService(),
 		));
 
 		if (!registeredOpener) {
@@ -382,6 +392,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				createSessionSummaryHoverService().service,
 				new class extends mock<ILabelService>() { },
 				new class extends mock<IChatWindowService>() { },
+				new TestConfigurationService(),
 			));
 			const results = [
 				await registeredOpener!.open(buildOpenSessionLinkUri(sessionResource, defaultId)),
@@ -457,6 +468,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
+			new TestConfigurationService(),
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -521,6 +533,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			hover.service,
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
+			new TestConfigurationService(),
 		));
 
 		const provider = hover.provider();

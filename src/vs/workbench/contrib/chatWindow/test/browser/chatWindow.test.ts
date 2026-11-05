@@ -672,6 +672,24 @@ suite('Chat window', () => {
 		});
 	});
 
+	test('a click in the chat of a group that is not the active one makes that chat the active chat of the window, so a link opens as a tab of its group', async () => {
+		const { service, events, windows: [target] } = createService(['a']);
+		await service.open(URI.parse('test:/c'), { window: target.window });
+		const [, cInput] = target.chat.group.testEditors;
+		const split = new TestGroup(events, 'split');
+		split.windowId = target.chat.group.windowId;
+		target.chat.part.groups.push(split);
+		target.chat.group.testEditors = [cInput];
+		split.testEditors.push(target.input);
+
+		target.chat.activateGroup(split);
+		const clicked = target.window.chat.get();
+		await service.open(URI.parse('test:/d'), { window: target.window, tabOf: clicked });
+
+		const names = (group: TestGroup) => group.testEditors.map(editor => (editor as ChatViewInput).chatResource.path);
+		assert.deepStrictEqual({ clicked: clicked.path, first: names(target.chat.group), split: names(split) }, { clicked: '/a', first: ['/c'], split: ['/a', '/d'] });
+	});
+
 	/** The chats a window has, and the chats of the editors it shows: always the same ones. */
 	function chatsAndEditors({ window, chat }: { window: ChatWindow; chat: { group: TestGroup } }) {
 		return {
