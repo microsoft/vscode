@@ -34,7 +34,7 @@ suite('NewSessionViewTourTrigger', () => {
 		const initialRestoreComplete = observableValue('initialRestoreComplete', options.restored ?? true);
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override readonly initialRestoreComplete = initialRestoreComplete;
 		}();
 		const entitlement = observableValue('entitlement', options.entitlement ?? ChatEntitlement.Available);
@@ -52,6 +52,7 @@ suite('NewSessionViewTourTrigger', () => {
 			id,
 			onboardingService,
 			sessionsService,
+			sessionsService.activeSession,
 			storageService,
 			configurationService,
 			contextKeyService,

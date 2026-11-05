@@ -20,6 +20,7 @@ import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.j
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
+import { ContentPart } from '../../workbench/browser/parts/editor/contentPart.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
@@ -32,6 +33,7 @@ import { ServiceCollection } from '../../platform/instantiation/common/serviceCo
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
 import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
 import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../../workbench/services/lifecycle/common/lifecycle.js';
+import { IAuxiliaryWindowService } from '../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../workbench/services/host/browser/host.js';
@@ -68,13 +70,13 @@ import { TitleService } from './parts/titlebarPart.js';
 import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
-import { SessionsLayoutPolicy } from './layoutPolicy.js';
+import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
-import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
-import { autorun } from '../../base/common/observable.js';
+import { autorun, IObservable } from '../../base/common/observable.js';
 import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
 import { ICustomViewService } from '../services/customView/browser/customViewService.js';
@@ -83,6 +85,7 @@ import { ICustomViewDescriptor } from '../services/customView/browser/customView
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { createMainWindowInstantiationService } from '../services/sessions/browser/sessionHost.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
@@ -210,6 +213,10 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
 	readonly chatLayoutPresentation: ChatLayoutPresentation;
 
+	/** The current viewport class, optionally fixed by the composing entry point. */
+	readonly viewportClass: IObservable<ViewportClass>;
+	readonly initialViewportClass?: ViewportClass;
+
 	/**
 	 * Suppresses the automatic editor part show/hide that normally fires from
 	 * `editorService.onWillOpenEditor` / `onDidCloseEditor`. Use this around
@@ -273,6 +280,16 @@ export interface IDockedEditorLayout {
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
 
 export const CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID = 'sessions.closeMobileSidebarDrawer';
+
+/**
+ * Fires `onDidAddContainer` with the container of each auxiliary window that opens, until the window closes, as the
+ * standard workbench's layout does.
+ */
+export function addAuxiliaryWindowContainers(auxiliaryWindowService: Pick<IAuxiliaryWindowService, 'onDidOpenAuxiliaryWindow'>, onDidAddContainer: Emitter<{ container: HTMLElement; disposables: DisposableStore }>): IDisposable {
+	return auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
+		onDidAddContainer.fire({ container: window.container, disposables: disposables.add(new DisposableStore()) });
+	});
+}
 
 export abstract class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
 
@@ -442,12 +459,15 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private mainWindowFullscreen = false;
 	private readonly maximized = new Set<number>();
-	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
+	protected readonly layoutPolicy = this._register(this.createLayoutPolicy());
 	chatLayoutPresentation!: ChatLayoutPresentation;
-	private readonly mobileNavStack = this._register(new MobileNavigationStack());
-	private mobileTopBarElement: HTMLElement | undefined;
+	get viewportClass(): IObservable<ViewportClass> {
+		return this.layoutPolicy.viewportClass;
+	}
+	protected readonly mobileNavStack = this._register(new MobileNavigationStack());
+	protected mobileTopBarElement: HTMLElement | undefined;
 	private focusMobileTopBar: (() => void) | undefined;
-	private readonly mobileTopBarDisposables = this._register(new DisposableStore());
+	protected readonly mobileTopBarDisposables = this._register(new DisposableStore());
 
 	private _editorMaximized = false;
 	private _panelAlignment: AgentPanelAlignment = 'justify';
@@ -527,6 +547,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		mark('code/willStartWorkbench');
 
 		this.registerErrorHandler(logService);
+	}
+
+	/** Called during construction so an entry-owned workbench can fix its viewport class. */
+	protected createLayoutPolicy(): SessionsLayoutPolicy {
+		return new SessionsLayoutPolicy();
 	}
 
 	//#region Error Handling
@@ -992,7 +1017,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createMobileTitlebar(): void {
 		this.mobileTopBarDisposables.clear();
-		const mobileTitlebar = this.mobileTopBarDisposables.add(this.instantiationService.createInstance(MobileTitlebarPart, this.mainContainer));
+		const mobileTitlebar = this.mobileTopBarDisposables.add(this.createMobileTitlebarPart(this.mainWindowInstantiationService));
 		this.mobileTopBarElement = mobileTitlebar.element;
 		this.focusMobileTopBar = () => mobileTitlebar.focus();
 		this.mobileTopBarDisposables.add(toDisposable(() => this.focusMobileTopBar = undefined));
@@ -1008,8 +1033,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsService.openNewSession();
 			this.closeMobileSidebarDrawer();
-			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+			this.sessionsService.focusActiveSession();
 		}));
+	}
+
+	private _mainWindowInstantiationService: IInstantiationService | undefined;
+	/** The instantiation service of the main window's parts, created once. */
+	private get mainWindowInstantiationService(): IInstantiationService {
+		return this._mainWindowInstantiationService ??= this._register(createMainWindowInstantiationService(this.instantiationService));
+	}
+
+	protected createMobileTitlebarPart(instantiationService: IInstantiationService): MobileTitlebarPart {
+		return instantiationService.createInstance(MobileTitlebarPart, this.mainContainer);
 	}
 
 	private toggleMobileSidebarDrawer(): void {
@@ -1119,7 +1154,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createSessionsPart(): void {
 		const sessionsPartContainer = document.createElement('div');
-		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS);
+		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS, AGENTS_CARD_SURFACE_CLASS);
 		sessionsPartContainer.id = Parts.SESSIONS_PART;
 		sessionsPartContainer.setAttribute('role', 'main');
 		this._register(addDisposableListener(sessionsPartContainer, EventType.FOCUS_IN, () => this._restoreSessionsPartOnActivation()));
@@ -1167,7 +1202,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createCustomViewGridPart(): void {
 		const customViewGridPartContainer = document.createElement('div');
-		customViewGridPartContainer.classList.add('part', 'customviewgridpart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS);
+		customViewGridPartContainer.classList.add('part', 'customviewgridpart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS, AGENTS_CARD_SURFACE_CLASS);
 		customViewGridPartContainer.id = Parts.CUSTOM_VIEW_GRID_PART;
 		customViewGridPartContainer.setAttribute('role', 'main');
 
@@ -1258,6 +1293,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.storageService = accessor.get(IStorageService);
 		this._panelAlignment = this._loadPanelAlignment(this.storageService);
 		accessor.get(ITitleService);
+
+		// Auxiliary windows add their containers, as in the standard workbench's layout, so that what tracks every
+		// container, such as the idle receding of sash grippers, tracks them too.
+		this._register(addAuxiliaryWindowContainers(accessor.get(IAuxiliaryWindowService), this._onDidAddContainer));
 
 		// Resolve the desktop layout mode once (reload to toggle).
 		this.layoutPolicy.setDesktop(this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop);
@@ -2267,9 +2306,20 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return this._editorNodeVisible(this._effectiveVisible(Parts.EDITOR_PART), this._effectiveVisible(Parts.AUXILIARYBAR_PART));
 	}
 
+	/** Whether `targetWindow` is built of content parts, such as a chat window, rather than of an editor part of its own. */
+	private _hasContentParts(targetWindow: Window): boolean {
+		const windowId = getWindowId(targetWindow);
+		return !!this.editorGroupService?.parts.some(part => part.windowId === windowId && part instanceof ContentPart);
+	}
+
 	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
 	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
 	isVisible(part: Parts, targetWindow?: Window): boolean {
+		if (targetWindow && targetWindow !== mainWindow && part === Parts.EDITOR_PART && this._hasContentParts(targetWindow)) {
+			// The editor parts of a window built of content parts, such as a chat window, show whether this window's editor
+			// part shows or not. Those of editor windows follow this window's, as before.
+			return true;
+		}
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				// On phone layout the grid titlebar is hidden (replaced by MobileTitlebarPart)
@@ -2742,7 +2792,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (visible) {
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
 		} else {
-			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+			this.sessionsService.focusActiveSession();
 		}
 	}
 

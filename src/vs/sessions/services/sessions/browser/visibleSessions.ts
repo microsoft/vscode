@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
+import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
@@ -59,6 +59,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
 	readonly shouldShowChatTabs: IObservable<boolean>;
 	private readonly _detachedChats = observableValue<ReadonlySet<string>>(this, new Set());
+	/** Chats shown in a window of their own, which a grid session does not list anymore. */
+	private readonly _windowChats = observableValue<ReadonlySet<string>>(this, new Set());
 
 	constructor(
 		private readonly _session: ISession,
@@ -100,10 +102,12 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			const closed = this._closedChatUris.read(reader);
 			const chats = this._session.chats.read(reader);
 			const detached = this._detachedChats.read(reader);
+			const inWindow = this._windowChats.read(reader);
+			const isScoped = (c: IChat) => c.resource.toString() === this.scopedChatResource!.toString();
 			// Hidden chats are internal workers that must never be surfaced in the
 			// conversation tab strip; closed chats are user-dismissed.
 			return chats.filter(c =>
-				(this.scopedChatResource ? c.resource.toString() === this.scopedChatResource.toString() : !detached.has(c.resource.toString())) &&
+				(this.scopedChatResource ? isScoped(c) : !detached.has(c.resource.toString()) && !inWindow.has(c.resource.toString())) &&
 				c.interactivity.read(reader) !== ChatInteractivity.Hidden &&
 				!closed.has(c.resource.toString()));
 		});
@@ -144,8 +148,22 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		});
 	}
 
+	setWindowChats(resources: ReadonlySet<string>, transaction?: ITransaction): void {
+		subtransaction(transaction, tx => {
+			this._windowChats.set(resources, tx);
+			if (resources.has(this._activeChat.get().resource.toString())) {
+				this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get()), tx);
+			}
+		});
+	}
+
 	setActiveChat(chat: IChat): void {
 		this._setActiveChat(chat, undefined);
+	}
+
+	/** The subagent (tool-origin) chats explicitly shown, by resource. */
+	get shownRelatedChatUris(): ReadonlySet<string> {
+		return this._shownRelatedChatUris.get();
 	}
 
 	private _setActiveChat(chat: IChat, tx: ITransaction | undefined): void {
@@ -242,6 +260,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private _defaultActiveChat(closed: ReadonlySet<string>, shownRelatedChats: ReadonlySet<string>): IChat {
 		const candidates = this._session.chats.get().filter(c =>
 			!this._detachedChats.get().has(c.resource.toString()) &&
+			!this._windowChats.get().has(c.resource.toString()) &&
 			c.interactivity.get() !== ChatInteractivity.Hidden &&
 			!closed.has(c.resource.toString()) &&
 			(c.origin?.kind !== ChatOriginKind.Tool || shownRelatedChats.has(c.resource.toString())));
@@ -403,6 +422,21 @@ export class VisibleSessions extends Disposable {
 		return [...this._detached.values()].find(entry => entry.slot.id === id)?.wrapper;
 	}
 
+	/** Whether `pane`, a pane's own session, is the active pane. */
+	isActivePane(pane: IHostSession | undefined): boolean {
+		return !!pane && this._activeSession.get() === pane;
+	}
+
+	/** Whether `pane`, a pane's own session, is a detached pane: one that shows a chat of its session apart from its slot. */
+	isDetachedPane(pane: IHostSession | undefined): boolean {
+		return !!pane && [...this._detached.values()].some(entry => entry.wrapper === pane);
+	}
+
+	/** Whether `pane`, a pane's own session, is one of the grid's panes: a slot or a detached pane. */
+	isGridPane(pane: IHostSession | undefined): boolean {
+		return !!pane && this._gridSessions.get().some(candidate => candidate === pane);
+	}
+
 	getChatPane(sessionId: string, resource: URI): IActiveSession | undefined {
 		const pane = this._detached.get(resource.toString())?.wrapper;
 		return pane?.sessionId === sessionId ? pane : undefined;
@@ -491,6 +525,46 @@ export class VisibleSessions extends Disposable {
 			this._refresh(tx);
 		});
 		return true;
+	}
+
+	private _updateWindowChats(sessionId: string, transaction?: ITransaction): void {
+		this._wrappers.get(sessionId)?.setWindowChats(new Set(
+			[...this._hiddenChats].filter(([, hidden]) => hidden.sessionId === sessionId).map(([key]) => key),
+		), transaction);
+	}
+
+	/** Chats another host shows, such as a chat window, by chat resource: the grid does not show them. */
+	private readonly _hiddenChats = new Map<string, { readonly sessionId: string; count: number }>();
+
+	/**
+	 * Hides `chat` of the session `sessionId` from the grid while the returned disposable is not disposed, such as while a
+	 * chat window shows it: its tab does not show in the session's slot. Holds may overlap; the chat shows again once all
+	 * are released.
+	 */
+	hideChatFromGrid(sessionId: string, chatResource: URI): IDisposable {
+		const key = chatResource.toString();
+		const hidden = this._hiddenChats.get(key);
+		if (hidden?.sessionId === sessionId) {
+			hidden.count++;
+		} else {
+			this._hiddenChats.set(key, { sessionId, count: 1 });
+		}
+		this._updateWindowChats(sessionId);
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			const current = this._hiddenChats.get(key);
+			if (current?.sessionId !== sessionId) {
+				return;
+			}
+			if (--current.count === 0) {
+				this._hiddenChats.delete(key);
+			}
+			this._updateWindowChats(sessionId);
+		});
 	}
 
 	private _updateDetachedChats(sessionId: string, transaction?: ITransaction): void {
@@ -1140,7 +1214,8 @@ export class VisibleSessions extends Disposable {
 	 * {@link NO_RECENT} if no entry in the grid is active.
 	 */
 	private _currentActiveSlot(): string | undefined | typeof NO_RECENT {
-		const activeId = this._activeSession.get()?.sessionId;
+		const active = this._activeSession.get();
+		const activeId = active?.sessionId;
 		if (activeId !== undefined) {
 			return this._visibleList.includes(activeId) ? activeId : NO_RECENT;
 		}
@@ -1229,6 +1304,7 @@ export class VisibleSessions extends Disposable {
 
 		this._wrappers.set(session.sessionId, visibleSession);
 		this._updateDetachedChats(session.sessionId);
+		this._updateWindowChats(session.sessionId);
 		return visibleSession;
 	}
 }

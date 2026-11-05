@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { resolve } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -23,7 +24,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentPermissionResponseContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -36,10 +37,10 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
-import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, type CustomizationEnablement, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -252,6 +253,7 @@ function createTestSideEffects(
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
 		authenticationService?: IAgentHostAuthenticationService;
+		logService?: ILogService;
 	},
 	gitService: IAgentHostGitService = createNoopGitService(),
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -259,7 +261,7 @@ function createTestSideEffects(
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
 	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
-	const logService = new NullLogService();
+	const logService = options.logService ?? new NullLogService();
 	const authenticationService = options.authenticationService ?? disposables.add(new AgentHostAuthenticationService(logService));
 	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1215,6 +1217,55 @@ suite('AgentSideEffects', () => {
 			target: 'file:///plugin#mcp=server',
 			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		}]);
+	});
+
+	test('records nested MCP skill toggles at session scope without warning', () => {
+		const calls: { session: string; id: string; type: CustomizationType; enablement: readonly CustomizationEnablement[] }[] = [];
+		const warnings: string[] = [];
+		customizationEnablementService.replaceEnablement = (session, target, enablement) => {
+			calls.push({ session, id: target.id, type: target.type, enablement });
+			return { kind: 'resolved', enablement, enabled: false, workingDirectory: { kind: 'workspaceless' } };
+		};
+		sideEffects.dispose();
+		sideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent, agents: agentList, sessionDataService: createNullSessionDataService(),
+			logService: new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}(),
+		});
+		setupSession();
+		const uri = 'skill://review/SKILL.md';
+		const skillId = `server#skill=${encodeURIComponent(uri)}`;
+		const pluginSkillId = `plugin-server#skill=${encodeURIComponent(uri)}`;
+		const server: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'server', uri: 'server', name: 'fs', state: { kind: McpServerStatus.Ready },
+			children: [{ type: CustomizationType.Skill, id: skillId, uri, name: 'Review' }],
+		};
+		stateManager.dispatchServerAction(sessionUri.toString(), {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [server, { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', children: [{ ...server, id: 'plugin-server', children: [{ ...server.children![0], id: pluginSkillId }] }] }],
+		});
+		for (const id of [skillId, pluginSkillId]) {
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionCustomizationToggled, id,
+				enablement: [
+					{ kind: CustomizationEnablementKind.Session, enabled: false },
+					{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: true },
+				],
+			});
+		}
+		stateManager.rejectClientAction(sessionUri.toString(), {
+			type: ActionType.SessionCustomizationToggled, id: skillId,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		}, { clientId: 'client', clientSeq: 1 }, 'Rejected for test');
+		assert.deepStrictEqual({ calls, warnings }, {
+			calls: [skillId, pluginSkillId].map(id => ({
+				session: sessionUri.toString(), id, type: CustomizationType.Skill,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			})),
+			warnings: [],
+		});
 	});
 
 	suite('MCP server start failures', () => {
@@ -3091,6 +3142,25 @@ suite('AgentSideEffects', () => {
 
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, '!');
 			assert.strictEqual(terminalManager.created.length, 0);
+		});
+
+		test('reports an error part instead of running a ! command in a virtual workspace', async () => {
+			setupSession('vscode-vfs://github/microsoft/vscode');
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createBangSideEffects(terminalManager);
+			const action: ChatAction = chatTurnStarted('turn-1', '!echo hi', '2025-01-01T00:00:00.000Z');
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+
+			const turn = stateManager.getSessionState(sessionUri.toString())?.turns.at(-1);
+			assert.deepStrictEqual({
+				state: turn?.state,
+				parts: turn?.responseParts.map(part => part.kind === ResponsePartKind.Error ? part.error.errorType : part.kind),
+				terminals: terminalManager.created.length,
+				agentCalls: agent.sendMessageCalls.length,
+			}, { state: TurnState.Error, parts: ['terminalUnavailable'], terminals: 0, agentCalls: 0 });
 		});
 
 		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
@@ -5795,6 +5865,84 @@ suite('AgentSideEffects', () => {
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
 
+		for (const autoApproved of [false, true]) {
+			test(`unattended permission requests are never shown as confirmations (autoApproved=${autoApproved})`, async () => {
+				setupSession();
+				if (autoApproved) {
+					stateManager.setSessionConfig(sessionUri.toString(), {
+						schema: { type: 'object', properties: {} }, values: { autoApprove: 'autoApprove' },
+					});
+				}
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<{ approved: boolean; context: IAgentPermissionResponseContext | undefined }>();
+				agent.respondToPermissionRequest = (_requestId: string, approved: boolean, context?: IAgentPermissionResponseContext) => { void response.complete({ approved, context }); };
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), unattended: true,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'unattended-tool', toolName: 'host_tool', displayName: 'Host Tool', invocationMessage: 'Run the host tool', confirmationTitle: 'Run the host tool?' },
+				});
+				assert.deepStrictEqual({
+					response: await response.p,
+					pendingConfirmations: stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation).length,
+				}, {
+					response: autoApproved
+						? { approved: true, context: { decisionSource: 'host_policy' } }
+						: { approved: false, context: { decisionSource: 'unattended_fallback', userNotAvailable: true } },
+					pendingConfirmations: 0,
+				});
+			});
+		}
+
+		for (const client of [false, true]) {
+			test(`an unattended permission request ${client ? 'leaves a started client tool for its client' : 'settles a started tool so its failure lands'}`, async () => {
+				setupSession();
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<boolean>();
+				agent.respondToPermissionRequest = (_requestId: string, approved: boolean) => { void response.complete(approved); };
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+				const contributor = client ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } as const : undefined;
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-unattended', toolName: 'shell', displayName: 'Shell', contributor },
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), unattended: true,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-unattended', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command', confirmationTitle: 'Allow command?', contributor },
+					permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
+				});
+				const approved = await response.p;
+				const toolCallStatus = () => {
+					const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+					return part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined;
+				};
+				const afterResponse = toolCallStatus();
+				if (!client) {
+					agent.fireProgress({
+						kind: 'action', resource: URI.parse(defaultChatUri),
+						action: { type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-unattended', result: { success: false, pastTenseMessage: 'Denied command', error: { message: 'The user is not available to approve this command.' } } },
+					});
+				}
+				assert.deepStrictEqual({
+					approved,
+					afterResponse,
+					final: toolCallStatus(),
+					readyActions: envelopes.flatMap(envelope => envelope.action.type === ActionType.ChatToolCallReady ? [envelope.action.confirmed] : []),
+				}, client ? {
+					approved: false,
+					afterResponse: ToolCallStatus.Streaming,
+					final: ToolCallStatus.Streaming,
+					readyActions: [],
+				} : {
+					approved: false,
+					afterResponse: ToolCallStatus.Running,
+					final: ToolCallStatus.Completed,
+					readyActions: [ToolCallConfirmationReason.NotNeeded],
+				});
+			});
+		}
+
 		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();
 			startTurn('turn-1');
@@ -6616,7 +6764,8 @@ suite('AgentSideEffects', () => {
 	suite('edit auto-approve', () => {
 
 		test('auto-approves writes to regular source files', async () => {
-			setupSession(URI.file('/workspace').toString());
+			const workingDirectory = URI.file(resolve('/workspace'));
+			setupSession(workingDirectory.toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -6637,7 +6786,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write src/app.ts', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/src/app.ts',
+				permissionKind: AgentPermissionKind.Write, permissionPath: URI.joinPath(workingDirectory, 'src', 'app.ts').fsPath,
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);

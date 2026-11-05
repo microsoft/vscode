@@ -16,6 +16,8 @@ jobs:
       - template: ../common/checkout.yml@self
 
       - template: ../common/setup-node.yml@self
+        parameters:
+          os: linux
 
       - template: ../distro/download-distro.yml@self
 
@@ -59,6 +61,10 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/install-pnpm.yml@self
+        parameters:
+          condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
       - task: NuGetAuthenticate@1
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Setup NuGet Authentication
@@ -90,8 +96,8 @@ jobs:
       - script: |
           set -e
           mkdir -p .build/nodejs-musl
-          NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
-          BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
+          NODE_VERSION=$(node -p "require('./remote/package.json').nativeBuild.target")
+          BUILD_ID=$(node -p "require('./remote/package.json').nativeBuild.msBuildId")
           az artifacts universal download \
             --organization "https://dev.azure.com/monacotools" \
             --project "Monaco" \
@@ -116,12 +122,12 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           npm_config_arch: $(NPM_ARCH)

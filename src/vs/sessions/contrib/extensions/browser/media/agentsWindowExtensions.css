@@ -48,6 +48,29 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+/* An icon button, like the More Actions buttons of other Customizations sections. */
+.agents-window-extension-row > .agents-window-extension-more-actions.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.agents-window-extension-row > .agents-window-extension-more-actions.monaco-button:hover {
+	border-color: transparent;
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
 .agents-window-extensions-description {
 	margin: 0 0 var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-body1);
@@ -102,6 +125,7 @@
 	flex: 1;
 	min-width: 0;
 	gap: var(--vscode-spacing-size20);
+	container: agents-window-extension-details / inline-size;
 }
 
 .agents-window-extension-name-row {
@@ -157,6 +181,93 @@
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	overflow: hidden;
+}
+
+/* Rows reuse the Extensions view's publisher, install count, and rating widgets, sized like the rest of the row. */
+.agents-window-extension-row .agents-window-extension-publisher > .publisher {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+.agents-window-extension-row .agents-window-extension-publisher .publisher-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating {
+	display: flex;
+	flex-shrink: 0;
+	align-self: center;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Outranks the workbench's generic codicon size. */
+.agents-window-extension-row .agents-window-extension-name-row .verified-publisher .codicon,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count > .codicon,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Extensions without Marketplace statistics don't leave a gap where they would be. */
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count:empty,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating:empty {
+	display: none;
+}
+
+/* Narrow rows, such as those with a restart button in a narrow editor, leave the space to the extension's name. */
+@container agents-window-extension-details (max-width: 200px) {
+	.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count,
+	.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating {
+		display: none;
+	}
+}
+
+.agents-window-extension-marketplace-actions {
+	flex-shrink: 0;
+}
+
+/* Sizes the Extensions view's Install action like the section's other row actions. Leaves `display` to its `hide` rules. */
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item .action-label.extension-action.label {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+	padding-inline: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 22px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Joins the Install button and its menu of other versions into one control, like the Extensions view. */
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item:not(.empty) > .action-label.extension-action.label {
+	border-start-end-radius: 0;
+	border-end-end-radius: 0;
+}
+
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label.extension-action.label {
+	padding-inline: var(--vscode-spacing-size20);
+	border-start-start-radius: 0;
+	border-end-start-radius: 0;
+}
+
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+}
+
+.agents-window-marketplace-message {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: 100%;
+	padding-inline: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
 }
 
 .agents-window-extensions-empty {

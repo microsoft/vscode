@@ -38,6 +38,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('CodeReviewService', () => {
 
@@ -302,6 +303,7 @@ suite('CodeReviewService', () => {
 		sessionsManagement = new MockSessionsManagementService(store);
 		instantiationService.stub(ISessionsManagementService, sessionsManagement);
 		instantiationService.stub(ISessionsService, { activeSession: sessionsManagement.activeSession } as unknown as ISessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		gitHubService = new MockGitHubService(sessionsManagement);
 		instantiationService.stub(IGitHubService, gitHubService);
@@ -683,12 +685,12 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the tab-level editor actions before layout actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Run Code Review is the first primary action of the Changes editor header', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(headerItem, 'expected Run Code Review in the tab-level editor actions');
+		assert.ok(headerItem, 'expected Run Code Review in the Changes editor header');
 		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
@@ -697,7 +699,7 @@ suite('Code Review Contributions', () => {
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			oldHeaderActions: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			tabRowActions: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 				.filter(isIMenuItem)
 				.filter(item => item.command.id === 'sessions.codeReview.run')
 				.map(item => item.command.id),
@@ -714,7 +716,7 @@ suite('Code Review Contributions', () => {
 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			oldHeaderActions: [],
+			tabRowActions: [],
 			group: 'navigation',
 			order: 10,
 			enabledFromSessionChanges: true,
@@ -722,7 +724,8 @@ suite('Code Review Contributions', () => {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasDesktopLayoutGate: true,
-			hasAuxiliaryWindowGate: true,
+			// It shows in the editor area of a chat window too; the Agents window's editor windows do not show the menu.
+			hasAuxiliaryWindowGate: false,
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
@@ -749,6 +752,7 @@ suite('Code Review Contributions', () => {
 			}
 		});
 		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		stubFocusedSessionHostFromSessionsService(testInstantiationService);
 		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
 		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getSessionResource(resource: URI): URI | undefined {
@@ -788,6 +792,7 @@ suite('Code Review Contributions', () => {
 			}
 		});
 		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		stubFocusedSessionHostFromSessionsService(testInstantiationService);
 		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
 		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getSessionResource(): URI | undefined {

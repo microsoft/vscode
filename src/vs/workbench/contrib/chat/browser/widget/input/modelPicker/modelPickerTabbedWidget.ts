@@ -24,7 +24,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_IDS } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -32,21 +32,25 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IContextViewService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { Link } from '../../../../../../../platform/opener/browser/link.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../../../common/editor.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
-import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
+import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { createMessageBanner } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
@@ -67,6 +71,7 @@ function isComparisonConfigurationValue(value: unknown): value is string | numbe
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
+	readonly agentModelPreferences?: IAgentModelPreferences;
 	readonly comparison?: IModelPickerComparison;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Models from every harness that can participate in a comparison. */
@@ -89,6 +94,8 @@ export interface ITabbedModelPickerContext {
 		readonly show: boolean;
 		readonly currentVSCodeVersion: string;
 		readonly manageSettingsUrl: string | undefined;
+		/** When set, "Contact Admin" opens the organization's help page instead of GitHub's settings. */
+		readonly organizationSupport?: IModelPickerOrganizationSupport;
 		readonly updateStateType: StateType;
 	};
 	/** Reports a click on an upgrade or contact-admin link in an unavailable model row. */
@@ -179,7 +186,7 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -189,6 +196,7 @@ export class TabbedModelPicker extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -553,9 +561,31 @@ export class TabbedModelPicker extends Disposable {
 					listOptions,
 				};
 			},
-			renderFooter: comparison && (step || comparison.showPickerHint?.get()) ? container => step
-				? this._renderComparisonFooter(container, comparison)
-				: this._renderStartComparisonFooter(container, comparison) : undefined,
+			renderFooter: baseContext.agentModelPreferences?.required || (comparison && (step || comparison.showPickerHint?.get())) ? container => {
+				const store = new DisposableStore();
+				if (baseContext.agentModelPreferences?.required) {
+					const notice = dom.append(container, dom.$('.chat-model-picker-agent-notice'));
+					const source = baseContext.agentModelPreferences.source;
+					if (source) {
+						store.add(this.instantiationService.createInstance(Link, notice, {
+							label: localize('chat.modelPicker.agentModelsSource', "Models defined by {0}", source.name),
+							href: source.uri.toString(),
+						}, {
+							opener: () => {
+								this._widget.hide();
+								this._editorService.openEditor({ resource: source.uri, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }).catch(onUnexpectedError);
+							},
+						}));
+					} else {
+						notice.textContent = localize('chat.modelPicker.agentModels', "Models defined by the current agent");
+					}
+				}
+				if (comparison && (step || comparison.showPickerHint?.get())) {
+					const footer = dom.append(container, dom.$('div'));
+					store.add(step ? this._renderComparisonFooter(footer, comparison) : this._renderStartComparisonFooter(footer, comparison));
+				}
+				return store;
+			} : undefined,
 			renderEmpty: (container, activeTab) => {
 				const destination = destinations.find(candidate => candidate.id === activeTab);
 				if (!destination?.placeholders.length) {
@@ -656,7 +686,7 @@ export class TabbedModelPicker extends Disposable {
 		if (!derived.hydraFusionModels) {
 			const auto = this._autoModel(context)?.metadata;
 			const fusion = auto?.autoModelFusion;
-			derived.hydraFusionModels = [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
+			derived.hydraFusionModels = [...COPILOT_HYDRA_FUSION_MODEL_IDS]
 				// Under Fusion, HydraFusion is offered only as one of the provider's tiers.
 				.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || !!getFusionTierLabel(auto, id))
 				.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
@@ -818,6 +848,9 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
+					? button => comparison.renderToggle!(button)
+					: undefined,
 				run: () => {
 					// Starting or leaving a comparison supersedes a pending selection.
 					this._selectionVersion++;
@@ -989,6 +1022,7 @@ export class TabbedModelPicker extends Disposable {
 					unavailableEntry.entry,
 					this._getUnavailableReason(unavailableEntry, context),
 					unavailableContext.manageSettingsUrl,
+					unavailableContext.organizationSupport,
 					unavailableContext.updateStateType,
 					this._entitlementService,
 				));
@@ -1293,8 +1327,12 @@ export class TabbedModelPicker extends Disposable {
 				: getModelConfigDescription(model, context.configurationAccess, useModelConfigurationSchema);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
-		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
-		const hasDetails = !isHydraFusionModel(model) || !!ownTierLabel;
+		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own, and
+		// Copilot Fusion only when it offers something to configure, which it does not in inline chat.
+		const fusionWithoutConfiguration = !!model.metadata.autoModelFusion
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
+		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
 		return {
 			item: {
 				...action,
@@ -1307,7 +1345,12 @@ export class TabbedModelPicker extends Disposable {
 			label: rowLabel,
 			description: modelBadge || routingBadge || fusionRecommendedBadge ? undefined : action.description,
 			badge: modelBadge?.text ?? routingBadge ?? fusionRecommendedBadge,
-			additionalBadges: this._getOrganizationDefaultBadges(model, context),
+			additionalBadges: [
+				...(this._getOrganizationDefaultBadges(model, context) ?? []),
+				...(context.agentModelPreferences && resolveAgentModelPreferences(context.agentModelPreferences.models, context.models).some(candidate => candidate.identifier === model.identifier)
+					? [{ label: context.agentModelPreferences.required ? localize('chat.modelPicker.agentRequired', "Agent Required") : localize('chat.modelPicker.agentPreferred', "Agent Preferred") }]
+					: []),
+			],
 			ariaDescription: localDirect
 				? localDirect.ariaDescription
 				: [ariaDescription, configDescription].filter(Boolean).join(', '),
@@ -1419,7 +1462,7 @@ export class TabbedModelPicker extends Disposable {
 				},
 			} : undefined,
 			modelChoices: ownTiers.length ? {
-				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "HydraFusion tier"),
+				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "Copilot Fusion effort level"),
 				choices: ownTiers.map(tier => ({ label: getHydraFusionTierLabel(tier.metadata.id), model: tier })),
 			} : undefined,
 			// Only Fusion offers HydraFusion among its tiers, each described as the tier it is.

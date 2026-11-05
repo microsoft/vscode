@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -49,7 +51,7 @@ import { ICopilotHomeService } from '../../../../../platform/environment/common/
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService, TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../common/sessionsProvider.js';
@@ -57,10 +59,13 @@ import { SessionsManagementService } from '../../browser/sessionsManagementServi
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../browser/sessionsService.js';
+import { ISessionGridState } from '../../browser/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
+import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../canvas/browser/windowCanvasService.js';
+import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
@@ -73,6 +78,15 @@ import { createSessionsPartTestHarness } from '../../../../test/browser/sessionV
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../browser/chatHostOpener.js';
+import { SessionActivatingActionRunner } from '../../../../browser/sessionActionRunner.js';
+import { SessionHostService } from '../../browser/sessionHostService.js';
+import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
+import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -262,7 +276,7 @@ function createSessionsManagementService(
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
 	openTelemetryService?: ISessionOpenTelemetryService,
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; canvasService: TestWindowCanvasService; layoutService: IWorkbenchLayoutService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
@@ -271,6 +285,8 @@ function createSessionsManagementService(
 	const providersService = provider instanceof TestSessionsProvidersService || provider instanceof SessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
+	const canvasService = new TestWindowCanvasService(customViewService);
+	const layoutService = createSessionLayoutService();
 
 	instantiationService.stub(IStorageService, storageOverride ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
@@ -295,8 +311,16 @@ function createSessionsManagementService(
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
-	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService, canvasService, layoutService);
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, canvasService, layoutService, focusSession, sessionsPartService, notifications };
+}
+
+function createSessionLayoutService(): IWorkbenchLayoutService {
+	const hiddenParts = new Set<Parts>();
+	return upcastPartial<IWorkbenchLayoutService>({
+		isVisible: part => !hiddenParts.has(part),
+		setPartHidden: (hidden, part) => { if (hidden) { hiddenParts.add(part); } else { hiddenParts.delete(part); } },
+	});
 }
 
 /** Sessions part stub that records focus requests without rendering views. */
@@ -321,7 +345,10 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		this.focusedSessions.push(session?.sessionId);
 		this.part?.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
-	override getSessionView(sessionId: string | undefined): SessionView | undefined { return this.part?.getSessionView(sessionId) ?? this.sessionViews.get(sessionId); }
+	override getSessionView(session: string | ISession | undefined): SessionView | undefined {
+		const sessionId = typeof session === 'object' ? session.sessionId : session;
+		return this.part?.getSessionView(sessionId) ?? this.sessionViews.get(sessionId);
+	}
 	override getFocusedSessionView(): SessionView | undefined { return this.part?.getFocusedSessionView() ?? this.focusedSessionView; }
 }
 
@@ -352,14 +379,33 @@ function createView(
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
 	sessionsPartService: ISessionsPartService = new TestSessionsPartService(),
 	openTelemetryService: ISessionOpenTelemetryService = disposables.add(new SessionOpenTelemetryService(NullTelemetryService)),
+	canvasService: TestWindowCanvasService = new TestWindowCanvasService(customViewService),
+	layoutService: IWorkbenchLayoutService = createSessionLayoutService(),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
+	instantiationService.stub(IWindowCanvasService, canvasService);
+	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, openTelemetryService);
-	return disposables.add(instantiationService.createInstance(SessionsService));
+	const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
+	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+		override readonly onDidChangeActiveWindow = onDidChangeActiveWindow.event;
+	}());
+	const chatHostOpenerService = new ChatHostOpenerService();
+	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
+	const view = disposables.add(instantiationService.createInstance(SessionsService));
+	activeWindowChanges.set(view, onDidChangeActiveWindow);
+	chatHostOpeners.set(view, chatHostOpenerService);
+	return view;
 }
+
+/** Makes a window the active one, for the {@link SessionsService} {@link createView} built. */
+const activeWindowChanges = new WeakMap<SessionsService, Emitter<number>>();
+
+/** Where chats another surface shows open and close, for the {@link SessionsService} {@link createView} built. */
+const chatHostOpeners = new WeakMap<SessionsService, IChatHostOpenerService>();
 
 suite('SessionsManagementService', () => {
 
@@ -433,6 +479,105 @@ suite('SessionsManagementService', () => {
 			ui.part.layout(1202, 802, 0, 0);
 			return { ...ui, ...services, sessionsChanged };
 		}
+
+		test('opens exact chats of one session in a grid and retains the selected chat on reopening', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const { view } = harness([parent]);
+			const targets = [main, child].map(chat => ({ session: parent, chatResource: chat.resource }));
+			await view.openChatsInGrid(targets);
+			view.setActive(view.visibleSessionPanes.get()[1]);
+			await view.openChatsInGrid([...targets, targets[0]]);
+			assert.deepStrictEqual({
+				chats: view.visibleSessionPanes.get().map(session => session?.activeChat.get().resource.toString()),
+				active: view.activeSession.get()?.activeChat.get().resource.toString(),
+			}, { chats: [main.resource.toString(), child.resource.toString()], active: child.resource.toString() });
+		});
+
+		test('the grid host is one instance: the one the host lookups register and the main window\'s UI injects, showing the grid\'s active pane; the root has none', async () => {
+			const a = created('a');
+			const b = created('b');
+			const { view } = harness([a, b]);
+			const sessionHostService = disposables.add(new SessionHostService(view, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+			// Resolved as the main window's UI resolves it: through the main window's instantiation service.
+			// Strict, as the workbench's: it rejects a service it does not know.
+			const root = disposables.add(new InstantiationService(new ServiceCollection([ISessionsService, view], [ISessionHostService, sessionHostService]), true));
+			const injected = disposables.add(createMainWindowInstantiationService(root)).invokeFunction(accessor => accessor.get(ISessionHost));
+			class RootConsumer {
+				constructor(@ISessionHost readonly host: ISessionHost) { }
+			}
+			let rootInjection: string;
+			try {
+				root.createInstance(RootConsumer);
+				rootInjection = 'created';
+			} catch {
+				rootInjection = 'throws';
+			}
+			await view.openSession(a.resource);
+			await view.openSessionsAt([b], a.sessionId, 'right', { activate: false });
+			const shownBefore = view.gridHost.session.get()?.sessionId;
+			view.setActive(view.visibleSessionPanes.get().find(pane => pane?.sessionId === 'b'));
+
+			assert.deepStrictEqual({
+				registered: sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId) === view.gridHost,
+				mainWindowHost: getMainWindowHost(sessionHostService) === view.gridHost,
+				disposable: (view.gridHost as Partial<IDisposable>).dispose !== undefined,
+				hosts: sessionHostService.hosts.get().filter(host => host.kind === SessionHostKind.MainWindow).length,
+				injected: injected === view.gridHost,
+				rootRegistration: getSingletonServiceDescriptors().some(([id]) => id === ISessionHost),
+				rootInjection,
+				shownBefore,
+				shownAfter: view.gridHost.session.get()?.sessionId,
+			}, { registered: true, mainWindowHost: true, disposable: false, hosts: 1, injected: true, rootRegistration: false, rootInjection: 'throws', shownBefore: 'a', shownAfter: 'b' });
+		});
+
+		test('the active pane is always one of the grid panes: a detached pane, a draft and a quick chat', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const { view } = harness([parent]);
+			await view.openChatsInGrid([main, child].map(chat => ({ session: parent, chatResource: chat.resource })));
+			view.setActive(view.visibleSessionPanes.get()[1]);
+			const detached = view.activeSession.get();
+
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			};
+			const drafts = [];
+			for (const quickChat of [false, true]) {
+				const draft = stubSession({
+					sessionId: quickChat ? 'quick-chat' : 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+					isQuickChat: constObservable(quickChat), workspace: constObservable(quickChat ? undefined : workspace),
+				});
+				const provider = new class extends TestSessionsProvider {
+					override readonly supportsQuickChats = true;
+					override resolveWorkspace(): ISessionWorkspace { return workspace; }
+					override createQuickChat(): ISession { return draft; }
+				}(draft);
+				const services = createSessionsManagementService(draft, disposables, provider);
+				if (quickChat) {
+					services.view.openQuickChat({ providerId: provider.id });
+				} else {
+					await services.view.openNewSession({ folderUri, providerId: provider.id });
+				}
+				const active = services.view.activeSession.get();
+				drafts.push({ active: active?.sessionId, inPanes: !!active && services.view.visibleSessionPanes.get().includes(active) });
+			}
+
+			assert.deepStrictEqual({
+				detached: { chat: detached?.scopedChatResource?.toString(), inPanes: !!detached && view.visibleSessionPanes.get().includes(detached) },
+				drafts,
+			}, {
+				detached: { chat: child.resource.toString(), inPanes: true },
+				drafts: [{ active: 'draft', inPanes: true }, { active: 'quick-chat', inPanes: true }],
+			});
+		});
 
 		test('a child tab can be dragged outside its parent into an independent pane beside another session', async () => {
 			const a = created('a');
@@ -1111,6 +1256,7 @@ suite('SessionsManagementService', () => {
 					}
 				},
 			});
+
 			await view.openSession(b.resource);
 			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
 			const opening = view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
@@ -1125,6 +1271,35 @@ suite('SessionsManagementService', () => {
 				children: visibility.gridSessions.get().filter(session => session?.scopedChatResource).length,
 			}, { active: b.sessionId, panes: 1, children: 0 });
 		});
+
+		for (const survivorKind of ['parent', 'child'] as const) {
+			test(`collapse retains only the exact ${survivorKind} pane when chats share an owner`, async () => {
+				const session = created('parent');
+				const chats = ['attempt', 'judge'].map(id => ({ ...session.mainChat.get(), resource: URI.parse(`test:///parent/${id}`) }));
+				const parent = { ...session, chats: constObservable([session.mainChat.get(), ...chats]) };
+				const { view, part, container } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				for (const chat of chats) {
+					await view.moveChatToGrid(parent.sessionId, chat.resource, visibility.getGridSlots()[0].id, 'right');
+				}
+				await view.openChat(parent, survivorKind === 'child' ? chats[1].resource : parent.mainChat.get().resource);
+				const survivor = view.activeSession.get()!;
+				const pane = part.getFocusedSessionView();
+				view.collapseToSession(survivor);
+				assert.deepStrictEqual({
+					panes: container.querySelectorAll('.session-view').length,
+					resources: view.visibleSessionPanes.get().map(candidate => candidate?.activeChat.get().resource.toString()),
+					retained: part.getFocusedSessionView() === pane,
+					active: view.activeSession.get() === survivor,
+				}, {
+					panes: 1,
+					resources: [(survivorKind === 'child' ? chats[1] : parent.mainChat.get()).resource.toString()],
+					retained: true,
+					active: true,
+				});
+			});
+		}
 
 		test('a hidden-parent child drag is cancelled if its destination closes during provider preparation', async () => {
 			const a = created('a');
@@ -1400,6 +1575,44 @@ suite('SessionsManagementService', () => {
 				before: { active: 'target', mounted: 'target', focused: true, progress: 'Waiting for agent host connection...' },
 				after: 'target',
 			});
+		});
+
+		test('activating another object of the active session records no navigation when no window shows it', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const { view } = harness([first, second]);
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			const navigation = view.navigationRequest.get();
+			const active = view.activeSession.get();
+			view.setActive(second as IActiveSession);
+			assert.deepStrictEqual({ active: view.activeSession.get()?.sessionId, sameWrapper: view.activeSession.get() === active, preservedNavigation: view.navigationRequest.get() === navigation }, {
+				active: 'second', sameWrapper: true, preservedNavigation: true,
+			});
+		});
+
+		test('the main window\'s host follows the grid\'s active session', async () => {
+			const [first, second, third] = ['first', 'second', 'third'].map(created);
+			const { view } = harness([first, second, third]);
+			const steps: { active: string | undefined; mainWindow: string | undefined }[] = [];
+			const record = () => steps.push({
+				active: view.activeSession.get()?.sessionId,
+				mainWindow: view.gridHost.session.get()?.sessionId,
+			});
+			await view.openSession(first.resource);
+			record();
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			record();
+			await view.openSession(third.resource);
+			record();
+			view.closeSession(view.activeSession.get());
+			record();
+			assert.deepStrictEqual(steps, [
+				{ active: 'first', mainWindow: 'first' },
+				{ active: 'second', mainWindow: 'second' },
+				{ active: 'third', mainWindow: 'third' },
+				{ active: 'first', mainWindow: 'first' },
+			]);
 		});
 
 		test('explicitly reopening a retained inactive session reaches only its mounted group', async () => {
@@ -1678,6 +1891,18 @@ suite('SessionsManagementService', () => {
 			await view.openSessionsAt([b, c], 'a', 'down', { activate: 'last' });
 			assert.deepStrictEqual({ background, active: view.activeSession.get()?.sessionId, visible: view.visibleSessions.get().map(session => session?.sessionId) },
 				{ background: 'a', active: 'c', visible: ['a', 'b', 'c'] });
+		});
+
+		test('chats that move into the main window show there: the session of the first one active, the sessions of the others beside it, without each becoming active in turn', async () => {
+			const [a, b, c] = ['a', 'b', 'c'].map(created);
+			const { view } = harness([a, b, c]);
+			await view.openSession(a.resource);
+			const activated: (string | undefined)[] = [];
+			disposables.add(autorun(reader => activated.push(view.activeSession.read(reader)?.sessionId)));
+
+			await view.openMovedChats([b, c].map(session => ({ session, chatResource: session.mainChat.get().resource })));
+
+			assert.deepStrictEqual({ activated, visible: view.visibleSessions.get().map(session => session?.sessionId) }, { activated: ['a', 'b'], visible: ['b', 'c'] });
 		});
 
 		test('reopening uses ordinary replacement after the recorded neighbor leaves', async () => {
@@ -4008,6 +4233,255 @@ suite('SessionsManagementService', () => {
 			}, { active: undefined, recent: [] });
 		});
 
+		for (const source of ['inbox', 'sessionsList'] as const) {
+			test(`${source} opens leave a retained canvas and Back/Forward restores the same conversation`, async () => {
+				const main: IChat = { ...stubChat, resource: URI.parse('test:///main'), status: constObservable(SessionStatus.Completed) };
+				const peer: IChat = { ...main, resource: URI.parse('test:///peer') };
+				const session = stubSession({
+					sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+					chats: constObservable([main, peer]), mainChat: constObservable(main), capabilities: constObservable({ supportsMultipleChats: true }),
+				});
+				const { view, canvasService, sessionsPartService, contextKeyService } = createSessionsManagementService(session, disposables);
+				disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+				await view.openChat(session, peer.resource);
+				await canvasService.openCanvas('inbox');
+				sessionsPartService.focusedSessions.length = 0;
+				await view.openSession(session.resource, { source });
+				const opened = {
+					canvas: canvasService.activeCanvasOpen.get(),
+					focused: [...sessionsPartService.focusedSessions],
+					visible: view.visibleSessions.get().map(session => session?.sessionId),
+				};
+				await view.openPreviousSession();
+				const back = canvasService.activeCanvasOpen.get()?.id;
+				await view.openNextSession();
+
+				assert.deepStrictEqual({
+					opened, back,
+					canvas: canvasService.activeCanvasOpen.get(),
+					chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+					canGoForward: contextKeyService.getContextKeyValue('sessionsCanGoForward'),
+					recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+				}, {
+					opened: { canvas: undefined, focused: ['session'], visible: ['session'] }, back: 'inbox',
+					canvas: undefined, chat: peer.resource.toString(), canGoForward: false, recent: ['session'],
+				});
+			});
+		}
+
+		for (const target of ['session', 'chat'] as const) {
+			for (const preserveFocus of [false, true]) {
+				test(`sessions-list ${target} navigation reveals a canvas-covered transcript (preserveFocus: ${preserveFocus})`, async () => {
+					const main: IChat = { ...stubChat, resource: URI.parse('test:///main'), status: constObservable(SessionStatus.Completed) };
+					const peer: IChat = { ...main, resource: URI.parse('test:///peer') };
+					const session = stubSession({
+						sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+						chats: constObservable([main, peer]), mainChat: constObservable(main), capabilities: constObservable({ supportsMultipleChats: true }),
+					});
+					const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(session, disposables);
+					disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+					await view.openSession(session.resource);
+					await canvasService.openCanvas('inbox');
+					layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+					sessionsPartService.focusedSessions.length = 0;
+					if (target === 'session') {
+						await view.openSession(session.resource, { source: 'sessionsList', preserveFocus, forceMainChat: true });
+					} else {
+						await view.openChat(session, peer.resource, { source: 'sessionsList', preserveFocus });
+					}
+					assert.deepStrictEqual({
+						visible: layoutService.isVisible(Parts.SESSIONS_PART),
+						canvas: canvasService.activeCanvasOpen.get(),
+						chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+						focused: sessionsPartService.focusedSessions,
+					}, { visible: true, canvas: undefined, chat: (target === 'session' ? main : peer).resource.toString(), focused: preserveFocus ? [] : ['session'] });
+				});
+			}
+		}
+
+		for (const preserveCustomView of [false, true]) {
+			test(`new-session navigation reveals a canvas-covered empty composer unless owned by the canvas (${preserveCustomView})`, async () => {
+				const session = stubSession({ sessionId: 'session', providerId: 'test' });
+				const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(session, disposables);
+				disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+				await canvasService.openCanvas('inbox');
+				layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+				const navigation = view.navigationRequest.get();
+				await view.openNewSession({ preserveCustomView });
+				assert.deepStrictEqual({
+					visible: layoutService.isVisible(Parts.SESSIONS_PART),
+					canvas: canvasService.activeCanvasOpen.get()?.id,
+					focused: sessionsPartService.focusedSessions,
+					sameNavigation: view.navigationRequest.get() === navigation,
+				}, {
+					visible: !preserveCustomView, canvas: preserveCustomView ? 'inbox' : undefined,
+					focused: preserveCustomView ? [] : [undefined], sameNavigation: preserveCustomView,
+				});
+			});
+		}
+
+		test('session metadata changes do not reveal a canvas-covered session', async () => {
+			const title = observableValue('title', 'Before');
+			const session = stubSession({ sessionId: 'session', providerId: 'test', title, status: constObservable(SessionStatus.Completed) });
+			const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(session, disposables);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(session.resource);
+			await canvasService.openCanvas('inbox');
+			layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+			sessionsPartService.focusedSessions.length = 0;
+			const navigation = view.navigationRequest.get();
+			title.set('After', undefined);
+			assert.deepStrictEqual({
+				visible: layoutService.isVisible(Parts.SESSIONS_PART),
+				canvas: canvasService.activeCanvasOpen.get()?.id,
+				focused: sessionsPartService.focusedSessions,
+				sameNavigation: view.navigationRequest.get() === navigation,
+			}, { visible: false, canvas: 'inbox', focused: [], sameNavigation: true });
+		});
+
+		test('opening a canvas cancels unresolved session navigation without visiting the canceled session', async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const resolutionStarted = new DeferredPromise<void>();
+			const resolution = new DeferredPromise<URI | undefined>();
+			const provider = new class extends TestSessionsProvider {
+				override resolveSessionResource(): Promise<URI | undefined> {
+					resolutionStarted.complete();
+					return resolution.p;
+				}
+			}(session);
+			const { view, canvasService } = createSessionsManagementService(session, disposables, provider);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			const opening = view.openSession(session.resource);
+			await resolutionStarted.p;
+			await canvasService.openCanvas('inbox');
+			resolution.complete(undefined);
+			await opening;
+			const opened = canvasService.activeCanvasOpen.get()?.id;
+			await view.openPreviousSession();
+			assert.deepStrictEqual({
+				opened, active: view.activeSession.get()?.sessionId,
+				canvas: canvasService.activeCanvasOpen.get(),
+				recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+			}, { opened: 'inbox', active: undefined, canvas: undefined, recent: [] });
+		});
+
+		test('focusing an already-visible session leaves canvas navigation without replacing its pane', async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const { view, canvasService, focusSession } = createSessionsManagementService(session, disposables);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(session.resource);
+			const active = view.activeSession.get();
+			await canvasService.openCanvas('inbox');
+			focusSession.fire(session.sessionId);
+			const unchanged = active === view.activeSession.get();
+			await view.openPreviousSession();
+			assert.deepStrictEqual({ unchanged, canvas: canvasService.activeCanvasOpen.get()?.id }, { unchanged: true, canvas: 'inbox' });
+		});
+
+		for (const { pendingCanvas, savedGrid } of [
+			{ pendingCanvas: false, savedGrid: false }, { pendingCanvas: true, savedGrid: false },
+			{ pendingCanvas: false, savedGrid: true }, { pendingCanvas: true, savedGrid: true },
+		]) {
+			test(`startup restoration continues under ${pendingCanvas ? 'a pending' : 'an open'} canvas without taking focus (saved grid: ${savedGrid})`, async () => {
+				const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
+				let sessions: ISession[] = [];
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = sessionsChanged.event;
+					override getSessions(): ISession[] { return sessions; }
+				}(first);
+				const storage = disposables.add(new InMemoryStorageService());
+				storage.store('agentSessions.activeSessionStates', JSON.stringify([
+					{ sessionResource: first.resource.toString(), visibleOrder: 0, isSticky: true, isActive: true },
+					{ sessionResource: second.resource.toString(), visibleOrder: 1, isSticky: false, isActive: false },
+				]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				if (savedGrid) {
+					const state: ISessionGridState = {
+						version: 1,
+						grid: {
+							orientation: Orientation.HORIZONTAL, width: 1000, height: 600,
+							root: {
+								type: 'branch', size: 600,
+								data: [
+									{ type: 'leaf', size: 400, data: { id: 'first-slot' } },
+									{ type: 'leaf', size: 600, data: { id: 'second-slot' } },
+								],
+							},
+						},
+						sessions: [
+							{ id: 'first-slot', resource: first.resource.toString(), sticky: true },
+							{ id: 'second-slot', resource: second.resource.toString(), sticky: false },
+						],
+						active: 'first-slot',
+					};
+					storage.store('agentSessions.gridState', JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
+				const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(first, disposables, provider, undefined, undefined, undefined, undefined, storage);
+				disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+				const restoring = view.restoreVisibleSessions();
+				if (pendingCanvas) {
+					canvasService.navigationRequest.set({ id: 'inbox', source: 'explicit' }, undefined);
+				} else {
+					await canvasService.openCanvas('inbox');
+				}
+				layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+				sessionsPartService.focusedSessions.length = 0;
+				const navigation = view.navigationRequest.get();
+
+				sessions = [first, second];
+				sessionsChanged.fire({ added: sessions, removed: [], changed: [] });
+				await restoring;
+				const covered = {
+					visible: layoutService.isVisible(Parts.SESSIONS_PART),
+					sessions: view.visibleSessions.get().map(session => ({ id: session?.sessionId, sticky: session?.sticky.get() })),
+					active: view.activeSession.get()?.sessionId,
+					focused: [...sessionsPartService.focusedSessions],
+					canvas: canvasService.navigationRequest.get()?.id,
+					sameNavigation: view.navigationRequest.get() === navigation,
+					restoreComplete: view.initialRestoreComplete.get(),
+				};
+				await view.openSession(first.resource, { source: 'sessionsList', preserveFocus: true });
+				assert.deepStrictEqual({
+					covered,
+					returned: {
+						visible: layoutService.isVisible(Parts.SESSIONS_PART),
+						sessions: view.visibleSessions.get().map(session => session?.sessionId),
+						focused: sessionsPartService.focusedSessions,
+						canvas: canvasService.activeCanvasOpen.get(),
+					},
+				}, {
+					covered: {
+						visible: false, sessions: [{ id: 'first', sticky: true }, { id: 'second', sticky: false }],
+						active: 'first', focused: [], canvas: 'inbox', sameNavigation: true, restoreComplete: true,
+					},
+					returned: { visible: true, sessions: ['first', 'second'], focused: [], canvas: undefined },
+				});
+			});
+		}
+
+		test('explicit side opening from a canvas preserves the session arrangement and preserve-focus option', async () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, second]; }
+			}(first);
+			const { view, canvasService, sessionsPartService } = createSessionsManagementService(first, disposables, provider);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(first.resource);
+			await canvasService.openCanvas('inbox');
+			sessionsPartService.focusedSessions.length = 0;
+			await view.openSessionToSide(second, { preserveFocus: true });
+			const opened = {
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				focused: [...sessionsPartService.focusedSessions],
+			};
+			await view.openPreviousSession();
+			assert.deepStrictEqual({ opened, canvas: canvasService.activeCanvasOpen.get()?.id }, {
+				opened: { visible: ['first', 'second'], focused: [] }, canvas: 'inbox',
+			});
+		});
+
 		test('returning to new-session restores the existing draft', async () => {
 			const folderUri = URI.file('/test/workspace');
 			const workspace: ISessionWorkspace = {
@@ -4603,6 +5077,58 @@ suite('SessionsManagementService', () => {
 			canOpen: false,
 			granted: [],
 			prompts: [worktree.toString()],
+		});
+	});
+
+	suite('remote agent environment trust prompt', () => {
+		const folder = URI.file('/remote/project');
+		const makeWorkspace = (group: string | undefined): ISessionWorkspace => ({
+			uri: folder,
+			label: 'project',
+			group,
+			icon: Codicon.remote,
+			folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		});
+
+		async function requestOpenTrust(group: string | undefined, providerId: string, via: 'canOpenSession' | 'openNewSession'): Promise<(string | undefined)[]> {
+			const workspace = makeWorkspace(group);
+			const session = stubSession({ sessionId: 'remote-open', providerId, workspace: constObservable(workspace) });
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			};
+			const trustManagement = new class extends TestWorkspaceTrustManagementService {
+				override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
+			};
+			const requests: ResourceTrustRequestOptions[] = [];
+			const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(options: ResourceTrustRequestOptions) { requests.push(options); return false; }
+			};
+			const { view } = createSessionsManagementService(session, disposables, provider, trustManagement, trustRequest);
+			if (via === 'canOpenSession') {
+				await view.canOpenSession(session);
+			} else {
+				await view.openNewSession({ folderUri: folder });
+			}
+			return requests.map(request => request.remoteHostLabel);
+		}
+
+		test('identifies the provider when opening a session', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(SESSION_WORKSPACE_GROUP_REMOTE, 'test', 'canOpenSession'), ['Test']);
+		});
+
+		test('identifies the provider when creating a new session', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(SESSION_WORKSPACE_GROUP_REMOTE, 'test', 'openNewSession'), ['Test']);
+		});
+
+		test('falls back to a generic label when the provider is unknown', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(SESSION_WORKSPACE_GROUP_REMOTE, 'missing', 'canOpenSession'), ['Remote Agent Environment']);
+		});
+
+		test('does not identify a remote environment for a local folder', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(undefined, 'test', 'canOpenSession'), [undefined]);
 		});
 	});
 
@@ -5678,6 +6204,82 @@ suite('SessionsManagementService', () => {
 
 		completeSendRequest?.();
 	});
+
+	for (const background of [false, true]) {
+		test(`sendRequest ${background ? 'preserves' : 'discards'} a pending composer draft in the ${background ? 'background' : 'foreground'}`, async () => {
+			const session = stubSession({ sessionId: 'sent-session', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft-session', providerId: 'test' });
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace {
+					return { uri: URI.parse('test:///folder'), label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override createNewSession(): ISession { return draft; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const discarded: string[] = [];
+			disposables.add(service.onDidDiscardNewSession(session => discarded.push(session.sessionId)));
+			service.createNewSession(URI.parse('test:///folder'));
+			const sent = Event.toPromise(service.onDidSendRequest);
+
+			await service.sendRequest(session, session.mainChat.get(), { query: 'question', background });
+			await sent;
+
+			assert.deepStrictEqual({ draft: service.newSession.get()?.sessionId, discarded }, background
+				? { draft: 'draft-session', discarded: [] }
+				: { draft: undefined, discarded: ['draft-session'] });
+		});
+	}
+
+	for (const fail of [false, true]) {
+		test(`sendRequestInBackground awaits submission and ${fail ? 'propagates failure' : 'reports success'} without navigating or discarding drafts`, async () => {
+			const session = stubSession({ sessionId: 'sent-session', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft-session', providerId: 'test' });
+			const entered = new DeferredPromise<void>();
+			const released = new DeferredPromise<void>();
+			let background: boolean | undefined;
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace {
+					return { uri: URI.parse('test:///folder'), label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override createNewSession(): ISession { return draft; }
+				override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestSentEvent['options']): Promise<ISession> {
+					background = options.background;
+					entered.complete();
+					await released.p;
+					if (fail) {
+						throw new Error('Send failed');
+					}
+					return session;
+				}
+			}(session);
+			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			let willSend = 0;
+			let sent = 0;
+			let discarded = 0;
+			disposables.add(service.onWillSendRequest(() => willSend++));
+			disposables.add(service.onDidSendRequest(() => sent++));
+			disposables.add(service.onDidDiscardNewSession(() => discarded++));
+			service.createNewSession(URI.parse('test:///folder'));
+			const navigationRequest = view.navigationRequest.get();
+			let settled = false;
+			const sending = service.sendRequestInBackground(session, session.mainChat.get(), { query: 'question' }).finally(() => { settled = true; });
+			const completed = fail ? assert.rejects(sending, /Send failed/) : sending;
+			await entered.p;
+			const pending = !settled;
+			released.complete();
+			await completed;
+
+			assert.deepStrictEqual({
+				pending, settled, background, willSend, sent, discarded,
+				draft: service.newSession.get()?.sessionId,
+				navigated: view.navigationRequest.get() !== navigationRequest,
+			}, {
+				pending: true, settled: true, background: true, willSend: 0, sent: fail ? 0 : 1, discarded: 0,
+				draft: 'draft-session',
+				navigated: false,
+			});
+		});
+	}
 
 	test('mirrored follow-up requests preserve submitted attachments', () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
@@ -8062,6 +8664,133 @@ suite('SessionsManagementService', () => {
 			}, {
 				activeChat: 'subagentA',
 				visibleTabs: ['mainA', 'subagentA'],
+			});
+		});
+
+		test('chats that move into the main window from a chat window show as tabs of their sessions, also a closed one and a subagent the main window never showed; only the session of the first one becomes active, and they stay so as their session shows again', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat), chat('subagentB', SessionStatus.Completed, ChatOriginKind.Tool)]);
+			const [mainB, peerB, subagentB] = sessionB.chats.get();
+			const { view } = setup([sessionA, sessionB]);
+			// The peer of B was closed in the main window before; its subagent opened beside it in a chat window only.
+			await view.openSession(sessionB.resource);
+			await view.openChat(sessionB, peerB.resource);
+			await view.closeChat(view.activeSession.get()!, peerB);
+			await view.openSession(sessionA.resource);
+			const tabsOf = (sessionId: string) => view.visibleSessions.get().find(session => session?.sessionId === sessionId)?.visibleChatTabs.get().map(chat => chat.title.get());
+
+			await view.openMovedChats([{ session: sessionA, chatResource: sessionA.mainChat.get().resource }, { session: sessionB, chatResource: peerB.resource }, { session: sessionB, chatResource: subagentB.resource }]);
+			const moved = { active: view.activeSession.get()?.sessionId, tabsOfB: tabsOf('B'), activeChatOfB: view.visibleSessions.get().find(session => session?.sessionId === 'B')?.activeChat.get().title.get() };
+			// Its session shows again, as after a reload: from what was remembered of it.
+			view.closeSession(view.visibleSessions.get().find(session => session?.sessionId === 'B'));
+			await view.openSession(sessionB.resource);
+
+			assert.deepStrictEqual({ moved, again: tabsOf('B'), mainB: mainB.title.get() }, {
+				moved: { active: 'A', tabsOfB: ['mainB', 'peerB', 'subagentB'], activeChatOfB: 'peerB' },
+				again: ['mainB', 'peerB', 'subagentB'],
+				mainB: 'mainB',
+			});
+		});
+
+		test('closing a chat that a chat editor shows, or the session of its chat, closes its editor, and leaves the grid alone, which shows the same session', async () => {
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const [, peerB] = sessionB.chats.get();
+			const { view } = setup([sessionB]);
+			await view.openSession(sessionB.resource);
+			await view.openChat(sessionB, peerB.resource);
+			const closes: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === peerB.resource.toString(),
+				reveal: async () => { },
+				openBeside: async () => { },
+				close: async closed => { closes.push(closed.path); },
+			}));
+			const editorSession = upcastPartial<IActiveSession>({ sessionId: 'B', resource: sessionB.resource, scopedChatResource: peerB.resource, mainChat: sessionB.mainChat, chats: sessionB.chats });
+			const grid = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId, activeChat: view.activeSession.get()?.activeChat.get().title.get(), closed: closedTitles(view) });
+			const before = grid();
+
+			await view.closeChat(editorSession, peerB);
+			view.closeSession(editorSession);
+			await timeout(0);
+
+			assert.deepStrictEqual({ closes, grid: grid() }, { closes: ['/chat/peerB', '/chat/peerB'], grid: before });
+		});
+
+		test('activating the session of a chat that a chat editor shows, as its pills do before their actions, leaves the grid, its active session and the canvas as they are; the action runs', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const [, peerB] = sessionB.chats.get();
+			const { view, canvasService } = setup([sessionA, sessionB]);
+			await view.openSession(sessionA.resource);
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === peerB.resource.toString(),
+				reveal: async () => { },
+				openBeside: async () => { },
+				close: async () => { },
+			}));
+			canvasService.activeCanvasOpen.set({ id: 'canvas' } as Parameters<typeof canvasService.activeCanvasOpen.set>[0], undefined);
+			const editorSession = upcastPartial<IActiveSession>({ sessionId: 'B', resource: sessionB.resource, scopedChatResource: peerB.resource, mainChat: sessionB.mainChat, chats: sessionB.chats });
+			const state = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId, canvas: canvasService.activeCanvasId.get() });
+			const before = state();
+			const ran: string[] = [];
+
+			await disposables.add(new SessionActivatingActionRunner(() => editorSession, view)).run(toAction({ id: 'pill', label: 'Pill', run: () => { ran.push('pill'); } }));
+			// As the pills' pull request, issue and artifact actions do
+			view.setActive(editorSession);
+
+			assert.deepStrictEqual({ state: state(), ran }, { state: before, ran: ['pill'] });
+		});
+
+		test('opening a session whose chat another surface shows, such as a chat window, reveals it there, and leaves the grid and its selection as they are', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+			await view.openSession(sessionA.resource);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === sessionB.mainChat.get().resource.toString(),
+				reveal: async (shown, options) => { revealed.push(`${shown.path}${options?.preserveFocus ? ' preserving focus' : ''}`); },
+				openBeside: async () => { },
+				close: async () => { },
+			}));
+			const grid = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId });
+			const before = grid();
+
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionB.resource, { forceMainChat: true, preserveFocus: true });
+			view.showSession(sessionB.resource);
+			await timeout(0);
+
+			assert.deepStrictEqual({ revealed, grid: grid() }, { revealed: ['/chat/mainB', '/chat/mainB preserving focus', '/chat/mainB'], grid: before });
+		});
+
+		test('opening a session whose main chat a chat window shows, while the grid shows another of its chats, reveals the window for its main chat, and shows the session in the grid otherwise', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const [, peerB] = sessionB.chats.get();
+			const { view } = setup([sessionA, sessionB]);
+			await view.openSession(sessionB.resource);
+			await view.openChat(sessionB, peerB.resource);
+			// B stays in the grid, with its peer, as A opens beside it.
+			view.toggleSessionStickiness(view.activeSession.get()!);
+			await view.openSession(sessionA.resource);
+			const grid = { visible: view.visibleSessions.get().map(session => session?.sessionId).sort(), active: view.activeSession.get()?.sessionId, chatOfB: view.visibleSessions.get().find(session => session?.sessionId === 'B')?.activeChat.get().title.get() };
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === sessionB.mainChat.get().resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => { },
+			}));
+
+			await view.openSession(sessionB.resource, { forceMainChat: true });
+			const forMainChat = { revealed: [...revealed], active: view.activeSession.get()?.sessionId };
+			await view.openSession(sessionB.resource);
+
+			assert.deepStrictEqual({ grid, forMainChat, otherwise: { revealed, active: view.activeSession.get()?.sessionId, activeChat: view.activeSession.get()?.activeChat.get().title.get() } }, {
+				grid: { visible: ['A', 'B'], active: 'A', chatOfB: 'peerB' },
+				forMainChat: { revealed: ['/chat/mainB'], active: 'A' },
+				otherwise: { revealed: ['/chat/mainB'], active: 'B', activeChat: 'peerB' },
 			});
 		});
 

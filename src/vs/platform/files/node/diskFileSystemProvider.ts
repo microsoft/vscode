@@ -18,7 +18,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/s
 import { URI } from '../../../base/common/uri.js';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability } from '../common/files.js';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability, IFileSystemProviderWithFileAtomicRenameCapability, toFileSystemProviderErrorCode } from '../common/files.js';
 import { readFileIntoStream } from '../common/io.js';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from '../common/watcher.js';
 import { AbstractDiskFileSystemProvider } from '../common/diskFileSystemProvider.js';
@@ -33,6 +33,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileAtomicDeleteCapability,
+	IFileSystemProviderWithFileAtomicRenameCapability,
 	IFileSystemProviderWithFileCloneCapability,
 	IFileSystemProviderWithFileRealpathCapability {
 
@@ -66,6 +67,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
+				FileSystemProviderCapabilities.FileAtomicRename |
 				FileSystemProviderCapabilities.FileClone |
 				FileSystemProviderCapabilities.FileRealpath;
 
@@ -710,6 +712,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		return this.doRename(from, to, opts, false);
+	}
+
+	async renameFileAtomic(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		return this.doRename(from, to, opts, true);
+	}
+
+	private async doRename(from: URI, to: URI, opts: IFileOverwriteOptions, atomic: boolean): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
@@ -720,11 +730,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 
 			// Validate the move operation can perform
-			const fromStat = await this.validateMoveCopy(from, to, 'move', opts.overwrite);
+			const fromStat = await this.validateMoveCopy(from, to, 'move', opts.overwrite, atomic);
 
 			// Rename
 			const isFolder = (fromStat.type & FileType.Directory) !== 0;
-			await Promises.rename(fromFilePath, toFilePath, isFolder && !opts.overwrite ? DiskFileSystemProvider.FOLDER_RENAME_RETRY_TIMEOUT : undefined);
+			if (atomic) {
+				await Promises.renameAtomic(fromFilePath, toFilePath);
+			} else {
+				await Promises.rename(fromFilePath, toFilePath, isFolder && !opts.overwrite ? DiskFileSystemProvider.FOLDER_RENAME_RETRY_TIMEOUT : undefined);
+			}
 		} catch (error) {
 
 			// On Windows, a rename fails when the file or folder (or anything inside
@@ -775,13 +789,16 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	private async validateMoveCopy(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<IStat> {
+	private async validateMoveCopy(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean, atomic = false): Promise<IStat> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
-		const fromStat = await this.statIgnoreError(from);
+		const fromStat = atomic ? await this.stat(from) : await this.statIgnoreError(from);
 		if (!fromStat) {
 			throw createFileSystemProviderError(localize('fileMoveCopyErrorNotFound', "File to move/copy does not exist"), FileSystemProviderErrorCode.FileNotFound);
+		}
+		if (atomic && !(fromStat.type & FileType.File)) {
+			throw createFileSystemProviderError(localize('atomicRenameSource', "Atomic renames only support files."), FileSystemProviderErrorCode.Unavailable);
 		}
 
 		let isSameResourceWithDifferentPathCase = false;
@@ -809,9 +826,23 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// We need to respect the `overwrite` option to throw in case the
 		// target exists.
 
-		const toStat = await this.statIgnoreError(to);
+		let toStat: IStat | undefined;
+		if (atomic) {
+			try {
+				toStat = await this.stat(to);
+			} catch (error) {
+				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
+					throw error;
+				}
+			}
+		} else {
+			toStat = await this.statIgnoreError(to);
+		}
 		if (!toStat) {
 			return fromStat; // target does not exist so we are good
+		}
+		if (atomic && !(toStat.type & FileType.File)) {
+			throw createFileSystemProviderError(localize('atomicRenameTarget', "Atomic renames only support replacing files."), FileSystemProviderErrorCode.Unavailable);
 		}
 
 		if (!overwrite) {

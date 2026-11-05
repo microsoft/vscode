@@ -76,7 +76,7 @@ Update a specification only when component ownership, an interface or lifecycle 
 Run the smallest existing checks that cover the change:
 
 - focused unit tests for affected behavior;
-- `npm run valid-layers-check` when imports or module ownership change;
+- `pnpm run valid-layers-check` when imports or module ownership change;
 - targeted type checking or compilation when TypeScript changes warrant it;
 - relevant integration, E2E, or visual validation for cross-process or UI work.
 

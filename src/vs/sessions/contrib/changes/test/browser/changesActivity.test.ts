@@ -20,12 +20,12 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../../editor/browser/addTabActions.js';
 import { SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChangesActivityContribution, hasNewChanges, MAX_SEEN_CHANGES_CHATS, SeenChangesStore } from '../../browser/changesActivity.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Changes Activity', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -108,7 +108,7 @@ suite('Sessions - Changes Activity Contribution', () => {
 				onDidToggleSidePane: Event.None,
 				isSidePaneVisible: () => sidePaneVisible,
 			}),
-			upcastPartial<ISessionsService>({ activeSession: constObservable(session) }),
+			focusedSessionHostServiceOf(constObservable(session)),
 			upcastPartial<ISessionChangesService>({ getSessionResource: resource => resource.toString() === changesEditorResource.toString() ? sessionResource : undefined }),
 			upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }),
 			upcastPartial<IEditorService>({
