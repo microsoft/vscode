@@ -8,6 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -20,6 +21,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -80,6 +82,9 @@ export class RemotesWidget extends Disposable {
 	private readonly tableScrollable: DomScrollableElement;
 	private readonly tableMinWidth: number;
 	private readonly message: HTMLElement;
+	private readonly searchRow: HTMLElement;
+	private readonly heading: HTMLElement;
+	private readonly headingTitle: HTMLElement;
 	private readonly searchInput: InputBox;
 	private readonly clearSearchAction: Action;
 	private readonly collapseAllAction: Action;
@@ -116,7 +121,11 @@ export class RemotesWidget extends Disposable {
 		this._register(model);
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
 		this.domNode = dom.append(container, dom.$('.remotes-widget'));
-		const searchRow = dom.append(this.domNode, dom.$('.remotes-search-row'));
+		const searchRow = this.searchRow = dom.append(this.domNode, dom.$('.remotes-search-row'));
+		this.heading = dom.append(searchRow, dom.$('.remotes-heading'));
+		this.heading.hidden = true;
+		dom.append(this.heading, renderIcon(Codicon.remoteExplorer)).setAttribute('aria-hidden', 'true');
+		this.headingTitle = dom.append(this.heading, dom.$('h2.remotes-heading-title', { id: generateUuid() }));
 		const actionHoverDelegate = this._register(createInstantHoverDelegate());
 		this.clearSearchAction = this._register(new Action('remotes.clearSearch', localize('remotes.clearSearch', "Clear Search"), ThemeIcon.asClassName(Codicon.clearAll), false, () => {
 			this.setSearchQuery('');
@@ -611,7 +620,29 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Shows a section heading before the search field and names the widget as a region after it,
+	 * or removes both when `label` is undefined. Call {@link layout} afterwards.
+	 */
+	setHeading(label: string | undefined): void {
+		this.heading.hidden = !label;
+		this.headingTitle.textContent = label ?? '';
+		this.searchRow.classList.toggle('with-heading', !!label);
+		if (label) {
+			this.domNode.setAttribute('role', 'region');
+			this.domNode.setAttribute('aria-labelledby', this.headingTitle.id);
+		} else {
+			this.domNode.removeAttribute('role');
+			this.domNode.removeAttribute('aria-labelledby');
+		}
+	}
+
 	getAccessibilityContent(): string {
+		const content = this.getRemotesAccessibilityContent();
+		return this.heading.hidden ? content : `${this.headingTitle.textContent}\n${content}`;
+	}
+
+	private getRemotesAccessibilityContent(): string {
 		const remotes = this.getFilteredRemotes();
 		if (this.query && remotes.length === 0) {
 			return localize('remotes.empty.filtered', "No matching remotes.");

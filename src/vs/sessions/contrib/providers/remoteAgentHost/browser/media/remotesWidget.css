@@ -24,6 +24,9 @@
 
 .remotes-editor-this-computer {
 	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size160);
+	padding-bottom: var(--vscode-spacing-size200);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
 .remotes-editor-table {
@@ -53,6 +56,30 @@
 .remotes-widget .remotes-search-container {
 	flex: 1;
 	min-width: 0;
+}
+
+.remotes-widget .remotes-heading:not([hidden]) {
+	display: flex;
+	flex: 1 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-widget .remotes-heading-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+}
+
+/* The heading takes the free space, so search and refresh line up at the end of the row; when narrow, they wrap below the heading. */
+.remotes-widget .remotes-search-row.with-heading {
+	flex-wrap: wrap;
+}
+
+.remotes-widget .remotes-search-row.with-heading .remotes-search-container {
+	flex: 1 1 160px;
+	max-width: 320px;
 }
 
 .remotes-widget .remotes-search-container .monaco-action-bar {
