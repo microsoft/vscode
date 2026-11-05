@@ -28,8 +28,8 @@ import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../.
 import { IFocusedSessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
-import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
+import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
+import { isWellKnownModeSchema, isWellKnownModeValue } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 

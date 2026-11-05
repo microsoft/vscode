@@ -41,7 +41,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
+import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerSource.js';
 
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;

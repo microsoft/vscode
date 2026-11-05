@@ -16,8 +16,8 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
-import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';
+import { HostFilterActionViewItem } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/hostFilterActionViewItem.js';
+import { MobileHostFilterActionViewItem } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 
 const PICK_HOST_FILTER_ID = 'sessions.agentHostFilter.pick';
 

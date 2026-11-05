@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { EntryDrivenProviderContribution } from './entryDrivenProviderContribution.js';
+import { EntryDrivenProviderContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 
 export class WebSocketAgentHostContribution extends EntryDrivenProviderContribution implements IWorkbenchContribution {
 

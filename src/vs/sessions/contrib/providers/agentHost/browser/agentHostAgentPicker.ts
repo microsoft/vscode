@@ -32,7 +32,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
+import { ModePicker, ScopedModePickerModelCache } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
 import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';

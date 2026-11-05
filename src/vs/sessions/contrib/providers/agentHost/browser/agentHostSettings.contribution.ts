@@ -16,7 +16,7 @@ import { ISession } from '../../../../../workbench/contrib/sessions/common/sessi
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
+import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSettingsFileSystemProvider.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 MenuRegistry.appendMenuItem(Menus.SessionItemContextMenu, {

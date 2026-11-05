@@ -47,8 +47,8 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
-import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
+import { AgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModePicker.js';
+import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
 import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../chat/browser/media/chatWidget.css';

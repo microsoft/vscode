@@ -47,7 +47,7 @@ import { AutomationSessionDraftSynchronizer } from '../../../../automations/brow
 import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
-import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
+import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
 import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';

@@ -11,9 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { categorizeSSHConnectError } from '../../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
+import { ManagedReconnectState } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
 import { shouldPauseSSHReconnectAfterFailure } from '../../browser/sshAgentHost.contribution.js';
-import { disconnectSSHEntry, sshConnectionKey } from '../../browser/remoteHostOptions.js';
+import { disconnectSSHEntry, sshConnectionKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 
 suite('SSH reconnect state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

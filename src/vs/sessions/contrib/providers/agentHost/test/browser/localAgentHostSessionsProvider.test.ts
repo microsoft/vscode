@@ -93,8 +93,8 @@ import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../..
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
-import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
-import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
+import { LocalAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';

@@ -21,8 +21,8 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { EntryDrivenProviderContribution, IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
-import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { EntryDrivenProviderContribution, IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
+import { RemoteAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WSLAgentHostContribution } from '../../browser/wslAgentHost.contribution.js';
 

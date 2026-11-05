@@ -31,8 +31,8 @@ import { IHostSession } from '../../../../../../workbench/contrib/sessions/commo
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
-import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
+import { isWellKnownModeSchema } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
+import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';

@@ -11,7 +11,7 @@ import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/com
 import { WslAutoStartSettingId } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
+import { OpenAgentHostStateFileAction } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/openAgentHostStateFileAction.js';
 import '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './remoteAgentHostActions.js';
 import './missionControlAgentHost.contribution.js';

@@ -21,9 +21,9 @@ import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IsAgentHostSession } from '../../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSkillButtons.js';
 import '../../browser/agentHostSkillButtons.contribution.js';
-import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessionsProvider.js';
+import { BaseAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';

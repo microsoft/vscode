@@ -38,7 +38,7 @@ import { IActiveSession } from '../../../../../../workbench/contrib/sessions/com
 import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
-import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
+import { ModePicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';

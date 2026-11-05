@@ -25,7 +25,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostCommandIds.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
@@ -44,7 +44,7 @@ import { TestNotificationService } from '../../../../../../platform/notification
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
-import '../../browser/missionControlAgentHostContribution.js';
+import '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -52,7 +52,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { getVisibleRemoteKinds, RemoteKind } from '../../browser/remotesModel.js';
+import { getVisibleRemoteKinds, RemoteKind } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
 import { ITestSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Remote Agent Host actions', () => {

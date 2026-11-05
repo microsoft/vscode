@@ -48,9 +48,9 @@ import { ISessionsService } from '../../../../../../workbench/contrib/sessions/b
 import { IActiveSession, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
-import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
-import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
-import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
+import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionChangesets.js';
+import { IAgentHostAdapterOptions } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
+import { changesetFileToChange } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostDiffs.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 

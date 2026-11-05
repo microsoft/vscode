@@ -18,8 +18,8 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
-import { BrowserTunnelAgentHostService } from './browserTunnelAgentHostService.js';
-import { WebTunnelAgentHostService } from './webTunnelAgentHostService.js';
+import { BrowserTunnelAgentHostService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/browserTunnelAgentHostService.js';
+import { WebTunnelAgentHostService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/webTunnelAgentHostService.js';
 
 /**
  * Selects the embedder proxy when provided and otherwise connects directly from the browser.

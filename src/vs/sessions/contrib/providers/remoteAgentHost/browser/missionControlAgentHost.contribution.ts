@@ -6,14 +6,14 @@
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { RemoteAgentHostCommandIds } from './remoteAgentHostCommandIds.js';
+import { RemoteAgentHostCommandIds } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsEnabledSettingId, GitHubEnvironmentsAvailableContext } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { MissionControlAgentHostContribution } from './missionControlAgentHostContribution.js';
+import { MissionControlAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
 
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {

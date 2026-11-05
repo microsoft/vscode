@@ -16,7 +16,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IAgentHostAutoConnect } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHostContribution.js';
+import { ManagedReconnectAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
 
 export function shouldPauseWSLReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err);

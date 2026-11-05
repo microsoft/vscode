@@ -42,10 +42,10 @@ import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
-import { AgentHostPermissionPickerActionItem } from '../../browser/agentHostPermissionPickerActionItem.js';
-import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
-import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
+import { AgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModePicker.js';
+import { AgentHostPermissionPickerActionItem } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerActionItem.js';
+import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
+import { PermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';

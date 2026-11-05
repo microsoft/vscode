@@ -22,9 +22,9 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryResult, TunnelDiscoveryTrigger } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { watchForIncompatibleNotifications } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 
 /** Minimum interval between silent status checks (5 minutes). */
 const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;

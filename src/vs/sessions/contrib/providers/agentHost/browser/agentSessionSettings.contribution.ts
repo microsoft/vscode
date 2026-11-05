@@ -15,7 +15,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from './agentSessionSettingsFileSystemProvider.js';
+import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentSessionSettingsFileSystemProvider.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 /**

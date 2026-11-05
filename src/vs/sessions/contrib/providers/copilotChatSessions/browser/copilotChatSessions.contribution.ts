@@ -7,7 +7,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';

@@ -41,8 +41,8 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
-import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 
 suite('RemotesModel', () => {

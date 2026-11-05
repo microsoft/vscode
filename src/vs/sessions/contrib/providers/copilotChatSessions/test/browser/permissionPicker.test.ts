@@ -36,7 +36,7 @@ import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbe
 import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
-import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../browser/permissionPicker.js';
+import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
 import { IUnavailablePermissionLevel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
 import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
