@@ -46,7 +46,7 @@ import { AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, C
 import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
-import { fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { fromAgentClientPath } from '../../../../../../platform/agentHost/common/agentClientUri.js';
 import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -63,6 +63,7 @@ import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgent
 import { readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
@@ -163,7 +164,7 @@ import { readChatInputState } from '../../../../../../platform/agentHost/common/
 import { AgentHostSandboxNotification } from './agentHostSandboxNotification.js';
 import type { IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, restoreSessionReferenceVariableEntryFromAttachment, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { ICopilotHomeService } from '../../../../../services/environment/common/copilotHomeService.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -1351,8 +1352,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	private readonly _remotePendingMessageProjections = new ResourceSet();
-	private readonly _pendingMessageSyncVersions = new WeakMap<IChatModel, number>();
-	private readonly _pendingMessageAttachmentPreparations = new WeakMap<IChatModel, { readonly version: number; readonly ids: ReadonlySet<string> }>();
 	private readonly _steeringMessageHandoffs = new Map<string, AgentHostSteeringMessageHandoff>();
 	/** Locally retained IDs; true means dispatched but not yet projected by the host. */
 	private readonly _localSteeringSubmissions = new ResourceMap<Map<string, boolean>>();
@@ -1522,6 +1521,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
@@ -2559,32 +2559,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * `_clientState` and dispatches Set/Removed/Reordered actions as needed.
 	 */
 	private _syncPendingMessages(sessionResource: URI, backendSession: URI): void {
-		void this._doSyncPendingMessages(sessionResource, backendSession).catch(error => this._logService.error('[AgentHost] Failed to synchronize pending messages', error));
-	}
-
-	private async _doSyncPendingMessages(sessionResource: URI, backendSession: URI): Promise<void> {
+		if (this._remotePendingMessageProjections.has(sessionResource)) {
+			return;
+		}
 		const chatModel = this._chatService.getSession(sessionResource);
 		if (!chatModel) {
 			return;
 		}
-		const version = (this._pendingMessageSyncVersions.get(chatModel) ?? 0) + 1;
-		this._pendingMessageSyncVersions.set(chatModel, version);
-		if (this._remotePendingMessageProjections.has(sessionResource)) {
-			return;
-		}
-		this._pendingMessageAttachmentPreparations.delete(chatModel);
 		const session = backendSession.toString();
 		const chatURI = this._getChatURI(sessionResource);
 		const pending = chatModel.getPendingRequests();
 		const protocolState = this._getSessionState(session, chatURI);
-		let previous = [
+		const previous = [
 			...(protocolState ? getPendingSteeringMessages(protocolState).map(message => ({ ...message, kind: PendingMessageKind.Steering })) : []),
 			...(protocolState?.queuedMessages?.filter(message => message.kind !== PendingMessageKind.Steering) ?? []),
 		];
 		const previousMessages = new Map(previous.map(p => [p.id, p.message]));
-		const previousPendingById = new Map(previous.map(message => [message.id, message]));
-		const previousProjections = this._remotePendingVariableData.get(sessionResource);
-		const locallyChangedIds = new Set<string>();
 		const localSteering = this._localSteeringSubmissions.get(sessionResource) ?? new Map<string, boolean>();
 		this._localSteeringSubmissions.set(sessionResource, localSteering);
 
@@ -2611,53 +2601,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			};
 			current.push(snapshot);
-			const previousPending = previousPendingById.get(snapshot.id);
-			const projectedVariables = previousProjections?.get(snapshot.id)?.variableData;
-			if (!previousMessage
-				|| previousMessage.text !== snapshot.message.text
-				|| !equals(projectedVariables ?? { variables: [] }, p.request.variableData ?? { variables: [] })
-				|| snapshot.kind !== (previousPending?.kind ?? PendingMessageKind.Queued)
-				|| !equals(snapshot.message.model, previousMessage.model)
-				|| !equals(snapshot.message.agent, previousMessage.agent)
-				|| !equals(snapshot.message._meta, previousMessage._meta)) {
-				locallyChangedIds.add(snapshot.id);
-			}
 			if (snapshot.kind === PendingMessageKind.Steering) {
 				if (!previousMessages.has(snapshot.id) && !localSteering.has(snapshot.id)) {
 					localSteering.set(snapshot.id, false);
 				}
 			}
-		}
-
-		if (current.some(message => message.message.attachments?.some(attachment => attachment.displayKind === AgentHostSessionReferenceAttachmentDisplayKind))) {
-			const preparation = { version, ids: locallyChangedIds };
-			this._pendingMessageAttachmentPreparations.set(chatModel, preparation);
-			try {
-				await Promise.all(current.map(async message => {
-					if (message.message.attachments) {
-						try {
-							message.message.attachments = await this._resolveSessionReferenceAttachments(message.message.attachments);
-						} catch (error) {
-							if (isCancellationError(error)) {
-								throw error;
-							}
-							this._logService.warn('[AgentHost] Failed to resolve pending session state files; retaining session references without trajectories', error);
-						}
-					}
-				}));
-			} finally {
-				if (this._pendingMessageAttachmentPreparations.get(chatModel) === preparation) {
-					this._pendingMessageAttachmentPreparations.delete(chatModel);
-				}
-			}
-			if (this._store.isDisposed || version !== this._pendingMessageSyncVersions.get(chatModel) || this._chatService.getSession(sessionResource) !== chatModel) {
-				return;
-			}
-			const latest = this._getSessionState(session, chatURI);
-			previous = [
-				...(latest ? getPendingSteeringMessages(latest).map(message => ({ ...message, kind: PendingMessageKind.Steering })) : []),
-				...(latest?.queuedMessages?.filter(message => message.kind !== PendingMessageKind.Steering) ?? []),
-			];
 		}
 
 		for (const id of localSteering.keys()) {
@@ -2762,21 +2710,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		for (const message of getPendingSteeringMessages(state)) {
 			remote.push(toRemote(message, ChatRequestQueueKind.Steering));
 		}
-		const preparation = this._pendingMessageAttachmentPreparations.get(model);
 		const localSteering = this._localSteeringSubmissions.get(sessionResource);
 		for (const message of remote) {
 			localSteering?.delete(message.id);
 		}
-		for (const queued of state.queuedMessages ?? []) {
-			if (queued.kind !== PendingMessageKind.Steering) {
-				remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
-			}
-		}
 		for (const pending of model.getPendingRequests()) {
-			if (!preparation?.ids.has(pending.request.id) && (pending.kind !== ChatRequestQueueKind.Steering || !localSteering?.has(pending.request.id))) {
+			if (pending.kind !== ChatRequestQueueKind.Steering || !localSteering?.has(pending.request.id)) {
 				continue;
 			}
-			const local: IRemotePendingRequest = {
+			remote.push({
 				id: pending.request.id,
 				kind: pending.kind,
 				message: pending.request.message.text,
@@ -2787,18 +2729,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				agentHostMessageOrigin: pending.sendOptions.agentHostMessageOrigin,
 				isSystemInitiated: pending.request.isSystemInitiated ?? pending.sendOptions.isSystemInitiated,
 				systemInitiatedLabel: pending.request.systemInitiatedLabel ?? pending.sendOptions.systemInitiatedLabel,
-			};
-			const index = remote.findIndex(message => message.id === local.id);
-			if (index !== -1) {
-				remote.splice(index, 1);
-			}
-			if (local.kind === ChatRequestQueueKind.Steering) {
-				const firstQueued = remote.findIndex(message => message.kind !== ChatRequestQueueKind.Steering);
-				remote.splice(firstQueued === -1 ? remote.length : firstQueued, 0, local);
-			} else if (index !== -1) {
-				remote.splice(index, 0, local);
-			} else {
-				remote.push(local);
+			});
+		}
+		for (const queued of state.queuedMessages ?? []) {
+			if (queued.kind !== PendingMessageKind.Steering) {
+				remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
 			}
 		}
 		this._remotePendingVariableData.set(sessionResource, projections);
@@ -2809,7 +2744,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		} finally {
 			this._remotePendingMessageProjections.delete(sessionResource);
 		}
-		if ((preparation && preparation.version !== this._pendingMessageSyncVersions.get(model)) || (localSteering && [...localSteering.values()].some(submitted => !submitted))) {
+		if (localSteering && [...localSteering.values()].some(submitted => !submitted)) {
 			this._syncPendingMessages(sessionResource, backendSession);
 		}
 	}
@@ -3840,7 +3775,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const turnId = request.requestId;
 		const chatURI = this._getChatURI(request.sessionResource);
 		const turnChannel = chatURI;
-		const messageAttachments = await this._resolveSessionReferenceAttachments(this._convertVariablesToAttachments(request.variables.variables, request.sessionResource, request.message), cancellationToken);
+		const messageAttachments = this._convertVariablesToAttachments(request.variables.variables, request.sessionResource, request.message);
 		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
@@ -7121,11 +7056,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			throw new CancellationError();
 		}
 
-		const attachments = captured.attachments ? await this._resolveSessionReferenceAttachments(captured.attachments, token) : undefined;
-		if (this._isInvocationAbandoned(token)) {
-			throw new CancellationError();
-		}
-		return { ...captured, attachments };
+		return captured;
 	}
 
 	private _captureForkInitialMessage(
@@ -7312,10 +7243,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._pendingMessageSubscriptions.set(sessionResource, store);
 			store.add(toDisposable(() => this._localSteeringSubmissions.delete(sessionResource)));
 			store.add(toDisposable(() => this._remotePendingVariableData.delete(sessionResource)));
-			store.add(toDisposable(() => {
-				this._pendingMessageAttachmentPreparations.delete(chatModel);
-				this._pendingMessageSyncVersions.set(chatModel, (this._pendingMessageSyncVersions.get(chatModel) ?? 0) + 1);
-			}));
 			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 			store.add(this._config.connection.onDidAction(envelope => {
 				const action = envelope.action;
@@ -8218,15 +8145,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toAgentFeedbackAttachment(v);
 		}
 		if (v.kind === 'sessionReference' && v.value instanceof URI) {
-			if (this._connectionsService.resolveSessionResource(v.value)) {
-				return this._toSessionReferenceAttachment(v, v.value, undefined, referenceRange);
-			}
-			// Only extension-owned legacy sessions use the extension's historical log layout.
-			if (v.value.scheme !== 'copilotcli') {
-				this._logService.trace(`[AgentHost] Session reference has no owning connection: ${v.value}`);
-				return undefined;
-			}
-			const trajectoryPath = buildHostLocalEventsPath(v.value, this._copilotHomeService.home, () => undefined);
+			const trajectoryPath = this._toSessionReferenceTrajectoryPath(v.value);
 			if (!trajectoryPath) {
 				return undefined;
 			}
@@ -8327,7 +8246,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return undefined;
 	}
 
-	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string | undefined, range?: MessageAttachment['range']): MessageAttachment {
+	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {
 		return this._toSimpleAttachment(
 			v.name,
 			toSessionReferenceModelRepresentation(v.name, sessionResource, trajectoryPath),
@@ -8335,55 +8254,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			AgentHostSessionReferenceAttachmentDisplayKind,
 			range
 		);
-	}
-
-	private async _resolveSessionReferenceAttachments(attachments: readonly MessageAttachment[], token = this._lifetime.token): Promise<MessageAttachment[]> {
-		const resolved: MessageAttachment[] = [];
-		for (const attachment of attachments) {
-			if (attachment.type !== MessageAttachmentKind.Simple) {
-				resolved.push(attachment);
-				continue;
-			}
-			const entry = restoreSessionReferenceVariableEntryFromAttachment(attachment);
-			const owner = entry && this._connectionsService.resolveSessionResource(entry.value);
-			if (!entry || !owner) {
-				resolved.push(attachment);
-				continue;
-			}
-			let chat: URI | undefined;
-			if (entry.value.fragment || new URLSearchParams(entry.value.query).has(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM)) {
-				const reference = owner.connection.getSubscription(StateComponents.Session, owner.backendSession, 'sessionReference');
-				try {
-					await this._whenSubscriptionHydrated(reference.object, token);
-					const state = reference.object.value;
-					if (!state || state instanceof Error) {
-						throw state ?? new Error(`Missing session state for ${entry.value}`);
-					}
-					chat = URI.parse(this._resolveChatUriFromState(entry.value, state));
-				} finally {
-					reference.dispose();
-				}
-			}
-			const clientUri = await raceCancellationError(owner.connection.getSessionStateFile(owner.backendSession, chat), token);
-			if (!clientUri) {
-				this._logService.trace(`[AgentHost] Session reference does not expose a state file: ${entry.value}`);
-				resolved.push(attachment);
-				continue;
-			}
-			const hostUri = this._config.connection.resourceUris.toAgentHost(clientUri);
-			const path = hostUri.scheme === Schemas.file ? hostUri.fsPath : hostUri.toString();
-			resolved.push({
-				...attachment,
-				modelRepresentation: toSessionReferenceModelRepresentation(entry.name, entry.value, path),
-			}, {
-				type: MessageAttachmentKind.Resource,
-				uri: hostUri.toString(),
-				label: `${entry.name} trajectory`,
-				displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
-				_meta: attachment._meta,
-			});
-		}
-		return resolved;
 	}
 
 	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment[] {
@@ -8401,6 +8271,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
 			_meta: { ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
 		};
+	}
+
+	private _toSessionReferenceTrajectoryPath(sessionResource: URI): string | undefined {
+		// TODO: Support non-Copilot-CLI session references through IChatModel or a first-class AHP attachment path.
+		// TODO: Support full EH-to-AH session porting for continue/resume flows.
+		return buildHostLocalEventsPath(
+			sessionResource,
+			this._copilotHomeService.home,
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {

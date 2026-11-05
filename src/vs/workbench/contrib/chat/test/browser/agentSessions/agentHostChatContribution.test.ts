@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
@@ -185,7 +185,7 @@ import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
-import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
@@ -7922,42 +7922,6 @@ suite('AgentHostChatContribution', () => {
 					},
 				}],
 			});
-		});
-
-		test('does not create a fork when cancelled during session-reference preparation', async () => {
-			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables);
-			const backendSession = AgentSession.uri('copilot', 'fork-cancelled-reference');
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
-			const sourceChat = buildDefaultChatUri(backendSession.toString());
-			agentHostService.setRootState({ agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork: true } } }], activeSessions: 0 });
-			const summary = { resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
-			agentHostService.sessionStates.set(backendSession.toString(), {
-				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: sourceChat,
-				chats: [createDefaultChatSummary(summary, sourceChat)],
-				turns: [{ id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
-			});
-			const chatSession = disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
-			const target = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
-				.registerSessionResource(URI.parse('ahp-session:/fork-reference-target'), undefined, 'copilot');
-			const lookupStarted = new DeferredPromise<void>();
-			const stateFile = new DeferredPromise<URI | undefined>();
-			agentHostService.getSessionStateFile = async () => {
-				await lookupStarted.complete();
-				return stateFile.p;
-			};
-			const cts = disposables.add(new CancellationTokenSource());
-			const fork = chatSession.forkSession!(undefined, cts.token, {
-				initialMessage: {
-					text: 'Prompt',
-					requestOptions: { attachedContext: [{ kind: 'sessionReference', id: target.toString(), name: 'Target', value: target }] },
-				},
-			});
-			const rejected = assert.rejects(fork, isCancellationError);
-			await lookupStarted.p;
-			cts.cancel();
-			await stateFile.complete(URI.file('/custom-home/session-state/target/events.jsonl'));
-			await rejected;
-			assert.strictEqual(agentHostService.createChatCalls.length, 0);
 		});
 
 		test('does not create a fork when initial-message preflight is already cancelled', async () => {
@@ -16152,72 +16116,61 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		for (const kind of agentHostConnectionKinds) {
-			test(`session references use the advertised backend identity and SDK state file (${kind.name})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
-				agentHostService.resourceUris = kind.resourceUris;
-				const backendSession = URI.parse('ahp-session:/opaque-protocol-identity');
-				const sessionReference = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
-					.registerSessionResource(backendSession, undefined, 'copilotcli');
-				const trajectoryUri = URI.file('/custom-copilot-home/session-state/different-sdk-identity/events.jsonl');
-				const requested: string[] = [];
-				agentHostService.getSessionStateFile = async session => {
-					requested.push(session.toString());
-					return kind.toClient(trajectoryUri);
-				};
+		test('local agent host Copilot CLI session reference becomes simple and trajectory attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionReference = URI.from({ scheme: 'agent-host-copilotcli', path: '/session-123' });
+			const trajectoryUri = URI.file('/home/test-user/.copilot/session-state/session-123/events.jsonl');
 
-				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-					message: 'continue #review',
-					variables: {
-						variables: [
-							upcastPartial({
-								kind: 'sessionReference',
-								id: sessionReference.toString(),
-								name: 'Review session',
-								value: sessionReference,
-								range: { start: 9, endExclusive: 16 },
-								_meta: { source: 'test' },
-							}),
-						],
-					},
-				});
-				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-				await turnPromise;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue #review',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'sessionReference',
+							id: sessionReference.toString(),
+							name: 'Review session',
+							value: sessionReference,
+							range: { start: 9, endExclusive: 16 },
+							_meta: { source: 'test' },
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
 
-				assert.strictEqual(agentHostService.turnActions.length, 1);
-				assert.deepStrictEqual(requested, [backendSession.toString()]);
-				const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-				assert.deepStrictEqual(turnAction.message.attachments, [{
-					type: MessageAttachmentKind.Simple,
-					label: 'Review session',
-					modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionReference, trajectoryUri.fsPath),
-					displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
-					range: {
-						start: { line: 0, character: 9 },
-						end: { line: 0, character: 16 },
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Review session',
+				modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionReference, trajectoryUri.fsPath),
+				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
+				range: {
+					start: { line: 0, character: 9 },
+					end: { line: 0, character: 16 },
+				},
+				_meta: {
+					source: 'test',
+					[AgentHostSessionReferenceAttachmentMetadataKey]: {
+						sessionResource: sessionReference.toString(),
+						sessionID: sessionReference.toString(),
 					},
-					_meta: {
-						source: 'test',
-						[AgentHostSessionReferenceAttachmentMetadataKey]: {
-							sessionResource: sessionReference.toString(),
-							sessionID: sessionReference.toString(),
-						},
+				},
+			}, {
+				type: MessageAttachmentKind.Resource,
+				uri: trajectoryUri.toString(),
+				label: 'Review session trajectory',
+				displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+				_meta: {
+					source: 'test',
+					[AgentHostSessionReferenceAttachmentMetadataKey]: {
+						sessionResource: sessionReference.toString(),
+						sessionID: sessionReference.toString(),
 					},
-				}, {
-					type: MessageAttachmentKind.Resource,
-					uri: trajectoryUri.toString(),
-					label: 'Review session trajectory',
-					displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
-					_meta: {
-						source: 'test',
-						[AgentHostSessionReferenceAttachmentMetadataKey]: {
-							sessionResource: sessionReference.toString(),
-							sessionID: sessionReference.toString(),
-						},
-					},
-				}]);
-			}));
-		}
+				},
+			}]);
+		}));
 
 		test('chat reference variable entry becomes a chat attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -16344,21 +16297,14 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		}));
 
-		test('references on another host use their owning connection without treating its log as a local path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+		test('remote agent host Copilot CLI session reference becomes simple and trajectory attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				remoteAgentHostServiceOverride: {
+					connections: [upcastPartial({ address: 'remote.example', name: 'remote.example', clientId: 'remote-client', status: { kind: 'connected' }, defaultDirectory: '/home/remote-user' })],
+				},
+			});
 			const sessionReference = URI.from({ scheme: 'remote-remote.example-copilotcli', path: '/session-123' });
-			const backendSession = URI.parse('ahp-session:/other-host-protocol-id');
-			const trajectoryUri = toAgentHostUri(URI.file('/custom-remote-home/session-state/remote-sdk-id/events.jsonl'), 'remote.example');
-			const remote = new MockAgentHostService();
-			disposables.add(toDisposable(() => remote.dispose()));
-			const requested: string[] = [];
-			remote.getSessionStateFile = async session => {
-				requested.push(session.toString());
-				return trajectoryUri;
-			};
-			agentHostService.getSessionStateFile = async () => { throw new Error('Must resolve the reference through its owning host'); };
-			instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService)).resolveSessionResource = resource =>
-				isEqual(resource, sessionReference) ? { connection: remote, connectionAuthority: 'remote.example', backendSession, backendSessionIsAdvertised: true } : undefined;
+			const trajectoryPath = '/home/remote-user/.copilot/session-state/session-123/events.jsonl';
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue #review',
@@ -16377,43 +16323,13 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual({
-				requested, attachments: turnAction.message.attachments?.map(attachment => ({
-					type: attachment.type,
-					modelRepresentation: attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined,
-					uri: attachment.type === MessageAttachmentKind.Resource ? attachment.uri : undefined,
-					displayKind: attachment.displayKind,
-				}))
-			}, {
-				requested: [backendSession.toString()],
-				attachments: [{
-					type: MessageAttachmentKind.Simple,
-					modelRepresentation: toSessionReferenceModelRepresentation('Remote review session', sessionReference, trajectoryUri.toString()),
-					uri: undefined, displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
-				}, {
-					type: MessageAttachmentKind.Resource, modelRepresentation: undefined,
-					uri: trajectoryUri.toString(), displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
-				}],
-			});
-		}));
-
-		test('a host without a state file keeps the reference without inventing a trajectory path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
-			const sessionReference = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
-				.registerSessionResource(URI.parse('ahp-session:/opaque-no-state-file'), undefined, 'custom');
-			agentHostService.getSessionStateFile = async () => undefined;
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				variables: { variables: [{ kind: 'sessionReference', id: sessionReference.toString(), name: 'Target', value: sessionReference }] },
-			});
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-			await turnPromise;
-			const action = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(action.message.attachments, [{
-				type: MessageAttachmentKind.Simple, label: 'Target',
-				modelRepresentation: toSessionReferenceModelRepresentation('Target', sessionReference),
-				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
-				_meta: toSessionReferenceAttachmentMeta(sessionReference),
-			}]);
+			const attachment = turnAction.message.attachments?.[0];
+			assert.strictEqual(attachment?.type, MessageAttachmentKind.Simple);
+			assert.strictEqual(attachment.modelRepresentation, toSessionReferenceModelRepresentation('Remote review session', sessionReference, trajectoryPath));
+			const trajectoryAttachment = turnAction.message.attachments?.[1];
+			assert.strictEqual(trajectoryAttachment?.type, MessageAttachmentKind.Resource);
+			assert.strictEqual(trajectoryAttachment.uri, URI.file(trajectoryPath).toString());
+			assert.strictEqual(trajectoryAttachment.displayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind);
 		}));
 
 		test('unsupported session reference variable is dropped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -19731,95 +19647,6 @@ suite('AgentHostChatContribution', () => {
 				}),
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
-		}
-
-		for (const editExisting of [false, true]) {
-			for (const outcome of ['success', 'failure', 'removed'] as const) {
-				test(`preserves preparing queued references across host updates (edit=${editExisting}, ${outcome})`, async () => {
-					const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables);
-					const backendSession = AgentSession.uri('copilot', 'pending-reference-projection');
-					const sessionResource = URI.parse('agent-host-copilot:/pending-reference-projection');
-					disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
-					const pendingRequests: IChatPendingRequest[] = [];
-					const chatModel = createPendingChatModel(sessionResource, pendingRequests);
-					const signature = (requests: readonly IChatPendingRequest[]) => JSON.stringify(requests.map(pending => ({
-						id: pending.request.id, text: pending.request.message.text,
-						variables: pending.request.variableData ?? { variables: [] }, kind: pending.kind,
-					})));
-					chatService.applyRemotePendingRequests = (_resource, requests) => {
-						const next = requests.map(remote => ({
-							request: upcastPartial<IChatRequestModel>({
-								id: remote.id, message: { text: remote.message, parts: [] },
-								variableData: remote.variableData ?? { variables: [] },
-							}),
-							kind: remote.kind, sendOptions: {},
-						}));
-						if (signature(pendingRequests) !== signature(next)) {
-							pendingRequests.splice(0, pendingRequests.length, ...next);
-							chatModel.firePendingRequestsChanged();
-						}
-					};
-					chatService.setSession(sessionResource, chatModel.model);
-					let serverSeq = 0;
-					if (editExisting) {
-						agentHostService.fireAction({
-							channel: buildDefaultChatUri(backendSession),
-							action: {
-								type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued,
-								id: 'queued-reference', message: { text: 'Original', origin: { kind: MessageKind.User } },
-							},
-							serverSeq: ++serverSeq, origin: undefined,
-						});
-					}
-					const target = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
-						.registerSessionResource(URI.parse('ahp-session:/opaque-target'), undefined, 'copilot');
-					const stateFile = new DeferredPromise<URI | undefined>();
-					agentHostService.getSessionStateFile = async () => stateFile.p;
-					agentHostService.dispatchedActions.length = 0;
-					pendingRequests.splice(0, pendingRequests.length, {
-						request: upcastPartial<IChatRequestModel>({
-							id: 'queued-reference', message: { text: 'Review target', parts: [] },
-							variableData: { variables: [{ kind: 'sessionReference', id: target.toString(), name: 'Target', value: target }] },
-						}),
-						kind: ChatRequestQueueKind.Queued, sendOptions: {},
-					});
-					chatModel.firePendingRequestsChanged();
-					agentHostService.fireAction({
-						channel: backendSession.toString(),
-						action: { type: ActionType.SessionTitleChanged, title: 'Updated while preparing attachments' },
-						serverSeq: ++serverSeq, origin: undefined,
-					});
-					const duringLookup = pendingRequests.map(pending => ({
-						text: pending.request.message.text, kind: pending.request.variableData.variables[0]?.kind,
-					}));
-					if (outcome === 'removed') {
-						pendingRequests.length = 0;
-						chatModel.firePendingRequestsChanged();
-					}
-					const trajectory = URI.file('/custom-home/session-state/sdk-target/events.jsonl');
-					if (outcome === 'failure') {
-						await stateFile.error(new Error('State file lookup failed'));
-					} else {
-						await stateFile.complete(trajectory);
-					}
-					await timeout(0);
-					const sets = agentHostService.dispatchedActions.flatMap(({ action }) =>
-						action.type === ActionType.ChatPendingMessageSet ? [{
-							id: action.id, text: action.message.text,
-							trajectories: action.message.attachments?.filter(attachment => attachment.type === MessageAttachmentKind.Resource).map(attachment => attachment.uri),
-						}] : []);
-					agentHostService.fireAction({
-						channel: buildDefaultChatUri(backendSession),
-						action: { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: 'queued-reference' },
-						serverSeq: ++serverSeq, origin: undefined,
-					});
-					assert.deepStrictEqual({ duringLookup, sets, afterRemoval: pendingRequests.length }, {
-						duringLookup: [{ text: 'Review target', kind: 'sessionReference' }],
-						sets: outcome === 'removed' ? [] : [{ id: 'queued-reference', text: 'Review target', trajectories: outcome === 'success' ? [trajectory.toString()] : [] }],
-						afterRemoval: 0,
-					});
-				});
-			}
 		}
 
 		async function openSteeringHandoff(retainConsumedSteeringMessages = false, provider = 'copilot') {
