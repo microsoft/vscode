@@ -2213,7 +2213,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		});
 	}
 
-	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
+	test('client-owned credentials preserve create and resume configuration while Microsoft account choice is enabled', async () => {
 		const configs: SessionConfig[] = [];
 		const session = {
 			sessionId: 'scoped-session',
@@ -2227,7 +2227,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [CopilotCliConfigKey.M365Enabled]: true });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
