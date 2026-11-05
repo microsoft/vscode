@@ -24,7 +24,7 @@ import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiff
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { linesDiffComputers } from '../diff/linesDiffComputers.js';
 import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
-import { computeLinesDiffWithFallback, ILinesDiffWithFallback } from '../diff/linesDiffWithFallback.js';
+import { ILinesDiffWithFallback, resolveLinesDiffComputerWithFallback } from '../diff/linesDiffWithFallback.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
@@ -130,10 +130,15 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			return null;
 		}
 
-		const originalLines = original.getLinesContent();
-		const modifiedLines = modified.getLinesContent();
-		const computed = await computeLinesDiffWithFallback(originalLines, modifiedLines, options, algorithm, verify, resolveLinesDiffComputer);
+		const computeDiff = await resolveLinesDiffComputerWithFallback(algorithm, a => this._resolveLinesDiffComputer(a));
+		// Read the models only after the await, so the diff and the identity check below see the same model state.
+		const computed = computeDiff(original.getLinesContent(), modified.getLinesContent(), options, verify);
 		return EditorWorker.toDiffComputationResult(original, modified, computed);
+	}
+
+	/** Overridden in tests. */
+	protected _resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
+		return resolveLinesDiffComputer(algorithm);
 	}
 
 	private static toDiffComputationResult(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, computed: ILinesDiffWithFallback): IDiffComputationResult {
