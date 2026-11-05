@@ -30,6 +30,11 @@ import type { ISessionChatSource } from '../../../../services/sessions/browser/s
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -236,6 +241,8 @@ export class ModePicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -345,6 +352,7 @@ export class ModePicker extends Disposable {
 					: item.label ?? '',
 				getWidgetAriaLabel: () => localize('modePicker.ariaLabel', "Mode Picker"),
 			},
+			{ tabThroughItemActions: true },
 		);
 	}
 
@@ -368,6 +376,11 @@ export class ModePicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 			for (const mode of customModes) {
 				const source = getChatModeSourceLabel(mode, modes);
+				const resource = mode.uri?.get();
+				const isExtension = mode.source?.storage === PromptsStorage.extension;
+				const openLabel = isExtension
+					? localize('viewModeConfiguration', "View {0} agent", mode.label.get())
+					: localize('editModeConfiguration', "Edit {0} agent", mode.label.get());
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: mode.label.get(),
@@ -375,6 +388,17 @@ export class ModePicker extends Disposable {
 					ariaDescription: source,
 					group: { title: '', icon: selectedModeId === mode.id ? Codicon.check : Codicon.blank },
 					item: { kind: 'mode', mode },
+					toolbarActions: resource && hasReadableCustomizationContent(resource) && this.fileService.hasProvider(resource) ? [{
+						id: `${isExtension ? 'viewAgent' : 'editAgent'}:${mode.id}`,
+						label: openLabel,
+						tooltip: openLabel,
+						class: ThemeIcon.asClassName(isExtension ? Codicon.file : Codicon.edit),
+						enabled: true,
+						run: async () => {
+							this.actionWidgetService.hide();
+							await this.editorService.openEditor({ resource });
+						},
+					}] : undefined,
 				});
 			}
 		}

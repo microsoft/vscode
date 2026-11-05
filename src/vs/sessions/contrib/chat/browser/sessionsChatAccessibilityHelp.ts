@@ -103,6 +103,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			}
 		}
 		content.push(getModePickerAccessibilityHelp());
+		content.push(localize('sessionsChat.agentPicker.openFile', "In the Agent picker, use Up and Down Arrow to focus a custom agent, then Tab to reach its Edit or View action. Press Enter or Space to open the agent file without changing the selected agent. Shift+Tab returns to the agent list."));
 		if (configurationService.getValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING)) {
 			content.push(localize('sessionsChat.chatWindow', "To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window's title bar to show the chat, the editor area or both, side by side or stacked{0}. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.", '<keybinding:workbench.action.chatWindow.toggleArrangement>'));
 		}
