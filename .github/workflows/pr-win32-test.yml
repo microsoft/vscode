@@ -126,6 +126,18 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
         uses: ./.github/actions/restore-wsl-installer
 
+      # The wsl-distro job of pr-workspace-images.yml prepares the WSL distribution on main every day, so that the
+      # setup imports it instead of building it. Its key hashes the files that define it, and the restore key finds the
+      # newest one. Without one, or when it cannot be used, wslDevContainer.ps1 builds the distribution.
+      - name: Restore prepared WSL distribution
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/wsl-distro
+          key: "wsl-distro-v1-${{ runner.os }}-${{ hashFiles('test/smoke/wslDevContainer.ps1', 'build/checksums/wsl.txt') }}"
+          restore-keys: "wsl-distro-v1-${{ runner.os }}-${{ hashFiles('test/smoke/wslDevContainer.ps1', 'build/checksums/wsl.txt') }}-"
+
       # The WSL setup takes 2 to 4 minutes, mostly downloads and package installs, so it runs in the background
       # while the steps below install and build, and "Wait for the WSL Dev Container smoke test setup" waits for
       # it before the smoke tests. The setup writes its step outputs, log and exit code to files. Start-Process
@@ -160,6 +172,7 @@ jobs:
           Set-Content -LiteralPath (Join-Path $state 'deadline.txt') -Value ([DateTime]::UtcNow.AddMinutes(15).ToString('o'))
         env:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+          WSL_PREPARED_DISTRO_VHD: ${{ github.workspace }}\.build\wsl-distro\vscode-wsl-smoke.vhdx
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

@@ -6,6 +6,8 @@ name: Code OSS (workspace images)
 # jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
 # changed since. The test workflows adopt the images one platform at a time in follow-up pull
 # requests, and until then nothing uses them. See .github/workflows/workspace_image/README.md.
+# The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
+# wsl-distro job).
 on:
   # Every day, so that there is always a recent image of main: the images are kept for 2 days
   schedule:
@@ -384,3 +386,45 @@ jobs:
           archive: false
           retention-days: 2
           if-no-files-found: error
+
+  # The WSL distribution that the Windows smoke test shard with the WSL suite imports instead of building it (see
+  # test/smoke/wslDevContainer.ps1 and electron-smoke-1 in pr-win32-test.yml). It only needs to be recent, so it is
+  # rebuilt with the daily images and on manual runs, but not on pushes. It runs on the 1ES pool like that shard, as
+  # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution. JobId must be unique per
+  # job. The cache key hashes the files that define the distribution, so that the shard of a commit that changes them
+  # builds the distribution instead; the shard restores the newest entry of its key.
+  wsl-distro:
+    name: Windows (WSL distribution)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=wsl-distro-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore WSL installer
+        uses: ./.github/actions/restore-wsl-installer
+
+      - name: Prepare the WSL distribution
+        timeout-minutes: 20
+        shell: pwsh
+        run: .\test\smoke\wslDevContainer.ps1 -Operation Prepare -Destination "$env:GITHUB_WORKSPACE\.build\wsl-distro\vscode-wsl-smoke.vhdx"
+        env:
+          WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+
+      - name: Save the WSL distribution
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .build/wsl-distro
+          key: "wsl-distro-v1-${{ runner.os }}-${{ hashFiles('test/smoke/wslDevContainer.ps1', 'build/checksums/wsl.txt') }}-${{ github.run_id }}-${{ github.run_attempt }}"
+
+      - name: Publish Log Files
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: logs-windows-x64-wsl-distro-${{ github.run_attempt }}
+          path: .build/logs
+          if-no-files-found: ignore
