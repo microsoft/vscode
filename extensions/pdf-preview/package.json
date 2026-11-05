@@ -1,0 +1,216 @@
+{
+	"name": "pdf-preview",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "10.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.70.0"
+	},
+	"enabledApiProposals": [
+		"contribAccessibilityHelpContent"
+	],
+	"activationEvents": [],
+	"main": "./out/extension",
+	"browser": "./dist/browser/extension",
+	"categories": [
+		"Other"
+	],
+	"extensionKind": [
+		"ui",
+		"workspace"
+	],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "vscode.pdfPreview",
+				"displayName": "%displayName%",
+				"priority": {
+					"textEditor": "builtin",
+					"diffEditor": "builtin"
+				},
+				"selector": [
+					{
+						"filenamePattern": "*.pdf"
+					}
+				],
+				"accessibilityHelpContent": "%customEditor.accessibilityHelpContent%"
+			}
+		],
+		"commands": [
+			{
+				"command": "pdfPreview.zoomIn",
+				"title": "%command.zoomIn%",
+				"category": "%command.category%",
+				"icon": "$(zoom-in)"
+			},
+			{
+				"command": "pdfPreview.zoomOut",
+				"title": "%command.zoomOut%",
+				"category": "%command.category%",
+				"icon": "$(zoom-out)"
+			},
+			{
+				"command": "pdfPreview.selectZoom",
+				"title": "%command.selectZoom%",
+				"category": "%command.category%"
+			},
+			{
+				"command": "pdfPreview.goToPage",
+				"title": "%command.goToPage%",
+				"category": "%command.category%"
+			},
+			{
+				"command": "pdfPreview.goToSection",
+				"title": "%command.goToSection%",
+				"category": "%command.category%",
+				"icon": "$(list-tree)"
+			},
+			{
+				"command": "pdfPreview.find",
+				"title": "%command.find%",
+				"category": "%command.category%"
+			},
+			{
+				"command": "pdfPreview.findNext",
+				"title": "%command.findNext%",
+				"category": "%command.category%"
+			},
+			{
+				"command": "pdfPreview.findPrevious",
+				"title": "%command.findPrevious%",
+				"category": "%command.category%"
+			},
+			{
+				"command": "pdfPreview.saveAs",
+				"title": "%command.saveAs%",
+				"category": "%command.category%",
+				"icon": "$(save-as)"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "pdfPreview.zoomIn",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.zoomOut",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.selectZoom",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.goToPage",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.goToSection",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.find",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.findNext",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.findPrevious",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				},
+				{
+					"command": "pdfPreview.saveAs",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "pdfPreview.zoomOut",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'",
+					"group": "navigation@10"
+				},
+				{
+					"command": "pdfPreview.zoomIn",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'",
+					"group": "navigation@11"
+				},
+				{
+					"command": "pdfPreview.goToSection",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview' && pdfPreview.hasOutline",
+					"group": "navigation@12"
+				},
+				{
+					"command": "pdfPreview.saveAs",
+					"when": "activeCustomEditorId == 'vscode.pdfPreview'",
+					"group": "navigation@13"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "pdfPreview.find",
+				"key": "ctrl+f",
+				"mac": "cmd+f",
+				"when": "activeCustomEditorId == 'vscode.pdfPreview' && editorAreaFocus"
+			},
+			{
+				"command": "pdfPreview.findNext",
+				"key": "f3",
+				"mac": "cmd+g",
+				"when": "activeCustomEditorId == 'vscode.pdfPreview' && editorAreaFocus"
+			},
+			{
+				"command": "pdfPreview.findPrevious",
+				"key": "shift+f3",
+				"mac": "shift+cmd+g",
+				"when": "activeCustomEditorId == 'vscode.pdfPreview' && editorAreaFocus"
+			},
+			{
+				"command": "pdfPreview.goToPage",
+				"key": "ctrl+g",
+				"when": "activeCustomEditorId == 'vscode.pdfPreview' && editorAreaFocus"
+			},
+			{
+				"command": "pdfPreview.goToSection",
+				"key": "ctrl+shift+o",
+				"mac": "cmd+shift+o",
+				"when": "activeCustomEditorId == 'vscode.pdfPreview' && editorAreaFocus"
+			}
+		]
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:pdf-preview && pnpm run build-webview",
+		"watch": "pnpm run build-webview && gulp watch-extension:pdf-preview",
+		"vscode:prepublish": "pnpm run build-ext && pnpm run build-webview",
+		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:pdf-preview ./tsconfig.json",
+		"build-webview": "node ./esbuild.webview.mts",
+		"compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+		"bundle-web": "node ./esbuild.browser.mts",
+		"typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
+		"watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+		"watch-bundle-web": "node ./esbuild.browser.mts --watch",
+		"watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
+	},
+	"dependencies": {
+		"pdfjs-dist": "6.4.299"
+	},
+	"devDependencies": {
+		"@types/node": "24.x",
+		"@types/vscode-webview": "^1.57.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	}
+}

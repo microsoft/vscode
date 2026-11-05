@@ -1,0 +1,15 @@
+{
+	"displayName": "PDF Preview",
+	"description": "Provides a built-in preview for PDF files.",
+	"customEditor.accessibilityHelpContent": "The PDF preview shows the pages of a PDF file. You can read and select their text and follow links. The commands of the preview are in the status bar, in the editor title and in the Command Palette:\n- Find<keybinding:pdfPreview.find> searches the whole document and shows the number of matches. Press Enter for the next match and Escape to close the find input.\n- Find Next<keybinding:pdfPreview.findNext> and Find Previous<keybinding:pdfPreview.findPrevious> continue the last search.\n- Go to Page<keybinding:pdfPreview.goToPage> moves to a page by its number or label.\n- Go to Section<keybinding:pdfPreview.goToSection> moves to a section of the document's outline.\n- Select Zoom Level<keybinding:pdfPreview.selectZoom>, Zoom In<keybinding:pdfPreview.zoomIn> and Zoom Out<keybinding:pdfPreview.zoomOut> change the size of the pages.\n- Save As<keybinding:workbench.action.files.saveAs> saves a copy of the file.",
+	"command.category": "PDF",
+	"command.zoomIn": "Zoom In",
+	"command.zoomOut": "Zoom Out",
+	"command.selectZoom": "Select Zoom Level...",
+	"command.goToPage": "Go to Page...",
+	"command.goToSection": "Go to Section...",
+	"command.find": "Find",
+	"command.findNext": "Find Next",
+	"command.findPrevious": "Find Previous",
+	"command.saveAs": "Save As..."
+}
