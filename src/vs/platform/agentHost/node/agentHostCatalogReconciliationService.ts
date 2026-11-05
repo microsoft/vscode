@@ -81,8 +81,13 @@ export type AgentHostCatalogReconciliationSourceResult =
 	 * a wake signal. A single failed lookup is not proof of absence — a
 	 * provider whose SDK is still downloading looks identical — so parking never
 	 * tombstones and always yields to a wake signal.
+	 *
+	 * A verified row of an older payload version whose data the current version
+	 * still reads offers `storedRequest`: its stored data re-projected, so the row
+	 * migrates instead of staying outdated and being repaired again on every
+	 * listing (#345377).
 	 */
-	| { readonly status: 'sourceUnresolvable' };
+	| { readonly status: 'sourceUnresolvable'; readonly storedRequest?: IAgentHostCatalogSyncRequest };
 
 export interface IAgentHostCatalogReconciliationOptions {
 	readonly batchSize?: number;
@@ -557,6 +562,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			if (defaultChat?.storageResource !== undefined && defaultChat.storageResource !== sessionKey) {
 				return;
 			}
+			// Announcing an unchanged marker refreshes the published list, whose listing would wake this session again (#345377).
+			if (catalog?.provisional) {
+				return;
+			}
 			await this._catalogDatabase.setSessionProvisional(sessionKey, true);
 			this._markedProvisionalSessions.add(sessionKey);
 		} catch (error) {
@@ -612,11 +621,18 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 						if (sourceResult.status === 'providerUnavailable') {
 							throw new CatalogReconciliationProviderUnavailableError();
 						}
+						let request: IAgentHostCatalogSyncRequest;
 						if (sourceResult.status === 'sourceUnresolvable') {
-							throw new CatalogReconciliationSourceUnresolvableError();
+							if (!sourceResult.storedRequest) {
+								throw new CatalogReconciliationSourceUnresolvableError();
+							}
+							await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
+							request = sourceResult.storedRequest;
+						} else {
+							request = sourceResult.request;
 						}
 						await validate();
-						result = await synchronize(sourceResult.request, validate);
+						result = await synchronize(request, validate);
 					} catch (error) {
 						if (error instanceof CatalogReconciliationSupersededError) {
 							return { session: sessionKey, status: 'retry', reason: 'superseded' };
@@ -698,15 +714,21 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				if (sourceResult.status === 'providerUnavailable') {
 					return await this._park(registered, observedDirty, wakeGeneration, 'providerUnavailable');
 				}
+				let request: IAgentHostCatalogSyncRequest;
 				if (sourceResult.status === 'sourceUnresolvable') {
 					await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
-					return await this._park(registered, observedDirty, wakeGeneration, 'sourceUnresolvable');
+					if (!sourceResult.storedRequest) {
+						return await this._park(registered, observedDirty, wakeGeneration, 'sourceUnresolvable');
+					}
+					request = sourceResult.storedRequest;
+				} else {
+					request = sourceResult.request;
 				}
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
 				}
-				const legacyMetadataMatches = await catalogLegacyMetadataMatches(database.object, sourceResult.request.legacyMetadata);
-				const expected = encodeAgentHostCatalogPayload(sourceResult.request.data);
+				const legacyMetadataMatches = await catalogLegacyMetadataMatches(database.object, request.legacyMetadata);
+				const expected = encodeAgentHostCatalogPayload(request.data);
 				return await (async (): Promise<AgentHostCatalogReconciliationOutcome> => {
 					const latestReceipt = await this._catalogDatabase.getSessionV2(sessionKey);
 					if (!receiptsEqual(receipt, latestReceipt)
@@ -742,7 +764,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 							payloadHash: expected.value.payloadHash,
 							state: 'pending',
 						};
-						await database.object.setMetadataValuesAndCatalogSyncSnapshot(sourceResult.request.legacyMetadata, replacement);
+						await database.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, replacement);
 						const pending = await database.object.getCatalogSyncSnapshot();
 						if (pending?.state !== 'pending'
 							|| pending.sessionGeneration !== replacement.sessionGeneration
@@ -768,7 +790,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					if (await this._catalogDatabase.isSessionTombstoned(sessionKey)) {
 						return { session: sessionKey, status: 'retry', reason: 'tombstoned' };
 					}
-					const synchronized = await synchronize(sourceResult.request);
+					const synchronized = await synchronize(request);
 					if (synchronized.status !== 'acknowledged') {
 						return { session: sessionKey, status: 'pending', reason: synchronized.reason, sourceRevision: synchronized.sourceRevision };
 					}

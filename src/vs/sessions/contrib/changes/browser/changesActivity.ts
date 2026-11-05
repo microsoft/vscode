@@ -34,7 +34,7 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionActivityBarActionViewItem } from '../../../browser/parts/sessionActivityBar.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionActivityBarActivityService } from '../../../services/activity/common/sessionActivityBarActivityService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../chat/browser/sessionChatInputToolbar.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../editor/browser/addTabActions.js';
@@ -174,7 +174,7 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 		@IEditorService editorService: IEditorService,
@@ -195,8 +195,8 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 		const mainSidePaneVisible = observableFromEvent(this, Event.any<unknown>(layoutService.onDidChangePartVisibility, layoutService.onDidToggleSidePane), () => layoutService.isSidePaneVisible());
 
 		const active = derived(this, reader => {
-			const session = sessionsService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
+			const chat = focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
 			return session && chat ? { session, chat } : undefined;
 		});
 

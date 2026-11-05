@@ -73,6 +73,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}));
 		this._register(autorun(reader => {
 			this._inventory.hosts.read(reader);
+			this._inventory.ownEnvironmentId.read(reader);
 			this._reconcile();
 			this._requestAutoConnections();
 		}));
@@ -121,9 +122,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		if (!account) {
 			return;
 		}
+		const ownEnvironmentId = this._inventory.ownEnvironmentId.get();
 		for (const host of this._inventory.hosts.get()) {
 			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
-			if (host.status !== 'online' || !provider
+			if (host.id === ownEnvironmentId || host.status !== 'online' || !provider
 				|| !this.isWebPlatform && !this._storageService.getBoolean(this._previouslyConnectedKey(host.id, account), StorageScope.PROFILE, false)
 				|| this._storageService.getBoolean(this._autoConnectSuppressionKey(host.id, account), StorageScope.PROFILE, false)
 				|| !RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {
@@ -249,7 +251,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			},
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			readOnlyWhenDisconnected: true,
-			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
+			// This computer's own registration runs sessions directly as This Computer.
+			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) !== id
+				&& this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
+			localRegistration: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) === id ? 'githubEnvironment' : undefined),
 			pickerVisibilityKey: getRemoteAgentHostPickerKey(cloudSandboxAddress(id), account),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {

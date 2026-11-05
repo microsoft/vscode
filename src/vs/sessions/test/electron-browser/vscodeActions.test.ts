@@ -125,6 +125,31 @@ suite('VS Code Actions', () => {
 		assert.deepStrictEqual(calls, [{ empty: true }]);
 	});
 
+	test('opens the clicked nested chat and its workspace instead of the active chat', async () => {
+		const calls: { folders: string[]; chat: string | undefined }[] = [];
+		const session = createSession('parent', true, [URI.file('/active')]);
+		const folder = URI.file('/nested');
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:/nested-chat'),
+			workspace: constObservable({
+				...session.activeChat.get().workspace.get()!,
+				folders: [{ root: folder, workingDirectory: folder, name: 'nested', description: undefined }],
+			}),
+		});
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+				calls.push({
+					folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(folder => folder.folderUri.toString()) : [],
+					chat: options?.chatSessionToOpen?.toString(),
+				});
+			}
+		}());
+
+		await instantiationService.invokeFunction(openSessionInVSCode, session, chat);
+
+		assert.deepStrictEqual(calls, [{ folders: ['file:///nested'], chat: 'test:/nested-chat' }]);
+	});
+
 	for (const folders of [
 		[toAgentHostUri(URI.file('C:\\Users\\test\\project'), agentHostAuthority('cloudsandbox:environment'))],
 		[URI.file('/local/project'), toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('ws:host'))],

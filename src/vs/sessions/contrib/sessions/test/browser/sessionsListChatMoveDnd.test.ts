@@ -37,6 +37,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { registerSessionChatDragEndHandler } from '../../../../browser/dnd.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -780,6 +781,27 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			.map(row => `${row.querySelector('.session-chat-title') ? '  ' : ''}${labelOf(row)}`);
 		return { list, rows, instantiationService: harness.instantiationService, moves, writtenStorageKeys, chatRows, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
+
+	test('the end of a chat row\'s drag goes to the chat drag end handler with its session and chat, a session row\'s with its session only', async () => {
+		const source = listSession('Source', ['s1']);
+		const list = render([source]);
+		list.setExpanded('Source', true);
+		const ended: string[] = [];
+		const handler = registerSessionChatDragEndHandler(async (e, offsetElement, session, chat, name) => {
+			ended.push(`${session.title.get()} ${chat?.toString() ?? '(its chat)'} ${name} ${offsetElement.classList.contains('monaco-list-row')}`);
+			return false;
+		});
+
+		try {
+			list.dragOver('s1', undefined).end();
+			list.dragOver('Source', undefined).end();
+		} finally {
+			handler.dispose();
+			list.dispose();
+		}
+
+		assert.deepStrictEqual(ended, [`Source ${source.chats.get().find(chat => chat.title.get() === 's1')!.resource.toString()} s1 true`, 'Source (its chat) Source true']);
+	});
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
 		const target = listSession('Target', ['t1', 't2']);

@@ -292,7 +292,7 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 
 	reportDiscovery(data: ICloudSandboxDiscoveryTelemetryData): void {
 		const modes = ['full', 'incremental', 'targeted'] as const;
-		const outcomes = ['complete', 'incremental', 'partial', 'failed', 'cancelled'] as const;
+		const outcomes = ['complete', 'scoped', 'incremental', 'partial', 'failed', 'cancelled'] as const;
 		this._telemetryService.publicLog2<CloudSandboxDiscoveryEvent, CloudSandboxDiscoveryClassification>('cloudSandboxDiscovery', {
 			trigger: cloudSandboxDiscoveryTriggers.find(trigger => trigger === data.trigger) ?? 'unknown',
 			requestedMode: modes.find(mode => mode === data.requestedMode) ?? 'unknown',
