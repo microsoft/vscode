@@ -17,9 +17,8 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 import { IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity } from '../../../services/sessions/common/session.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../browser/pinnedCanvases.js';
