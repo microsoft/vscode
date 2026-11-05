@@ -10,8 +10,8 @@
 	z-index: 100;
 	height: auto !important;
 	/* The container is stretched between the widget's `top` (set in JS) and this
-	   `bottom: 0`, leaving empty space below the widget that would otherwise
-	   swallow clicks meant for the terminal underneath it. */
+	 * `bottom: 0`, leaving empty space below the widget that would otherwise
+	 * swallow clicks meant for the terminal underneath it. */
 	pointer-events: none;
 }
 
