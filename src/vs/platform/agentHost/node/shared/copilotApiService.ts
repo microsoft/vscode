@@ -119,6 +119,8 @@ interface ICachedClient {
 interface ICopilotSkuCacheCell {
 	valid: boolean;
 	value?: ICachedClient;
+	/** Account identity outlives endpoint/SKU expiry, but not explicit invalidation or a replacement discovery result. */
+	trackingId?: string;
 }
 
 interface IClientRequest {
@@ -574,7 +576,7 @@ export interface ICopilotApiService {
 	/** Read the SKU only while its account discovery cache entry remains usable. */
 	getCachedCopilotSku?(githubToken: string): string | undefined;
 
-	/** Capture account metadata that is permanently invalidated when this credential's cache is rejected. */
+	/** Capture expiring SKU and credential-scoped identity; both are invalidated when this credential's cache is rejected. */
 	captureCopilotTelemetryContext?(githubToken: string): () => IAgentTelemetryContext | undefined;
 }
 
@@ -953,6 +955,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.discoveryGeneration === generation) {
 				request.discoveryGeneration++;
 				request.skuCell.value = refreshed;
+				request.skuCell.trackingId = refreshed.trackingId;
 				outcome = 'published';
 			}
 			this._reportDiscovery(attempt, outcome);
@@ -984,10 +987,13 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		request.telemetryCaptured = true;
 		const cell = request.skuCell;
 		return () => {
+			if (!cell.valid) {
+				return undefined;
+			}
 			const entry = this._readCachedClient(cell);
-			return entry ? {
-				copilotSku: entry.copilotSku,
-				...(entry.trackingId ? { copilotTrackingId: entry.trackingId } : {}),
+			return entry || cell.trackingId ? {
+				copilotSku: entry?.copilotSku,
+				...(cell.trackingId ? { copilotTrackingId: cell.trackingId } : {}),
 			} : undefined;
 		};
 	}
@@ -1014,6 +1020,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 				request.promise = undefined;
 				if (request.discoveryGeneration === generation && !this._entitlementRefreshes.has(request)) {
 					request.skuCell.value = entry;
+					request.skuCell.trackingId = entry.trackingId;
 					outcome = 'published';
 				}
 			}
@@ -1033,8 +1040,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 				} else if (request.telemetryCaptured) {
 					request.skuCell.value = undefined;
 				} else {
-					request.skuCell.valid = false;
-					this._clientsByToken.delete(githubToken);
+					this._invalidateClientRequest(githubToken, request);
 				}
 			}
 			throw err;
@@ -1079,6 +1085,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		}
 		request.skuCell.valid = false;
 		request.skuCell.value = undefined;
+		request.skuCell.trackingId = undefined;
 		request.promise = undefined;
 		this._clientsByToken.delete(githubToken);
 	}
@@ -1087,6 +1094,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		for (const request of this._clientsByToken.values()) {
 			request.skuCell.valid = false;
 			request.skuCell.value = undefined;
+			request.skuCell.trackingId = undefined;
 			request.promise = undefined;
 		}
 		this._clientsByToken.clear();
