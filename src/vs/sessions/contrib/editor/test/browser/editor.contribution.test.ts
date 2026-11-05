@@ -73,7 +73,7 @@ import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
 import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
-import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';

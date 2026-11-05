@@ -16,7 +16,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { VERSIONS_PICKER_ACTION_ID, createChangesSessionScope, CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, createChangesPickerLabelObservable, ChangesPickerSummary, ChangesPickerActionItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessions/browser/changes/changesView.js';
 import { localize2 } from '../../../../nls.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { OpenEditorCommandId } from '../../../../workbench/contrib/searchEditor/browser/constants.js';
 import { searchViewIcon } from '../../../../workbench/contrib/search/browser/searchIcons.js';
 

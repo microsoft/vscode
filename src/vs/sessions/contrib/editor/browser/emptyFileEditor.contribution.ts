@@ -23,7 +23,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from './emptyFileEditor.js';
 import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
-import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
+import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EmptyFileEditorSearchPickerFocusedContext } from './emptyFileEditorSearch.js';
 
 /**

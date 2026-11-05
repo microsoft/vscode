@@ -38,7 +38,7 @@ import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';

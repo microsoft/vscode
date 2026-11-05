@@ -27,7 +27,7 @@ import { DockedEditorInput } from '../../../../../workbench/contrib/sessions/bro
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 

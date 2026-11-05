@@ -19,7 +19,7 @@ import { ViewContainerLocation } from '../../../../../workbench/common/views.js'
 import { IActiveSession, IChatDeletedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 

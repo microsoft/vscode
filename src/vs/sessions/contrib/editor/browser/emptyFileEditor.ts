@@ -24,7 +24,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsEmptyStateActions } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateLayout.js';
 import { EmptyFileEditorSearch } from './emptyFileEditorSearch.js';
-import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 
 export const EmptyFileEditorFocusedContext = new RawContextKey<boolean>('emptyFileEditorFocused', false, localize('emptyFileEditorFocused', "Whether focus is in the empty Files editor."));
 export const OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID = 'workbench.action.agentSessions.openFileInEmptyEditor';

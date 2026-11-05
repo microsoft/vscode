@@ -31,7 +31,7 @@ import { DockedEditorInput } from '../../../../../workbench/contrib/sessions/bro
 import { IHostSession, IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
 import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty } from './desktopSharedHelpers.js';

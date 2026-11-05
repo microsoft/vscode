@@ -55,7 +55,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { EmptyFileEditor } from '../../../../../sessions/contrib/editor/browser/emptyFileEditor.js';
 import '../../../../../sessions/contrib/editor/browser/emptyFileEditor.contribution.js';
-import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChangesEmptyState } from '../../../../../workbench/contrib/sessions/browser/changes/changesEmptyState.js';
 import '../../../../../sessions/contrib/editor/electron-browser/browserEmptyState.contribution.js';
 import { FixtureKeybindingService } from '../../../../../sessions/test/browser/addTabFixtureUtils.js';

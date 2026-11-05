@@ -24,7 +24,7 @@ import { SessionsEmptyStateLayout } from '../../../../workbench/contrib/sessions
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 
 export const RUN_EMPTY_SEARCH_COMMAND_ID = 'sessions.searchEditor.runSearch';
 

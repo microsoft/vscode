@@ -30,7 +30,7 @@ import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_I
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';

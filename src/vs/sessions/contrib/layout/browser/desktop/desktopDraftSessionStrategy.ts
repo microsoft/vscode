@@ -21,7 +21,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import {
 	DetailPanelTarget,

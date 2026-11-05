@@ -39,7 +39,7 @@ import { IChat } from '../../../../workbench/contrib/sessions/common/session.js'
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 
 //#region Close
 

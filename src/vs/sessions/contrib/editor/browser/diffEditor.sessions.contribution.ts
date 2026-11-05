@@ -22,7 +22,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING } from '../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
-import { DiffEditorOptionsService } from './diffEditorOptionsService.js';
+import { DiffEditorOptionsService } from '../../../../workbench/contrib/sessions/browser/diffEditorOptionsService.js';
 
 /** Drives the shared preferred diff layout for supported editors in the Agents window. */
 export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService {

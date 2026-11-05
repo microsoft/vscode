@@ -7,13 +7,13 @@ import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
-import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { DockedEditorInput } from './dockedEditorInput.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ISessionWorkspace } from '../common/session.js';
 
 export class EmptyFileEditorInput extends DockedEditorInput {
 

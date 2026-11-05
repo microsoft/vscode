@@ -20,7 +20,7 @@ import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeed
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
