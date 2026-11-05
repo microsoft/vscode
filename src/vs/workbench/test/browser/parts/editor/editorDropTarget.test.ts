@@ -11,6 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -37,7 +38,7 @@ suite('EditorDropTarget', () => {
 		readonly operations: string[];
 	}
 
-	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number }): ITestSetup {
+	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number; readonly fromOtherPart?: boolean; readonly moveVeto?: string; readonly closeEmptyGroups?: boolean; readonly sourceCount?: number }): ITestSetup {
 		const operations: string[] = [];
 
 		// A 300x300 group at the viewport origin with a registered input drop target in its lower center
@@ -61,9 +62,12 @@ suite('EditorDropTarget', () => {
 			override readonly typeId = 'testEditorInput';
 			override readonly resource = undefined;
 			override hasCapability(): boolean { return false; }
+			override isDirty(): boolean { return false; }
+			override canMove(): true | string { return options?.moveVeto ?? true; }
+			override getName(): string { return 'editor'; }
 		}();
 		const groupsView = new class extends mock<IEditorGroupsView>() {
-			override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, allowDropIntoGroup: true, splitOnDragAndDrop: true, openSideBySideDirection: 'right' as const, closeEmptyGroups: false };
+			override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, allowDropIntoGroup: true, splitOnDragAndDrop: true, openSideBySideDirection: 'right' as const, closeEmptyGroups: options?.closeEmptyGroups ?? false };
 		}();
 		const groupView = new class extends mock<IEditorGroupView>() {
 			override readonly element = groupElement;
@@ -76,7 +80,9 @@ suite('EditorDropTarget', () => {
 			override focus(): void { }
 		}();
 		const sourceGroup = new class extends mock<IEditorGroup>() {
-			override readonly count = 2;
+			override readonly id = 1;
+			override readonly count = options?.sourceCount ?? 2;
+			override readonly editors = [editor];
 			override moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): boolean {
 				operations.push(`move ${editors.length} editor(s) to ${target === groupView ? 'target group' : 'new group'}`);
 				return true;
@@ -88,6 +94,11 @@ suite('EditorDropTarget', () => {
 
 		const part = new class extends mock<IEditorPart>() {
 			override readonly windowId = mainWindow.vscodeWindowId;
+			override readonly groups = [];
+		}();
+		const otherPart = new class extends mock<IEditorPart>() {
+			override readonly windowId = mainWindow.vscodeWindowId;
+			override readonly groups = [];
 		}();
 
 		const instantiation = store.add(new TestInstantiationService());
@@ -96,7 +107,11 @@ suite('EditorDropTarget', () => {
 		instantiation.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override readonly groups = [groupView];
 			override getGroup(): IEditorGroup { return sourceGroup; }
-			override getPart(): IEditorPart { return part; }
+			override getPart(group: IEditorGroup): IEditorPart { return options?.fromOtherPart && group === sourceGroup ? otherPart : part; }
+			override moveGroup(group: IEditorGroup, location: IEditorGroup, direction: GroupDirection): IEditorGroup {
+				operations.push(`move group ${direction}`);
+				return newGroup;
+			}
 			override addGroup(location: IEditorGroup, direction: GroupDirection): IEditorGroup {
 				operations.push(`split ${direction}`);
 				return newGroup;
@@ -107,6 +122,9 @@ suite('EditorDropTarget', () => {
 		instantiation.stub(IEditorService, {});
 		instantiation.stub(ITreeViewsDnDService, {});
 		instantiation.stub(IWorkspaceContextService, {});
+		instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async error(message: string): Promise<void> { operations.push(`veto: ${message}`); }
+		}());
 		store.add(instantiation.createInstance(EditorDropTarget, groupsView, groupElement, {}));
 
 		if (options?.dragEditor !== false) {
@@ -161,6 +179,42 @@ suite('EditorDropTarget', () => {
 			overlayAfterDrop: false,
 			operations: [`split ${GroupDirection.LEFT}`, 'move 1 editor(s) to new group']
 		});
+	});
+
+	test('an editor dropped on an edge of a group of another part, which it cannot go to, adds no group and moves nothing', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave' });
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual(operations, ['veto: Cannot leave']);
+	});
+
+	test('the only editor of a group dropped on an edge of another part, which it cannot go to, does not move its group', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave', closeEmptyGroups: true, sourceCount: 1 });
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual(operations, ['veto: Cannot leave']);
+	});
+
+	test('the only editor of a group dropped on an edge of another part, which it can go to, still moves its group', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, closeEmptyGroups: true, sourceCount: 1 });
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual(operations.filter(operation => !operation.startsWith('size')), [`move group ${GroupDirection.LEFT}`]);
 	});
 
 	test('an input drop target outside the group, such as one under a modal over it, does not take the drop', () => {

@@ -1671,6 +1671,13 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		}
 		return super.canMove(sourceGroup, targetGroup);
 	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): string | true {
+		if (typeof this.moveDisabledReason === 'string') {
+			return this.moveDisabledReason;
+		}
+		return super.canMoveToNewWindow(sourceGroup);
+	}
 }
 
 export class TestForceRevealFileEditorInput extends TestFileEditorInput {

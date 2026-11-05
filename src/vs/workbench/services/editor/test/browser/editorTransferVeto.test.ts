@@ -1,0 +1,437 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfirmResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { CopyEditorToNewindowAction, MoveEditorGroupToNewWindowAction, MoveEditorToNewWindowAction } from '../../../../browser/parts/editor/editorActions.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { getEditorsTransferVeto, IEditorTransferVeto, INewWindowTransfer, NEW_WINDOW_TARGET, transferToNewWindow } from '../../../../browser/parts/editor/editorTransferVeto.js';
+import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { EditorInput, IEditorCloseHandler } from '../../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
+
+/** Records the errors it is asked to show, as a veto is shown. */
+class RecordingDialogService extends TestDialogService {
+	readonly errors: { message: string; detail: string | undefined }[] = [];
+	override async error(message: string, detail?: string): Promise<void> {
+		this.errors.push({ message, detail });
+	}
+}
+
+class ConfirmingTestFileEditorInput extends TestFileEditorInput {
+	override readonly closeHandler: IEditorCloseHandler = { showConfirm: () => true, confirm: async () => ConfirmResult.CANCEL };
+}
+
+const VETO = 'This editor cannot leave its window.';
+
+suite('Editor transfer vetoes', () => {
+
+	const TEST_EDITOR_ID = 'MyFileEditorForTransferVetoes';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForTransferVetoes';
+
+	const disposables = new DisposableStore();
+
+	setup(() => {
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createInput(path: string, options?: { veto?: boolean; singleton?: boolean; dirty?: boolean; confirming?: boolean }): TestFileEditorInput {
+		const input = disposables.add(options?.confirming ? new ConfirmingTestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID) : new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+		if (options?.veto) {
+			input.setMoveDisabled(VETO);
+		}
+		if (options?.singleton) {
+			input.capabilities = EditorInputCapabilities.Singleton;
+		}
+		if (options?.dirty) {
+			input.setDirty();
+		}
+
+		return input;
+	}
+
+	async function createServices(): Promise<{ parts: TestEditorParts; dialogs: RecordingDialogService; instantiationService: TestInstantiationService }> {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const dialogs = new RecordingDialogService();
+		instantiationService.stub(IDialogService, dialogs);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		return { parts, dialogs, instantiationService };
+	}
+
+	/** A part of the main window beside its main part: a transfer into it crosses parts within the window. */
+	function createPart(parts: TestEditorParts): IContentPart {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+		const part = parts.createEditorPart({ container });
+		// Force: a part that holds an editor that cannot go back to the main part refuses to close
+		disposables.add({ dispose: () => part.forceClose() });
+		part.layout(800, 600, 0, 0);
+
+		return part;
+	}
+
+	/** The group events of `parts`, and the moves out of a content part that are announced. */
+	function recordEvents(...parts: (IEditorPart | IContentPart)[]): string[] {
+		const events: string[] = [];
+		for (const part of parts) {
+			disposables.add(part.onDidAddGroup(() => events.push('add')));
+			disposables.add(part.onDidRemoveGroup(() => events.push('remove')));
+			disposables.add(part.onDidMoveGroup(() => events.push('move')));
+			disposables.add(part.onDidActivateGroup(() => events.push('activate')));
+			disposables.add(part.onDidChangeGroupIndex(() => events.push('index')));
+			const willMoveOut = (part as IContentPart).onWillMoveGroupOut;
+			if (willMoveOut) {
+				disposables.add(willMoveOut(() => events.push('willMoveOut')));
+			}
+		}
+
+		return events;
+	}
+
+	function editorsOf(group: IEditorGroup): string[] {
+		return group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource!.path);
+	}
+
+	suite('which editors are asked', () => {
+
+		test('only the participating editors are asked; a copy asks only singleton editors; a new window asks canMoveToNewWindow', () => {
+			const ordinary = createInput('/ordinary');
+			const vetoing = createInput('/vetoing', { veto: true });
+			const singleton = createInput('/singleton', { veto: true, singleton: true });
+			const dirty = createInput('/dirty', { veto: true, dirty: true });
+			const newWindowOnly = disposables.add(new class extends TestFileEditorInput {
+				override canMoveToNewWindow(): string { return 'not to a new window'; }
+			}(URI.file('/newWindowOnly'), TEST_EDITOR_INPUT_ID));
+
+			const message = (veto: IEditorTransferVeto | undefined) => veto && { message: veto.message, dirty: veto.dirty, editor: veto.editor.resource!.path };
+			assert.deepStrictEqual({
+				ordinaryOnly: getEditorsTransferVeto([ordinary], 1, 2),
+				withVetoing: message(getEditorsTransferVeto([ordinary, vetoing], 1, 2)),
+				copyOfVetoing: getEditorsTransferVeto([vetoing], 1, 2, { copy: true }),
+				copyOfSingleton: message(getEditorsTransferVeto([singleton], 1, 2, { copy: true })),
+				dirty: message(getEditorsTransferVeto([dirty], 1, 2)),
+				newWindowOnlyToGroup: getEditorsTransferVeto([newWindowOnly], 1, 2),
+				newWindowOnlyToNewWindow: message(getEditorsTransferVeto([newWindowOnly], 1, NEW_WINDOW_TARGET)),
+			}, {
+				ordinaryOnly: undefined,
+				withVetoing: { message: VETO, dirty: false, editor: '/vetoing' },
+				copyOfVetoing: undefined,
+				copyOfSingleton: { message: VETO, dirty: false, editor: '/singleton' },
+				dirty: { message: VETO, dirty: true, editor: '/dirty' },
+				newWindowOnlyToGroup: undefined,
+				newWindowOnlyToNewWindow: { message: 'not to a new window', dirty: false, editor: '/newWindowOnly' },
+			});
+		});
+	});
+
+	suite('into a new window', () => {
+
+		function createFakePart(options?: { readonly content?: boolean }): { part: IAuxiliaryEditorPart; closed: () => number } {
+			let closed = 0;
+			const onWillClose = disposables.add(new Emitter<void>());
+			const group = new class extends mock<IEditorGroup>() {
+				override readonly id = 42;
+				override readonly isEmpty = !options?.content;
+			}();
+			const part = new class extends mock<IAuxiliaryEditorPart>() {
+				override readonly onWillClose = onWillClose.event;
+				override readonly activeGroup = group;
+				override readonly groups = [group];
+				override close(): boolean { closed++; onWillClose.fire(); return true; }
+			}();
+
+			return { part, closed: () => closed };
+		}
+
+		async function run(options: { veto?: (target: unknown) => string | undefined; part?: IAuxiliaryEditorPart; sourceAlive?: boolean }): Promise<{ created: number; vetoes: string[]; transferred: number; result: boolean }> {
+			let created = 0;
+			let transferred = 0;
+			const vetoes: string[] = [];
+			const editor = createInput('/editor');
+			const transfer: INewWindowTransfer = {
+				getVeto: target => {
+					const message = options.veto?.(target);
+					return message ? { editor, message, dirty: false } : undefined;
+				},
+				showVeto: veto => vetoes.push(veto.message),
+				createPart: async () => { created++; return options.part; },
+				isSourceAlive: () => options.sourceAlive ?? true,
+				transfer: () => transferred++,
+			};
+			const result = !!await transferToNewWindow(transfer);
+
+			return { created, vetoes, transferred, result };
+		}
+
+		test('a veto before the window exists creates no window', async () => {
+			const fake = createFakePart();
+			assert.deepStrictEqual(await run({ veto: () => VETO, part: fake.part }), { created: 0, vetoes: [VETO], transferred: 0, result: false });
+			assert.strictEqual(fake.closed(), 0);
+		});
+
+		test('a veto once the window exists, such as of an editor that changed meanwhile, closes the empty window and moves nothing', async () => {
+			const fake = createFakePart();
+			const result = await run({ veto: target => target === NEW_WINDOW_TARGET ? undefined : VETO, part: fake.part });
+
+			assert.deepStrictEqual({ ...result, closed: fake.closed() }, { created: 1, vetoes: [VETO], transferred: 0, result: false, closed: 1 });
+		});
+
+		test('a window that got an editor meanwhile is neither closed nor merged on a late veto', async () => {
+			const fake = createFakePart({ content: true });
+			const result = await run({ veto: target => target === NEW_WINDOW_TARGET ? undefined : VETO, part: fake.part });
+
+			assert.deepStrictEqual({ ...result, closed: fake.closed() }, { created: 1, vetoes: [VETO], transferred: 0, result: false, closed: 0 });
+		});
+
+		test('editors that went away meanwhile do not move, and the empty window closes', async () => {
+			const fake = createFakePart();
+			const result = await run({ part: fake.part, sourceAlive: false });
+
+			assert.deepStrictEqual({ ...result, closed: fake.closed() }, { created: 1, vetoes: [], transferred: 0, result: false, closed: 1 });
+		});
+
+		test('editors that can go move into the window', async () => {
+			const fake = createFakePart();
+			const result = await run({ part: fake.part });
+
+			assert.deepStrictEqual({ ...result, closed: fake.closed() }, { created: 1, vetoes: [], transferred: 1, result: true, closed: 0 });
+		});
+	});
+
+	suite('across parts', () => {
+
+		test('moving a group with an editor that cannot go leaves both parts as they were, with no events', async () => {
+			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			const ordinary = createInput('/ordinary');
+			const vetoing = createInput('/vetoing', { veto: true });
+			const source = part.activeGroup;
+			await source.openEditors([{ editor: ordinary, options: { pinned: true } }, { editor: vetoing, options: { pinned: true, inactive: true } }]);
+			const events = recordEvents(part, parts.mainPart);
+			const mainGroupCount = parts.mainPart.count;
+
+			const result = parts.moveGroup(source.id, parts.mainPart.activeGroup.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({
+				returnedSource: result === source,
+				sourceEditors: editorsOf(source),
+				sourceActive: source.activeEditor === ordinary,
+				mainGroupCount: parts.mainPart.count,
+				events,
+				dialogs: dialogs.errors,
+			}, {
+				returnedSource: true,
+				sourceEditors: ['/ordinary', '/vetoing'],
+				sourceActive: true,
+				mainGroupCount,
+				events: [],
+				dialogs: [{ message: VETO, detail: undefined }],
+			});
+		});
+
+		test('a group whose editors can go still moves into another part, announced first', async () => {
+			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			const ordinary = createInput('/ordinary');
+			await part.activeGroup.openEditor(ordinary, { pinned: true });
+			const events = recordEvents(part);
+			const mainGroupCount = parts.mainPart.count;
+
+			const moved = parts.moveGroup(part.activeGroup.id, parts.mainPart.activeGroup.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({ inMain: parts.mainPart.groups.includes(moved as never), editors: editorsOf(moved), mainGroupCount: parts.mainPart.count, announced: events.includes('willMoveOut'), dialogs: dialogs.errors }, {
+				inMain: true, editors: ['/ordinary'], mainGroupCount: mainGroupCount + 1, announced: true, dialogs: []
+			});
+		});
+
+		test('copying a group asks only its singleton editors', async () => {
+			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			await part.activeGroup.openEditor(createInput('/vetoing', { veto: true }), { pinned: true });
+			const singletonPart = createPart(parts);
+			await singletonPart.activeGroup.openEditor(createInput('/singleton', { veto: true, singleton: true }), { pinned: true });
+			const mainGroupCount = parts.mainPart.count;
+
+			const copy = parts.copyGroup(part.activeGroup.id, parts.mainPart.activeGroup.id, GroupDirection.RIGHT);
+			const afterCopy = parts.mainPart.count;
+			const singletonCopy = parts.copyGroup(singletonPart.activeGroup.id, parts.mainPart.activeGroup.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({ copied: copy !== part.activeGroup, afterCopy, singletonReturnedSource: singletonCopy === singletonPart.activeGroup, afterSingleton: parts.mainPart.count, dialogs: dialogs.errors }, {
+				copied: true, afterCopy: mainGroupCount + 1, singletonReturnedSource: true, afterSingleton: mainGroupCount + 1, dialogs: [{ message: VETO, detail: undefined }]
+			});
+		});
+
+		test('merging a group into another part moves all its editors or none', async () => {
+			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			const source = part.activeGroup;
+			await source.openEditors([{ editor: createInput('/ordinary'), options: { pinned: true } }, { editor: createInput('/vetoing', { veto: true, dirty: true }), options: { pinned: true, inactive: true } }]);
+			const target = parts.mainPart.activeGroup;
+
+			const merged = parts.mergeGroup(source.id, target.id);
+
+			assert.deepStrictEqual({ merged, sourceEditors: editorsOf(source), targetEditors: editorsOf(target), dialogs: dialogs.errors }, {
+				merged: false,
+				sourceEditors: ['/ordinary', '/vetoing'],
+				targetEditors: [],
+				dialogs: [{ message: VETO, detail: 'Try saving or reverting the editor first and then try again.' }],
+			});
+		});
+
+		test('merging all groups into another part transfers none when a group merged last cannot go, with no events', async () => {
+			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			const first = part.activeGroup;
+			await first.openEditor(createInput('/vetoing', { veto: true }), { pinned: true });
+			const second = part.addGroup(first, GroupDirection.RIGHT);
+			await second.openEditor(createInput('/ordinary'), { pinned: true });
+			part.activateGroup(second); // merged first: the most recently active
+			const target = parts.mainPart.activeGroup;
+			const events = recordEvents(part, parts.mainPart);
+			const order = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => editorsOf(group));
+
+			const merged = (part as unknown as EditorPart).mergeAllGroups(target.id);
+
+			assert.deepStrictEqual({ order, merged, groups: part.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => editorsOf(group)), targetEditors: editorsOf(target), events, dialogs: dialogs.errors.length }, {
+				order: [['/ordinary'], ['/vetoing']],
+				merged: false,
+				groups: [['/vetoing'], ['/ordinary']],
+				targetEditors: [],
+				events: [],
+				dialogs: 1,
+			});
+		});
+
+		test('closing a part whose editor cannot go back adds no group to a main part whose groups are all locked, and keeps focus', async () => {
+			const { parts, dialogs } = await createServices();
+			parts.mainPart.activeGroup.lock(true);
+			const part = createPart(parts);
+			await part.activeGroup.openEditor(createInput('/vetoing', { veto: true, confirming: true }), { pinned: true });
+			const activeBefore = parts.mainPart.activeGroup;
+			const mainGroupCount = parts.mainPart.count;
+			const events = recordEvents(parts.mainPart);
+
+			const closed = part.close();
+
+			assert.deepStrictEqual({ closed, mainGroupCount: parts.mainPart.count, active: parts.mainPart.activeGroup === activeBefore, locked: activeBefore.isLocked, partEditors: editorsOf(part.activeGroup), events, dialogs: dialogs.errors.length }, {
+				closed: false, mainGroupCount, active: true, locked: true, partEditors: ['/vetoing'], events: [], dialogs: 1
+			});
+		});
+
+		test('closing a part whose editors can go back still adds a group to a main part whose groups are all locked', async () => {
+			const { parts } = await createServices();
+			parts.mainPart.activeGroup.lock(true);
+			const part = createPart(parts);
+			await part.activeGroup.openEditor(createInput('/ordinary', { confirming: true }), { pinned: true });
+			const mainGroupCount = parts.mainPart.count;
+
+			const closed = part.close();
+
+			assert.deepStrictEqual({ closed, mainGroupCount: parts.mainPart.count, editors: editorsOf(parts.mainPart.activeGroup) }, { closed: true, mainGroupCount: mainGroupCount + 1, editors: ['/ordinary'] });
+		});
+	});
+
+	suite('commands into a new window', () => {
+
+		/** The new window of the commands: a part of the main window, which a transfer into crosses parts. */
+		function stubNewWindow(parts: TestEditorParts): { created: () => IContentPart[] } {
+			const created: IContentPart[] = [];
+			parts.createAuxiliaryEditorPart = async () => {
+				const part = createPart(parts);
+				created.push(part);
+				return part as unknown as IAuxiliaryEditorPart;
+			};
+
+			return { created: () => created };
+		}
+
+		async function openTwo(parts: TestEditorParts): Promise<{ group: IEditorGroup; ordinary: EditorInput; vetoing: EditorInput }> {
+			const group = parts.mainPart.activeGroup;
+			const ordinary = createInput('/ordinary');
+			const vetoing = createInput('/vetoing', { veto: true });
+			await group.openEditors([{ editor: vetoing, options: { pinned: true } }, { editor: ordinary, options: { pinned: true } }]);
+
+			return { group, ordinary, vetoing };
+		}
+
+		for (const [name, action] of [['Move Editor into New Window', MoveEditorToNewWindowAction], ['Copy Editor into New Window', CopyEditorToNewindowAction]] as const) {
+			test(`${name} moves the selected editor, while an inactive editor of its group that cannot go stays`, async () => {
+				const { parts, instantiationService, dialogs } = await createServices();
+				const { created } = stubNewWindow(parts);
+				const { group, ordinary } = await openTwo(parts);
+
+				await instantiationService.invokeFunction(accessor => new action().run(accessor, { groupId: group.id, editorIndex: group.getIndexOfEditor(ordinary) }));
+
+				const windows = created();
+				assert.deepStrictEqual({ windows: windows.length, inWindow: windows.map(part => editorsOf(part.activeGroup)), stays: editorsOf(group).includes('/vetoing'), dialogs: dialogs.errors }, {
+					windows: 1, inWindow: [['/ordinary']], stays: true, dialogs: []
+				});
+			});
+		}
+
+		test('Move Editor into New Window of an editor that cannot go creates no window', async () => {
+			const { parts, instantiationService, dialogs } = await createServices();
+			const { created } = stubNewWindow(parts);
+			const { group, vetoing } = await openTwo(parts);
+
+			await instantiationService.invokeFunction(accessor => new MoveEditorToNewWindowAction().run(accessor, { groupId: group.id, editorIndex: group.getIndexOfEditor(vetoing) }));
+
+			assert.deepStrictEqual({ windows: created().length, editors: editorsOf(group), dialogs: dialogs.errors }, { windows: 0, editors: ['/vetoing', '/ordinary'], dialogs: [{ message: VETO, detail: undefined }] });
+		});
+
+		test('Move Editor Group into New Window of a group with an editor that cannot go creates no window', async () => {
+			const { parts, instantiationService, dialogs } = await createServices();
+			const { created } = stubNewWindow(parts);
+			const { group } = await openTwo(parts);
+
+			await instantiationService.invokeFunction(accessor => new MoveEditorGroupToNewWindowAction().run(accessor));
+
+			assert.deepStrictEqual({ windows: created().length, editors: editorsOf(group), dialogs: dialogs.errors.length }, { windows: 0, editors: ['/vetoing', '/ordinary'], dialogs: 1 });
+		});
+
+		test('a window created for editors that changed meanwhile closes again, empty', async () => {
+			const { parts, instantiationService } = await createServices();
+			const { group, ordinary } = await openTwo(parts);
+			const created: IContentPart[] = [];
+			parts.createAuxiliaryEditorPart = async () => {
+				// The editor changes while the window is created: it cannot go anymore
+				(ordinary as TestFileEditorInput).setMoveDisabled(VETO);
+				const part = createPart(parts);
+				created.push(part);
+				return part as unknown as IAuxiliaryEditorPart;
+			};
+			const partsBefore = parts.parts.length;
+
+			await instantiationService.invokeFunction(accessor => new MoveEditorToNewWindowAction().run(accessor, { groupId: group.id, editorIndex: group.getIndexOfEditor(ordinary) }));
+
+			assert.deepStrictEqual({ created: created.length, parts: parts.parts.length, editors: editorsOf(group) }, { created: 1, parts: partsBefore, editors: ['/vetoing', '/ordinary'] });
+		});
+	});
+});

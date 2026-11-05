@@ -21,6 +21,7 @@ import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerif
 import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import type { IEditorTransferVeto } from './editorTransferVeto.js';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -212,6 +213,9 @@ export interface IEditorPartsView {
 	createModalEditorPart(): Promise<IModalEditorPart>;
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
+
+	/** Tells the user why editors cannot move or copy to another group, such as with the group they are in. */
+	showTransferVeto(veto: IEditorTransferVeto): void;
 }
 
 /**

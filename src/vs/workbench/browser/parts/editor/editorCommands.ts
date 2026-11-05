@@ -6,6 +6,7 @@
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -47,6 +48,7 @@ import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SI
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { getGroupTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -1515,20 +1517,39 @@ function registerModalEditorCommands(): void {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const dialogService = accessor.get(IDialogService);
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
 					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
 						return;
 					}
-					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
+					const groups = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+					const moved = await transferToNewWindow({
+						// All editors of all its groups go, or none
+						getVeto: target => {
+							for (const group of groups) {
+								const veto = getGroupTransferVeto(group, target);
+								if (veto) {
+									return veto;
+								}
+							}
+							return undefined;
+						},
+						showVeto: veto => showEditorTransferVeto(dialogService, veto),
+						createPart: () => editorGroupsService.createAuxiliaryEditorPart(),
+						isSourceAlive: () => editorGroupsService.parts.includes(part),
+						transfer: auxiliaryEditorPart => {
+							for (const group of groups) {
+								group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), auxiliaryEditorPart.activeGroup);
+							}
 
-					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-						group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), auxiliaryEditorPart.activeGroup);
+							auxiliaryEditorPart.activeGroup.focus();
+						},
+					});
+					if (moved) {
+						await part.close();
 					}
-
-					auxiliaryEditorPart.activeGroup.focus();
-					await part.close();
 					break;
 				}
 			}

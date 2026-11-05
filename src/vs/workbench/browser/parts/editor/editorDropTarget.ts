@@ -22,6 +22,7 @@ import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtension
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, getInputDropTargetClipPath, isContentDropTarget, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
 import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -29,6 +30,8 @@ import { ITreeViewsDnDService } from '../../../../editor/common/services/treeVie
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { getPartName } from './editorPartActions.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { getEditorsTransferVeto, showEditorTransferVeto } from './editorTransferVeto.js';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -245,7 +248,8 @@ class DropOverlay extends Themable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(themeService);
 
@@ -500,6 +504,12 @@ class DropOverlay extends Themable {
 						return;
 					}
 
+					// Into another part only when its editors can go there, before any group is added or moved
+					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event))) {
+						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+						return;
+					}
+
 					// Split to new group
 					let targetGroup: IEditorGroup | undefined;
 					if (typeof splitDirection === 'number') {
@@ -542,6 +552,12 @@ class DropOverlay extends Themable {
 					const copyEditor = this.isCopyOperation(event, firstDraggedEditor);
 					const sourcePart = this.editorGroupService.getPart(sourceGroup);
 					let targetGroup: IEditorGroup | undefined = undefined;
+
+					// Into another part only when the dragged editors can go there, before any group is added or moved
+					if (this.isTransferVetoed(draggedEditors.map(editor => editor.identifier.editor), sourceGroup, copyEditor)) {
+						this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+						return;
+					}
 
 					// Optimization: if we move the last editor of an editor group
 					// and we are configured to close empty editor groups, we can
@@ -605,6 +621,23 @@ class DropOverlay extends Themable {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
 			dropHandler.handleDrop(event, getWindow(this.groupView.element), () => ensureTargetGroup(), targetGroup => targetGroup?.focus());
 		}
+	}
+
+	/**
+	 * Whether `editors` of `sourceGroup`, dropped into another part, cannot go there, telling the user why. A group of
+	 * the part they are dropped in stands for the group a split adds.
+	 */
+	private isTransferVetoed(editors: readonly EditorInput[], sourceGroup: IEditorGroup, copy: boolean): boolean {
+		if (this.editorGroupService.getPart(sourceGroup) === this.editorGroupService.getPart(this.groupView)) {
+			return false;
+		}
+		const veto = getEditorsTransferVeto(editors, sourceGroup.id, this.groupView.id, { copy });
+		if (veto) {
+			showEditorTransferVeto(this.dialogService, veto);
+			return true;
+		}
+
+		return false;
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
