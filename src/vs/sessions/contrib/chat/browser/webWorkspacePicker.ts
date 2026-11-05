@@ -28,10 +28,10 @@ import { IProgressService } from '../../../../platform/progress/common/progress.
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, MAX_NEW_PICKER_RECENT_WORKSPACES, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 

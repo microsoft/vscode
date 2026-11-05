@@ -26,9 +26,9 @@ import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '.
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
@@ -45,8 +45,8 @@ import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
-import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('Sessions chat window provider', () => {
 

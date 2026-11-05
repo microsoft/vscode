@@ -21,7 +21,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';

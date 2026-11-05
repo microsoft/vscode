@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
 import { showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
 import { MobileHostFilterActionViewItem } from '../../browser/mobileHostFilterActionViewItem.js';

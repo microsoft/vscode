@@ -17,7 +17,7 @@ import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '..
 import { findOnboardingTarget, pulseOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { createNewSessionTour, NEW_SESSION_TOUR_ID } from './tours/newSessionTour.js';
 
 const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';

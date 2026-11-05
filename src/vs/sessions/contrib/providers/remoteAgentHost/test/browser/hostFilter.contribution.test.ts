@@ -30,7 +30,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../../../browser/agentsWindowMenus.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AgentHostFilterContribution } from '../../browser/hostFilter.contribution.js';
 
 suite('AgentHostFilterContribution', () => {

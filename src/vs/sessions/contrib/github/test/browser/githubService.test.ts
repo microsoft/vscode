@@ -22,9 +22,9 @@ import { GitHubService } from '../../browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 

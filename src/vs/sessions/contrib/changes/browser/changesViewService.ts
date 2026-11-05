@@ -14,7 +14,7 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';

@@ -18,9 +18,9 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../browser/parts/agentsPartCard.js';
 import { AbstractChatView, ChatViewKind } from '../../../../browser/parts/chatView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/partGrid/partGridGap.js';
-import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';

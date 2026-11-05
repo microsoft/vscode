@@ -10,7 +10,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
+import { categorizeSSHConnectError } from '../../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
 import { shouldPauseSSHReconnectAfterFailure } from '../../browser/sshAgentHost.contribution.js';
 import { disconnectSSHEntry, sshConnectionKey } from '../../browser/remoteHostOptions.js';

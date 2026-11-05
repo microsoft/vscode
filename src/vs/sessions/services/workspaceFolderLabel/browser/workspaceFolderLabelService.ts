@@ -8,7 +8,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionFolder } from '../../../../workbench/contrib/sessions/common/session.js';
 

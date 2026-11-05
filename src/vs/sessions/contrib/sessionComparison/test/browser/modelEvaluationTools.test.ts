@@ -25,7 +25,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } f
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';

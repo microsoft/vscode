@@ -41,10 +41,10 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';

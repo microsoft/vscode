@@ -46,11 +46,11 @@ import { getSessionGitHubReferences } from '../../github/common/sessionGitHubRef
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { logSessionArtifactOpen } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { isAgentHostProvider, isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';

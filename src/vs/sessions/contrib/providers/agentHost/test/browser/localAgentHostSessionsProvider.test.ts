@@ -66,7 +66,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../../../../services/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -82,12 +82,12 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOr
 import { readSessionChangesStats } from '../../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionsManagementService } from '../../../../../services/sessions/browser/sessionsManagementService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionsManagementService } from '../../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';

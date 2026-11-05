@@ -44,9 +44,9 @@ import { ICopilotHomeService } from '../../../../../workbench/services/environme
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 import { DevContainerAgentHostSessionsProvider } from './devContainerAgentHostSessionsProvider.js';

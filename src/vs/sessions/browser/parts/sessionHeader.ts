@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
 /**

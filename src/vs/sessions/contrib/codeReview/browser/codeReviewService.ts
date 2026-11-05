@@ -18,7 +18,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { parsePRContentUri } from '../../github/common/utils.js';
 // --- Types -------------------------------------------------------------------

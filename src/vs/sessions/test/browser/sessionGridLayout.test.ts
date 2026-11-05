@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../workbench/contrib/sessions/browser/sessionGridState.js';
 import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/chatCompositeBar.css';

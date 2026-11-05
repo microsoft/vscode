@@ -26,7 +26,7 @@ import { AICustomizationManagementCommands } from '../../../../../workbench/cont
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import type { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import type { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import type { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
+import type { ISessionChatSource } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { URI } from '../../../../../base/common/uri.js';

@@ -19,7 +19,7 @@ import { GitCommitOptions, IGitRepository, IGitService } from '../../../../../wo
 import { SessionsAICustomizationWorkspaceService } from '../../browser/aiCustomizationWorkspaceService.js';
 import { IChat, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsAICustomizationWorkspaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -11,7 +11,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -32,7 +32,7 @@ import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } f
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -44,8 +44,8 @@ import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import '../../../../browser/layoutActions.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const HOME_DIR = URI.file('/home/user');
 

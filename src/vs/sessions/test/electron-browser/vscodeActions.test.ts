@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';

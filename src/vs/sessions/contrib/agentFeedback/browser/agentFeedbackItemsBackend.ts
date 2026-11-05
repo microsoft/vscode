@@ -18,9 +18,9 @@ import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 
 // --- Backend interface --------------------------------------------------------

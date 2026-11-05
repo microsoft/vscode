@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 
 const uriIdentityService = { extUri: extUriBiasedIgnorePathCase };
 

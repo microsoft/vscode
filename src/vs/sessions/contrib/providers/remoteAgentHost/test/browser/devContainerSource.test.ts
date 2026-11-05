@@ -14,7 +14,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../browser/devContainerSource.js';
 
 suite('Dev Container source connection', () => {

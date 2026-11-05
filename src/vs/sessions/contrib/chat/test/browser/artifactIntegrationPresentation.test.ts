@@ -48,7 +48,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/browser/actions/listCommands.js';
@@ -57,7 +57,7 @@ import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrati
 import { ArtifactDetailsModel } from '../../browser/artifactDetailsModel.js';
 import { ArtifactDetailsPanel } from '../../browser/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../browser/artifactDetailsView.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Artifact Integration Presentation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

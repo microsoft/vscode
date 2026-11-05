@@ -9,8 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISession, ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 
 const MAX_RECENT_SESSIONS = 15;
 

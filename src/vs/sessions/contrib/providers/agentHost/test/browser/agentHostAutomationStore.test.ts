@@ -40,7 +40,7 @@ import { AutomationUnavailableError, type AutomationCatalogueState } from '../..
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 class TestAutomationConnection {

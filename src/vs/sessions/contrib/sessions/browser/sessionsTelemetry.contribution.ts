@@ -25,12 +25,12 @@ import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEve
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { getSessionsTelemetryCopilotSku } from './sessionsAccountTelemetry.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';

@@ -13,7 +13,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../.
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 export function devContainerSourcePath(workspaceUri: URI): string {
 	if (workspaceUri.scheme === Schemas.file) {

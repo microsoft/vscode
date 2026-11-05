@@ -47,14 +47,14 @@ import { AgentHostPermissionPickerActionItem } from '../../browser/agentHostPerm
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 import '../../../../../browser/media/style.css';
-import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed' } = {}): Promise<void> {
 	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld } = options;

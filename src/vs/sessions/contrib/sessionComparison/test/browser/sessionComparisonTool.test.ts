@@ -17,7 +17,7 @@ import { ILanguageModelToolsService, IToolData, IToolResult, ToolProgress, ToolS
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
+import { hashSessionIdForTelemetry } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { CompleteSessionComparisonTool, ReadSessionComparisonTool, SessionComparisonToolContribution } from '../../browser/sessionComparisonTool.js';
 
 const progress: ToolProgress = { report: () => { } };

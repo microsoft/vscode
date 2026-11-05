@@ -5,27 +5,27 @@
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostCustomizationService } from '../../agentHost/browser/agentHostCustomizationService.js';
-import { ISessionsService, SessionsService } from './sessionsService.js';
-import { ISessionHostService, IFocusedSessionHostService } from './sessionHost.js';
-import { SessionHostService, FocusedSessionHostService } from './sessionHostService.js';
-import { IChatHostOpenerService, ChatHostOpenerService } from './chatHostOpener.js';
-import { ISessionsListModelService, SessionsListModelService } from './sessionsListModelService.js';
-import { ISessionGroupsService, SessionGroupsService } from './sessionGroupsService.js';
+import { AgentHostCustomizationService } from '../../../../workbench/contrib/sessions/browser/agentHostCustomizationService.js';
+import { ISessionsService, SessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHostService, IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { SessionHostService, FocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHostService.js';
+import { IChatHostOpenerService, ChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionGroupsService, SessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { SessionComparisonService } from './sessionComparisonService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from './sessionSectionOrderService.js';
-import { IAgentHostFilterService } from '../../agentHostFilter/common/agentHostFilter.js';
-import { AgentHostFilterService } from '../../agentHostFilter/browser/agentHostFilterService.js';
-import { ISessionRepositoryPicker } from '../../presentation/browser/sessionRepositoryPicker.js';
-import { DefaultSessionRepositoryPicker } from '../../presentation/browser/defaultSessionRepositoryPicker.js';
-import { ISessionsListPresentation } from '../../presentation/browser/sessionsListPresentation.js';
-import { DefaultSessionsListPresentation } from '../../presentation/browser/defaultSessionsListPresentation.js';
-import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from './sessionOpenTelemetryService.js';
-import { ISessionsProvidersService, SessionsProvidersService } from './sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from './sessionsRecentWorkspacesService.js';
+import { SessionComparisonService } from '../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../workbench/contrib/sessions/browser/sessionSectionOrderService.js';
+import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { AgentHostFilterService } from '../../../../workbench/contrib/sessions/browser/agentHostFilterService.js';
+import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
+import { DefaultSessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.js';
+import { ISessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
+import { DefaultSessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionsManagementService } from './sessionsManagementService.js';
+import { SessionsManagementService } from '../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only

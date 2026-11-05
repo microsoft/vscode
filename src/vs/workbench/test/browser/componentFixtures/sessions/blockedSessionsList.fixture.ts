@@ -18,12 +18,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -36,8 +33,7 @@ import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.

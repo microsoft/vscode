@@ -15,7 +15,7 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { getChatSessionTelemetryContext } from '../../../../workbench/contrib/chat/common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 

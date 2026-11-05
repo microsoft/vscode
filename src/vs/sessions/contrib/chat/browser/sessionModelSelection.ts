@@ -20,7 +20,7 @@ import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/mod
 import { getAgentModelPolicyError, resolveAgentModelPreferences } from '../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, ISessionType, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';

@@ -15,7 +15,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IAgentHostAutoConnect } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHostContribution.js';
 
 export function shouldPauseWSLReconnectAfterFailure(err: unknown): boolean {

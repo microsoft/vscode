@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { isWeb } from '../../../../../base/common/platform.js';
 import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';

@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import {
 	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
 	AbstractSessionsAgentHostConfigFileSystemProvider,

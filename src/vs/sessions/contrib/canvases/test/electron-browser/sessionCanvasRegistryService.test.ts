@@ -38,7 +38,7 @@ import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
 import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionCanvasRegistryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

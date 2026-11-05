@@ -8,7 +8,7 @@ import { derived, IObservable, ITransaction, observableValue } from '../../../..
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ICustomViewDescriptor, ICustomViewService, ICustomViewOpenRequest } from './customView.js';
+import { ICustomViewDescriptor, ICustomViewService, ICustomViewOpenRequest } from '../../../../workbench/contrib/sessions/browser/customView.js';
 
 const ACTIVE_CUSTOM_VIEW_STORAGE_KEY = 'sessions.activeCustomView';
 

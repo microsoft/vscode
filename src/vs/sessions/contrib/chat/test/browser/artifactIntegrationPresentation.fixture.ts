@@ -40,9 +40,9 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const observedAt = Date.UTC(2026, 0, 12, 9);
 const chat = 'fixture-chat';

@@ -49,7 +49,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -58,10 +58,10 @@ import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTe
 import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';

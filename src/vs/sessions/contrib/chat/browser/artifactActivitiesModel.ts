@@ -16,8 +16,8 @@ import { getArtifactThemeIcon } from '../../../../platform/artifactIntegrations/
 import { ArtifactRun, ArtifactRunState, ArtifactSnapshot, IArtifactModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ArtifactDetailsViewState, IArtifactActivitiesViewData, IArtifactActivityViewData } from './artifactDetailsView.js';
 

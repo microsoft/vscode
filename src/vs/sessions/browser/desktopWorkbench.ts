@@ -13,7 +13,7 @@ import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js'
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { Workbench } from './workbench.js';
-import { AgentWorkbenchLayout } from '../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 
 /**
  * Remembers the editor width captured around visibility transitions.

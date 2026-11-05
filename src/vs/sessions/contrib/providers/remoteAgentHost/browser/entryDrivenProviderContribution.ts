@@ -10,7 +10,7 @@ import { type IConfigurationService } from '../../../../../platform/configuratio
 import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { type ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 

@@ -36,7 +36,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../workbench/c
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -52,7 +52,7 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 interface IChatTab {
 	readonly chat: IChat;

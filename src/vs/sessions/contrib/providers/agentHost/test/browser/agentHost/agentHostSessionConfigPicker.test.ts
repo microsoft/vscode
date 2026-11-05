@@ -46,7 +46,7 @@ import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/com
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -54,8 +54,8 @@ import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/d
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
-import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -68,7 +68,7 @@ import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '..
 import { WorktreeSuggestionVariant } from '../../../../../worktreeSuggestion/common/worktreeSuggestion.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../../../../chat/browser/media/chatWidget.css';
-import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../services/sessions/browser/sessionHost.js';
+import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');

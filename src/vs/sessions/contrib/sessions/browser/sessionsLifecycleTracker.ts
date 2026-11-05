@@ -13,7 +13,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 
 function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
 	const state = pullRequest.liveState ?? pullRequest.state;

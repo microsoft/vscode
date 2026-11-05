@@ -9,7 +9,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import type { IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../../../workbench/contrib/chat/browser/sessionSubagentsPill.js';
 import { ISessionChatPillVisibilityService } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, isActiveSessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';

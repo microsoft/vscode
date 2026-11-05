@@ -21,10 +21,10 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {
 	readonly kind: 'remote';

@@ -29,14 +29,14 @@ import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '..
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IHostSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
 

@@ -14,9 +14,9 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
-import { focusedSessionHostServiceOf } from '../../../sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

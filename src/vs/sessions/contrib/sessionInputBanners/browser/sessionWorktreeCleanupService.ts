@@ -23,8 +23,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../nls.js';
-import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 

@@ -34,7 +34,7 @@ import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WID
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';

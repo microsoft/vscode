@@ -33,7 +33,7 @@ import { ChangesViewService } from './changesViewService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ChangesActivityContribution } from './changesActivity.js';
 
 /**

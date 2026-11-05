@@ -19,7 +19,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { getChatHarness, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionType, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';

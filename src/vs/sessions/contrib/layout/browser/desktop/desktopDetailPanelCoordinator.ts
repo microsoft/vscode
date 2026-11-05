@@ -17,7 +17,7 @@ import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 export const enum DetailPanelTarget {
 	Hidden,

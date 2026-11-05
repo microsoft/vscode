@@ -18,9 +18,9 @@ import { ILifecycleService, LifecyclePhase } from '../../../../workbench/service
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';

@@ -18,7 +18,7 @@ import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../workben
 import { markOnboardingTarget, ONBOARDING_TARGET_PULSE_CLASS } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NewSessionTourContribution } from '../../browser/newSessionTourContribution.js';

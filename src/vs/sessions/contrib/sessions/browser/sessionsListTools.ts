@@ -19,8 +19,8 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionGroupSectionId, ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getSessionGroupSectionId, ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SESSIONS_LIST_UNGROUPED_PLACEMENT, SessionsGrouping, SessionsList, SessionsListSessionPosition, SessionsListSnapshotNode, SessionsSorting } from './views/sessionsList.js';

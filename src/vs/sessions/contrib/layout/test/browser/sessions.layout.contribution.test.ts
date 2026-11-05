@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../workbench/common/configuration.js';

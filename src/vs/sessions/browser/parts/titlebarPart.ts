@@ -35,7 +35,7 @@ import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTit
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;

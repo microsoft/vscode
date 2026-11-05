@@ -12,7 +12,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY, toAg
 import { URI } from '../../../base/common/uri.js';
 import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../platform/agentHost/common/devContainerSamples.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 suite('resolveRemoteAuthority', () => {

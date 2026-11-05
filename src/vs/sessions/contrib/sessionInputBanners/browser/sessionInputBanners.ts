@@ -24,8 +24,8 @@ import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatI
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
-import { getWindowHost, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { ISessionInputBanner, ISessionInputBannerAction, SessionInputBannerWidget } from './sessionInputBannerWidget.js';

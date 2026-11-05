@@ -54,8 +54,8 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { Menus } from '../../../browser/menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';

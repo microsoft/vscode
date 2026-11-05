@@ -14,9 +14,9 @@ import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/co
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
-import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ICustomViewService } from '../../../services/customView/browser/customView.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';

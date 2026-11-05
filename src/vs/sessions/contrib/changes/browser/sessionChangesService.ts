@@ -16,12 +16,12 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';

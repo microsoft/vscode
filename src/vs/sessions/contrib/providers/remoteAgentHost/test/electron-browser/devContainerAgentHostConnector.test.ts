@@ -34,8 +34,8 @@ import { IOutputChannel, IOutputService } from '../../../../../../workbench/serv
 import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, getDevContainerEnvironment, isDevContainerWorkspaceAvailable, RemoteDevContainerService, reportDevContainerEnvironment } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {

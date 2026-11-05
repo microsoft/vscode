@@ -28,7 +28,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../../../workbench/contrib/chat/common/languageModelsConfiguration.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

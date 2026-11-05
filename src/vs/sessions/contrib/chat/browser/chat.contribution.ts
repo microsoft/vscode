@@ -24,7 +24,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { AgentHostSandboxNotifications } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSandboxNotifications.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { resolveGridCommandView } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
@@ -70,13 +70,13 @@ import { ISessionsChatViewStateService, SessionsChatViewStateService } from './c
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
-import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, chatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, chatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset, SessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID, FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, FOCUS_NEW_SESSION_BRANCH_PICKER_KEYBINDING, FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, FOCUS_NEW_SESSION_WORKTREE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, FOCUS_SESSION_SYNC_ACTION_KEYBINDING, FOCUS_SESSION_SYNC_ACTION_WHEN } from './newChatPickerKeybinding.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { GetThemeColorsToolContribution } from './getThemeColorsTool.js';
 import { Codicon } from '../../../../base/common/codicons.js';

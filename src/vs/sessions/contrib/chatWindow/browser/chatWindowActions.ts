@@ -34,7 +34,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';

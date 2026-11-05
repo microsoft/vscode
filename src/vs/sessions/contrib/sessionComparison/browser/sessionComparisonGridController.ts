@@ -13,9 +13,9 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { getSessionPaneId, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { getSessionPaneId, ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';

@@ -37,9 +37,9 @@ import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKey
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
-import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
+import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
@@ -51,7 +51,7 @@ import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWind
 import { AGENTS_CHAT_WINDOW_CLASS } from './chatWindowTitleDoubleClick.js';
 import { ChatEditorInput, ISessionChatViewHeaderHost, ISessionChatViewHost, ISessionChatViewTitle, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
 import { ChatEditorContent } from '../../chatEditor/browser/chatEditorContent.js';
-import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
+import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { EditorTabsControl } from '../../../../workbench/browser/parts/editor/editorTabsControl.js';
 
 /** How long restoring a chat window waits for its session to load. */

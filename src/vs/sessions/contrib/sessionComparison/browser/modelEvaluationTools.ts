@@ -27,7 +27,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { createSessionComparisonHarness } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';

@@ -20,9 +20,9 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
-import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
-import { WindowCanvasInput, IWindowCanvasService } from '../../../services/canvas/browser/windowCanvas.js';
+import { WindowCanvasInput, IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 import { CanvasActivityBarToggledContext } from './canvasActivityBar.js';

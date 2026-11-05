@@ -14,9 +14,9 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

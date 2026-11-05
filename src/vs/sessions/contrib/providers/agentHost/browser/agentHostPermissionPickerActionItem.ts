@@ -18,7 +18,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
-import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
 
 /**

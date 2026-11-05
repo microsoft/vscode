@@ -9,7 +9,7 @@ import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { type IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';

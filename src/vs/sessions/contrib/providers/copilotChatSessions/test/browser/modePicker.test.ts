@@ -31,7 +31,7 @@ import { Target } from '../../../../../../workbench/contrib/chat/common/promptSy
 import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
-import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 
 suite('ScopedModePickerModelCache', () => {

@@ -17,7 +17,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { AbstractCustomView, ICustomViewService } from '../../../services/customView/browser/customView.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 
 const TEST_CUSTOM_VIEW_ID = 'sessions.customView.test';
 

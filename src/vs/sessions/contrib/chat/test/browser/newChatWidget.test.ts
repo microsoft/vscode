@@ -26,9 +26,9 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../browser/newChatWidget.js';
 import { WelcomeName } from '../../browser/welcomeName.js';
@@ -67,7 +67,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHost, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {

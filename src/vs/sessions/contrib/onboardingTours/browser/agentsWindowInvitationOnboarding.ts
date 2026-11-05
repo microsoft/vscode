@@ -23,8 +23,8 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindowContextKeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';

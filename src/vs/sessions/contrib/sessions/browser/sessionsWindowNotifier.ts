@@ -19,8 +19,8 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { ChatNotificationKind, getChatNotificationDedupeKey, getChatNotificationResource } from '../../../../workbench/contrib/chat/common/chatNotification.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';

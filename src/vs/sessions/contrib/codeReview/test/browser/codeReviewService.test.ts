@@ -32,13 +32,13 @@ import { toPRContentUri } from '../../../github/common/utils.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('CodeReviewService', () => {
 

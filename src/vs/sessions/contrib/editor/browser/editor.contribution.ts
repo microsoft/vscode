@@ -27,7 +27,7 @@ import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorP
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext, EditorMaximizedContext } from '../../../common/agentsWindowContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -45,7 +45,7 @@ import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliar
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 

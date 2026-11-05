@@ -53,8 +53,8 @@ import { IExtensionService } from '../../../../../workbench/services/extensions/
 import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/externalUriOpener/common/configuration.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -69,7 +69,7 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
-import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

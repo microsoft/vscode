@@ -35,7 +35,7 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/ed
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
@@ -44,22 +44,22 @@ import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
-import { ISessionHost, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');

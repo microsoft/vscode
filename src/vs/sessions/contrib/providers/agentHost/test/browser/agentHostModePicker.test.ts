@@ -43,7 +43,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../workbench/servic
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -53,7 +53,7 @@ import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker
 import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
-import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('AgentHostModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

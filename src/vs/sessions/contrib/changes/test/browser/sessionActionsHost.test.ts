@@ -18,7 +18,7 @@ import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubP
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../common/changesViewService.js';
 import { createSessionActionsInstantiationService } from '../../browser/sessionActionsHost.js';
-import { hasWorktreeAndRepositoryContextKey } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { hasWorktreeAndRepositoryContextKey } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 
 suite('Session Actions Host', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

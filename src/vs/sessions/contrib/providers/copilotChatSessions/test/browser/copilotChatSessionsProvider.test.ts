@@ -67,8 +67,8 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
-import { ISessionRepositoryPicker } from '../../../../../services/presentation/browser/sessionRepositoryPicker.js';
-import { DefaultSessionRepositoryPicker } from '../../../../../services/presentation/browser/defaultSessionRepositoryPicker.js';
+import { ISessionRepositoryPicker } from '../../../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
+import { DefaultSessionRepositoryPicker } from '../../../../../../workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../github/common/types.js';
@@ -80,8 +80,8 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { SessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
-import { VisibleSession } from '../../../../../services/sessions/browser/visibleSessions.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { VisibleSession } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 

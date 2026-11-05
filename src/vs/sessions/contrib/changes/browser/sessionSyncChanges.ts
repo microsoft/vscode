@@ -22,11 +22,11 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { getWindowHost, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';

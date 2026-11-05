@@ -20,8 +20,8 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getCanvasInputResource, getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ICustomViewService } from '../../../services/customView/browser/customView.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from './pinnedCanvases.js';

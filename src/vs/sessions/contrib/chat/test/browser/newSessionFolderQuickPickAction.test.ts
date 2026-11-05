@@ -12,7 +12,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { buildFolderQuickPickItems, IFolderQuickPickItem } from '../../browser/newSessionFolderQuickPickAction.js';
 
 function isSeparator(item: IFolderQuickPickItem | IQuickPickSeparator): item is IQuickPickSeparator {

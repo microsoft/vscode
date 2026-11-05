@@ -19,7 +19,7 @@ import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { basename } from '../../../../base/common/resources.js';

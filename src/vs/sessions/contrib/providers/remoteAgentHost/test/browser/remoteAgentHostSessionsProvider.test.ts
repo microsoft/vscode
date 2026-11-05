@@ -63,7 +63,7 @@ import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
@@ -89,10 +89,10 @@ import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationSer
 import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';

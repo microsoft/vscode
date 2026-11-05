@@ -52,8 +52,8 @@ import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionL
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';

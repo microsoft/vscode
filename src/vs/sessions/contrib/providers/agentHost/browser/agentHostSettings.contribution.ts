@@ -13,7 +13,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';

@@ -36,7 +36,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessConfigurationLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonParticipant, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';

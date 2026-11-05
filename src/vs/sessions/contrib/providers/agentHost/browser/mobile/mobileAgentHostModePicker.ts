@@ -14,10 +14,10 @@ import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/bro
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionChatSource } from '../../../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionChatSource } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
-import { createChatPhoneInputSessionContext } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
+import { createChatPhoneInputSessionContext } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 
 /**
  * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout

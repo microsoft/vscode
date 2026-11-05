@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { IGitHubIssueRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OPEN_ISSUE_ACTION_ID } from '../common/types.js';

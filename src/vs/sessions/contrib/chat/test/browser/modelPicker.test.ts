@@ -31,15 +31,15 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, hasSelectableModel, hasSendableModelSelection, normalizeModelPickerOptions } from '../../browser/sessionModelPickerState.js';
-import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const aModel = { identifier: 'copilot-gpt-4o', metadata: {} } as ILanguageModelChatMetadataAndIdentifier;
 

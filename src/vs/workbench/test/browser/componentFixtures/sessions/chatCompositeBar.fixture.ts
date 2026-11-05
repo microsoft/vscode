@@ -18,10 +18,8 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/ed
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
 // eslint-disable-next-line local/code-import-patterns

@@ -10,7 +10,7 @@ import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../.
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../../common/agentsWindowContextKeys.js';
-import { WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvas.js';
+import { WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { CanvasActivityBarToggledContext } from '../../browser/canvasActivityBar.js';
 
 suite('Canvas Activity Bar', () => {

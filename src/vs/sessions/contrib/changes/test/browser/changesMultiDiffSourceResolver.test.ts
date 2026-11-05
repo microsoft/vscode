@@ -16,10 +16,10 @@ import { IChat, ISession, ISessionFileChange } from '../../../../../workbench/co
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
 import { ChangesViewMode } from '../../common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
-import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {

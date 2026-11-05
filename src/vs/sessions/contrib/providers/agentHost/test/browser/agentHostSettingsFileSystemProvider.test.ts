@@ -16,7 +16,7 @@ import { NullLogService, ILogService } from '../../../../../../platform/log/comm
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import type { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import type { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { agentHostSettingsUri, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from '../../browser/agentHostSettingsFileSystemProvider.js';
 

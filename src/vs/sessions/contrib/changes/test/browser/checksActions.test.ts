@@ -18,8 +18,8 @@ import { IChat } from '../../../../../workbench/contrib/sessions/common/session.
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 suite('Fix Checks', () => {
 

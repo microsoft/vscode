@@ -16,10 +16,10 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
-import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 

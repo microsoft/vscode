@@ -14,10 +14,10 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('SessionsTitleBarWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

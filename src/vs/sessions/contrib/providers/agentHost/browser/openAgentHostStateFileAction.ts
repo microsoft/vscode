@@ -11,9 +11,9 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { openAgentHostStateFile } from '../../../../../workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IsAgentHostSession } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 
 /**
  * Sessions-app variant of "Open Agent Host State File". Resolves the Agent

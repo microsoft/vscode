@@ -46,11 +46,11 @@ import { IWorkbenchGitHubService } from '../../../../../workbench/services/githu
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
+import { hashSessionIdForTelemetry } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../github/browser/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

@@ -16,8 +16,8 @@ import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboar
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { NewSessionViewV3PromptRunner } from './newSessionViewV3Prompt.js';

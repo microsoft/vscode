@@ -26,11 +26,11 @@ import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAgentHostSession } from '../../../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IsAgentHostSession } from '../../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 import { OpenAgentHostStateFileAction } from '../../browser/openAgentHostStateFileAction.js';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Open Agent Host State File', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

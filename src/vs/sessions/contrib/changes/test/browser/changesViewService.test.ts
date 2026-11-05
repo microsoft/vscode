@@ -21,7 +21,7 @@ import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/brows
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { getChangesOfSession } from '../../common/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
-import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {
 

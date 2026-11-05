@@ -10,7 +10,7 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { SessionStatusIcon } from '../../browser/sessionStatusIcon.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 
 interface IRenderedIcon {

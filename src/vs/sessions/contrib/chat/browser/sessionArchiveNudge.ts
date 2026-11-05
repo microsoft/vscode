@@ -26,7 +26,7 @@ import { OnboardingOutcome } from '../../../../workbench/contrib/onboarding/comm
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';

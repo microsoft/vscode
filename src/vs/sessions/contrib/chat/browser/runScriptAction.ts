@@ -26,11 +26,11 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
+import { logSessionsInteraction } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';

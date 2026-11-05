@@ -20,8 +20,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
 import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sessions/browser/sessionHoverContent.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../contrib/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';

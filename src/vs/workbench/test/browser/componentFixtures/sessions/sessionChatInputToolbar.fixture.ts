@@ -43,10 +43,8 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionHost, SessionHostKind } from '../../../../../sessions/services/sessions/browser/sessionHost.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+import { ISessionHost, SessionHostKind } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';

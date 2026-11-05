@@ -35,7 +35,7 @@ import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChat
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
 
 import '../../../../browser/media/style.css';

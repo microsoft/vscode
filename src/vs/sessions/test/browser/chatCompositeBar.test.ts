@@ -34,10 +34,10 @@ import { Menus } from '../../browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -45,7 +45,7 @@ import '../../browser/parts/media/chatGroupsView.css';
 import '../../browser/parts/media/sessionsPart.css';
 import '../../browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
-import '../../services/chatBackground/browser/media/chatBackground.css';
+import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.

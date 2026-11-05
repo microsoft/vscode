@@ -9,7 +9,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
 import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';

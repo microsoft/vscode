@@ -12,7 +12,7 @@ import { createPixelSpinner } from '../../base/browser/ui/pixelSpinner/pixelSpin
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
 import { SessionStatus } from '../../workbench/contrib/sessions/common/session.js';
-import { ISessionsListModelService } from '../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService } from '../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 
 const $ = DOM.$;
 

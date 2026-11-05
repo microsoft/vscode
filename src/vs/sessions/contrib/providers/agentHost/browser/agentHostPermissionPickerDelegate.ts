@@ -22,10 +22,10 @@ import { disableGlobalAutoApproveForPermissionSelection, isApprovalLevelDisabled
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { getSessionConfigProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';

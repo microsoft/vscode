@@ -25,8 +25,8 @@ import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspa
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { IOpenNewSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
+import { IOpenNewSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';

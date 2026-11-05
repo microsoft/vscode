@@ -40,10 +40,10 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { cloneRepository } from '../../../services/sessions/browser/cloneRepository.js';
-import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { cloneRepository } from '../../../../workbench/contrib/sessions/browser/cloneRepository.js';
+import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers

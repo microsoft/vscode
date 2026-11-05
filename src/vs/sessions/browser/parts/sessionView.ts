@@ -23,7 +23,7 @@ import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './c
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
@@ -33,7 +33,7 @@ import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridView } from './sessionGridLayout.js';
-import { ISessionView } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionView } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view

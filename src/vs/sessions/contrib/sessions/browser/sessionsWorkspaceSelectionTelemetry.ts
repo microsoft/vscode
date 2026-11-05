@@ -12,7 +12,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';

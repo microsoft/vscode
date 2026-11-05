@@ -27,7 +27,7 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { ChatGroupDropTarget } from '../../../../browser/parts/chatGroupDropTarget.js';
 import { SessionDropTarget } from '../../../../browser/parts/sessionDropTarget.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../../browser/dnd.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 

@@ -11,9 +11,9 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IAgentHostPolicyContinuationPresenter } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
 export class SessionsAgentHostPolicyContinuationPresenter implements IAgentHostPolicyContinuationPresenter {

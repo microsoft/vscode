@@ -25,7 +25,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IDevContainerAgentHostConnector } from '../../../../../common/devContainerAgentHostService.js';

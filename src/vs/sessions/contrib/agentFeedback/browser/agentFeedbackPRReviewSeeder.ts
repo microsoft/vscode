@@ -8,7 +8,7 @@ import { autorun, observableSignalFromEvent } from '../../../../base/common/obse
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ICodeReviewService, IPRReviewComment, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from './agentFeedbackService.js';
 

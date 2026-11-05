@@ -46,14 +46,14 @@ import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
-import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
+import { logSidePanelToggle } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { IHostSession, ISessionsManagementService, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';

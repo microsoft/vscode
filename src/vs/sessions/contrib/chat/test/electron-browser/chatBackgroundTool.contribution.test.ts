@@ -19,7 +19,7 @@ import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundToolContribution } from '../../electron-browser/chatBackgroundTool.contribution.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';

@@ -23,8 +23,8 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -37,7 +37,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { bindSessionScopeContextKeys } from '../../../changes/browser/sessionActionsHost.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Chat window changeset actions', () => {
 

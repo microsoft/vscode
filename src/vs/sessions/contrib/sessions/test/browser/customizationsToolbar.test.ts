@@ -48,7 +48,7 @@ import { CustomizationsNavigationState } from '../../browser/customizationsNavig
 import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
 	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {

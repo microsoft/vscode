@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { MobileLayoutController } from './mobileSessionLayoutController.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopLayoutController } from './desktopLayoutController.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';

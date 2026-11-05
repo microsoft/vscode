@@ -19,15 +19,15 @@ import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customView.js';
-import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvas.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

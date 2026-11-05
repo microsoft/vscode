@@ -64,10 +64,10 @@ import { getWorkbenchContribution } from '../../../../../workbench/common/contri
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
-import { cloneRepository } from '../../../../services/sessions/browser/cloneRepository.js';
+import { resolveGitRepositoryFromGitConfig } from '../../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
+import { cloneRepository } from '../../../../../workbench/contrib/sessions/browser/cloneRepository.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
-import { ISessionRepositoryPicker } from '../../../../services/presentation/browser/sessionRepositoryPicker.js';
+import { ISessionRepositoryPicker } from '../../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { CloudSandboxModels } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';

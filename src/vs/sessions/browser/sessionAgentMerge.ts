@@ -13,7 +13,7 @@ import { ArtifactIntegrationsSettingId } from '../../platform/artifactIntegratio
 import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession } from '../../workbench/contrib/sessions/common/session.js';
 
 const noAgentMergeConfiguration = constObservable<ISessionAgentMergeConfiguration | undefined>(undefined);

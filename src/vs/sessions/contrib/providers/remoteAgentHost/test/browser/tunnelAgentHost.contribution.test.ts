@@ -35,8 +35,8 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { TunnelAgentHostContribution } from '../../browser/tunnelAgentHost.contribution.js';

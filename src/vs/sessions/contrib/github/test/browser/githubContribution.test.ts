@@ -25,8 +25,8 @@ import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSI
 import { IGitHubService } from '../../browser/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
 suite('GitHubPullRequestPollingContribution', () => {

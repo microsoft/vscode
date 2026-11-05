@@ -24,8 +24,8 @@ import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
@@ -33,7 +33,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 

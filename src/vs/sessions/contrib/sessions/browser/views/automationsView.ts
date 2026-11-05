@@ -59,12 +59,12 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
-import { AbstractCustomView, ICustomViewService } from '../../../../services/customView/browser/customView.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Menus } from '../../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';

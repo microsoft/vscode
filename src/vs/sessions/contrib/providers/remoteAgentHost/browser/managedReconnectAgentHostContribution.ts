@@ -13,7 +13,7 @@ import { type IConfigurationService } from '../../../../../platform/configuratio
 import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type ILogService } from '../../../../../platform/log/common/log.js';
 import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { type ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { EntryDrivenProviderContribution } from './entryDrivenProviderContribution.js';
 
 /**

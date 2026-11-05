@@ -26,10 +26,10 @@ import { isSessionConfigWritable } from '../../../../../platform/agentHost/commo
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getSessionConfigProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { type ISessionConfigProvider, type ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';

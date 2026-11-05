@@ -20,10 +20,10 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
-import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
+import { logSessionsInteraction } from '../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
-import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { resolveSessionCommandTarget } from '../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';

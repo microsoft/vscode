@@ -26,8 +26,7 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
 import { ISessionArtifact, SessionArtifactKind } from '../../../../contrib/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';

@@ -23,9 +23,9 @@ import { IEditorGroup } from '../../../workbench/services/editor/common/editorGr
 import { createEditorPart, TestFileEditorInput, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { TestStorageService } from '../../../workbench/test/common/workbenchTestServices.js';
-import { ActiveSessionHost, createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 const EDITOR_ID = 'test.mainWindowSessionHost.editor';
 const INPUT_ID = 'test.mainWindowSessionHost.input';

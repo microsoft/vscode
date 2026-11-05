@@ -31,7 +31,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { RemoteSessionInspector } from '../../browser/remoteSessionInspector.js';

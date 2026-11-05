@@ -30,9 +30,9 @@ import { InMemoryStorageService } from '../../../../../../platform/storage/commo
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
 import { NotificationChangeType } from '../../../../../../workbench/common/notifications.js';
 import { ICommandService, CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionView } from '../../../../../browser/parts/sessionView.js';
@@ -52,7 +52,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getVisibleRemoteKinds, RemoteKind } from '../../browser/remotesModel.js';
-import { ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

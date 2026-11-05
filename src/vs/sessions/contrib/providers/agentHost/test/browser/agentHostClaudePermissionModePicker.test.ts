@@ -20,13 +20,13 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostClaudePermissionModePicker } from '../../browser/agentHostClaudePermissionModePicker.js';
 import { IAgentHostSessionEnumPickerItem } from '../../browser/agentHostModePicker.js';
-import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';

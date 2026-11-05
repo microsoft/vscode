@@ -14,7 +14,7 @@ import { IAgentHostConnectionLabels, isAgentHostProvider } from '../../../workbe
 import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
 import { ISessionReadOnlyBannerContent } from './sessionReadOnlyBanner.js';
 

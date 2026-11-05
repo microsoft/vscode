@@ -13,7 +13,7 @@ import { getSessionAgentMergeConfigurationObservable, getSessionAgentMergeStateO
 import { ArtifactIntegrationsSettingId } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 

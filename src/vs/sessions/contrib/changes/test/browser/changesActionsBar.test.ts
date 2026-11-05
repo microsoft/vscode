@@ -32,7 +32,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../workb
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
-import { ActiveSessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

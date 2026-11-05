@@ -16,11 +16,11 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { fillSessionChatDragData } from '../../../../browser/dnd.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };

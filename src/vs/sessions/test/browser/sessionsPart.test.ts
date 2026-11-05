@@ -21,7 +21,7 @@ import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../services/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../workbench/contrib/sessions/browser/visibleSessions.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

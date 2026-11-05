@@ -18,9 +18,9 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../../services/layout/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -31,7 +31,7 @@ import { IWorktreeSuggestionService } from '../../../../worktreeSuggestion/brows
 import { NullWorktreeSuggestionService } from '../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
-import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, value: 'worktree' | 'folder', devContainer = false): Promise<void> {
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');

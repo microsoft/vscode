@@ -12,7 +12,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;

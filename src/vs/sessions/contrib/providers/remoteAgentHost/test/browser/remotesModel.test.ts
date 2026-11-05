@@ -40,7 +40,7 @@ import { IInputOptions, IQuickInputService } from '../../../../../../platform/qu
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';

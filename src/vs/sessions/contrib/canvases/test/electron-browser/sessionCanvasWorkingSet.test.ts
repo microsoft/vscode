@@ -39,15 +39,15 @@ import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customView.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
 import { WindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
-import { WindowCanvasInput, IWindowCanvas, IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvas.js';
+import { WindowCanvasInput, IWindowCanvas, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { WindowCanvasEditor } from '../../browser/windowCanvasEditor.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestCanvasLayoutController extends BaseLayoutController { }
 

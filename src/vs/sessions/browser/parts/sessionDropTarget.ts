@@ -17,7 +17,7 @@ import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatD
 import { URI } from '../../../base/common/uri.js';
 import { ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService, SessionGridDirection } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsService, SessionGridDirection } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 
 /** Side of a target view where a dragged session can be dropped. */

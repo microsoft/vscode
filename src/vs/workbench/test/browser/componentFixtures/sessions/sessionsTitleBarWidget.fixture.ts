@@ -18,12 +18,9 @@ import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionAppro
 import { IChat, ISession, ISessionWorkspace } from '../../../../contrib/sessions/common/session.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../contrib/sessions/common/sessionConfig.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../contrib/sessions/common/agentHostFilter.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -34,8 +31,7 @@ import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 

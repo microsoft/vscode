@@ -26,7 +26,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IChat, ISessionArtifact, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

@@ -35,14 +35,14 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IChat, ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../chat/common/constants.js';
 import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
 import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';
-import { focusedSessionHostServiceOf } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

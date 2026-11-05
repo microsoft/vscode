@@ -34,7 +34,7 @@ import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPar
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatSurface } from '../../services/chatBackground/browser/sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { URI } from '../../../base/common/uri.js';

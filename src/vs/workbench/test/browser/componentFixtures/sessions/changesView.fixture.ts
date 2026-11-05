@@ -46,12 +46,9 @@ import { GitHubPullRequestCIModel } from '../../../../../sessions/contrib/github
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IFocusedSessionHostService } from '../../../../../sessions/services/sessions/browser/sessionHost.js';
-// eslint-disable-next-line local/code-import-patterns
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 

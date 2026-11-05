@@ -62,10 +62,10 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../browser/parts/chatView.js';
 import { getChatRequestOutcome } from '../../../chat/browser/chatView.js';

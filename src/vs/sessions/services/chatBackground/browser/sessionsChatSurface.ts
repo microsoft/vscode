@@ -8,8 +8,8 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { SessionsChatBackgroundRenderer } from './chatBackgroundRenderer.js';
-import { ISessionsChatBackgroundService } from './chatBackgroundService.js';
+import { SessionsChatBackgroundRenderer } from '../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
+import { ISessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 
 /**
  * The class of an element that shows chats over the chat background, such as the Sessions part. Its `.content` child

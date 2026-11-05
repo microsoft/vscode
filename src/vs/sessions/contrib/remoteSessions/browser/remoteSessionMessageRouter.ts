@@ -22,7 +22,7 @@ import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, is
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IRemoteSessionChat, readRemoteSessionState, resolveRemoteSessionChat, resolveRemoteSessionReference, resolveRemoteSessionSource } from './remoteSessionSource.js';

@@ -21,15 +21,15 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionHost, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHost, ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
-import { ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestOpenSubagentChatActionViewItem extends OpenSubagentChatActionViewItem {
 	get tooltip(): string | undefined {

@@ -11,8 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHeader.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';

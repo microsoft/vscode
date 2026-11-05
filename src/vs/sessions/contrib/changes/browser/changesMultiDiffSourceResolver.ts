@@ -13,7 +13,7 @@ import { sortMultiDiffEditorFileListItems } from '../../../../workbench/contrib/
 import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ChangesViewMode } from '../common/changes.js';
 import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
-import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';

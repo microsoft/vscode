@@ -11,7 +11,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession, toSessionId } from '../../../../../workbench/contrib/sessions/common/session.js';
 import {
 	AbstractMultiProviderAgentHostConfigSchemaRegistrar,

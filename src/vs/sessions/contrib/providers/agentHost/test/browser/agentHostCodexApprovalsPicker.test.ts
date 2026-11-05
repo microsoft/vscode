@@ -29,11 +29,11 @@ import { IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AgentHostCodexApprovalsPicker } from '../../browser/agentHostCodexApprovalsPicker.js';
-import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('AgentHostCodexApprovalsPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

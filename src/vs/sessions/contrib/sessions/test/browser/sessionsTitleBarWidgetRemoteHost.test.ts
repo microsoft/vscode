@@ -22,14 +22,14 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/se
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

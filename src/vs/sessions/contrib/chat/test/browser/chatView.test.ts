@@ -68,10 +68,10 @@ import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
+import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
@@ -79,7 +79,7 @@ import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js'
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
 import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';

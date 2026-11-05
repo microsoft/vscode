@@ -36,7 +36,7 @@ import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/st
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { getPullRequestKey } from '../../github/common/utils.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
@@ -67,7 +67,7 @@ import {
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
-import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { CHAT_INBOX_ENABLED_SETTING } from './inboxNotificationsConstants.js';
 import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceCommand } from '../common/inboxEvidence.js';

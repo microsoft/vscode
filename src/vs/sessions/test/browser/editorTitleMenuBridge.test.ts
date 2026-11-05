@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../browser/menus.js';
 
 suite('Sessions - Editor Title Menu Bridge', () => {

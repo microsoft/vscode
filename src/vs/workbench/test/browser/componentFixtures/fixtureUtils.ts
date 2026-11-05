@@ -110,10 +110,8 @@ import { InMemoryTextModelService } from '../../../../editor/common/services/inM
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionHost, SessionHostKind } from '../../../../sessions/services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
+import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';

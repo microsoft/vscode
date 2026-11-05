@@ -13,7 +13,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsNewChatSessionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentHostModePicker } from '../../agentHost/browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';

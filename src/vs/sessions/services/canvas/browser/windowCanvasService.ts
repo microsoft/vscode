@@ -20,9 +20,9 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { ICustomViewService } from '../../customView/browser/customView.js';
-import { createMainWindowInstantiationService } from '../../sessions/browser/sessionHost.js';
-import { IWindowCanvas, IWindowCanvasDescriptor, IWindowCanvasPresentation, IWindowCanvasOpenRequest, IWindowCanvasService, WindowCanvasInput } from './windowCanvas.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { createMainWindowInstantiationService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IWindowCanvas, IWindowCanvasDescriptor, IWindowCanvasPresentation, IWindowCanvasOpenRequest, IWindowCanvasService, WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 interface ICanvasEntry {
 	input: WindowCanvasInput;

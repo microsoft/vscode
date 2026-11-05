@@ -111,9 +111,9 @@ import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHos
 import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import type { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import type { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';

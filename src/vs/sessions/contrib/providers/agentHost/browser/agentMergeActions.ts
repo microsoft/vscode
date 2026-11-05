@@ -27,8 +27,8 @@ import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOp
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
 import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../changes/browser/sessionActionContextKeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(

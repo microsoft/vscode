@@ -16,7 +16,7 @@ import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/
 import { ILifecycleService, InternalBeforeShutdownEvent, ShutdownReason } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';

@@ -20,10 +20,10 @@ import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '.
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
@@ -33,7 +33,7 @@ import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
-import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });

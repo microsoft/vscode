@@ -25,13 +25,13 @@ import { IChatMode } from '../../../../../../workbench/contrib/chat/common/chatM
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IFocusedSessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
 import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 
 /**
  * Action id passed to the workbench `ToggleAgentModeActionId` command when

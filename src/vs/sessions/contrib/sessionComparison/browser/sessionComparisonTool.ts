@@ -22,7 +22,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';

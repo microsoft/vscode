@@ -21,7 +21,7 @@ import { ChatService } from '../../../../../workbench/contrib/chat/common/chatSe
 import { IChatResponseModel, serializeSendOptions } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { createChatUserInteractionTestHarness } from '../../../../../workbench/contrib/chat/test/browser/chatUserInteractionTestUtils.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';

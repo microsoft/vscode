@@ -9,8 +9,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
-import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IChangesSessionScope } from '../common/changesViewService.js';
 import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';

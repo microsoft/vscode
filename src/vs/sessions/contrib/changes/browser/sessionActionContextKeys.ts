@@ -13,7 +13,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../github/browser/githubService.js';

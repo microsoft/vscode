@@ -14,8 +14,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISessionChangeset, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
 

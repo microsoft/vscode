@@ -14,8 +14,8 @@ import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/c
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionChatSource } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownClaudePermissionModeSchema } from './agentHostPermissionPickerDelegate.js';
 

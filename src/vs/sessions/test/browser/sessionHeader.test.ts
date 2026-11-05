@@ -29,8 +29,8 @@ import { SessionHeader } from '../../browser/parts/sessionHeader.js';
 import { SessionHeaderBar } from '../../browser/parts/sessionHeaderBar.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 

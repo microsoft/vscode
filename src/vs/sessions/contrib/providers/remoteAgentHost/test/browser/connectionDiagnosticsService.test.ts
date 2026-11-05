@@ -29,7 +29,7 @@ import { IRemoteTunnelService } from '../../../../../../platform/remoteTunnel/co
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { ConnectionDiagnosticsService } from '../../browser/connectionDiagnosticsService.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../browser/connectionDiagnostics.js';
 import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
 

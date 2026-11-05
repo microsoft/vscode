@@ -35,7 +35,7 @@ import { IColorMap, IWorkbenchThemeService } from '../../../../workbench/service
 import { Menus } from '../../../browser/menus.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputFocusBorder, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsGradientTintColor, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
-import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 
 export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING = 'chat.agentSessions.backgroundImageTint';
 

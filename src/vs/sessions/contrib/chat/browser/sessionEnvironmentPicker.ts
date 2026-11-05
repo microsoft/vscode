@@ -31,7 +31,7 @@ import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isA
 import { SessionWorkspacePickerGroupContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';

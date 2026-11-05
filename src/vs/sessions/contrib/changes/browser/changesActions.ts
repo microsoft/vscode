@@ -26,12 +26,12 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IEditorPane, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';

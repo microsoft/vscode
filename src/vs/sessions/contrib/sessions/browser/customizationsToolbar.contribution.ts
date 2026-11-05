@@ -40,7 +40,7 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';

@@ -19,7 +19,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
@@ -31,8 +31,8 @@ import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetti
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';

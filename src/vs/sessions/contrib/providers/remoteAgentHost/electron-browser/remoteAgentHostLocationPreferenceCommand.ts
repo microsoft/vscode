@@ -27,7 +27,7 @@ import { CHAT_CATEGORY } from '../../../../../workbench/contrib/chat/browser/act
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { changeRemoteAgentHostLocationPreference } from '../browser/remoteHostOptions.js';
 
 /** A remote host that can have a preferred agent run location, deduplicated by its stable preference key. */

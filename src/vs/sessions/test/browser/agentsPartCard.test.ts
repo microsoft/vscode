@@ -21,7 +21,7 @@ import { generateColorThemeCSS } from '../../../workbench/services/themes/browse
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
-import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { PanelPart } from '../../browser/parts/panelPart.js';

@@ -18,7 +18,7 @@ import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js'
 import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IDynamicVariable } from '../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
-import { createSessionReferenceVariableEntry } from '../../../services/sessions/browser/sessionReference.js';
+import { createSessionReferenceVariableEntry } from '../../../../workbench/contrib/sessions/browser/sessionReference.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 

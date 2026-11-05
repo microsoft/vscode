@@ -9,7 +9,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';

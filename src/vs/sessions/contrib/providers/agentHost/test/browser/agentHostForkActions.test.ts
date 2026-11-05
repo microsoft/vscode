@@ -24,9 +24,9 @@ import { ChatSessionForkError, IChatSession, IChatSessionsService } from '../../
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IOpenSessionOptions, ISessionNavigationRequest, ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { IOpenSessionOptions, ISessionNavigationRequest, ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IForkChatOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
