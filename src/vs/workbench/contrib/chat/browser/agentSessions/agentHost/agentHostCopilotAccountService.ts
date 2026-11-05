@@ -6,10 +6,11 @@
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { readCopilotAccountContext, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { copilotAccountOperationMeta, type CopilotAccountOperation } from '../../../../../../platform/agentHost/common/meta/copilotAccountOperation.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -60,11 +61,18 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		if (!identity) {
 			throw new Error(localize('copilot.account.identityRequired', "Sign in with the intended Microsoft account before continuing."));
 		}
-		await this.authenticate(connection, binding, identity.account, {
+		const resource = {
 			resource: copilotEntraDiscoveryResource,
 			authorization_servers: [copilotEntraAuthorizationServer],
 			scopes_supported: ['User.Read'],
-		}, { kind: 'discover' });
+		};
+		const current = this.requireEnabled(connection);
+		if (current.kind !== 'incomplete' || current.entraAccountId !== identity.account.id) {
+			await this.authenticate(connection, binding, identity.account, resource, { kind: 'discover' });
+		}
+		if (await this.prepareDiscoveryRetry(connection, binding, identity.account)) {
+			await this.authenticate(connection, binding, identity.account, resource, { kind: 'discover' });
+		}
 		return this.requireEnabled(connection);
 	}
 
@@ -165,32 +173,91 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		return !sentiment.hidden && !sentiment.disabled && !sentiment.disabledInWorkspace && this._configurationService.getValue(ChatConfiguration.AgentEnabled) !== false;
 	}
 
+	private async prepareDiscoveryRetry(connection: IAgentConnection, binding: ICredentialBinding, account: AuthenticationSession['account']): Promise<boolean> {
+		this.assertCurrent(binding);
+		const context = this.requireEnabled(connection);
+		if (context.kind !== 'incomplete' || context.entraAccountId !== account.id) {
+			return false;
+		}
+		const root = connection.rootState.value;
+		const resources = root && !(root instanceof Error) ? root.agents.flatMap(agent => agent.protectedResources ?? []) : [];
+		const requirements = new Map(resources.filter(isDiscoveryCredentialResource).map(resource => [resource.resource, resource]));
+		let accepted = false;
+		for (const resource of requirements.values()) {
+			const credential = await this.getCredential(account, resource);
+			this.assertCurrent(binding);
+			const current = this.requireEnabled(connection);
+			if (current.kind !== 'incomplete' || current.entraAccountId !== account.id) {
+				throw new CancellationError();
+			}
+			if (credential) {
+				await this.forwardCredential(connection, binding, account, resource, credential);
+				accepted = true;
+			}
+		}
+		if (accepted) {
+			this._logService.info('[Copilot] Retrying Microsoft service discovery after accepted credential preparation');
+		}
+		return accepted;
+	}
+
+	private async getCredential(account: AuthenticationSession['account'], resource: ProtectedResourceMetadata): Promise<AuthenticationSession | undefined> {
+		const sessions = await this._authenticationService.getSessions('microsoft', resource.scopes_supported, {
+			account, clientId: copilotEntraClientId, authorizationServer: URI.parse(copilotEntraAuthorizationServer), silent: true,
+		}, true);
+		return sessions.find(session => session.account.id === account.id);
+	}
+
 	private async authenticate(connection: IAgentConnection, binding: ICredentialBinding, account: AuthenticationSession['account'], resource: ProtectedResourceMetadata, operation: CopilotAccountOperation): Promise<void> {
-		const options = { account, clientId: copilotEntraClientId, authorizationServer: URI.parse(copilotEntraAuthorizationServer) };
-		const sessions = await this._authenticationService.getSessions('microsoft', resource.scopes_supported, { ...options, silent: true }, true);
+		const context = this.requireEnabled(connection);
+		const credential = await this.getCredential(account, resource);
 		this.assertCurrent(binding);
-		this.requireEnabled(connection);
-		const credential = sessions.find(session => session.account.id === account.id)
-			?? await this._authenticationService.createSession('microsoft', resource.scopes_supported ?? [], options);
+		if (!equals(this.requireEnabled(connection), context)) {
+			throw new CancellationError();
+		}
+		if (!credential) {
+			throw new Error(localize('copilot.account.credentialRequired', "Microsoft Copilot needs additional permissions. Complete Microsoft authentication, then retry setup."));
+		}
+		if (operation.kind === 'select') {
+			await this.forwardCredential(connection, binding, account, resource, credential);
+		}
+		await this.forwardCredential(connection, binding, account, resource, credential, operation);
+	}
+
+	private async forwardCredential(connection: IAgentConnection, binding: ICredentialBinding, account: AuthenticationSession['account'], resource: ProtectedResourceMetadata, credential: AuthenticationSession, operation?: CopilotAccountOperation): Promise<void> {
 		this.assertCurrent(binding);
-		this.requireEnabled(connection);
+		const context = this.requireEnabled(connection);
 		if (credential.account.id !== account.id || !credential.accessToken || !resource.scopes_supported?.every(scope => credential.scopes.includes(scope))) {
 			throw new Error(localize('copilot.account.credentialMismatch', "Microsoft sign-in did not provide the requested account and permissions."));
 		}
+		const previousAccountId = binding.accountId;
 		this.bindAccount(binding, account.id);
 		const result = await connection.authenticate({
 			resource: resource.resource, scopes: resource.scopes_supported, token: credential.accessToken,
 			expiresIn: credential.expiresAfter,
 			_meta: {
 				...authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: credential.account.label }),
-				...copilotAccountOperationMeta(operation),
+				...(operation ? copilotAccountOperationMeta(operation) : {}),
 			},
 		});
 		this.assertCurrent(binding);
 		if (!result.authenticated) {
+			binding.accountId = previousAccountId;
 			throw new Error(localize('copilot.account.rejected', "The agent host did not accept Microsoft account setup."));
 		}
+		if (!operation && !equals(this.requireEnabled(connection), context)) {
+			throw new CancellationError();
+		}
 	}
+}
+
+function isDiscoveryCredentialResource(resource: ProtectedResourceMetadata): boolean {
+	if (!isCopilotEntraResource(resource) || !resource.scopes_supported?.length) {
+		return false;
+	}
+	const audience = resource.resource === copilotEntraResources.get(copilotEntraEmuAudience) ? copilotEntraEmuAudience
+		: resource.resource === copilotEntraResources.get(copilotEntraM365Audience) ? copilotEntraM365Audience : undefined;
+	return audience !== undefined && resource.scopes_supported.every(scope => scope === `${audience}/.default` || scope === `${audience}/user_impersonation`);
 }
 
 registerSingleton(IAgentHostCopilotAccountService, AgentHostCopilotAccountService, InstantiationType.Delayed);

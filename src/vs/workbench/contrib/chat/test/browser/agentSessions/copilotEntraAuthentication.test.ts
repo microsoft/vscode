@@ -269,7 +269,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource]);
 	});
 
-	test('reuses the pinned credential for repeated required requests but refreshes an expired credential', async () => {
+	test('reuses the pinned credential for repeated required requests but withholds an expired credential without interaction', async () => {
 		const f = fixture();
 		f.defaults.currentDefaultAccount = null;
 		const scopes = [`${copilotEntraM365Audience}/.default`];
@@ -291,8 +291,8 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, expiredOptions));
 		assert.deepStrictEqual({ afterRequired, tokens, interactiveAccounts: f.authentication.created.map(([, , options]) => options?.account) }, {
 			afterRequired: { tokens: ['valid-m365-token', 'valid-m365-token'], interactiveCount: 0 },
-			tokens: ['valid-m365-token', 'valid-m365-token', 'renewed-m365-token'],
-			interactiveAccounts: [selected.account],
+			tokens: ['valid-m365-token', 'valid-m365-token'],
+			interactiveAccounts: [],
 		});
 	});
 
