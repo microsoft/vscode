@@ -31,7 +31,7 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from './remoteAgentHostCommandIds.js';
 import { getRemoteAgentHostPickerKey } from './remoteAgentHostPickerVisibility.js';
 
 /** User-local MC hosts use the native provider, never the sandbox's task-history adapter. */

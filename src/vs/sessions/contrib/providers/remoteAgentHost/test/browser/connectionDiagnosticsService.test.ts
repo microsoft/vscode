@@ -31,7 +31,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../workbench/servic
 import { ConnectionDiagnosticsService } from '../../browser/connectionDiagnosticsService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../browser/connectionDiagnostics.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostCommandIds.js';
 
 suite('ConnectionDiagnosticsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

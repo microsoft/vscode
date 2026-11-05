@@ -40,7 +40,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostCommandIds.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';

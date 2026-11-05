@@ -23,7 +23,7 @@ import { SessionsCategories } from '../../../../../workbench/contrib/sessions/co
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
-import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from './remoteAgentHostCommandIds.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {

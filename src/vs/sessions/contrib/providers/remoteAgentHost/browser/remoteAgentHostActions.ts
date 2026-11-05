@@ -53,19 +53,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-
-/** Action / command IDs registered by this file. */
-export const RemoteAgentHostCommandIds = {
-	addRemoteAgentHost: 'sessions.remoteAgentHost.add',
-	connectViaSSH: 'workbench.action.sessions.connectViaSSH',
-	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
-	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
-	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
-	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
-	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
-	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
-} as const;
+import { RemoteAgentHostCommandIds } from './remoteAgentHostCommandIds.js';
 
 registerAction2(class extends Action2 {
 	constructor() {

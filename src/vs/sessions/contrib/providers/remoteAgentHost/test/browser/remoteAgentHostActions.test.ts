@@ -24,7 +24,8 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { connectWithProgress, RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostCommandIds.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
