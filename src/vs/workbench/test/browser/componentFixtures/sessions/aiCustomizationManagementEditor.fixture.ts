@@ -252,6 +252,8 @@ interface IFixtureAgentHostPlugin {
 	readonly name: string;
 	readonly description: string;
 	readonly scope: AICustomizationScope;
+	/** Organization that requires the plugin. */
+	readonly organization?: string;
 }
 
 function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string, plugins: readonly IFixtureAgentHostPlugin[] = []): ICustomizationItemProvider {
@@ -266,6 +268,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				source: AICustomizationSources.plugin,
 				groupKey: 'remote-host',
 				scope: plugin.scope,
+				origin: plugin.organization ? { kind: 'account', label: plugin.organization } : undefined,
 				extensionId: undefined,
 				pluginUri: undefined,
 			}));
@@ -4277,14 +4280,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	AgentHostPluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in the scope they apply to: a user plugin under User, an organization plugin under Account, and a plugin built into the agent under its own group. Browse replaces the Available group.'],
+		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in the scope they apply to: user and organization plugins under User, with the organization plugin tagged contoso, and a plugin built into the agent under Built-in, tagged Copilot. Browse replaces the Available group.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			marketplaceVisibilityEnabled: true,
 			agentHostPlugins: [
 				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user' },
-				{ name: 'contoso-release', description: 'Required by the Contoso organization', scope: 'account' },
+				{ name: 'contoso-release', description: 'Required by the Contoso organization', scope: 'user', organization: 'contoso' },
 				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application' },
 			],
 			height: 1180,

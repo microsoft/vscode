@@ -905,35 +905,26 @@ export class ToolsListWidget extends Disposable {
 			return;
 		}
 		const query = this._searchQuery.get().trim();
-		// Like the other customization pages, plugins and MCP servers are grouped by
-		// the scope they apply to, the agent's own tools under the agent, and tools
-		// built into VS Code or contributed by extensions under VS Code Managed.
+		// Like the other customization pages, plugins, MCP servers, and extension
+		// tools are grouped by the scope they apply to, and tools built into VS Code
+		// or the agent under Built-in.
 		const connected = this._computeConnectedEntriesByScope(query);
 		const agentSets = this._currentModel.filter(vm => vm.toolSet.id === COPILOT_CLI_BUILTIN_TOOL_SET_ID);
 		const vscodeSets = this._currentModel.filter(vm => vm.toolSet.id !== COPILOT_CLI_BUILTIN_TOOL_SET_ID && (vm.toolSet.source.type === 'internal' || vm.toolSet.source.type === 'external'));
 		const extensionSets = this._currentModel.filter(vm => vm.toolSet.source.type === 'extension');
-		const agentLabel = agentSets[0] ? agentSets[0].toolSet.description ?? agentSets[0].toolSet.referenceName : undefined;
-		const scopeDescription = localize('connectedToolsScopeDescription', "Plugins and MCP servers available to the agent.");
+		const userEntries = [...connected.get('user')!, ...this._computeSectionEntries(extensionSets)];
+		const builtinSets = [...vscodeSets, ...agentSets];
+		const scopeDescription = localize('connectedToolsScopeDescription', "Plugins, MCP servers, and extension tools available to the agent.");
 		const groups = [
-			this._createConnectedTreeGroup('user', localize('userToolsGroup', "User"), userIcon, scopeDescription, connected.get('user')!, true),
-			this._createConnectedTreeGroup('workspace', localize('workspaceToolsGroup', "Workspace"), workspaceIcon, scopeDescription, connected.get('workspace')!, false),
-			this._createConnectedTreeGroup('account', localize('accountToolsGroup', "Account"), Codicon.organization, scopeDescription, connected.get('account')!, false),
-			...(agentLabel || connected.get('application')!.length > 0 ? [this._createTreeGroupFromEntries(
-				'agent',
-				agentLabel ?? localize('agentToolsGroup', "Agent"),
-				localize('agentToolsGroupDescription', "Tools built into the agent."),
-				localize('agentToolsGroupEmpty', "No agent tools are available."),
-				[...this._computeSectionEntries(agentSets), ...connected.get('application')!],
-				agentSets.length + connected.get('application')!.filter(entry => entry.depth === 0).length,
-				Codicon.copilot,
-			)] : []),
+			this._createConnectedTreeGroup('user', localize('userToolsGroup', "User"), userIcon, scopeDescription, userEntries, connected.get('user')!.filter(entry => entry.depth === 0).length + extensionSets.length, true),
+			this._createConnectedTreeGroup('workspace', localize('workspaceToolsGroup', "Workspace"), workspaceIcon, scopeDescription, connected.get('workspace')!, connected.get('workspace')!.filter(entry => entry.depth === 0).length, false),
 			this._createTreeGroupFromEntries(
-				'vscode',
-				localize('vscodeManagedToolsGroup', "VS Code Managed"),
-				localize('vscodeManagedToolsGroupDescription', "Tools built into VS Code or contributed by installed extensions."),
-				localize('vscodeManagedToolsGroupEmpty', "No VS Code tools are available."),
-				this._computeSectionEntries([...vscodeSets, ...extensionSets]),
-				vscodeSets.length + extensionSets.length,
+				'builtin',
+				localize('builtinToolsGroup', "Built-in"),
+				localize('builtinToolsGroupDescription', "Tools built into VS Code or the agent."),
+				localize('builtinToolsGroupEmpty', "No built-in tools are available."),
+				[...this._computeSectionEntries(builtinSets), ...connected.get('application')!],
+				builtinSets.length + connected.get('application')!.filter(entry => entry.depth === 0).length,
 				Codicon.vscode,
 			),
 		].filter((group): group is ICustomizationTreeGroup<IToolsTreeEntry> => !!group && (!query || group.count > 0));
@@ -987,7 +978,7 @@ export class ToolsListWidget extends Disposable {
 	 * Returns a scope group of plugins and MCP servers, or `undefined` for an
 	 * empty group that is only shown when it always is.
 	 */
-	private _createConnectedTreeGroup(id: string, label: string, icon: ThemeIcon, description: string, entries: readonly IToolsConnectedRowEntry[], alwaysShow: boolean): ICustomizationTreeGroup<IToolsTreeEntry> | undefined {
+	private _createConnectedTreeGroup(id: string, label: string, icon: ThemeIcon, description: string, entries: readonly IToolsRowEntry[], count: number, alwaysShow: boolean): ICustomizationTreeGroup<IToolsTreeEntry> | undefined {
 		if (entries.length === 0 && !alwaysShow) {
 			return undefined;
 		}
@@ -997,7 +988,7 @@ export class ToolsListWidget extends Disposable {
 			description,
 			localize('connectedToolsSectionEmpty', "No plugins or MCP servers are available."),
 			entries,
-			entries.filter(entry => entry.depth === 0).length,
+			count,
 			icon,
 		);
 	}
@@ -1006,16 +997,13 @@ export class ToolsListWidget extends Disposable {
 	 * Groups plugins and MCP servers by the scope they apply to. A plugin is the
 	 * user's; a standalone server takes the scope the MCP Servers page gives it.
 	 */
-	private _computeConnectedEntriesByScope(query: string): Map<'user' | 'workspace' | 'account' | 'application', IToolsConnectedRowEntry[]> {
-		const grouped = new Map<'user' | 'workspace' | 'account' | 'application', IToolsConnectedRowEntry[]>([['user', []], ['workspace', []], ['account', []], ['application', []]]);
+	private _computeConnectedEntriesByScope(query: string): Map<'user' | 'workspace' | 'application', IToolsConnectedRowEntry[]> {
+		const grouped = new Map<'user' | 'workspace' | 'application', IToolsConnectedRowEntry[]>([['user', []], ['workspace', []], ['application', []]]);
 		const entries = grouped.get('user')!;
+		// Every plugin is a row with its servers nested beneath, even when it supplies one.
 		for (const plugin of this._connectedPlugins) {
 			const servers = this._connectedServers.filter(server => server.pluginId === plugin.id);
 			if (servers.length === 0) {
-				continue;
-			}
-			if (servers.length === 1) {
-				entries.push(...this._computeConnectedServerEntries(servers[0], 0, query, !query || !!matchesContiguousSubString(query, plugin.name)));
 				continue;
 			}
 			const id = `connected-plugin:${plugin.id}`;
@@ -1025,7 +1013,7 @@ export class ToolsListWidget extends Disposable {
 			if (query && !nameMatches && serverEntries.length === 0) {
 				continue;
 			}
-			entries.push({ type: 'connected', id, depth: 0, label: plugin.name, expandable: true, nameMatches }, ...serverEntries);
+			entries.push({ type: 'connected', id, depth: 0, label: plugin.name, description: localize('connectedToolsPluginSource', "Plugin"), expandable: true, nameMatches }, ...serverEntries);
 		}
 		for (const server of this._connectedServers) {
 			if (server.pluginId === undefined || !this._connectedPlugins.some(plugin => plugin.id === server.pluginId)) {
@@ -1142,7 +1130,7 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _renderTreeGroupActions(entry: IToolsGroupEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.groupKey === 'vscode') {
+		if (entry.groupKey === 'user') {
 			this._renderBrowseToolsAction(container, disposables);
 		}
 	}

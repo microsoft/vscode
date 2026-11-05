@@ -236,7 +236,7 @@ export class AICustomizationItemNormalizer {
 
 	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
 		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
-		const scope = this.inferScope(item, source);
+		const scope = this.inferScope(item, source, isBuiltin);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
@@ -291,12 +291,18 @@ export class AICustomizationItemNormalizer {
 		return { source: item.source, groupKey, isBuiltin, pluginUri: item.pluginUri, extensionId: item.extensionId };
 	}
 
-	private inferScope(item: ICustomizationItem, source: AICustomizationSource): AICustomizationScope {
+	private inferScope(item: ICustomizationItem, source: AICustomizationSource, isBuiltin: boolean | undefined): AICustomizationScope {
 		if (item.scope) {
 			return item.scope;
 		}
+		// Organization customizations are fetched for the signed-in user; the
+		// organization is a tag, not a scope.
 		if (item.origin?.kind === 'account' || this.getOrganizationName(item) !== undefined) {
-			return AICustomizationScopes.account;
+			return AICustomizationScopes.user;
+		}
+		// The default chat extension's own customizations ship with VS Code.
+		if (isBuiltin) {
+			return AICustomizationScopes.application;
 		}
 		return AICustomizationScopes.fromSource(source);
 	}
@@ -308,9 +314,9 @@ export class AICustomizationItemNormalizer {
 		if (pluginUri) {
 			return { kind: 'plugin', id: `plugin:${pluginUri.toString()}`, label: item.pluginLabel ?? basename(pluginUri) };
 		}
-		if (scope === AICustomizationScopes.account) {
-			const organization = this.getOrganizationName(item);
-			return { kind: 'account', id: `account:${organization ?? ''}`, label: organization };
+		const organization = this.getOrganizationName(item);
+		if (organization !== undefined) {
+			return { kind: 'account', id: `account:${organization}`, label: organization };
 		}
 		if (extensionId) {
 			if (isChatExtensionItem(new ExtensionIdentifier(extensionId), this.productService)) {

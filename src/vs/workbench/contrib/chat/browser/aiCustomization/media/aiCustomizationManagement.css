@@ -820,6 +820,52 @@ per-word capitalization does not survive translation. */
 	line-height: 16px;
 }
 
+/* A plugin, extension, or organization row with the customizations it supplies nested beneath. */
+.customization-source-node {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	height: 100%;
+	padding-right: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.customization-source-node .customization-source-node-icon {
+	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
+}
+
+.customization-source-node .customization-source-node-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.customization-source-node .customization-source-node-kind {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.customization-source-node .customization-source-node-open {
+	flex-shrink: 0;
+	margin-left: auto;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	visibility: hidden;
+}
+
+.monaco-list-row:is(:hover, .focused) .customization-source-node .customization-source-node-open,
+.customization-source-node .customization-source-node-open:focus-visible {
+	visibility: visible;
+}
+
+.customization-source-node .customization-source-node-open:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 /* Status icon for remote customization items (loading/loaded/degraded/error) */
 .ai-customization-list-item .item-status-icon {
 	flex-shrink: 0;

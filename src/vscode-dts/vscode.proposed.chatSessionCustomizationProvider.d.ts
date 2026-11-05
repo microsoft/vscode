@@ -68,11 +68,11 @@ declare module 'vscode' {
 	export type ChatSessionCustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
-	 * Who a customization applies to: the user's home folder, the workspace,
-	 * the signed-in account (for example a GitHub organization), or the
-	 * application (built into the editor or agent, or contributed by an extension).
+	 * Who a customization applies to: the user (including customizations from
+	 * plugins, extensions, or the user's organization), the workspace, or the
+	 * application (built into the editor or agent).
 	 */
-	export type ChatSessionCustomizationScope = 'user' | 'workspace' | 'account' | 'application';
+	export type ChatSessionCustomizationScope = 'user' | 'workspace' | 'application';
 
 	/**
 	 * Represents a single customization item reported by a provider.

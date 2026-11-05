@@ -666,9 +666,9 @@ suite('aiCustomizationListWidget', () => {
 			{ scope: 'workspace', origin: undefined, groupKey: undefined },
 			{ scope: 'user', origin: undefined, groupKey: undefined },
 			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, groupKey: undefined },
-			{ scope: 'application', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, groupKey: undefined },
+			{ scope: 'user', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, groupKey: undefined },
 			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
-			{ scope: 'account', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, groupKey: 'builtin' },
+			{ scope: 'user', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, groupKey: 'builtin' },
 			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, groupKey: 'builtin' },
 			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: undefined },
 		]);
@@ -1297,7 +1297,7 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
-		test('groups items by scope and supplier and names each item\'s source', async () => {
+		test('groups items by scope and nests each plugin, extension, and organization', async () => {
 			const listItem = (id: string, source: IAICustomizationListItem['source'], extra: Partial<IAICustomizationListItem> = {}): IAICustomizationListItem => ({
 				id,
 				uri: URI.file(`/${id}/SKILL.md`),
@@ -1313,8 +1313,8 @@ suite('aiCustomizationListWidget', () => {
 				listItem('review', PromptsStorage.user),
 				listItem('azure-deploy', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
 				listItem('workspace-review', PromptsStorage.local),
-				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.account, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
-				listItem('acme-lint', AICustomizationSources.extension, { scope: AICustomizationScopes.application, origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' } }),
+				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.user, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
+				listItem('acme-lint', AICustomizationSources.extension, { origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' } }),
 				listItem('init', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'vscode', id: 'vscode:' } }),
 				listItem('ask', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'harness', id: 'harness:' } }),
 			]);
@@ -1338,23 +1338,28 @@ suite('aiCustomizationListWidget', () => {
 				if (group) {
 					return `# ${group}`;
 				}
-				const source = visibleText(row.querySelector('.item-source'));
-				return [row.querySelector('.item-name')?.textContent, ...(source ? [`(${source})`] : [])].join(' ');
+				const source = row.querySelector('.customization-source-node-label')?.textContent;
+				if (source) {
+					return `> ${source} (${row.querySelector('.customization-source-node-kind')?.textContent})`;
+				}
+				const tag = visibleText(row.querySelector('.item-tag'));
+				return [row.querySelector('.item-name')?.textContent, ...(tag ? [`[${tag}]`] : [])].join(' ');
 			});
 			assert.deepStrictEqual(rows, [
 				'# User',
 				'review',
 				'triage',
-				'azure-deploy (Plugin: azure)',
+				'> Acme Tools (Extension)',
+				'acme-lint',
+				'> azure (Plugin)',
+				'azure-deploy',
+				'> contoso (Organization)',
+				'release',
 				'# Workspace',
 				'workspace-review',
-				'# Account',
-				'release (Organization: contoso)',
-				'# Test',
-				'ask',
-				'# VS Code Managed',
+				'# Built-in',
 				'init',
-				'acme-lint (Extension: Acme Tools)',
+				'ask [Test]',
 			]);
 		});
 	});

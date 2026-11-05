@@ -84,6 +84,7 @@ import { getConnectorActionLabel } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnectorMcpServer } from './copilotConnectorsService.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { CUSTOMIZATION_SOURCE_NODE_HEIGHT, CustomizationSourceNodeRenderer, getCustomizationSourceNodeAriaLabel, ICustomizationSourceNodeEntry } from './customizationSourceNode.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
@@ -239,7 +240,12 @@ interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
 	readonly workspaceFolder?: URI;
 }
 
-type IMcpSectionEntry = IMcpGroupHeaderEntry | IMcpInstalledEntry | IMcpMarketplaceEntry;
+/** A plugin or extension within a scope, with the MCP servers it supplies. */
+interface IMcpSourceNodeEntry extends ICustomizationSourceNodeEntry {
+	readonly children: readonly IMcpInstalledEntry[];
+}
+
+type IMcpSectionEntry = IMcpGroupHeaderEntry | IMcpSourceNodeEntry | IMcpInstalledEntry | IMcpMarketplaceEntry;
 
 interface IMcpSectionList {
 	readonly list: WorkbenchList<IMcpSectionEntry>;
@@ -256,12 +262,18 @@ class McpSectionDelegate implements IListVirtualDelegate<IMcpSectionEntry> {
 		if (element.type === 'group-header') {
 			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
 		}
+		if (element.type === 'source-node') {
+			return CUSTOMIZATION_SOURCE_NODE_HEIGHT;
+		}
 		return element.type === 'marketplace-item' ? MCP_MARKETPLACE_ITEM_HEIGHT : this.getInstalledHeight(element);
 	}
 
 	getTemplateId(element: IMcpSectionEntry): string {
 		if (element.type === 'group-header') {
 			return 'mcpGroupHeader';
+		}
+		if (element.type === 'source-node') {
+			return 'mcpSourceNode';
 		}
 		return element.type === 'marketplace-item' ? 'mcpMarketplaceItem' : 'mcpServerItem';
 	}
@@ -350,6 +362,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		private readonly _isMigratable: (entry: IMcpInstalledEntry, reader?: IReader) => boolean,
 		private readonly _openPlugin: (plugin: IAgentPlugin) => void,
 		private readonly _openMigrations: () => void,
+		private readonly _isNestedUnderSource: (entry: IMcpInstalledEntry) => boolean,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -447,7 +460,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		// Always re-created: these capture `element`, which is a fresh object on every refresh.
 		templateData.elementDisposables.clear();
 		this.renderIcon(element, templateData);
-		const source = getMcpEntrySource(element, this.labelService, this.agentPluginService, this.extensionsWorkbenchService, this._openPlugin);
+		// A server nested under its plugin or extension does not repeat it.
+		const source = this._isNestedUnderSource(element) ? undefined : getMcpEntrySource(element, this.labelService, this.agentPluginService, this.extensionsWorkbenchService, this._openPlugin);
 		if (source) {
 			templateData.secondaryLine.classList.add('has-source');
 			templateData.sourcePathLabel.set(source.label);
@@ -1094,13 +1108,13 @@ export function getMcpRowKey(entry: IMcpInstalledEntry): string {
 	}
 }
 
-export type McpEntryGroup = 'user' | 'workspace' | 'account' | 'application';
+export type McpEntryGroup = 'user' | 'workspace' | 'application';
 
 /**
- * Returns the scope group an installed MCP server is listed under. Plugins
- * belong to the scope they are installed in (user), extensions and built-in
- * servers to the application, and servers supplied by the signed-in account or
- * a host-managed catalog to the account.
+ * Returns the scope group an installed MCP server is listed under. Plugins and
+ * extensions belong to the user who installed them, as do servers supplied by
+ * the signed-in account, connectors, and a host-managed catalog; servers built
+ * into VS Code or the agent belong to the application (Built-in).
  */
 export function getMcpEntryGroup(entry: IMcpInstalledEntry): McpEntryGroup {
 	if (entry.type === 'provider-item') {
@@ -1110,14 +1124,14 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): McpEntryGroup {
 		return entry.server.local?.scope === LocalMcpServerScope.Workspace ? 'workspace' : 'user';
 	}
 	if (entry.type === 'connector-item') {
-		return 'account';
+		return 'user';
 	}
 	if (entry.type === 'builtin-item') {
 		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
 			return 'user';
 		}
 		if (entry.extensionId) {
-			return 'application';
+			return isCopilotExtension(entry.extensionId) ? 'application' : 'user';
 		}
 		const collection = entry.localServer?.readDefinitions().get().collection;
 		if (collection?.provenance === McpCollectionProvenance.ExternalConfiguration) {
@@ -1133,7 +1147,7 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): McpEntryGroup {
 			return 'workspace';
 		case 'account':
 		case 'managed':
-			return 'account';
+			return 'user';
 		case 'builtin':
 			return 'application';
 		case undefined:
@@ -2031,6 +2045,8 @@ export class McpListWidget extends Disposable {
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IMcpSectionEntry>[] = [];
+	/** Rows nested under the plugin or extension that supplied them, which then omit their source line. */
+	private nestedMcpRowKeys = new Set<string>();
 	private gallerySnapshotFailed = false;
 	private gallerySnapshotLoading = false;
 	private gallerySearchLoading = false;
@@ -2320,7 +2336,9 @@ export class McpListWidget extends Disposable {
 			(entry, reader) => this.isMcpServerMigratable(entry, reader),
 			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
 			() => this._onDidRequestOpenMigrations.fire(),
+			entry => this.nestedMcpRowKeys.has(getMcpRowKey(entry)),
 		));
+		const sourceNodeRenderer = new CustomizationSourceNodeRenderer<IMcpSourceNodeEntry>('mcpSourceNode', this.hoverService);
 		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IMcpSectionEntry>,
@@ -2331,6 +2349,7 @@ export class McpListWidget extends Disposable {
 				asTreeRenderer(groupRenderer),
 				asTreeRenderer(itemRenderer),
 				asTreeRenderer(marketplaceRenderer),
+				asTreeRenderer(sourceNodeRenderer),
 			],
 			{
 				indent: 8,
@@ -2344,6 +2363,9 @@ export class McpListWidget extends Disposable {
 					getAriaLabel: entry => {
 						if (entry.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+						}
+						if (entry.type === 'source-node') {
+							return getCustomizationSourceNodeAriaLabel(entry);
 						}
 						return entry.type === 'connector-item'
 							? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
@@ -2359,7 +2381,7 @@ export class McpListWidget extends Disposable {
 		));
 		this._register(this.list.onDidOpen(event => {
 			const entry = event.element;
-			if (!entry || entry.type === 'group-header') {
+			if (!entry || entry.type === 'group-header' || entry.type === 'source-node') {
 				return;
 			}
 			if (entry.type !== 'marketplace-item' && isConnectorMcpEntry(entry)) {
@@ -2371,13 +2393,25 @@ export class McpListWidget extends Disposable {
 				: this.createInstalledMcpServerDetailInput(entry));
 		}));
 		this._register(this.list.onContextMenu(event => {
-			if (event.element && event.element.type !== 'group-header' && event.element.type !== 'marketplace-item') {
-				this.showMcpServerActions(event.element, event.anchor);
+			const element = event.element;
+			if (element?.type === 'source-node') {
+				const open = element.open;
+				if (open) {
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => event.anchor,
+						getActions: () => [new Action('mcp.openSource', element.openLabel ?? element.label, undefined, true, async () => open())],
+					});
+				}
+				return;
+			}
+			if (element && element.type !== 'group-header' && element.type !== 'marketplace-item') {
+				this.showMcpServerActions(element, event.anchor);
 			}
 		}));
 		this._register(this.list.onDidChangeFocus(event => {
 			const entry = event.elements[0];
-			itemRenderer.setFocusedRowKey(entry && entry.type !== 'group-header' && entry.type !== 'marketplace-item' ? getMcpRowKey(entry) : undefined);
+			sourceNodeRenderer.setFocusedId(entry?.type === 'source-node' ? entry.id : undefined);
+			itemRenderer.setFocusedRowKey(entry && entry.type !== 'group-header' && entry.type !== 'marketplace-item' && entry.type !== 'source-node' ? getMcpRowKey(entry) : undefined);
 			marketplaceRenderer.setFocusedServerId(entry?.type === 'marketplace-item' ? entry.server.id : undefined);
 		}));
 
@@ -2945,9 +2979,7 @@ export class McpListWidget extends Disposable {
 			['user', []],
 			...workspaceGroups.map(group => [group.key, []] as [string, IMcpSectionEntry[]]),
 			['workspace', []],
-			['account', []],
-			['harness', []],
-			['vscode', []],
+			['builtin', []],
 			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
 		]);
 
@@ -2963,24 +2995,21 @@ export class McpListWidget extends Disposable {
 			grouped.get(this.getMcpTreeGroupKey(entry, group, sourceUri, workspaceGroups.length > 0))!.push(entry);
 		}
 
-		// Servers configured directly in a scope come first, followed by those
-		// supplied by each plugin, extension, or the agent.
-		const originRank = (entry: IMcpSectionEntry) => entry.type === 'group-header' || entry.type === 'marketplace-item' ? '' : getMcpEntryOrigin(entry)?.id ?? '';
+		// Servers configured directly in a scope come first, followed by one row per
+		// plugin or extension with the servers it supplies nested beneath.
+		this.nestedMcpRowKeys = new Set();
 		for (const [key, entries] of grouped) {
-			if (key !== 'available') {
-				entries.sort((a, b) => originRank(a).localeCompare(originRank(b)));
+			if (key !== 'available' && key !== 'builtin') {
+				grouped.set(key, this.nestMcpEntriesBySource(key, entries));
 			}
 		}
 
 		const workspaceDescription = localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace.");
-		const harness = grouped.get('harness')!.length > 0 ? this.customizationHarnessService.getActiveDescriptor() : undefined;
 		const definitions = [
-			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userScopeMcpServersGroupDescription', "MCP servers configured for your profile or provided by plugins you installed. Available across workspaces."), icon: Codicon.account },
+			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userScopeMcpServersGroupDescription', "MCP servers configured for your profile, connected from your account, or provided by plugins and extensions you installed. Available across workspaces."), icon: Codicon.account },
 			...workspaceGroups.map(group => ({ id: group.key, label: localize('workspaceFolderMcpServersGroup', "Workspace · {0}", group.label), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: group.uri })),
 			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: undefined },
-			{ id: 'account', label: localize('accountMcpServersGroup', "Account"), description: localize('accountMcpServersGroupDescription', "MCP servers provided by your signed-in account, connected connectors, or a managed catalog."), icon: Codicon.organization },
-			...(harness ? [{ id: 'harness', label: harness.agentLabel ?? harness.label, description: localize('harnessMcpServersGroupDescription', "MCP servers built into {0}.", harness.agentLabel ?? harness.label), icon: harness.icon }] : []),
-			{ id: 'vscode', label: localize('vscodeManagedMcpServersGroup', "VS Code Managed"), description: localize('vscodeManagedMcpServersGroupDescription', "MCP servers built into VS Code or provided by installed extensions."), icon: Codicon.vscode },
+			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-in"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into VS Code or the agent."), icon: Codicon.vscode },
 			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
 		].filter(group => group.id === 'available'
 			? showGallery
@@ -2988,13 +3017,14 @@ export class McpListWidget extends Disposable {
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
 			const entries = grouped.get(group.id)!;
+			const count = entries.reduce((count, entry) => count + (entry.type === 'source-node' ? entry.children.length : 1), 0);
 			const element: IMcpGroupHeaderEntry = {
 				type: 'group-header',
 				id: `mcp-group-${group.id}`,
 				group: group.id,
 				label: group.label,
 				icon: group.icon,
-				count: entries.length,
+				count,
 				isFirst: index === 0,
 				description: group.description,
 				collapsed: false,
@@ -3004,7 +3034,7 @@ export class McpListWidget extends Disposable {
 				id: group.id,
 				label: group.label,
 				description: group.description,
-				count: entries.length,
+				count,
 				element,
 				children: entries,
 			};
@@ -3016,21 +3046,69 @@ export class McpListWidget extends Disposable {
 			element: group.element,
 			collapsible: true,
 			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-			children: group.children.map(element => ({ element })),
+			children: group.children.map((element): IObjectTreeElement<IMcpSectionEntry> => element.type === 'source-node'
+				? { element, collapsible: true, collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded, children: element.children.map(child => ({ element: child })) }
+				: { element }),
 		}));
 		this.list.setChildren(null);
 		this.list.setChildren(null, children);
-		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
+		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.count, 0));
+	}
+
+	/**
+	 * Keeps servers configured directly in a scope as rows and nests those a
+	 * plugin or extension supplies under one row per plugin or extension.
+	 */
+	private nestMcpEntriesBySource(groupKey: string, entries: readonly IMcpSectionEntry[]): IMcpSectionEntry[] {
+		const direct: IMcpSectionEntry[] = [];
+		const sources = new Map<string, { origin: NonNullable<ReturnType<typeof getMcpEntryOrigin>>; entries: IMcpInstalledEntry[] }>();
+		for (const entry of entries) {
+			const origin = entry.type === 'group-header' || entry.type === 'marketplace-item' || entry.type === 'source-node' ? undefined : getMcpEntryOrigin(entry);
+			if (origin && (origin.kind === 'plugin' || origin.kind === 'extension') && entry.type !== 'group-header' && entry.type !== 'marketplace-item' && entry.type !== 'source-node') {
+				const source = sources.get(origin.id) ?? { origin, entries: [] };
+				source.entries.push(entry);
+				sources.set(origin.id, source);
+				this.nestedMcpRowKeys.add(getMcpRowKey(entry));
+			} else {
+				direct.push(entry);
+			}
+		}
+		const nodes = [...sources.values()]
+			.map(({ origin, entries }) => this.createMcpSourceNode(groupKey, origin, entries))
+			.sort((a, b) => a.label.localeCompare(b.label));
+		return [...direct, ...nodes];
+	}
+
+	private createMcpSourceNode(groupKey: string, origin: NonNullable<ReturnType<typeof getMcpEntryOrigin>>, entries: readonly IMcpInstalledEntry[]): IMcpSourceNodeEntry {
+		const base = { type: 'source-node' as const, id: `mcp-source:${groupKey}/${origin.id}`, count: entries.length, children: entries };
+		const first = entries[0];
+		if (origin.kind === 'extension' && first.type === 'builtin-item' && first.extensionId) {
+			const extensionId = first.extensionId;
+			const extension = this.extensionsWorkbenchService.local.find(extension => ExtensionIdentifier.equals(extension.identifier.id, extensionId));
+			const label = extension?.displayName || extensionId.value;
+			return {
+				...base, kind: 'extension', label,
+				open: () => this.extensionsWorkbenchService.open(extensionId.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }),
+				openLabel: localize('openMcpSourceExtension', "Open extension details for {0}", label),
+			};
+		}
+		const pluginUri = first.type === 'builtin-item' ? getPluginUriFromCollectionId(first.collectionId) : undefined;
+		const plugin = pluginUri ? this.agentPluginService.plugins.get().find(plugin => plugin.uri.toString() === pluginUri) : undefined;
+		const label = plugin?.label ?? origin.label ?? origin.id.slice('plugin:'.length);
+		return {
+			...base, kind: 'plugin', label,
+			open: plugin ? () => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)) : undefined,
+			openLabel: localize('openMcpSourcePlugin', "Open plugin details for {0}", label),
+		};
 	}
 
 	/**
 	 * Returns the tree group for a server: its scope, a specific workspace folder
-	 * for multi-root workspaces, or for application servers whether the agent
-	 * or VS Code supplies it.
+	 * for multi-root workspaces, or Built-in.
 	 */
 	private getMcpTreeGroupKey(entry: IMcpInstalledEntry, group: McpEntryGroup, sourceUri: URI | undefined, isMultiRoot: boolean): string {
 		if (group === 'application') {
-			return getMcpEntryOrigin(entry)?.kind === 'harness' ? 'harness' : 'vscode';
+			return 'builtin';
 		}
 		// Servers outside every workspace folder stay in a plain Workspace group.
 		if (group === 'workspace' && isMultiRoot && sourceUri) {
@@ -3063,14 +3141,14 @@ export class McpListWidget extends Disposable {
 	}
 
 	private getMcpTreeEntryId(entry: IMcpSectionEntry): string {
-		if (entry.type === 'group-header') {
+		if (entry.type === 'group-header' || entry.type === 'source-node') {
 			return entry.id;
 		}
 		return entry.type === 'marketplace-item' ? `marketplace:${entry.server.id}` : getMcpRowKey(entry);
 	}
 
 	private getVisibleMcpEntries(): readonly IMcpSectionEntry[] {
-		return this.currentTreeGroups.flatMap(group => [group.element, ...group.children]);
+		return this.currentTreeGroups.flatMap((group): IMcpSectionEntry[] => [group.element, ...group.children.flatMap((child): IMcpSectionEntry[] => child.type === 'source-node' ? [child, ...child.children] : [child])]);
 	}
 
 	private renderMcpHome(): void {
@@ -3691,6 +3769,7 @@ export class McpListWidget extends Disposable {
 						return entry.id === serverId || entry.name === serverId;
 					case 'group-header':
 					case 'marketplace-item':
+					case 'source-node':
 						return false;
 				}
 			}
@@ -3707,11 +3786,15 @@ export class McpListWidget extends Disposable {
 					return entry.name === serverName || entry.label === serverName;
 				case 'group-header':
 				case 'marketplace-item':
+				case 'source-node':
 					return false;
 			}
 		});
 		if (!entry) {
 			return false;
+		}
+		for (let parent = this.list.getParentElement(entry); parent; parent = this.list.getParentElement(parent)) {
+			this.list.expand(parent);
 		}
 		this.list.reveal(entry);
 		this.list.setFocus([entry]);

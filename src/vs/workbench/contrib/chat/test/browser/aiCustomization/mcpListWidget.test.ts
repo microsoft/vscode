@@ -284,6 +284,7 @@ suite('mcpListWidget', () => {
 				children: [sameNameEntry, targetEntry],
 			}],
 			list: {
+				getParentElement: () => null,
 				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
 				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
 				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
@@ -324,6 +325,7 @@ suite('mcpListWidget', () => {
 				children: [sameNameEntry, connectorEntry],
 			}],
 			list: {
+				getParentElement: () => null,
 				reveal: (entry: object) => calls.push(entry === connectorEntry ? 'reveal' : 'reveal-other'),
 				setFocus: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'focus' : 'focus-other'),
 				setSelection: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'select' : 'select-other'),
@@ -588,8 +590,8 @@ suite('mcpListWidget', () => {
 			'user',
 			'workspace',
 			'user',
-			'account',
-			'application',
+			'user',
+			'user',
 			'application',
 			'user',
 		]);
@@ -749,7 +751,7 @@ suite('mcpListWidget', () => {
 			{ name: 'workspace-server', group: 'workspace' },
 			{ name: 'plugin-server', group: 'user' },
 			{ name: 'github-mcp-server', group: 'application' },
-			{ name: 'managed-server', group: 'account' },
+			{ name: 'managed-server', group: 'user' },
 			{ name: 'my-mcp-server-618d857f', group: 'user' },
 			{ name: 'legacy-server', group: 'user' },
 		]);
@@ -2240,6 +2242,7 @@ suite('mcpListWidget', () => {
 				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
+				() => false,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,

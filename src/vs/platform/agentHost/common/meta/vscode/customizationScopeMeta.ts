@@ -10,7 +10,7 @@ const scopeKey = 'vscode.customization.scope';
  * customization scope so a host can state it directly instead of clients
  * inferring it from URIs or working directories.
  */
-export type CustomizationScopeMeta = 'user' | 'workspace' | 'account' | 'application';
+export type CustomizationScopeMeta = 'user' | 'workspace' | 'application';
 
 /**
  * Reads the optional scope from a customization's `_meta` bag. Hosts that do
@@ -21,7 +21,6 @@ export function readCustomizationScopeMeta(customization: { readonly _meta?: Rec
 	switch (value) {
 		case 'user':
 		case 'workspace':
-		case 'account':
 		case 'application':
 			return value;
 		default:
