@@ -20,7 +20,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { disposableTimeout, raceCancellation, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, IReader, observableFromEvent, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -394,6 +394,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private readonly visibleCardIds = new Set<string>();
 	private renderedCards: HTMLElement[] = [];
 	private renderedItems: readonly IInboxNotificationItem[] = [];
+	private latestItems: readonly IInboxNotificationItem[] = [];
+	private readonly rowActions = new Map<string, { item: IInboxNotificationItem; queryKey: string | undefined; succeeded: boolean }>();
+	private readonly rowActionTimeouts = this._register(new DisposableMap<string>());
 	private readonly cardRenderings = new Map<string, { signature: string; card: HTMLElement; store: DisposableStore }>();
 	private readonly carouselModels = new Map<string, ChatQuestionCarouselData>();
 	private readonly focusOutTimeout = this._register(new MutableDisposable());
@@ -977,6 +980,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
 			const queryKey = JSON.stringify([tab, query, sortMode, [...categories]]);
 			const queryChanged = queryKey !== this.listQueryKey;
+			if (queryChanged) {
+				for (const action of this.rowActions.values()) {
+					action.queryKey = undefined;
+				}
+			}
 			this.listQueryKey = queryKey;
 			this.handleNotificationListUpdate(items, queryChanged);
 		}));
@@ -998,6 +1006,23 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private handleNotificationListUpdate(items: readonly IInboxNotificationItem[], force = false): void {
+		this.latestItems = items;
+		if (this.rowActions.size) {
+			const retained = [...items];
+			for (const [id, action] of this.rowActions) {
+				if (action.queryKey !== this.listQueryKey) {
+					continue;
+				}
+				const index = retained.findIndex(item => item.id === id);
+				if (index >= 0) {
+					retained[index] = action.item;
+				} else {
+					const previousIndex = this.renderedItems.findIndex(item => item.id === id);
+					retained.splice(Math.max(0, Math.min(previousIndex, retained.length)), 0, action.item);
+				}
+			}
+			items = retained;
+		}
 		if (!this.hasReceivedInitialListUpdate) {
 			this.hasReceivedInitialListUpdate = true;
 			this.updateToolbarLoadingSpinner();
@@ -1176,7 +1201,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private renderCard(item: IInboxNotificationItem): HTMLElement {
-		const signature = safeStringify(item);
+		const action = this.rowActions.get(item.id);
+		const signature = `${safeStringify(item)}|${action ? action.succeeded ? 'succeeded' : 'running' : ''}`;
 		let rendering = this.cardRenderings.get(item.id);
 		if (!rendering || rendering.signature !== signature) {
 			rendering?.store.dispose();
@@ -1284,6 +1310,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
+		const rowAction = this.rowActions.get(item.id);
+		card.classList.toggle('action-succeeded', rowAction?.succeeded === true);
+		card.setAttribute('aria-busy', String(!!rowAction && !rowAction.succeeded));
 		if (this.selectedItemId.get() === item.id) {
 			card.classList.add('selected');
 		}
@@ -1334,6 +1363,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			].filter(Boolean).join('. '));
 		}));
 		const metadata = content.appendChild($('.inbox-notifications-row-metadata'));
+		if (rowAction) {
+			const feedback = metadata.appendChild($('.inbox-notifications-row-action-status'));
+			feedback.appendChild(renderIcon(rowAction.succeeded ? Codicon.check : Codicon.loading)).setAttribute('aria-hidden', 'true');
+			feedback.appendChild($('span', undefined, rowAction.succeeded
+				? localize('inboxNotifications.action.taken', "Action taken")
+				: localize('inboxNotifications.action.running', "Taking action…")));
+		}
 		if (row?.hasImages) {
 			const visual = metadata.appendChild($('.inbox-notifications-visual'));
 			visual.appendChild(renderIcon(Codicon.fileMedia)).setAttribute('aria-hidden', 'true');
@@ -1377,7 +1413,14 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				ariaLabel: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold")
 			}));
 			hold.label = row.tab === InboxTab.OnHold ? '$(play)' : '$(history)';
-			store.add(hold.onDidClick(() => this.setSessionOnHold(row)));
+			hold.enabled = !rowAction;
+			store.add(hold.onDidClick(event => {
+				event.stopPropagation();
+				void this.runRowAction(row.id, async () => {
+					this.setSessionOnHold(row);
+					return 'success';
+				}).catch(onUnexpectedError);
+			}));
 			this.renderActionButton(actions, row, { id: 'done', label: '$(check)', ariaLabel: localize('inbox.done', "Mark Session as Done"), kind: InboxNotificationActionKind.MarkDone }, store);
 		}
 		if (row) {
@@ -2114,7 +2157,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.applyDeferredUpdates(true);
 	}
 
-	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement, enableAlways = false): Promise<void> {
+	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement, enableAlways = false): Promise<InboxInteractionResult> {
 		const startTime = Date.now();
 		const commandId = action.commandId ?? 'none';
 		const logResult = (result: InboxInteractionResult): void => {
@@ -2133,7 +2176,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				case InboxNotificationActionKind.OpenSession: {
 					if (!item.sessionResource) {
 						logResult('skipped');
-						return;
+						return 'skipped';
 					}
 					await this.sessionsService.openSession(item.sessionResource, { source: 'inbox' });
 					result = 'success';
@@ -2192,10 +2235,42 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 			}
 			logResult(result);
+			return result;
 		} catch (error) {
 			logResult('failure');
 			onUnexpectedError(error);
 			this.notificationService.error(localize('inboxNotifications.actionError', "Unable to run inbox action."));
+			return 'failure';
+		}
+	}
+
+	private async runRowAction(rowId: string | undefined, run: () => Promise<InboxInteractionResult>): Promise<void> {
+		if (this._store.isDisposed || rowId && this.rowActions.has(rowId)) {
+			return;
+		}
+		const row = rowId ? this.renderedItems.find(item => item.id === rowId) : undefined;
+		const rowAction = row ? { item: row, queryKey: this.listQueryKey, succeeded: false } : undefined;
+		if (row && rowAction) {
+			this.rowActions.set(row.id, rowAction);
+		}
+		let result: InboxInteractionResult = 'failure';
+		try {
+			result = await run();
+		} finally {
+			if (row && rowAction && !this._store.isDisposed && this.rowActions.get(row.id) === rowAction) {
+				if (result === 'success') {
+					rowAction.succeeded = true;
+					status(localize('inboxNotifications.action.taken', "Action taken"));
+					this.rowActionTimeouts.set(row.id, disposableTimeout(() => {
+						this.rowActions.delete(row.id);
+						this.rowActionTimeouts.deleteAndDispose(row.id);
+						this.handleNotificationListUpdate(this.latestItems);
+					}, 1500));
+				} else {
+					this.rowActions.delete(row.id);
+				}
+				this.handleNotificationListUpdate(this.latestItems);
+			}
 		}
 	}
 
@@ -2232,25 +2307,27 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}))
 			: store.add(new Button(container, baseOptions));
 		button.label = action.label;
+		const card = container.closest<HTMLElement>('.inbox-notifications-item');
+		const rowId = card?.dataset.notificationId;
+		button.enabled = !rowId || !this.rowActions.has(rowId);
 		if (openSessionIsSecondary) {
 			this.setupSessionPreviewHover(button.element, item, store);
 		}
 		if (button instanceof ButtonWithDropdown) {
 			button.dropdownButton.setAriaLabel(localize('inboxNotifications.action.moreActions', "More Actions for {0}", action.label));
 		}
-		store.add(button.onDidClick(async () => {
-			this.logInboxInteraction('runAction', 'actionButton', item, action.kind, { commandId: action.commandId ?? 'none' });
-			if (!showsSpinnerWhileRunning) {
-				void this.runAction(item, action, button.element);
+		store.add(button.onDidClick(async event => {
+			event?.stopPropagation();
+			if (rowId && this.rowActions.has(rowId)) {
 				return;
 			}
-			// The action submits a request to the session in the background, which
-			// can take a moment; show an inline spinner so the click clearly
-			// registers instead of looking like nothing happened.
+			this.logInboxInteraction('runAction', 'actionButton', item, action.kind, { commandId: action.commandId ?? 'none' });
 			button.enabled = false;
-			button.label = `$(loading~spin) ${action.label}`;
+			if (showsSpinnerWhileRunning) {
+				button.label = `$(loading~spin) ${action.label}`;
+			}
 			try {
-				await this.runAction(item, action, button.element);
+				await this.runRowAction(openSessionIsSecondary ? undefined : rowId, () => this.runAction(item, action, button.element));
 			} finally {
 				button.label = action.label;
 				button.enabled = true;
@@ -3030,7 +3107,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			for (const action of notification.actions) {
 				if (action.kind !== InboxNotificationActionKind.OpenSession
 					&& action.kind !== InboxNotificationActionKind.MarkDone
-					&& action.kind !== InboxNotificationActionKind.Dismiss) {
+					&& action.kind !== InboxNotificationActionKind.Dismiss
+					&& !isInboxPullRequestActionKind(action.kind)) {
 					this.renderActionButton(headerActions, notification, action, this.detailDisposables);
 				}
 			}

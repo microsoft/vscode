@@ -4135,7 +4135,7 @@ suite('NewChatWidget', () => {
 		}));
 	}
 
-	test('Inbox sent-session confirmation expires after eight seconds, pausing for hover and focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('Inbox sent-session confirmation reserves its height and expires after eight seconds, pausing for hover and focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IOpenerService, {});
@@ -4149,10 +4149,13 @@ suite('NewChatWidget', () => {
 			instantiationService,
 			_register: <T extends IDisposable>(value: T) => disposables.add(value),
 		};
-		const host = $('div');
+		const host = mainWindow.document.body.appendChild($('div'));
+		disposables.add(toDisposable(() => host.remove()));
 		const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
 		render.call(harness, host);
+		const reservedHeight = host.firstElementChild!.getBoundingClientRect().height;
 		status.set('Message sent', undefined);
+		const shownHeight = host.firstElementChild!.getBoundingClientRect().height;
 		await timeout(7999);
 		const beforeTimeout = host.textContent;
 		await timeout(1);
@@ -4173,9 +4176,9 @@ suite('NewChatWidget', () => {
 		await timeout(4999);
 		const beforeResumedTimeout = host.textContent;
 		await timeout(1);
-		assert.deepStrictEqual({ beforeTimeout, afterTimeout, hovered, focused, beforeResumedTimeout, afterResumedTimeout: host.textContent, resource: harness._lastBackgroundSentSessionResource }, {
+		assert.deepStrictEqual({ beforeTimeout, afterTimeout, hovered, focused, beforeResumedTimeout, afterResumedTimeout: host.textContent, resource: harness._lastBackgroundSentSessionResource, preservesHeight: reservedHeight > 0 && shownHeight === reservedHeight && host.firstElementChild!.getBoundingClientRect().height === reservedHeight }, {
 			beforeTimeout: 'Message sentOpen Session', afterTimeout: '', hovered: 'Message sentOpen Session', focused: 'Message sentOpen Session',
-			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined,
+			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined, preservesHeight: true,
 		});
 	}));
 

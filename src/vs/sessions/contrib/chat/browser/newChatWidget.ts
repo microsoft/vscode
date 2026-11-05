@@ -825,6 +825,7 @@ export class NewChatWidget extends Disposable {
 			});
 		}));
 
+		this._renderBackgroundSendStatus(chatWidgetContent);
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
 		// scoped to the currently selected agent host. When no hosts are
@@ -852,7 +853,6 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
-		this._renderBackgroundSendStatus(chatWidgetContent);
 		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
 		const updateBelowInputSurfacesHeight = () => {
 			if (chatWidgetContainer.closest('.phone-layout')) {
@@ -2169,11 +2169,11 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const message = this._backgroundSendStatus.read(reader);
 			dom.clearNode(status);
-			status.style.display = message ? '' : 'none';
+			status.style.visibility = message ? '' : 'hidden';
 			if (message) {
 				const checkmark = renderIcon(Codicon.check);
 				checkmark.setAttribute('aria-hidden', 'true');
-				dom.append(status, dom.$('span', undefined, message), checkmark);
+				dom.append(status, dom.$('span.new-session-send-status-message', undefined, message), checkmark);
 				this.accessibilityService.status(message);
 				const sessionResource = this._lastBackgroundSentSessionResource;
 				if (sessionResource) {
