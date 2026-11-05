@@ -13,20 +13,21 @@ import { rewriteMarkdownLinks } from '../../../../../../base/common/markdownLink
 import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { hasKey } from '../../../../../../base/common/types.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { URI, type UriComponents } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import type { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { MessageAttachmentKind, MessageKind, readUsageInfoMeta, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentSelection, type ErrorInfo, type ITurnTokenTotal, type MessageAttachment, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCancelledState, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ElicitationState, IChatToolInvocation, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatInfoMessage, type IChatMultiDiffData, type IChatMultiDiffDataSerialized, type IChatMultiDiffInnerData, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IChatWarningMessage, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, isLegacyChatTerminalToolInvocationData, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatInfoMessage, type IChatMultiDiffData, type IChatMultiDiffDataSerialized, type IChatMultiDiffInnerData, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IChatWarningMessage, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
 import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
 import { getDisplayedQuestionText } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
-import { getCodeCitationsMessage, type IChatModel, type IChatRequestModel } from '../../../common/model/chatModel.js';
+import { getCodeCitationsMessage, type IChatModel, type IChatProgressResponseContent, type IChatRequestModel } from '../../../common/model/chatModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, type IToolResultOutputDetails, type ToolInputOutputEmbedded, type ToolInputOutputReference } from '../../../common/tools/languageModelToolsService.js';
 
 /** Renders a chat message (plain string or markdown) as plain text. */
@@ -969,6 +970,49 @@ function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo
 	};
 	const usage = withWholeTurnUsage(counters, usages.length ? nanoAiu : undefined, turnTokenTotals?.size ? [...turnTokenTotals.values()] : undefined);
 	return Object.keys(usage).length ? usage : undefined;
+}
+
+/**
+ * The directory a Local terminal command ran in, or `undefined` when the call
+ * is not a terminal command or never ran. Local records the directory before
+ * the command is approved, so a call denied or skipped before it ran still has
+ * one. A command whose output was rejected after it ran is recorded as denied
+ * or skipped too, but it has the command's state, output or terminal command,
+ * which are only recorded once a command runs. A call saved before its
+ * confirmation was recorded is taken as having run.
+ */
+function terminalCommandDirectory(part: IChatProgressResponseContent): UriComponents | undefined {
+	if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'terminal' || isLegacyChatTerminalToolInvocationData(part.toolSpecificData)) {
+		return undefined;
+	}
+	const data = part.toolSpecificData;
+	const reason = part.kind === 'toolInvocationSerialized' && part.isConfirmed === undefined ? undefined : IChatToolInvocation.executionConfirmedOrDenied(part);
+	const cancelled = reason?.type === ToolConfirmKind.Denied || reason?.type === ToolConfirmKind.Skipped;
+	const ran = !!(data.terminalCommandState || data.terminalCommandOutput || data.terminalCommandUri);
+	return cancelled && !ran ? undefined : data.cwd;
+}
+
+/**
+ * The workspace folder a moved conversation continues in, chosen where its
+ * Local agent would run its next command: the folder of the directory its last
+ * terminal command ran in, else the folder of the window's last active editor.
+ * A Local chat has no single folder (its tools reach every workspace folder),
+ * but an agent-host session runs from one fixed primary folder, which matters
+ * in a multi-root workspace. `undefined` leaves the window's default.
+ */
+export function importedConversationPrimaryFolder(model: IChatModel, workspace: Pick<IWorkspaceContextService, 'getWorkspaceFolder'>, lastActiveWorkspaceRoot: URI | undefined): URI | undefined {
+	const requests = model.getRequests();
+	for (let i = requests.length - 1; i >= 0; i--) {
+		const parts = requests[i].response?.entireResponse.value ?? [];
+		for (let j = parts.length - 1; j >= 0; j--) {
+			const cwd = terminalCommandDirectory(parts[j]);
+			const folder = cwd && workspace.getWorkspaceFolder(URI.revive(cwd));
+			if (folder) {
+				return folder.uri;
+			}
+		}
+	}
+	return lastActiveWorkspaceRoot ? workspace.getWorkspaceFolder(lastActiveWorkspaceRoot)?.uri : undefined;
 }
 
 /**

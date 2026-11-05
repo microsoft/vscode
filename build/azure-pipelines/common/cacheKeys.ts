@@ -25,7 +25,7 @@ function readRepositoryFile(relativePath: string): Buffer {
  * install roots' `package.json` (see {@link getNativeBuildTargets}). A cached node_modules folder
  * only works with the configuration that built it.
  */
-const nativeBuildConfigFiles = ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
+const nativeBuildConfigFiles = ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'extensions/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts'];
 
 /**
  * Returns the `nativeBuild` field of the root and `remote` `package.json`: the runtime and version

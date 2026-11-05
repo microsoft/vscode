@@ -504,7 +504,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return;
 		}
 		if (includeArchived && !taskIds) {
-			const succeeded = result.kind === 'complete' || result.kind === 'incremental';
+			const succeeded = result.kind === 'complete' || result.kind === 'incremental' || result.kind === 'partial' && result.inventoryComplete === true;
 			this._archivesLoaded ||= succeeded;
 			this._archiveState.set(this._archivesLoaded ? 'loaded' : 'error', undefined);
 		}
@@ -515,7 +515,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
 			return;
 		}
-		if (result.kind === 'complete' || result.kind === 'scoped') {
+		if (result.kind === 'complete' || result.kind === 'scoped'
+			|| result.kind === 'partial' && result.inventoryComplete && !incremental && !taskIds) {
 			this._lastFullDiscovery = Date.now();
 		}
 
