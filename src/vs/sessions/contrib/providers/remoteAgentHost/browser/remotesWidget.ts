@@ -126,6 +126,7 @@ export class RemotesWidget extends Disposable {
 		this.heading.hidden = true;
 		dom.append(this.heading, renderIcon(Codicon.remoteExplorer)).setAttribute('aria-hidden', 'true');
 		this.headingTitle = dom.append(this.heading, dom.$('h2.remotes-heading-title', { id: generateUuid() }));
+		const searchControls = dom.append(searchRow, dom.$('.remotes-search-controls'));
 		const actionHoverDelegate = this._register(createInstantHoverDelegate());
 		this.clearSearchAction = this._register(new Action('remotes.clearSearch', localize('remotes.clearSearch', "Clear Search"), ThemeIcon.asClassName(Codicon.clearAll), false, () => {
 			this.setSearchQuery('');
@@ -137,7 +138,7 @@ export class RemotesWidget extends Disposable {
 			}
 			this.render();
 		}));
-		this.searchInput = this._register(new InputBox(dom.append(searchRow, dom.$('.remotes-search-container')), contextViewService, {
+		this.searchInput = this._register(new InputBox(dom.append(searchControls, dom.$('.remotes-search-container')), contextViewService, {
 			placeholder: localize('remotes.searchPlaceholder', "Type to search..."),
 			ariaLabel: localize('remotes.searchLabel', "Search remotes"),
 			inputBoxStyles: defaultInputBoxStyles,
@@ -146,7 +147,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
 		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
-		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchRow, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
+		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchControls, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
 		toolbar.setActions([this.refreshAction]);
 		this.message = dom.append(this.domNode, dom.$('.remotes-message', { role: 'status' }));
 		this.tableContainer = dom.append(this.domNode, dom.$('.remotes-table-container'));

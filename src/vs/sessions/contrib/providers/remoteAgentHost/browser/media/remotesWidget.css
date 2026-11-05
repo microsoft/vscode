@@ -53,6 +53,14 @@
 	margin-bottom: var(--vscode-spacing-size160);
 }
 
+.remotes-widget .remotes-search-controls {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
 .remotes-widget .remotes-search-container {
 	flex: 1;
 	min-width: 0;
@@ -72,14 +80,14 @@
 	white-space: nowrap;
 }
 
-/* The heading takes the free space, so search and refresh line up at the end of the row; when narrow, they wrap below the heading. */
+/* The heading takes the free space, so search and refresh line up at the end of the row; when narrow, they wrap below the heading together. */
 .remotes-widget .remotes-search-row.with-heading {
 	flex-wrap: wrap;
 }
 
-.remotes-widget .remotes-search-row.with-heading .remotes-search-container {
-	flex: 1 1 160px;
-	max-width: 320px;
+.remotes-widget .remotes-search-row.with-heading .remotes-search-controls {
+	flex: 1 1 200px;
+	max-width: 360px;
 }
 
 .remotes-widget .remotes-search-container .monaco-action-bar {
