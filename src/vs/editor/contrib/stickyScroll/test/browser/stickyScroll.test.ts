@@ -192,6 +192,44 @@ suite('Sticky Scroll Tests', () => {
 		});
 	});
 
+	test('end line shown for a scope that ends on the last line is in the model', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel([
+				'def foo():',
+				'    x = 1',
+				'    y = 2',
+				'def bar():',
+				'    x = 1',
+				'    y = 2',
+			].join('\n'));
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: {
+					enabled: true,
+					maxLineCount: 5,
+					defaultModel: 'indentationModel'
+				},
+				envConfig: {
+					outerHeight: 500
+				},
+				serviceCollection
+			}, async (editor) => {
+				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+				const lineHeight: number = editor.getOption(EditorOption.lineHeight);
+				await stickyScrollController.stickyScrollCandidateProvider.update();
+
+				// The end line is what Shift+hover on a sticky line shows.
+				editor.setScrollTop(4 * lineHeight + 1);
+				const state = stickyScrollController.findScrollWidgetState();
+				assert.deepStrictEqual(state.startLineNumbers, [4]);
+				assert.deepStrictEqual(state.endLineNumbers, [6]);
+
+				stickyScrollController.dispose();
+				stickyScrollController.stickyScrollCandidateProvider.dispose();
+				model.dispose();
+			});
+		});
+	});
+
 	test('issue #157180: Render the correct line corresponding to the scope definition', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const model = createTextModel(text);
