@@ -2105,27 +2105,31 @@ suite('Sessions - Editor Contribution', () => {
 			}());
 		}
 
-		test('with a later editor that cannot go, changes nothing: no editor, setting, layout, focus or group event, and one dialog', async () => {
+		/**
+		 * Runs the action on real parts with the real move command: a modal editor, maximized, with a first editor (the one
+		 * navigation through changes reopens and closes) and, if given, a later one, recording what the action changes.
+		 */
+		async function runOnParts(options: { readonly navigation: boolean; readonly later?: 'canGo' | 'cannotGo' }) {
 			const disposables = store.add(new DisposableStore());
 			disposables.add(registerTestEditor('modalEditorInEditorAreaEditor', [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], 'modalEditorInEditorAreaInput'));
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const parts = await createEditorParts(instantiationService, disposables);
 			instantiationService.stub(IEditorGroupsService, parts);
-			const modal = await parts.createModalEditorPart();
-			const later = disposables.add(new TestFileEditorInput(URI.file('/later'), 'modalEditorInEditorAreaInput'));
-			later.setMoveDisabled(VETO);
-			await modal.activeGroup.openEditors([{ editor: disposables.add(new TestFileEditorInput(URI.file('/ordinary'), 'modalEditorInEditorAreaInput')), options: { pinned: true } }, { editor: later, options: { pinned: true, inactive: true } }]);
 
-			// Once the parts exist with the services they use, the action records what it changes around them
-			const log: string[] = [];
-			stubServices(instantiationService, log);
-			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-				override async executeCommand<R>(id: string): Promise<R> {
-					log.push(`run ${id}`);
-					return instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor)) as Promise<R>;
+			const modal = await parts.createModalEditorPart();
+			if (!modal.maximized) {
+				modal.toggleMaximized(); // the size a modal editor last had carries over to the next one
+			}
+			const navigation = options.navigation ? { total: 1, current: 0, navigate: () => { } } : undefined;
+			await modal.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/first'), 'modalEditorInEditorAreaInput')), { pinned: true, modal: { navigation } });
+			if (options.later) {
+				const later = disposables.add(new TestFileEditorInput(URI.file('/later'), 'modalEditorInEditorAreaInput'));
+				if (options.later === 'cannotGo') {
+					later.setMoveDisabled(VETO);
 				}
-			}());
+				await modal.activeGroup.openEditor(later, { pinned: true, inactive: true });
+			}
 			const events: string[] = [];
 			for (const part of [modal, parts.mainPart]) {
 				disposables.add(part.onDidAddGroup(() => events.push('add')));
@@ -2133,30 +2137,73 @@ suite('Sessions - Editor Contribution', () => {
 				disposables.add(part.onDidActivateGroup(() => events.push('activate')));
 				disposables.add(part.onDidChangeGroupIndex(() => events.push('index')));
 			}
-			const activeElement = mainWindow.document.activeElement;
+
+			// Once the parts exist with the services they use, the action records what it changes around them
+			const log: string[] = [];
+			stubServices(instantiationService, log, upcastPartial<ChangesViewPane>({ openChanges: async resource => { log.push(`open changes ${resource?.path}`); } }));
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string): Promise<R> {
+					log.push(`run ${id}`);
+					const moved = await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
+					log.push(`moved ${moved}`);
+					return moved as R;
+				}
+			}());
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+				override setPartHidden(hidden: boolean, part: Parts): void { log.push(`${hidden ? 'hide' : 'show'} ${part}`); }
+				override setEditorMaximized(maximized: boolean): void { log.push(`maximized ${maximized}`); }
+			}());
+			const focusedGroup = parts.activeGroup;
+			disposables.add(parts.mainPart.activeGroup.onDidFocus(() => log.push('focus main')));
 
 			await instantiationService.invokeFunction(accessor => new OpenModalEditorInEditorAction().run(accessor));
 
 			const editorsOf = (group: IEditorGroup) => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.path);
-			assert.deepStrictEqual({
-				log,
-				modalOpen: parts.activeModalEditorPart === modal,
-				modalEditors: editorsOf(modal.activeGroup),
-				modalActive: modal.activeGroup.activeEditor?.resource?.path,
+			const modalOpen = parts.activeModalEditorPart === modal;
+			const result = {
+				log: [...log],
+				modalOpen,
+				modalEditors: modalOpen ? editorsOf(modal.activeGroup) : [],
 				mainEditors: editorsOf(parts.mainPart.activeGroup),
-				focusUnchanged: mainWindow.document.activeElement === activeElement,
-				events,
-			}, {
-				log: [`veto: ${VETO}`],
-				modalOpen: true,
-				modalEditors: ['/ordinary', '/later'],
-				modalActive: '/ordinary',
-				mainEditors: [],
-				focusUnchanged: true,
-				events: [],
-			});
+				activeGroupUnchanged: parts.activeGroup === focusedGroup,
+				events: [...events],
+			};
+			if (modalOpen) {
+				await modal.close();
+			}
 
-			await modal.close();
+			return result;
+		}
+
+		test('with a later editor that cannot go, changes nothing: no editor, setting, layout, focus or group event, and one dialog', async () => {
+			assert.deepStrictEqual(await runOnParts({ navigation: false, later: 'cannotGo' }), {
+				log: [`veto: ${VETO}`], modalOpen: true, modalEditors: ['/first', '/later'], mainEditors: [], activeGroupUnchanged: true, events: [],
+			});
+		});
+
+		test('navigating changes with a later editor that cannot go changes nothing either', async () => {
+			assert.deepStrictEqual(await runOnParts({ navigation: true, later: 'cannotGo' }), {
+				log: [`veto: ${VETO}`], modalOpen: true, modalEditors: ['/first', '/later'], mainEditors: [], activeGroupUnchanged: true, events: [],
+			});
+		});
+
+		test('navigating changes with only the changes editor reopens the changes, which closes the modal editor, and still maximizes and focuses', async () => {
+			const result = await runOnParts({ navigation: true });
+			assert.deepStrictEqual({ log: result.log, modalOpen: result.modalOpen }, {
+				// The modal editor gives focus back to the main window as it closes, before the action focuses it
+				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'focus main', 'maximized true', 'focus main'],
+				modalOpen: false,
+			});
+		});
+
+		test('navigating changes with a later editor that can go moves it, then maximizes and focuses', async () => {
+			const result = await runOnParts({ navigation: true, later: 'canGo' });
+			assert.deepStrictEqual({ log: result.log, modalOpen: result.modalOpen, mainEditors: result.mainEditors }, {
+				// The move focuses the main window as its editors arrive and as the modal editor closes
+				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'focus main', 'focus main', 'moved true', 'maximized true', 'focus main'],
+				modalOpen: false,
+				mainEditors: ['/later'],
+			});
 		});
 
 		/** Runs the action on a modal editor whose editors can go, with the move command answering `moved`, recording what the action does. */

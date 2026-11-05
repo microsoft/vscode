@@ -364,10 +364,13 @@ export class OpenModalEditorInEditorAction extends Action2 {
 			}
 		}
 
-		// Move all remaining editors to the main editor part
-		const moved = await commandService.executeCommand<boolean>(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
-		if (!moved) {
-			return; // they did not move, such as for an editor that could not go meanwhile
+		// Move all remaining editors to the main editor part, unless closing its only editor
+		// above closed the modal editor already, which leaves nothing to move
+		if (editorGroupsService.activeModalEditorPart === activeEditorPart) {
+			const moved = await commandService.executeCommand<boolean>(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+			if (!moved) {
+				return; // they did not move, such as for an editor that could not go meanwhile
+			}
 		}
 
 		// Maximize
