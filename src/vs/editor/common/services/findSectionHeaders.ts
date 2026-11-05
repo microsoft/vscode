@@ -157,8 +157,18 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 
 			let label = (match.groups ?? {})['label'] ?? '';
 			let separator = (match.groups ?? {})['separator'] ?? '';
-			if (isInsideBlockComment(text.substring(lineStartIndex, match.index), options)) {
-				({ label, separator } = stripBlockCommentEnd(label, separator, options.blockCommentEndToken!));
+			const { blockCommentStartToken, blockCommentEndToken } = options;
+			if (blockCommentStartToken && blockCommentEndToken) {
+				// The comment context is determined right before the captured text, because a custom
+				// regex may consume the comment start token itself, e.g. `^<!--\s*MARK:\s*(?<label>.*)$`
+				const separatorIndices = match.indices?.groups?.['separator'];
+				const labelIndices = match.indices?.groups?.['label'];
+				const capturesStart = Math.min(separatorIndices?.[0] ?? Number.MAX_SAFE_INTEGER, labelIndices?.[0] ?? Number.MAX_SAFE_INTEGER, match.index + match[0].length);
+				const capturesLineStart = capturesStart === 0 ? 0 : text.lastIndexOf('\n', capturesStart - 1) + 1;
+				if (isInsideBlockComment(text.substring(capturesLineStart, capturesStart), blockCommentStartToken, blockCommentEndToken)) {
+					const capturesAreContiguous = !!separatorIndices && !!labelIndices && separatorIndices[1] === labelIndices[0];
+					({ label, separator } = stripBlockCommentEnd(label, separator, blockCommentEndToken, capturesAreContiguous));
+				}
 			}
 			const text2 = label;
 			const hasSeparatorLine = separator !== '';
@@ -186,29 +196,35 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 }
 
 /**
- * Whether the text that precedes a match on its line leaves a block comment open,
+ * Whether the text that precedes the captured header on its line leaves a block comment open,
  * e.g. `<!-- ` in `<!-- MARK: Section -->`, but not `// ` in `// MARK: Regex /foo.*\/`.
+ * The tokens are matched in order, so identical start and end tokens (e.g. `"""`) are supported.
  */
-function isInsideBlockComment(linePrefix: string, options: FindSectionHeaderOptions): boolean {
-	const { blockCommentStartToken, blockCommentEndToken } = options;
-	if (!blockCommentStartToken || !blockCommentEndToken) {
-		return false;
+function isInsideBlockComment(linePrefix: string, blockCommentStartToken: string, blockCommentEndToken: string): boolean {
+	let isOpen = false;
+	for (let offset = 0; offset < linePrefix.length;) {
+		const token = isOpen ? blockCommentEndToken : blockCommentStartToken;
+		const index = linePrefix.indexOf(token, offset);
+		if (index === -1) {
+			break;
+		}
+		isOpen = !isOpen;
+		offset = index + token.length;
 	}
-	const start = linePrefix.lastIndexOf(blockCommentStartToken);
-	return start !== -1 && linePrefix.indexOf(blockCommentEndToken, start + blockCommentStartToken.length) === -1;
+	return isOpen;
 }
 
 /**
  * Removes the token that closes the enclosing block comment (e.g. `-->` in `<!-- MARK: Section -->`)
  * from the end of a mark section header.
  */
-function stripBlockCommentEnd(label: string, separator: string, blockCommentEndToken: string): { label: string; separator: string } {
+function stripBlockCommentEnd(label: string, separator: string, blockCommentEndToken: string, capturesAreContiguous: boolean): { label: string; separator: string } {
 	const trimmedLabel = label.trimEnd();
 	if (trimmedLabel.endsWith(blockCommentEndToken)) {
 		return { label: trimmedLabel.substring(0, trimmedLabel.length - blockCommentEndToken.length).trimEnd(), separator };
 	}
 	const combined = separator + trimmedLabel;
-	if (trimmedLabel.length < blockCommentEndToken.length && combined.endsWith(blockCommentEndToken)) {
+	if (capturesAreContiguous && trimmedLabel.length < blockCommentEndToken.length && combined.endsWith(blockCommentEndToken)) {
 		// The token was split across the separator and the label, e.g. `<!-- MARK: -->`
 		const remainingSeparator = combined.substring(0, combined.length - blockCommentEndToken.length);
 		return { label: '', separator: remainingSeparator.trim() ? remainingSeparator : '' };

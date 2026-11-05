@@ -472,6 +472,56 @@ suite('FindSectionHeaders', () => {
 		);
 	});
 
+	test('determines the block comment context from the captured text', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'<!-- MARK: Section -->',
+			'<!-- MARK: - -> -->',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '^<!--\\s*MARK:\\s*(?<label>.*)$',
+			blockCommentStartToken: '<!--',
+			blockCommentEndToken: '-->'
+		};
+		const nonContiguousOptions: FindSectionHeaderOptions = {
+			...options,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>-?)\\s*(?<label>.*?)\\s*-->$'
+		};
+
+		assert.deepStrictEqual({
+			commentStartInRegex: findSectionHeaders(model, options).map(h => ({ text: h.text, hasSeparatorLine: h.hasSeparatorLine })),
+			nonContiguousCaptures: findSectionHeaders(model, nonContiguousOptions).map(h => ({ text: h.text, hasSeparatorLine: h.hasSeparatorLine })),
+		}, {
+			commentStartInRegex: [
+				{ text: 'Section', hasSeparatorLine: false },
+				{ text: '- ->', hasSeparatorLine: false },
+			],
+			nonContiguousCaptures: [
+				{ text: 'Section', hasSeparatorLine: false },
+				{ text: '->', hasSeparatorLine: true },
+			]
+		});
+	});
+
+	test('supports identical block comment start and end tokens', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'""" MARK: Doc Section """',
+			'"""closed""" # MARK: Quote """',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\\-?)\\s*(?<label>.*)$',
+			blockCommentStartToken: '"""',
+			blockCommentEndToken: '"""'
+		};
+
+		assert.deepStrictEqual(findSectionHeaders(model, options).map(h => h.text), ['Doc Section', 'Quote """']);
+	});
+
 	test('keeps mark section header labels without block comment tokens unchanged', () => {
 		const model = new TestSectionHeaderFinderTarget([
 			'<!-- MARK: Html Section -->',
