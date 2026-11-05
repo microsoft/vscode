@@ -128,17 +128,19 @@ suite('FileWalker', () => {
 	test('an exists query settles the folders whose process fails to launch', async () => {
 		const folderQueries = createFolderQueries(20);
 		const spawner = new TestRipgrepSpawner(cmd => cmd.exit(1));
+		const loggedErrors: string[] = [];
 		const walker = new FileWalker(createExistsQuery(folderQueries), async (...args) => {
 			if (args[1] === folderQueries[0]) {
 				throw new Error('failed to launch');
 			}
 			return spawner.spawn(...args);
-		});
+		}, message => loggedErrors.push(message));
 		const result = await walk(walker, folderQueries);
 
-		assert.deepStrictEqual({ result, launched: spawner.processes.length }, {
+		assert.deepStrictEqual({ result, launched: spawner.processes.length, loggedErrors }, {
 			result: { error: 'failed to launch', isLimitHit: false },
-			launched: 19
+			launched: 19,
+			loggedErrors: ['failed to launch']
 		});
 	});
 

@@ -88,7 +88,7 @@ export class FileWalker {
 	private readonly nestedRootFolders = new Map<string, string[]>();
 	private globalExcludePattern: glob.ParsedExpression | undefined;
 
-	constructor(config: IFileQuery, private readonly spawnRipgrep: SpawnRipgrepCmd = spawnRipgrepCmd) {
+	constructor(config: IFileQuery, private readonly spawnRipgrep: SpawnRipgrepCmd = spawnRipgrepCmd, private readonly logError: (message: string) => void = message => console.error(message)) {
 		this.config = config;
 		this.filePattern = config.filePattern || '';
 		const globOptions = config.ignoreGlobCase ? { ignoreCase: true } : undefined;
@@ -204,7 +204,7 @@ export class FileWalker {
 		});
 		if (err) {
 			const errorMessage = toErrorMessage(err);
-			console.error(errorMessage);
+			this.logError(errorMessage);
 			this.errors.push(errorMessage);
 		}
 		return err;
