@@ -133,6 +133,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	}
 
+<<<<<<< HEAD
 	function createAgentEdit(filePath: string): IAgentEditAttribution {
 		return {
 			sessionUri: 'copilot:/session-1',
@@ -148,6 +149,8 @@ suite('Agent Edit Attribution Service', () => {
 		};
 	}
 
+=======
+>>>>>>> c3c810716a7 ([1.145] Backport edit-survival account attribution (#346275))
 	for (const scenario of ['precise', 'invalid agent diff', 'agent timeout', 'external fallback', 'agent and external fallback'] as const) {
 		test(`reports scope-wide coarse diff counts and preserves them across cancelled flushes: ${scenario}`, async () => {
 			const before = 'aaa\nmiddle\nzzz';

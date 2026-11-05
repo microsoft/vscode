@@ -274,6 +274,7 @@ if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/
 	throw 'Cannot safely resolve the Linux server archive path.'
 }
 # From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
+<<<<<<< HEAD
 # command's timeout, so apt uses the Azure Ubuntu mirror. apt only warns about index files it could not fetch, so the
 # index update fails on any fetch error and is retried. The WSL Kerberos proxy smoke tests run their own KDC and Squid,
 # so policy-rc.d keeps the packages from starting theirs.
@@ -281,10 +282,20 @@ $aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 li
 $linuxRoot = $linuxArchive.Substring(0, $linuxArchive.LastIndexOf('/'))
 $debDirectory = Join-Path $Root 'debs'
 New-Item -ItemType Directory -Force -Path $debDirectory | Out-Null
+=======
+# command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
+# The Azure mirror usually serves the 80 MB of packages in 2-17 seconds, but its package files can come at only about
+# 250 KB/s for minutes on every connection (its index files stay fast), and the mirror is at times unreachable. A slow
+# but progressing download therefore gets the whole budget of this command rather than a per-attempt wall clock, while
+# a connection that stops sending data fails after 30 seconds and apt retries it. apt only warns about index files it
+# could not fetch, so the index update fails on any fetch error and is retried.
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3'
+>>>>>>> c3c810716a7 ([1.145] Backport edit-survival account attribution (#346275))
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
 sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
 printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+<<<<<<< HEAD
 for attempt in 1 2 3; do
 	if timeout --kill-after=10 45 apt-get update --error-on=any; then
 		break
@@ -344,6 +355,20 @@ printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod +x /usr/sbin/policy-rc.d
 apt-get install -y --no-install-recommends $aptPackages
 rm /usr/sbin/policy-rc.d
+=======
+retry() {
+	for attempt in 1 2 3; do
+		if "`$@"; then
+			return 0
+		fi
+		echo "Attempt `$attempt of 3 failed: `$*" >&2
+	done
+	return 1
+}
+retry timeout --kill-after=10 45 apt-get update --error-on=any
+retry apt-get install -y --download-only --no-install-recommends $aptPackages
+apt-get install -y --no-install-recommends $aptPackages
+>>>>>>> c3c810716a7 ([1.145] Backport edit-survival account attribution (#346275))
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
 /opt/vscode-smoke-server/node --version
