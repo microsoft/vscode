@@ -183,6 +183,7 @@ foreach ($channel in @(
 					time = $_.TimeCreated.ToUniversalTime().ToString('o')
 					eventId = $_.Id
 					recordId = $_.RecordId
+					emitterProcessId = Get-NumericEventValue $_.ProcessId
 					clientProcessId = Get-NumericEventValue $data['ClientPID']
 					queryType = Get-NumericEventValue $data['QueryType']
 					queryStatus = Get-NumericEventValue $data['QueryStatus']
