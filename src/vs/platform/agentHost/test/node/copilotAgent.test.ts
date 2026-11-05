@@ -83,7 +83,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -20428,6 +20428,49 @@ suite('CopilotAgent', () => {
 				singleRoot: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [] },
 			});
 		});
+
+		for (const takeOver of [false, true]) {
+			test(`a turn in a chat that another process holds asks first, then ${takeOver ? 'takes the session over from storage' : 'ends without sending'}`, async () => {
+				const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+				const runtimes: MockCopilotSession[] = [];
+				const createRuntime = () => {
+					const runtime = new MockCopilotSession();
+					runtimes.push(runtime);
+					return runtime as unknown as CopilotSession;
+				};
+				client.createSession = async () => createRuntime();
+				client.resumeSession = async () => createRuntime();
+				const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
+				afterTest(() => disposeAgent(agent));
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'held-elsewhere');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				client.inUseSessionIds.add(JSON.parse(result.providerData!).sdkSessionId);
+				const events: string[] = [];
+				disposables.add(agent.onDidChangeChatHistory!(change => events.push(`history replace=${change.replace}`)));
+				disposables.add(agent.onDidChatProgress(signal => {
+					if (signal.kind !== 'action') {
+						return;
+					}
+					if (signal.action.type === ActionType.ChatInputRequested) {
+						const question = signal.action.request.questions?.[0];
+						events.push(`asked ${question?.id}`);
+						agent.respondToUserInputRequest(signal.action.request.id, ChatInputResponseKind.Accept, {
+							[question!.id]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: takeOver ? 'takeOver' : 'cancel' } },
+						});
+					} else if (signal.action.type === ActionType.ChatTurnCancelled) {
+						events.push('cancelled');
+					}
+				}));
+
+				await agent.chats.sendMessage(chat, 'hello', [URI.file('/workspace')], undefined, 'turn-1', undefined, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({ events, sends: runtimes.map(runtime => runtime.sendCalls), disconnects: runtimes.map(runtime => runtime.disconnectCalls) }, takeOver
+					? { events: ['asked sessionInUse', 'history replace=true'], sends: [0, 1], disconnects: [1, 0] }
+					: { events: ['asked sessionInUse', 'cancelled'], sends: [0], disconnects: [0] });
+			});
+		}
 
 		test('createChat keeps the AH session id independent from the default Copilot SDK id', async () => {
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
