@@ -204,7 +204,7 @@ suite('SessionChatInputToolbar', () => {
 		const inChatWindow = upcastPartial<IChat>({ resource: URI.parse('chat:window') });
 		const gridSession = upcastPartial<IActiveSession>({ sessionId: 'grid', chats: constObservable([inMainWindow, inChatWindow]) });
 		const editorSession = upcastPartial<IActiveSession>({ sessionId: 'editor', scopedChatResource: inChatWindow.resource, chats: constObservable([inMainWindow, inChatWindow]) });
-		const sessionsService = { visibleSessions: constObservable([gridSession]), activeSession: constObservable(gridSession) };
+		const sessionsService = { visibleSessionPanes: constObservable([gridSession]) };
 		assert.deepStrictEqual({
 			inPane: findSessionOfChat(editorSession, sessionsService, inChatWindow.resource, undefined)?.sessionId,
 			withoutPane: findSessionOfChat(undefined, sessionsService, inMainWindow.resource, undefined)?.sessionId,

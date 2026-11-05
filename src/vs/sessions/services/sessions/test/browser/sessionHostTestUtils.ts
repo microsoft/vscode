@@ -10,6 +10,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
@@ -113,7 +114,7 @@ export function stubFocusedSessionHostFromSessionsService(instantiationService: 
  * `windowSessions`, with a pane of its own, and the focused host is the window host that shows `activeSession`, else the
  * main window's. Lookups return the innermost hosts, as {@link SessionHostService} does.
  */
-export function stubSessionHostsFromSessionsService(instantiationService: TestInstantiationService): void {
+export function stubSessionHostsFromSessionsService(instantiationService: TestInstantiationService, onlyMissing = false): void {
 	const sessionsService = instantiationService.get(ISessionsService) as Partial<ISessionsService> | undefined;
 	const none = constObservable(undefined);
 	const activeSession = sessionsService?.activeSession ?? none;
@@ -156,17 +157,47 @@ export function stubSessionHostsFromSessionsService(instantiationService: TestIn
 		return false;
 	};
 	const innermost = (hosts: readonly ISessionHost[]) => hosts.filter(host => !hosts.some(other => other !== host && isNestedIn(other, host)));
-	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({
+	const sessionHostService = upcastPartial<ISessionHostService>({
 		hosts: derived(reader => readHosts(reader)),
 		getHost: id => readHosts(undefined).find(host => host.id === id),
 		getHostOfWindow: (windowId, reader) => readHosts(reader).find(host => !host.parent && host.windowId.read(reader) === windowId),
 		getHostOfChat: (chatResource, reader) => innermost(readHosts(reader).filter(host => isEqual(host.chatResource.read(reader), chatResource)))[0],
 		getHostsOfSession: (resource, reader) => innermost(readHosts(reader).filter(host => isEqual(host.session.read(reader)?.resource, resource))),
 		isShown: (resource, reader) => readHosts(reader).some(host => isEqual(host.session.read(reader)?.resource, resource) || isEqual(host.chatResource.read(reader), resource)),
-	}));
+	});
 	const focusedHost = derived(reader => {
 		const active = activeSession.read(reader);
 		return readChatWindows(reader).find(([windowHost]) => !!active && windowHost.session.read(reader) === active)?.[0] ?? mainHost;
 	});
-	instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ focusedHost, getFocusedHost: () => focusedHost.get() }));
+	const focusedSessionHostService = upcastPartial<IFocusedSessionHostService>({ focusedHost, getFocusedHost: () => focusedHost.get() });
+	if (!onlyMissing || isMissingOrDerived(instantiationService, ISessionHostService)) {
+		instantiationService.stub(ISessionHostService, sessionHostService);
+	}
+	if (!onlyMissing || isMissingOrDerived(instantiationService, IFocusedSessionHostService)) {
+		instantiationService.stub(IFocusedSessionHostService, focusedSessionHostService);
+	}
+	derivedStubs.add(sessionHostService);
+	derivedStubs.add(focusedSessionHostService);
+}
+
+/** The host stubs {@link stubSessionHostsFromSessionsService} made, which it may replace when the sessions service changes. */
+const derivedStubs = new WeakSet<object>();
+
+function isMissingOrDerived(instantiationService: TestInstantiationService, id: ServiceIdentifier<unknown>): boolean {
+	let service: unknown;
+	try {
+		service = instantiationService.get(id);
+	} catch {
+		return true;
+	}
+	return !service || derivedStubs.has(service as object);
+}
+
+/**
+ * Stubs the host lookups and the focused host from the `ISessionsService` of `instantiationService`, as
+ * {@link stubSessionHostsFromSessionsService} does, but only those the test has not stubbed itself: for tests whose
+ * subject now reads the windows' hosts but which model the windows with the sessions service.
+ */
+export function stubMissingSessionHostsFromSessionsService(instantiationService: TestInstantiationService): void {
+	stubSessionHostsFromSessionsService(instantiationService, true);
 }

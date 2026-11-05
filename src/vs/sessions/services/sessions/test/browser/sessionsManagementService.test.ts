@@ -490,6 +490,52 @@ suite('SessionsManagementService', () => {
 			}, { chats: [main.resource.toString(), child.resource.toString()], active: child.resource.toString() });
 		});
 
+		test('the active pane is always one of the grid panes: a detached pane, a draft and a quick chat', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const { view } = harness([parent]);
+			await view.openChatsInGrid([main, child].map(chat => ({ session: parent, chatResource: chat.resource })));
+			view.setActive(view.visibleSessionPanes.get()[1]);
+			const detached = view.activeSession.get();
+
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			};
+			const drafts = [];
+			for (const quickChat of [false, true]) {
+				const draft = stubSession({
+					sessionId: quickChat ? 'quick-chat' : 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+					isQuickChat: constObservable(quickChat), workspace: constObservable(quickChat ? undefined : workspace),
+				});
+				const provider = new class extends TestSessionsProvider {
+					override readonly supportsQuickChats = true;
+					override resolveWorkspace(): ISessionWorkspace { return workspace; }
+					override createQuickChat(): ISession { return draft; }
+				}(draft);
+				const services = createSessionsManagementService(draft, disposables, provider);
+				if (quickChat) {
+					services.view.openQuickChat({ providerId: provider.id });
+				} else {
+					await services.view.openNewSession({ folderUri, providerId: provider.id });
+				}
+				const active = services.view.activeSession.get();
+				drafts.push({ active: active?.sessionId, inPanes: !!active && services.view.visibleSessionPanes.get().includes(active) });
+			}
+
+			assert.deepStrictEqual({
+				detached: { chat: detached?.scopedChatResource?.toString(), inPanes: !!detached && view.visibleSessionPanes.get().includes(detached) },
+				drafts,
+			}, {
+				detached: { chat: child.resource.toString(), inPanes: true },
+				drafts: [{ active: 'draft', inPanes: true }, { active: 'quick-chat', inPanes: true }],
+			});
+		});
+
 		test('a child tab can be dragged outside its parent into an independent pane beside another session', async () => {
 			const a = created('a');
 			const b = created('b');

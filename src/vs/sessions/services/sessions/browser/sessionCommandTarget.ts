@@ -11,7 +11,9 @@ import { isEditorCommandsContext } from '../../../../workbench/common/editor.js'
 import { isWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { IChat, ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getHostOfSession, IFocusedSessionHostService, ISessionHost, ISessionHostService, isSessionHostCommandContext } from './sessionHost.js';
+import type { SessionView } from '../../../browser/parts/sessionView.js';
+import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';
+import { ISessionsPartService } from './sessionsPartService.js';
 
 /** What a Sessions command acts on; see {@link resolveSessionCommandTarget}. */
 export interface ISessionCommandTarget {
@@ -116,4 +118,13 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 		}
 		return undefined;
 	}
+}
+
+/**
+ * The view of the grid pane a grid command without arguments acts on: the grid's active pane while the main window, whose
+ * grid it is, is the focused host. In a chat window, which has no grid, none: the command does nothing.
+ */
+export function resolveGridCommandView(accessor: ServicesAccessor): SessionView | undefined {
+	const host = resolveSessionCommandTarget(accessor, [])?.host;
+	return host && getWindowHost(host).kind === SessionHostKind.MainWindow ? accessor.get(ISessionsPartService).getActiveSessionView() : undefined;
 }

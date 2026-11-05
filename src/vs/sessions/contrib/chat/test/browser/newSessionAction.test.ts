@@ -26,6 +26,7 @@ import { ISessionWorkspace } from '../../../../services/sessions/common/session.
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +52,7 @@ suite('NewChatInSessionsWindowAction', () => {
 				return options.creationFailed ? undefined : upcastPartial<IActiveSession>({ resource });
 			},
 		});
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		if (!CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID)) {
 			store.add(registerAction2(NewChatInSessionsWindowAction));
 		}
@@ -140,6 +142,7 @@ suite('NewChatInSessionsWindowAction', () => {
 				return { session: upcastPartial<IActiveSession>({ resource }), trustDeclined: false };
 			},
 		});
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		const result = await instantiationService.invokeFunction(accessor => new NewChatInSessionsWindowAction().run(accessor));
 		assert.deepStrictEqual({ result, opened }, {
 			result: resource,

@@ -60,7 +60,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChatSource, ISessionHost, sessionChatSourceOf } from '../../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -103,7 +103,7 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 	const anchor = dom.isHTMLElement(activeElement) ? activeElement : dom.getActiveDocument().body;
 	const picker = accessor.get(IInstantiationService).createInstance(
 		isPhoneLayout(accessor.get(IWorkbenchLayoutService)) ? MobileAgentHostModePicker : AgentHostModePicker,
-		sessionChatSourceOf(accessor.get(ISessionsService).activeSession),
+		getFocusedSessionChatSource(accessor.get(IFocusedSessionHostService)),
 	);
 	if (!picker.showPicker(anchor, () => picker.dispose())) {
 		picker.dispose();

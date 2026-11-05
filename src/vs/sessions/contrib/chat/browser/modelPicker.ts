@@ -33,7 +33,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveGridCommandView } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { createChatPhoneInputSessionContext } from '../../../services/presentation/browser/chatPhoneInputContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
@@ -259,9 +259,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override run(accessor: ServicesAccessor): void {
-		const sessions = accessor.get(ISessionsService);
 		const parts = accessor.get(ISessionsPartService);
-		(parts.getFocusedSessionView() ?? parts.getSessionView(sessions.activeSession.get()))?.openModelComparison();
+		(parts.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.openModelComparison();
 	}
 });
 

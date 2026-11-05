@@ -43,6 +43,7 @@ import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTI
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -184,6 +185,7 @@ suite('Chat window contribution', () => {
 				visibleSessions: constObservable([active]),
 				mainWindowActiveSession: constObservable<IActiveSession | undefined>(active),
 			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
 			let whileOpening: number | undefined;
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
@@ -286,6 +288,7 @@ suite('Chat window contribution', () => {
 				getScopedInstantiationService: () => scoped,
 			}));
 			instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main') })) }));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
 				getChangesEditorResource: resource => resource,
 				getSessionResource: () => undefined,

@@ -71,6 +71,7 @@ export class SessionsPart extends Part {
 
 	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
+	private _activeSlot: IGridSlot | undefined;
 	private readonly _slotsChanged = observableSignal(this);
 	readonly shownChatCount = derived(this, reader => {
 		this._slotsChanged.read(reader);
@@ -217,6 +218,7 @@ export class SessionsPart extends Part {
 		const activeSlot = this._slots.find(slot => slot.session === active)
 			?? this._slots.find(slot => slot.boundSessionId === activeId)
 			?? (this._slots.length === 1 ? this._slots[0] : undefined);
+		this._activeSlot = activeSlot;
 		for (const slot of this._slots) {
 			const isActive = slot === activeSlot;
 			slot.view.element.classList.toggle('is-active', isActive);
@@ -348,6 +350,10 @@ export class SessionsPart extends Part {
 
 	getFocusedSessionView(): SessionView | undefined {
 		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
+	}
+
+	getActiveSessionView(): SessionView | undefined {
+		return this._activeSlot && this._slots.includes(this._activeSlot) ? this._activeSlot.view : undefined;
 	}
 
 	/**

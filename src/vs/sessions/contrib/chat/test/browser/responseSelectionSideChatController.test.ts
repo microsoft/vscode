@@ -39,6 +39,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -328,6 +329,7 @@ suite('ResponseSelectionSideChatController', () => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
 		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
 			getSessionView: () => undefined,
 		}));

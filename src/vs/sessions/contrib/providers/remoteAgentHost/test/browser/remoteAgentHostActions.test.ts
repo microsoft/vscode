@@ -141,7 +141,7 @@ suite('Remote Agent Host actions', () => {
 				},
 			});
 			instantiation.stub(ISessionsPartService, {
-				getSessionView: () => upcastPartial<SessionView>({
+				getActiveSessionView: () => upcastPartial<SessionView>({
 					selectWorkspace: (uri, options) => {
 						assert.strictEqual(getSessionCreationEnvironments([provider])[0]?.id, provider.id);
 						calls.push({ selected: uri.toString(), providerId: options?.providerId });
@@ -198,7 +198,7 @@ suite('Remote Agent Host actions', () => {
 			},
 		});
 		instantiation.stub(ISessionsPartService, {
-			getSessionView: () => upcastPartial<SessionView>({
+			getActiveSessionView: () => upcastPartial<SessionView>({
 				selectWorkspace: () => { calls.push('select'); return 'applied'; },
 			}),
 		});

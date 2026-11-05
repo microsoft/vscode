@@ -106,6 +106,12 @@ export interface ISessionsPartService {
 	getFocusedSessionView(): SessionView | undefined;
 
 	/**
+	 * The view of the grid's active pane: the pane commands without arguments act on while the main window is the
+	 * focused host.
+	 */
+	getActiveSessionView(): SessionView | undefined;
+
+	/**
 	 * Returns the progress indicator for the sessions part, which drives the
 	 * progress bar shown at the top of the part's content area.
 	 */

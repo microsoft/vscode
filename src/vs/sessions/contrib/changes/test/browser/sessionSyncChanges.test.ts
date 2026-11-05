@@ -39,6 +39,7 @@ import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../chat/browser/media/chatWidget.css';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Session Sync Changes', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -110,6 +111,7 @@ suite('Session Sync Changes', () => {
 		const contribution = store.add(new SessionSyncChangesContribution(sessionsService, actionViewItemService));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		const invoke = async (...args: unknown[]) => instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, ...args);
 		return {
 			contribution, visibleSessions, activeSession, invoke,

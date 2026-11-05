@@ -37,7 +37,7 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
@@ -542,6 +542,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IChatHostOpenerService chatHostOpenerService: IChatHostOpenerService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 	) {
 		super();
 
@@ -608,7 +609,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		}
 		// Once the main window is laid out for the session of its active chat, if it is: laying it out restores the
 		// session's last editors, which would replace these.
-		if (this._sessionsService.mainWindowActiveSession.get()?.sessionId === first.session.sessionId) {
+		if (getMainWindowHost(this._sessionHostService).session.get()?.sessionId === first.session.sessionId) {
 			await timeout(0);
 			await waitForState(this._editorWorkingSetService.restoreState, restoreState => !restoreState.restoring);
 		}

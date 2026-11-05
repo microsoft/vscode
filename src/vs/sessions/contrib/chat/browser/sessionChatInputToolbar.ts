@@ -852,17 +852,16 @@ export class SessionChatInputToolbar extends Disposable {
 /**
  * The shown session that owns the chat `chatResource`: the session of a window that shows exactly that chat first, as the
  * sessions the main window shows list all chats of their session, including those shown in other windows; then the
- * sessions the main window shows, then the active session.
+ * panes of the grid, its active pane among them.
  */
-export function findSessionOfChat(paneSession: IActiveSession | undefined, sessionsService: Pick<ISessionsService, 'visibleSessions' | 'activeSession'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
+export function findSessionOfChat(paneSession: IActiveSession | undefined, sessionsService: Pick<ISessionsService, 'visibleSessionPanes'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
 	if (paneSession?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
 		return paneSession;
 	}
-	for (const session of sessionsService.visibleSessions.read(reader)) {
+	for (const session of sessionsService.visibleSessionPanes.read(reader)) {
 		if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
 			return session;
 		}
 	}
-	const active = sessionsService.activeSession.read(reader);
-	return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
+	return undefined;
 }

@@ -65,6 +65,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -4390,6 +4391,7 @@ suite('NewChatWidget', () => {
 					}
 				},
 				sessionsService: { activeSession, unsetNewSession: () => navigation.push('activateEmptyComposer') },
+				sessionHostService: upcastPartial<ISessionHostService>({ getHostOfWindow: () => upcastPartial<ISessionHost>({ session: activeSession }) }),
 				_createNewSession: async (folderUri: URI) => {
 					assert.strictEqual(folderUri, workspace);
 					navigation.push('reseedWorkspace');

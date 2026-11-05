@@ -34,6 +34,7 @@ import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -234,6 +235,7 @@ export class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
@@ -1941,7 +1943,7 @@ export class NewChatWidget extends Disposable {
 				if (this._backgroundSend) {
 					if (!this._store.isDisposed && !this._pendingWorkspaceCreation
 						&& this.sessionsManagementService.newSession.get()?.sessionId === session.sessionId
-						&& (this._preserveCustomView || this.sessionsService.activeSession.get()?.sessionId === session.sessionId)
+						&& (this._preserveCustomView || getMainWindowHost(this.sessionHostService).session.get()?.sessionId === session.sessionId)
 						&& (isQuickChat || isEqual(workspace, this._workspacePicker.selectedFolderUri))) {
 						this._comparisonSelection.reset();
 						// Creating the replacement releases the old draft without an empty-composer handoff.

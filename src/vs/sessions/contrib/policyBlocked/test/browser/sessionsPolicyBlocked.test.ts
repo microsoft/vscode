@@ -79,7 +79,7 @@ suite('Sessions policy update explanation', () => {
 			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 			override getManagedSettingValue(key: string) { return managedSettings[key]; }
 		}());
-		services.stub(ISessionsService, { activeSession });
+		services.stub(ISessionsService, { activeSession, focusActiveSession: () => services.get(ISessionsPartService).focusSession(activeSession.get()) });
 		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override focusSession(session: IActiveSession | undefined): void {
 				fallbackFocusCalls.push({ sessionId: session?.sessionId, inert: content.inert });

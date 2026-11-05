@@ -36,7 +36,7 @@ import { Menus } from '../../../browser/menus.js';
 import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
@@ -75,20 +75,17 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
 
-		// Bind context key: true when the active chat has changes
+		// Bind context key: true when the chat the main window shows has changes
+		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
-			const activeSession = sessionsService.mainWindowActiveSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const changes = activeSession.activeChat.read(reader).changes.read(reader);
-			return changes.length > 0;
+			const changes = mainWindowHost.chat.read(reader)?.changes.read(reader);
+			return !!changes && changes.length > 0;
 		}));
 
 		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {

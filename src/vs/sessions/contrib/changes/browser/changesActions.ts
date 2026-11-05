@@ -401,10 +401,10 @@ function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unkn
 		return { session: editor.changesScope.session.get(), chat: editor.changesScope.chat.get(), changes: editor.changesScope.changes };
 	}
 	const changesViewService = accessor.get(IChangesViewService);
-	const mainWindowSession = accessor.get(ISessionsService).mainWindowActiveSession.get();
+	const owner = mainWindowChangesOwner(accessor);
 	return {
-		session: mainWindowSession,
-		chat: mainWindowSession?.activeChat.get(),
+		session: owner.session,
+		chat: owner.chat,
 		changes: {
 			changesObs: changesViewService.activeSessionChangesObs,
 			changesetObs: changesViewService.activeSessionChangesetObs,

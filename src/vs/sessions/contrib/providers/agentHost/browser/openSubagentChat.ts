@@ -20,7 +20,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
@@ -80,7 +80,9 @@ function createSubagentChatLookup(sessionsService: ISessionsService, sessionHost
 	const bySession = new ResourceMap<SubagentChatIndex>();
 	const byLegacyPath = new Map<string, SubagentChatIndex>();
 	// The sessions other hosts show too, such as of a link in a chat window's chat.
-	const sessions: (IHostSession | undefined)[] = [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader), ...sessionHostService.hosts.read(reader).map(host => host.session.read(reader))];
+	// The main window's session first, as the one the user most likely links from.
+	const hosts = sessionHostService.hosts.read(reader);
+	const sessions: (IHostSession | undefined)[] = [...hosts.filter(host => host.kind === SessionHostKind.MainWindow).map(host => host.session.read(reader)), ...sessionsService.visibleSessions.read(reader), ...hosts.map(host => host.session.read(reader))];
 	let order = 0;
 	for (const session of sessions) {
 		if (!session || bySession.has(session.resource)) {
@@ -142,8 +144,8 @@ export class OpenSubagentChatActionViewItemContribution extends Disposable imple
 						: undefined);
 					return true;
 				}
-				const active = sessionsService.activeSession.get();
-				const available = active?.chats.get().map(chat => chat.resource.toString()).join(', ') ?? '(none)';
+				const shownChats = sessionHostService.hosts.get().flatMap(host => host.session.get()?.chats.get() ?? []).map(chat => chat.resource.toString());
+				const available = shownChats.length ? [...new Set(shownChats)].join(', ') : '(none)';
 				logService.warn(`[Sessions] Cannot open subagent chat for resource '${resource}' (chatId='${chatIdFromResource(resource)}'). Available chats: ${available}`);
 				return true;
 			}
