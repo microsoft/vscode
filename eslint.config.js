@@ -1904,6 +1904,30 @@ export default defineConfig(
 					]
 				},
 				{
+					// Component fixtures render Agents window UI for screenshots. They are test-only and are
+					// the one place under vs/workbench that may import vs/sessions. Must precede
+					// 'src/vs/workbench/~', which also matches them; the first matching target wins.
+					'target': 'src/vs/workbench/test/browser/componentFixtures/**',
+					'layer': 'browser',
+					'test': true,
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/sessions/services/*/~',
+						'assert',
+					]
+				},
+				{
 					'target': 'src/vs/workbench/~',
 					'restrictions': [
 						'vs/base/~',
@@ -2006,7 +2030,6 @@ export default defineConfig(
 						'vs/workbench/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/sessions/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
 						'vscode-notebook-renderer', // Type only import

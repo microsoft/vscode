@@ -32,7 +32,6 @@ import { ISessionChatPillsDebugData } from '../../../../contrib/sessions/browser
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
 import { SessionInputBanners } from '../../../../contrib/sessions/browser/sessionInputBanners/sessionInputBanners.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';
-// eslint-disable-next-line local/code-import-patterns
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
 import { ISessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../contrib/sessions/common/session.js';

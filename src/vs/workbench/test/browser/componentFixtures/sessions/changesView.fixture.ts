@@ -35,7 +35,6 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
 import { DesktopChangesViewPane } from '../../../../contrib/sessions/browser/changes/changesView.js';
-// eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
 import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';

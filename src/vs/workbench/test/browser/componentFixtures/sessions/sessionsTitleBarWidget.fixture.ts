@@ -22,13 +22,9 @@ import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsS
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../contrib/sessions/common/agentHostFilter.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../contrib/sessions/browser/blockedSessions.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
 import { stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';

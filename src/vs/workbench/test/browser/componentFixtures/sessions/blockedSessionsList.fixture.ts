@@ -21,9 +21,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../contrib/
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
-// eslint-disable-next-line local/code-import-patterns
 import { registerBlockedSessionsHeaderActions, registerBlockedSessionsHeaderCommands } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
 import { ISessionCIFixModel, ISessionCIFixState } from '../../../../contrib/sessions/browser/views/sessionsList.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';

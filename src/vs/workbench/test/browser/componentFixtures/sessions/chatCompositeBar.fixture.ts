@@ -30,7 +30,6 @@ import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.f
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
-// eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/media/workbench.css';
 import '../../../../contrib/sessions/browser/parts/media/sessionsPart.css';
 import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
