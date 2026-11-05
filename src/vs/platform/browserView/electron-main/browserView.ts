@@ -560,8 +560,9 @@ export class BrowserView extends Disposable {
 
 		// `input-event` is only observed on the primary main frame's widget, so it misses input to
 		// out-of-process (cross-site) iframes. `before-mouse-event` also fires for those.
+		// Only mouse down counts, so releasing the button doesn't re-arm an already consumed gesture.
 		webContents.on('before-mouse-event', (_event, mouse) => {
-			if (mouse.type === 'mouseDown' || mouse.type === 'mouseUp') {
+			if (mouse.type === 'mouseDown') {
 				this._lastUserGestureTimestamp = Date.now();
 			}
 		});
