@@ -427,6 +427,9 @@ suite('ChatStatusPromo', () => {
 			'a sale on an unavailable tier': [fusion({ tierIds: ['hydrafusion-max'] }, {
 				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } } },
 			}), undefined],
+			'a sale when the effort level cannot be changed': [fusion({}, {
+				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'balance', readOnly: true } } },
+			}), undefined],
 			'Auto that is not Fusion': [fusion({}, { autoModelFusion: undefined }), undefined],
 			'a dismissed sale': [{ ...fusion({ id: 'sale' }), storedKey: 'chat.dismissedPromoIds' }, undefined],
 		};

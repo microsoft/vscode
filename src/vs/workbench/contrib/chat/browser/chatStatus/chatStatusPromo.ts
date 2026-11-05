@@ -51,13 +51,13 @@ function getFusionEffort(identifier: string, metadata: ILanguageModelChatMetadat
 		: undefined;
 }
 
-/** The offered effort levels that a Copilot Fusion sale discounts, keyed by the sale. */
+/** The effort levels a user can select that a Copilot Fusion sale discounts, keyed by the sale. */
 function getFusionPromotions(identifier: string, metadata: ILanguageModelChatMetadata): Map<IAutoModelTierPromotion, string[]> {
 	const promotions = new Map<IAutoModelTierPromotion, string[]>();
 	const effort = getFusionEffort(identifier, metadata);
 	const now = Date.now();
 	for (const choice of effort ? getModelConfigChoices(effort) : []) {
-		const promotion = !choice.unavailable ? ILanguageModelChatMetadata.getAutoTierPromotion(metadata, choice.value, now) : undefined;
+		const promotion = !choice.readOnly ? ILanguageModelChatMetadata.getAutoTierPromotion(metadata, choice.value, now) : undefined;
 		if (promotion && promotion.discountPercent > 0) {
 			promotions.set(promotion, [...promotions.get(promotion) ?? [], choice.value as string]);
 		}
