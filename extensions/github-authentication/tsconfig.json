@@ -7,9 +7,6 @@
 			"node",
 			"mocha"
 		],
-		"typeRoots": [
-			"./node_modules/@types"
-		],
 		"lib": [
 			"WebWorker",
 			"ES2024"
@@ -20,6 +17,8 @@
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authProviderSpecific.d.ts",
-		"../../src/vscode-dts/vscode.proposed.authSessionAccountIcon.d.ts"
+		"../../src/vscode-dts/vscode.proposed.authSessionAccountIcon.d.ts",
+		"../../src/vscode-dts/vscode.proposed.authSessionExpiration.d.ts",
+		"../../src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts"
 	]
 }

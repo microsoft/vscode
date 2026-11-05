@@ -9,7 +9,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { NullLogService } from '../../../log/common/log.js';
 import { buildBranchChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostCheckoutOperationContribution } from '../../node/agentHostCheckoutOperationProvider.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -29,6 +29,7 @@ suite('AgentHostCheckoutOperationContribution', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		const contribution = disposables.add(new AgentHostCheckoutOperationContribution(
 			stateManager,

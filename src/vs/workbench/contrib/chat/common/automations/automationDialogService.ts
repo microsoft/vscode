@@ -9,9 +9,17 @@ import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automation
 
 export type AutomationDialogCreateInitialValues = Omit<ICreateAutomationOptions, 'target'> & { readonly target?: AutomationTarget };
 
-export type IShowAutomationDialogOptions =
+export type IShowAutomationDialogOptions = (
 	| { readonly existing: IAutomationDescriptor; readonly initialValues?: never }
-	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues };
+	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues }
+) & {
+	/**
+	 * Persists the result while the dialog stays open and shows progress. A rejection
+	 * is shown in the dialog so the user can retry or cancel; the dialog resolves
+	 * only after `commit` succeeds.
+	 */
+	readonly commit?: (result: IAutomationDialogResult) => Promise<void>;
+};
 
 export type IAutomationDialogResult =
 	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }

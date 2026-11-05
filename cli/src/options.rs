@@ -65,7 +65,7 @@ impl TryFrom<&str> for Quality {
 	type Error = String;
 
 	fn try_from(s: &str) -> Result<Self, Self::Error> {
-		match s {
+		match s.to_ascii_lowercase().as_str() {
 			"stable" => Ok(Quality::Stable),
 			"insiders" | "insider" => Ok(Quality::Insiders),
 			"exploration" => Ok(Quality::Exploration),
@@ -92,5 +92,56 @@ impl fmt::Display for TelemetryLevel {
 			TelemetryLevel::Error => write!(f, "error"),
 			TelemetryLevel::All => write!(f, "all"),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_quality_try_from() {
+		assert_eq!(Quality::try_from("stable").unwrap(), Quality::Stable);
+		assert_eq!(Quality::try_from("Stable").unwrap(), Quality::Stable);
+		assert_eq!(Quality::try_from("STABLE").unwrap(), Quality::Stable);
+
+		assert_eq!(Quality::try_from("insiders").unwrap(), Quality::Insiders);
+		assert_eq!(Quality::try_from("Insiders").unwrap(), Quality::Insiders);
+		assert_eq!(Quality::try_from("insider").unwrap(), Quality::Insiders);
+		assert_eq!(Quality::try_from("INSIDER").unwrap(), Quality::Insiders);
+
+		assert_eq!(
+			Quality::try_from("exploration").unwrap(),
+			Quality::Exploration
+		);
+		assert_eq!(
+			Quality::try_from("Exploration").unwrap(),
+			Quality::Exploration
+		);
+
+		assert!(Quality::try_from("unknown").is_err());
+	}
+
+	#[test]
+	fn test_quality_display_and_names() {
+		assert_eq!(Quality::Stable.get_machine_name(), "stable");
+		assert_eq!(Quality::Stable.get_capitalized_name(), "Stable");
+		assert_eq!(format!("{}", Quality::Stable), "Stable");
+
+		assert_eq!(Quality::Insiders.get_machine_name(), "insiders");
+		assert_eq!(Quality::Insiders.get_capitalized_name(), "Insiders");
+		assert_eq!(format!("{}", Quality::Insiders), "Insiders");
+
+		assert_eq!(Quality::Exploration.get_machine_name(), "exploration");
+		assert_eq!(Quality::Exploration.get_capitalized_name(), "Exploration");
+		assert_eq!(format!("{}", Quality::Exploration), "Exploration");
+	}
+
+	#[test]
+	fn test_telemetry_level_display() {
+		assert_eq!(format!("{}", TelemetryLevel::Off), "off");
+		assert_eq!(format!("{}", TelemetryLevel::Crash), "crash");
+		assert_eq!(format!("{}", TelemetryLevel::Error), "error");
+		assert_eq!(format!("{}", TelemetryLevel::All), "all");
 	}
 }

@@ -157,9 +157,12 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 		const { message, disclaimer } = state.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
+		const inputData = toolInvocation.toolSpecificData?.kind === 'input'
+			&& toolInvocation.toolSpecificData.rawInput && !isEmptyObject(toolInvocation.toolSpecificData.rawInput)
+			? toolInvocation.toolSpecificData : undefined;
 
-		if (typeof message === 'string' && !disclaimer) {
-			return message;
+		if (typeof message === 'string' && !disclaimer && !inputData) {
+			return dom.$('.message-wrapper', undefined, message);
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 				hideToolbar: true,
@@ -182,13 +185,12 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				dom.h('.disclaimer@disclaimer'),
 			]);
 
-			if (toolInvocation.toolSpecificData?.kind === 'input' && toolInvocation.toolSpecificData.rawInput && !isEmptyObject(toolInvocation.toolSpecificData.rawInput)) {
+			if (inputData) {
 
 				const titleEl = document.createElement('h3');
 				titleEl.textContent = localize('chat.input', "Input");
 				elements.editor.appendChild(titleEl);
 
-				const inputData = toolInvocation.toolSpecificData;
 				// Editable unless a producer opts out, so tools that predate the flag are unchanged.
 				const isEditable = inputData.editable ?? true;
 
@@ -297,7 +299,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				}
 			}
 
-			const mdPart = this._makeMarkdownPart(elements.message, message!, codeBlockRenderOptions);
+			const mdPart = this._makeMarkdownPart(elements.message, typeof message === 'string' ? new MarkdownString().appendText(message) : message!, codeBlockRenderOptions);
 
 			const messageSeeMoreObserver = this._register(new ElementSizeObserver(mdPart.domNode, undefined));
 			const updateSeeMoreDisplayed = () => {
@@ -350,7 +352,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			this.codeBlockStartIndex,
 			this.renderer,
 			undefined,
-			this.currentWidthDelegate(),
+			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store, this.openedEditors.fileWidgetOptions);

@@ -13,20 +13,29 @@ import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { DraggedSessionIdentifier } from '../dnd.js';
+import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../dnd.js';
+import { URI } from '../../../base/common/uri.js';
 import { ISession } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsService, SessionGridDirection } from '../../services/sessions/browser/sessionsService.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 
 /** Side of a target view where a dragged session can be dropped. */
-type DropSide = 'left' | 'right';
+type DropSide = SessionGridDirection;
+
+export function getSessionDropDirection(x: number, y: number, width: number, height: number): SessionGridDirection {
+	const horizontal = x / Math.max(1, width);
+	const vertical = y / Math.max(1, height);
+	const edge = Math.min(horizontal, 1 - horizontal, vertical, 1 - vertical);
+	return edge === horizontal ? 'left' : edge === 1 - horizontal ? 'right' : edge === vertical ? 'up' : 'down';
+}
 
 /**
  * Resolves an HTML element under the part's content area to the session view
  * it belongs to (if any). Returns the session id and the view's root element.
  */
 export interface ISessionDropTargetDelegate {
-	findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined;
+	findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly gridSlotId?: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined;
 }
 
 class SessionDropOverlay extends Themable {
@@ -46,8 +55,11 @@ class SessionDropOverlay extends Themable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	constructor(
-		readonly targetSessionId: string,
+		readonly targetSessionId: string | undefined,
 		private readonly _targetElement: HTMLElement,
+		private readonly _targetGridSlotId: string,
+		private readonly _targetIsChat: boolean,
+		event: DragEvent,
 		@IThemeService themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -56,11 +68,12 @@ class SessionDropOverlay extends Themable {
 
 		this._cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
 
-		this._create();
+		this._create(event);
 	}
 
-	private _create(): void {
+	private _create(event: DragEvent): void {
 		const container = this._container = $('div', { id: SessionDropOverlay.OVERLAY_ID });
+		container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, event);
 
 		this._targetElement.appendChild(container);
 		this._targetElement.classList.add('dragged-over');
@@ -91,12 +104,13 @@ class SessionDropOverlay extends Themable {
 	private _registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragOver: e => {
-				if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype)) {
+				if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype) && !isSessionChatDrag(e)) {
 					this._hideOverlay();
 					return;
 				}
 
-				this._positionOverlay(e.offsetX);
+				container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, e);
+				this._positionOverlay(e.clientX, e.clientY);
 
 				if (this._cleanupOverlayScheduler.isScheduled()) {
 					this._cleanupOverlayScheduler.cancel();
@@ -109,11 +123,12 @@ class SessionDropOverlay extends Themable {
 			onDrop: e => {
 				EventHelper.stop(e, true);
 
+				this._positionOverlay(e.clientX, e.clientY);
 				const side = this._currentSide;
 				this.dispose();
 
 				if (side) {
-					this._handleDrop(side);
+					this._handleDrop(side, e);
 				}
 			}
 		}));
@@ -128,7 +143,12 @@ class SessionDropOverlay extends Themable {
 		}));
 	}
 
-	private _handleDrop(side: DropSide): void {
+	private _handleDrop(side: DropSide, event: DragEvent): void {
+		const chat = getSessionChatDragData(event);
+		if (chat) {
+			void this._sessionsService.moveChatToGrid(chat.sessionId, URI.parse(chat.resource), this._targetGridSlotId, side).catch(onUnexpectedError);
+			return;
+		}
 		const data = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype);
 		this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 
@@ -136,11 +156,25 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
+		if (data.length === 1 && !data[0].resource) {
+			this._sessionsService.insertAt(undefined, this.targetSessionId, side, true, this._targetGridSlotId);
+			return;
+		}
+
+		if (data.length === 1) {
+			const draft = this._sessionsService.visibleSessions.get().find(session => session?.sessionId === data[0].sessionId);
+			// Provider drafts can be visible before they appear in the session list.
+			if (draft && !draft.isCreated.get()) {
+				this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);
+				return;
+			}
+		}
+
 		// Resolve all dragged sessions (preserving drag order), skipping the
 		// target itself so dropping a session next to itself is a no-op.
 		const sessions: ISession[] = [];
 		for (const dragged of data) {
-			if (dragged.sessionId === this.targetSessionId) {
+			if (!dragged.resource || dragged.sessionId === this.targetSessionId && !this._targetIsChat) {
 				continue;
 			}
 			const session = this._sessionsManagementService.getSession(dragged.resource);
@@ -153,25 +187,19 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		const primary = sessions[0];
-
-		// Insert each next to the target. When dropping on the right we insert in
-		// reverse so the drag order is preserved left-to-right; only the primary
-		// (first) dragged session is activated.
-		const ordered = side === 'right' ? [...sessions].reverse() : sessions;
-		for (const session of ordered) {
-			this._sessionsService.insertAt(session, this.targetSessionId, side, session === primary);
-		}
+		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side, { referenceSlotId: this._targetGridSlotId, forceMainChat: true }).catch(onUnexpectedError);
 	}
 
-	private _positionOverlay(mousePosX: number): void {
-		const width = this._targetElement.clientWidth;
-		const side: DropSide = mousePosX < width / 2 ? 'left' : 'right';
+	private _positionOverlay(clientX: number, clientY: number): void {
+		const rect = this._targetElement.getBoundingClientRect();
+		const side = getSessionDropDirection(clientX - rect.left, clientY - rect.top, rect.width, rect.height);
 
 		if (side === 'left') {
 			this._doPositionOverlay({ left: '0', width: '50%' });
-		} else {
+		} else if (side === 'right') {
 			this._doPositionOverlay({ left: '50%', width: '50%' });
+		} else {
+			this._doPositionOverlay({ left: '0', width: '100%', top: side === 'up' ? '0' : '50%', height: '50%' });
 		}
 
 		const overlay = assertReturnsDefined(this._overlay);
@@ -183,11 +211,11 @@ class SessionDropOverlay extends Themable {
 		this._currentSide = side;
 	}
 
-	private _doPositionOverlay(options: { left: string; width: string }): void {
+	private _doPositionOverlay(options: { left: string; width: string; top?: string; height?: string }): void {
 		const [container, overlay] = assertReturnsAllDefined(this._container, this._overlay);
 		container.style.height = '100%';
-		overlay.style.top = '0';
-		overlay.style.height = '100%';
+		overlay.style.top = options.top ?? '0';
+		overlay.style.height = options.height ?? '100%';
 		overlay.style.left = options.left;
 		overlay.style.width = options.width;
 	}
@@ -216,11 +244,10 @@ class SessionDropOverlay extends Themable {
 /**
  * Drop target for the sessions grid. Listens for drag events over the part's
  * content area, displays a half-pane overlay on whichever session view is
- * being hovered, and calls into {@link ISessionsManagementService} to insert
+ * being hovered, and calls into {@link ISessionsService} to insert
  * or move the dragged session next to the target.
  *
- * Currently supports only left/right insertion; up/down and "into" drops are
- * not supported.
+ * The nearest normalized edge selects a split; the center never merges sessions.
  */
 export class SessionDropTarget extends Themable {
 
@@ -258,21 +285,33 @@ export class SessionDropTarget extends Themable {
 
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
+		if (isChatReferenceInputDrop(event)) {
+			this._disposeOverlay();
+			this._updateContainer(false);
+			return;
+		}
 
 		// Only handle drags that carry a session payload.
-		if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype)) {
+		if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype) && !isSessionChatDrag(event)) {
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';
 			}
 			return;
 		}
 
-		this._updateContainer(true);
-
 		const target = event.target as HTMLElement;
 		if (!target) {
 			return;
 		}
+		const targetView = this._delegate.findTargetView(target);
+		if (targetView && targetView.sessionId !== undefined && !targetView.chatResource && isSessionChatDrag(event, targetView.sessionId)) {
+			return;
+		}
+		if (targetView && !targetView.chatResource && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
+			return;
+		}
+
+		this._updateContainer(true);
 
 		// If the mouse jumped out of the current overlay, dispose it.
 		if (this.overlay && !this.overlay.contains(target)) {
@@ -283,7 +322,6 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 
-		const targetView = this._delegate.findTargetView(target);
 		if (!targetView) {
 			return;
 		}
@@ -292,6 +330,9 @@ export class SessionDropTarget extends Themable {
 			SessionDropOverlay,
 			targetView.sessionId,
 			targetView.element,
+			assertReturnsDefined(targetView.gridSlotId ?? targetView.sessionId),
+			!!targetView.chatResource,
+			event,
 		);
 	}
 
@@ -300,6 +341,7 @@ export class SessionDropTarget extends Themable {
 
 		if (this._counter === 0) {
 			this._updateContainer(false);
+			this._disposeOverlay();
 		}
 	}
 

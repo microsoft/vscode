@@ -242,6 +242,16 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 		return filters;
 	}
+
+	/** Maps the core-available Copilot filters to new TAS userParams without forwarding legacy headers. */
+	getAssignmentsFilters(): Map<string, string | null> {
+		return new Map([
+			['github_core_copilotsku', this.getFilterValue(ExtensionsFilter.CopilotSku)],
+			['github_core_issn', this.getFilterValue(ExtensionsFilter.CopilotIsSn)],
+			['github_core_isfcv1', this.getFilterValue(ExtensionsFilter.CopilotIsFcv1)],
+			['vscode_core_copilotchatextensionversion', this.getFilterValue(ExtensionsFilter.CopilotChatExtensionVersion)],
+		]);
+	}
 }
 
 /**
@@ -251,6 +261,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
  */
 export enum GitHubAssignmentsFilter {
 	CopilotTrackingId = 'copilottrackingid',
+	/** Whether the account is staff or belongs to a recognized internal organization. */
 	IsGhOrMsftStaff = 'github_core_isghormsftstaff',
 	GhMsftOrExternal = 'github_core_ghmsftorexternal',
 }
@@ -262,6 +273,7 @@ export enum GitHubAssignmentsFilter {
 export class GitHubCoreAssignmentsFilterProvider extends Disposable implements IExperimentationFilterProvider {
 	private copilotTrackingId: string | undefined;
 	private internalOrg: 'vscode' | 'github' | 'microsoft' | undefined;
+	private isInternal = false;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
@@ -278,13 +290,15 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 	private update(): void {
 		const newTrackingId = this._chatEntitlementService.copilotTrackingId ?? this.copilotTrackingId;
 		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
+		const newIsInternal = this._chatEntitlementService.isInternal;
 
-		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg) {
+		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg && this.isInternal === newIsInternal) {
 			return;
 		}
 
 		this.copilotTrackingId = newTrackingId;
 		this.internalOrg = newInternalOrg;
+		this.isInternal = newIsInternal;
 
 		this._onDidChangeFilters.fire();
 	}
@@ -303,13 +317,9 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 			case GitHubAssignmentsFilter.CopilotTrackingId:
 				return copilotTrackingId ?? null;
 			case GitHubAssignmentsFilter.IsGhOrMsftStaff:
-				return internalOrg ? '1' : '0';
+				return this._chatEntitlementService.isInternal ? '1' : '0';
 			case GitHubAssignmentsFilter.GhMsftOrExternal:
-				return internalOrg === 'github'
-					? 'github'
-					: (internalOrg === 'microsoft' || internalOrg === 'vscode')
-						? 'microsoft'
-						: 'external';
+				return internalOrg ?? 'external';
 			default:
 				return null;
 		}

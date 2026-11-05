@@ -17,6 +17,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
 import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('Breadcrumb Model', function () {
 
@@ -28,7 +31,10 @@ suite('Breadcrumb Model', function () {
 		}
 	};
 	const outlineService = new class extends mock<IOutlineService>() { };
-	const labelService = new MockLabelService();
+	const uriIdentityService = new class extends mock<IUriIdentityService>() {
+		override readonly extUri = new ExtUri(() => false);
+	};
+	const labelService = new MockLabelService(uriIdentityService.extUri);
 	const configService = new class extends TestConfigurationService {
 		override getValue<T>(...args: Parameters<TestConfigurationService['getValue']>): T | undefined {
 			if (args[0] === 'breadcrumbs.filePath') {
@@ -44,8 +50,8 @@ suite('Breadcrumb Model', function () {
 		}
 	};
 
-	function createModel(resource: URI, workspace: TestContextService = workspaceService): BreadcrumbsModel {
-		return new BreadcrumbsModel(resource, undefined, configService, workspace, workspaceFolderLabelService, outlineService, labelService);
+	function createModel(resource: URI, workspace: TestContextService = workspaceService, labels: MockLabelService = labelService, uriIdentity: IUriIdentityService = uriIdentityService): BreadcrumbsModel {
+		return new BreadcrumbsModel(resource, undefined, configService, workspace, workspaceFolderLabelService, outlineService, labels, uriIdentity);
 	}
 
 	teardown(function () {
@@ -131,6 +137,41 @@ suite('Breadcrumb Model', function () {
 				{ name: 'file.md', kind: FileKind.FILE },
 			]
 		});
+		registration.dispose();
+	});
+
+	test('shows only the path relative to a Windows home with different casing', function () {
+		const windowsUriIdentityService = new class extends mock<IUriIdentityService>() {
+			override readonly extUri = new ExtUri(uri => uri.scheme === Schemas.file);
+		};
+		const windowsLabelService = new MockLabelService(windowsUriIdentityService.extUri);
+		const home = URI.from({ scheme: Schemas.file, path: '/c:/Users/test/.copilot/session-state/session-id' });
+		const registration = windowsLabelService.registerFormatter({ scheme: home.scheme, home: home.path, formatting: { label: 'Copilot/Session', separator: '/' } });
+		const resource = URI.from({ scheme: Schemas.file, path: '/C:/Users/Test/.copilot/session-state/session-id/files/result.html' });
+		model = createModel(resource, workspaceService, windowsLabelService, windowsUriIdentityService);
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => element.label ?? element.uri.path.split('/').at(-1)), [
+			'Copilot',
+			'Session',
+			'files',
+			'result.html',
+		]);
+
+		registration.dispose();
+	});
+
+	test('keeps the full path when home casing differs on a case-sensitive scheme', function () {
+		const home = URI.parse('case-sensitive:/Users/test/session-id');
+		const registration = labelService.registerFormatter({ scheme: home.scheme, home: home.path, formatting: { label: 'Session', separator: '/' } });
+		model = createModel(URI.parse('case-sensitive:/Users/Test/session-id/file.md'));
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => element.uri.path.split('/').at(-1)), [
+			'Users',
+			'Test',
+			'session-id',
+			'file.md',
+		]);
+
 		registration.dispose();
 	});
 

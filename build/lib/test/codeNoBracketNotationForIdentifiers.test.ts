@@ -20,6 +20,15 @@ new RuleTester().run('code-no-bracket-notation-for-identifiers', rule, {
 		'object[`property`];',
 		String.raw`object["\u0061"];`,
 		String.raw`object["a\x62"];`,
+		'process.env["ProgramW6432"];',
+		'process.env["PROGRAMFILES"];',
+		'process.env["https_proxy"];',
+		'process.env["PATH"] = "value";',
+		'delete process.env["PATH"];',
+		'process.env.PATH;',
+		'process.env?.["PATH"];',
+		'process?.env?.["PATH"];',
+		'(process.env)["PATH"];',
 	],
 	invalid: [
 		{
@@ -76,5 +85,19 @@ new RuleTester().run('code-no-bracket-notation-for-identifiers', rule, {
 			output: null,
 			errors: [{ messageId: 'noBracketNotation', data: { property: 'property' } }],
 		},
+		...[
+			{ code: 'opts["f"];', output: 'opts.f;', property: 'f' },
+			{ code: 'env["PATH"];', output: 'env.PATH;', property: 'PATH' },
+			{ code: 'safeProcess.env["PATH"];', output: 'safeProcess.env.PATH;', property: 'PATH' },
+			{ code: 'process.versions["node"];', output: 'process.versions.node;', property: 'node' },
+			{ code: 'process.env.nested["PATH"];', output: 'process.env.nested.PATH;', property: 'PATH' },
+			{ code: 'other.process.env["PATH"];', output: 'other.process.env.PATH;', property: 'PATH' },
+			{ code: 'process[key]["PATH"];', output: 'process[key].PATH;', property: 'PATH' },
+			{ code: 'const env = process.env; env["PATH"];', output: 'const env = process.env; env.PATH;', property: 'PATH' },
+		].map(({ code, output, property }) => ({
+			code,
+			output,
+			errors: [{ messageId: 'noBracketNotation', data: { property } }],
+		})),
 	],
 });

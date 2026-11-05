@@ -29,4 +29,4 @@ export * from './workbench';
 export * from './task';
 export * from './chat';
 export * from './agentsWindow';
-export { getDevElectronPath, getBuildElectronPath, getBuildVersion } from './electron';
+export { getDevElectronPath, getBuildElectronPath, getBuildProductPath, getBuildVersion } from './electron';

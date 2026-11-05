@@ -7,6 +7,7 @@ import electron from 'electron';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
@@ -40,7 +41,10 @@ export interface IBaseWindow extends IDisposable {
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void;
+	/** Does what a double-click on the title bar of the window does, as the system settings say. */
+	handleTitleDoubleClick(): void;
+
+	updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void;
 
 	matches(webContents: electron.WebContents): boolean;
 }
@@ -62,6 +66,8 @@ export interface ICodeWindow extends IBaseWindow {
 	readonly backupPath?: string;
 
 	readonly remoteAuthority?: string;
+
+	readonly iconPath?: URI;
 
 	readonly isExtensionDevelopmentHost: boolean;
 	readonly isExtensionTestHost: boolean;
@@ -86,7 +92,11 @@ export interface ICodeWindow extends IBaseWindow {
 
 	notifyZoomLevel(zoomLevel: number | undefined): void;
 
-	serializeWindowState(): IWindowState;
+	/**
+	 * @param options.exact the windows will be restored exactly as they are, so the state
+	 * also records whether the window is minimized, and if so, whether it is maximized.
+	 */
+	serializeWindowState(options?: { readonly exact?: boolean }): IWindowState;
 }
 
 export const enum LoadReason {
@@ -138,6 +148,12 @@ export interface IWindowState {
 	mode?: WindowMode;
 	zoomLevel?: number;
 	readonly display?: number;
+
+	/**
+	 * Whether the window is minimized. Only recorded and restored when the application
+	 * restores its windows exactly, after an unattended update restart.
+	 */
+	minimized?: boolean;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal, hasWorkspace = false): IWindowState {

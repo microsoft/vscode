@@ -19,6 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { CopilotToken } from './copilotToken';
 import { ICopilotTokenManager } from './copilotTokenManager';
 import { ICopilotTokenStore } from './copilotTokenStore';
+import { authenticationSessionIdentityEquals } from './enterprise';
 
 // Minimum set of scopes needed for Copilot to work
 export const GITHUB_SCOPE_USER_EMAIL = ['user:email'];
@@ -177,6 +178,14 @@ export interface IAuthenticationService {
 	 * Fired when the authentication state changes for ado.
 	 */
 	readonly onDidAdoAuthenticationChange: Event<void>;
+
+	/**
+	 * Checks if there is currently any Azure DevOps session available in the cache. Does not make any network
+	 * requests and does not call out to the underlying authentication provider.
+	 *
+	 * @note For best practice of handling of the user's authentication state, you should react to {@link onDidAdoAuthenticationChange}.
+	 */
+	readonly anyAdoSession: AuthenticationSession | undefined;
 
 	/**
 	 * Returns a valid Azure DevOps session for the user
@@ -339,7 +348,9 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 
 		if (
 			anyGitHubSessionBefore?.accessToken !== this._anyGitHubSession?.accessToken ||
-			permissiveGitHubSessionBefore?.accessToken !== this._permissiveGitHubSession?.accessToken
+			permissiveGitHubSessionBefore?.accessToken !== this._permissiveGitHubSession?.accessToken ||
+			!authenticationSessionIdentityEquals(anyGitHubSessionBefore, this._anyGitHubSession) ||
+			!authenticationSessionIdentityEquals(permissiveGitHubSessionBefore, this._permissiveGitHubSession)
 		) {
 			this._onDidAccessTokenChange.fire();
 			this._logService.debug('Auth state changed (identity change), minting a new CopilotToken...');

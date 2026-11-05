@@ -3,29 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
+
 import './media/sessionView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISessionViewHostOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
-import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
+import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionGridView } from './sessionGridLayout.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -38,10 +44,11 @@ export interface ISessionViewOptions extends IChatViewOptions { }
  * delegates `openSession(...)` to this host so it no longer needs to remove/add
  * grid views as the bound session changes.
  *
- * Hosts the {@link SessionHeader} (centered, width-capped) above a
- * {@link ChatGroupsView} that renders the session's chats as a grid of groups.
+ * Hosts the full-width {@link SessionHeader} above a {@link ChatGroupsView} that
+ * renders the session's chats as a grid of groups. The header content shares the
+ * chat's centered, width-capped content band.
  */
-export class SessionView extends Disposable implements ISerializableView {
+export class SessionView extends Disposable implements ISerializableView, ISessionGridView {
 
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
@@ -58,12 +65,17 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _header: SessionHeader;
 	private readonly _groupsView: ChatGroupsView;
-	private readonly _standaloneView = this._register(new MutableDisposable<AbstractChatView>());
+	private readonly _standaloneView = this._register(disposableObservableValue<AbstractChatView | undefined>(this, undefined));
+	private readonly _preparationView = observableValue<AbstractChatView | undefined>(this, undefined);
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
+	/** Created once a standalone view is shown; chat groups host their own Session Activity Bar. */
+	private _standaloneSessionActivityBar: ChatViewSessionActivityBar | undefined;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _lastContentLayout: { readonly view: AbstractChatView | ChatGroupsView; readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
+	private _contentGap = 0;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
@@ -71,6 +83,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _scopedContextKeyService: IContextKeyService;
+	private readonly _scopedInstantiationService: IInstantiationService;
 
 	/** Whether the hosted groups view currently shows a grid (more than one group). */
 	private _isGridLayout = false;
@@ -85,53 +98,95 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+	/** The host of what this view shows, nested in the host of its window. */
+	readonly host: ISessionHost;
+	private readonly _isVisibleObs = observableValue(this, true);
+	readonly shownChatCount: IObservable<number>;
+
+	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader) && !this._sessionObs.read(reader)?.preparationProgress?.read(reader)
+		? this._standaloneView.read(reader)?.pickerVisibility.read(reader) ?? noSessionPickerVisibility
+		: noSessionPickerVisibility);
+
+	/** The chat view of the first chat group, while the session shows its chats; undefined while it shows a composer. */
+	readonly primaryChatView: IObservable<AbstractChatView | undefined>;
+
+	/** The top of {@link primaryChatView} within this view: below the session header and the bar of its chat group. */
+	readonly primaryChatViewTop: IObservable<number>;
+
+	private readonly _headerHeight = observableValue<number>(this, 0);
+	/** The element outside of this view that shows the session header; see {@link setHeaderHost}. */
+	private _headerHost: HTMLElement | undefined;
+
+	/** Whether the session header shows, wherever it is; see {@link setHeaderHost}. */
+	readonly headerShown: IObservable<boolean>;
+
+	/** The title of the session header, wherever the header shows; see {@link setHeaderHost}. */
+	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
 
 	constructor(
+		private readonly _hostOptions: ISessionViewHostOptions | undefined,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
+		@ISessionHost parentHost: ISessionHost,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
 		super();
+
+		this.element.setAttribute('role', 'region');
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			this.element.setAttribute('aria-label', session ? localize('sessionPane', "Session: {0}", session.title.read(reader)) : localize('newSessionPane', "New Session"));
+		}));
 
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
 		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
+		const pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(scopedContextKeyService));
+		this._register(autorun(reader => pickerVisibilityContextKeys.set(this.pickerVisibility.read(reader))));
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
-			[ISessionContext, new SessionContext(this._sessionObs)],
-		)));
+		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._sessionObs, contextKeyService: scopedContextKeyService });
+		this._register(sessionHostService.registerHost(this.host));
+		this._scopedInstantiationService = this._register(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 
-
-		// Expose the centered-content cap as a CSS variable so styles that need
-		// to align with the centered band (e.g. the chat-view progress bar) can
-		// reference it without duplicating the constant.
+		// Expose the content cap so aligned chat surfaces do not duplicate it.
 		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
 
-		// The header is hosted in a centered, width-capped container so it aligns
-		// with the centered chat content. The chat groups grid lives in a
-		// full-width container below it so its transcript list spans the whole
-		// session view and its scrollbar stays pinned to the right edge; the chat
-		// rows and input self-center at the same max-width via CSS.
+		// The full-width host backs the session while CSS caps its inner content.
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
-		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
+		this._header = this._register(this._scopedInstantiationService.createInstance(SessionHeader));
 		this._centeredContentContainer.appendChild(this._header.element);
+		this.headerShown = observableFromEvent(this, this._header.onDidChangeVisibility, () => this._header.visible);
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
 
-		this._groupsView = this._register(scopedInstantiationService.createInstance(ChatGroupsView));
+		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView, _hostOptions, undefined));
+		this.primaryChatView = derived(this, reader => this._standaloneView.read(reader) || this._preparationView.read(reader) ? undefined : this._groupsView.primaryChatView.read(reader));
+		this.primaryChatViewTop = derived(this, reader => this._headerHeight.read(reader) + this._groupsView.primaryChatViewTop.read(reader));
 		this._contentContainer.appendChild(this._groupsView.element);
+		this.shownChatCount = derived(this, reader => {
+			if (!this._isVisibleObs.read(reader)) {
+				return 0;
+			}
+			return this._standaloneView.read(reader) ? 1 : this._groupsView.groupCount.read(reader);
+		});
 
-		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
+		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
+
+		this._register(autorun(reader => {
+			this._contentContainer.classList.toggle('standalone-chat', !!this._standaloneView.read(reader));
+			this._preparationView.read(reader);
+			this._updateStandaloneSessionActivityBar();
+		}));
 
 		this._applyActiveSessionStyles();
 		this._register(this.themeService.onDidColorThemeChange(() => this._applyActiveSessionStyles()));
@@ -154,10 +209,12 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._register(autorun(reader => {
 			const session = this._sessionObs.read(reader);
-			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
-				&& (session?.isCreated.read(reader) ?? false)
-				&& (session?.shouldShowChatTabs.read(reader) ?? false);
-			this._header.setVisible(!tabsReplaceHeader);
+			const groupCount = this._groupsView.groupCount.read(reader);
+			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
+			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
+				&& !showChatAsSessionView
+				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
+			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
 		}));
@@ -167,6 +224,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
+		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
@@ -177,28 +235,72 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._header.setSession(session);
 		if (session && !session.isCreated.get()) {
 			this._groupsView.setSession(undefined, options);
-			let view = this._standaloneView.value;
+			let view = this._standaloneView.get();
 			if (!view || view.kind !== 'newSession') {
-				view = this._chatViewFactory.createNewChatView(false, options);
-				this._standaloneView.value = view;
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
 			}
 			if (view.element.parentElement !== this._contentContainer) {
 				this._contentContainer.replaceChildren(view.element);
 			}
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
+			let restoreComposerFocus = false;
+			const hasPreparationProgress = derived(reader => !!session.preparationProgress?.read(reader));
 			this._openSessionDisposables.add(autorun(reader => {
-				if (session.isCreated.read(reader) && this._currentSession === session) {
+				if (this._currentSession !== session) {
+					return;
+				}
+				if (session.isCreated.read(reader)) {
+					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
 					this._showSessionGroups(session, options);
+					if (moveFocus) {
+						this._groupsView.focus();
+					}
+				} else if (session.isNewSessionRequestInProgress?.read(reader) && hasPreparationProgress.read(reader)) {
+					// Keep the composer alive so failure or cancellation restores its prompt and attachments.
+					const moveFocus = isAncestorOfActiveElement(view.element);
+					view.setVisible(false);
+					reader.store.add(toDisposable(() => {
+						const current = this._preparationView.read(undefined);
+						restoreComposerFocus = !!current && isAncestorOfActiveElement(current.element);
+						this._preparationView.set(undefined, undefined);
+					}));
+					const preparationView = reader.store.add(this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input }));
+					this._preparationView.set(preparationView, undefined);
+					preparationView.setChat(session.mainChat.read(reader), session.sessionId, session);
+					preparationView.setActive(this._isActive);
+					preparationView.setVisible(this._isVisible);
+					this._contentContainer.replaceChildren(preparationView.element);
+					this._layoutChildren();
+					if (moveFocus) {
+						preparationView.focus();
+					}
+				} else {
+					if (view.element.parentElement !== this._contentContainer) {
+						this._contentContainer.replaceChildren(view.element);
+					}
+					view.setActive(this._isActive);
+					view.setVisible(this._isVisible);
+					this._layoutChildren();
+					if (restoreComposerFocus) {
+						view.focus();
+						restoreComposerFocus = false;
+					}
 				}
 			}));
 		} else if (session) {
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options);
-			this._standaloneView.value = view;
-			this._contentContainer.replaceChildren(view.element);
+			let view = this._standaloneView.get();
+			if (!view?.preserveOnSessionClear) {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}
@@ -207,10 +309,14 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
-		this._standaloneView.clear();
+		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
 		this._groupsView.setSession(session, options);
 		this._layoutChildren();
+	}
+
+	private get _visibleStandaloneView(): AbstractChatView | undefined {
+		return this._preparationView.get() ?? this._standaloneView.get();
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
@@ -223,8 +329,18 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
+		this.layoutContainer(width, height, top, left);
+		this.layoutContents();
+	}
+
+	layoutContainer(width: number, height: number, top: number, left: number): void {
 		size(this.element, width, height);
+		this._centeredContentContainer.style.width = `${width}px`;
 		this._lastLayout = { width, height, top, left };
+	}
+
+	layoutContents(gap = 0): void {
+		this._contentGap = gap;
 		this._layoutChildren();
 	}
 
@@ -235,34 +351,36 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
 		const { width, height, top, left } = this._lastLayout;
+		const view = this._visibleStandaloneView ?? this._groupsView;
+		const gap = view === this._groupsView ? this._contentGap : 0;
+		this.element.classList.toggle('independent-chat-groups', view === this._groupsView && this._isGridLayout && gap > 0);
 		if (!this._isVisible || width === 0 || height === 0) {
+			this._lastContentLayout = undefined;
 			return;
 		}
 
-		// Apply the centered band's width first so the header wraps to its final
-		// layout before we measure its height. Measuring before the width is
-		// applied could read a stale (pre-cap) height and cause a transient
-		// overlap until a later layout pass corrects it.
-		// In a grid layout the header spans the full width (matching the
-		// full-width chat groups); with a lone group it is centered and capped.
-		const centeredWidth = this._isGridLayout ? width : Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
-		this._centeredContentContainer.style.width = `${centeredWidth}px`;
+		const barHeight = this._header.visible && !this._headerHost ? this._header.height : 0;
+		this._headerHeight.set(barHeight, undefined);
+		const contentHeight = Math.max(0, height - barHeight);
+		const contentTop = top + barHeight;
+		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
+		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
+		const previous = this._lastContentLayout;
+		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
+			return;
+		}
+		this._lastContentLayout = { view, width, height: contentHeight, top: contentTop, left, gap };
 
-		const barHeight = this._header.visible ? this._header.height : 0;
-
-		// Cap the band's height to the header (it is horizontally centered via CSS
-		// `margin: 0 auto`) so the full-width chat groups grid sits below it.
-		size(this._centeredContentContainer, centeredWidth, barHeight);
+		// Cap the host's height to the header so the chat groups grid sits below it.
+		size(this._centeredContentContainer, width, barHeight);
 
 		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
-		const contentHeight = height - barHeight;
-		const contentTop = top + barHeight;
-		const standaloneView = this._standaloneView.value;
-		if (standaloneView) {
-			standaloneView.layout(width, contentHeight, contentTop, left);
+		if (view === this._groupsView) {
+			view.layout(width, contentHeight, contentTop, left, gap);
 		} else {
-			this._groupsView.layout(width, contentHeight, contentTop, left);
+			// To the left of the column the Session Activity Bar takes at the right edge.
+			view.layout(Math.max(0, width - columnWidth), contentHeight, contentTop, left);
 		}
 	}
 
@@ -270,9 +388,54 @@ export class SessionView extends Disposable implements ISerializableView {
 		return { type: SessionView.TYPE };
 	}
 
+	/**
+	 * Shows the session header in `host`, outside of this view, such as in the title bar of a chat window, which makes it
+	 * the top row of its window in every layout; it then takes none of the height of this view. Its actions show in
+	 * `actionsHost`, if given, such as with the other actions of that title bar. `undefined` brings it back.
+	 */
+	setHeaderHost(host: HTMLElement | undefined, actionsHost?: HTMLElement): void {
+		if (this._headerHost === host) {
+			return;
+		}
+		this._headerHost = host;
+		this._header.setWindowChrome(!!host);
+		this._header.setActionsHost(host ? actionsHost : undefined);
+		(host ?? this._centeredContentContainer).appendChild(this._header.element);
+		this._lastContentLayout = undefined;
+		this._layoutChildren();
+	}
+
 	focus(): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._visibleStandaloneView;
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
+	}
+
+	focusWorkspacePicker(): void {
+		this._visibleStandaloneView?.focusWorkspacePicker();
+	}
+
+	focusHarnessPicker(): void {
+		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
+	focusEnvironmentPicker(): void {
+		this._visibleStandaloneView?.focusEnvironmentPicker();
+	}
+
+	focusBranchPicker(): void {
+		this._visibleStandaloneView?.focusBranchPicker();
+	}
+
+	focusWorktreePicker(): void {
+		this._visibleStandaloneView?.focusWorktreePicker();
+	}
+
+	focusSyncAction(): void {
+		this._visibleStandaloneView?.focusSyncAction();
+	}
+
+	openModelComparison(): void {
+		this._visibleStandaloneView?.openModelComparison();
 	}
 
 	/**
@@ -285,27 +448,55 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._isVisible && this._header.startTitleEditing();
 	}
 
+	startFocusedChatTitleEditing(): boolean {
+		return this._isVisible && this._groupsView.startFocusedChatTitleEditing();
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		return this._isVisible && this._groupsView.startChatTitleEditing(chatResource);
+	}
+
 	getFocusedChat(): IChat | undefined {
 		return this._groupsView.getFocusedChat();
+	}
+
+	getActiveChat(): IChat | undefined {
+		return this._groupsView.getActiveChat();
+	}
+
+	reopenChat(resource: URI): Promise<void> {
+		return this._visibleStandaloneView?.reopenChat(resource) ?? this._groupsView.reopenChat(resource);
+	}
+
+	toggleActiveChatPin(): void {
+		this._groupsView.toggleActiveChatPin();
+	}
+
+	closeChatGroup(chatResource: URI): Promise<boolean> {
+		return this._groupsView.closeChatGroup(chatResource);
 	}
 
 	getSession(): IActiveSession | undefined {
 		return this._currentSession;
 	}
 
-	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
-		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		const standaloneView = this._visibleStandaloneView;
+		return standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
 	}
 
-	selectNoWorkspace(): void {
-		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
+	applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return this._standaloneView.get()?.applyDraft(draft, folderUri, options, token) ?? Promise.resolve('notReady');
 	}
 
-	/** Opens the given chat in a group beside the active one ("open to the side"). */
-	openChatToSide(resource: URI): Promise<void> {
-		return this._groupsView.openChatInNewGroup(resource);
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
+		const standaloneView = this._visibleStandaloneView;
+		standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
+	}
+
+	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
+	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
+		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);
 	}
 
 	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */
@@ -326,24 +517,24 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	prefillInput(text: string): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._visibleStandaloneView;
 		standaloneView ? standaloneView.prefillInput(text) : this._groupsView.prefillInput(text);
 	}
 
 	sendQuery(text: string): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._visibleStandaloneView;
 		standaloneView ? standaloneView.sendQuery(text) : this._groupsView.sendQuery(text);
 	}
 
 	submitInput(): Promise<boolean> {
-		return this._standaloneView.value?.submitInput() ?? this._groupsView.submitInput();
+		return this._visibleStandaloneView?.submitInput() ?? this._groupsView.submitInput();
 	}
 
 	/**
 	 * Attaches the given resources as context to the active chat group's input.
 	 */
 	attach(uris: URI[]): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._visibleStandaloneView;
 		standaloneView ? standaloneView.attach(uris) : this._groupsView.attach(uris);
 	}
 
@@ -367,7 +558,23 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._isActive = active;
 		this._applyActiveSessionStyles();
 		this._groupsView.setSessionActive(active);
-		this._standaloneView.value?.setActive(active);
+		this._visibleStandaloneView?.setActive(active);
+		this._updateStandaloneSessionActivityBar();
+	}
+
+	private _updateStandaloneSessionActivityBar(): void {
+		const standaloneView = this._visibleStandaloneView;
+		if (standaloneView && !this._standaloneSessionActivityBar && (this._hostOptions?.showActivityBar ?? true)) {
+			// Every standalone view reserves room for the strip, active or not, so activating it does not shift its content.
+			const activityBar = this._standaloneSessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
+			this._register(runOnChange(activityBar.reservedWidth, () => {
+				this._lastContentLayout = undefined;
+				this._layoutChildren();
+			}));
+			this._lastContentLayout = undefined;
+		}
+		this._standaloneSessionActivityBar?.setChatActions(standaloneView?.activityBarActions);
+		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
 	}
 
 	/**
@@ -410,8 +617,11 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (visible === wasVisible) {
 			return;
 		}
-		this._groupsView.setSessionVisible(visible);
-		this._standaloneView.value?.setVisible(visible);
+		this._lastContentLayout = undefined;
+		this._isVisibleObs.set(visible, undefined);
+		this._groupsView.setSessionVisible(visible, this._isPartVisible);
+		this._visibleStandaloneView?.setVisible(visible);
+		this._updateStandaloneSessionActivityBar();
 		if (visible) {
 			// Catch up on the layout passes that were skipped while hidden.
 			this._layoutChildren();
@@ -421,5 +631,12 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _applyActiveSessionStyles(): void {
 		this.element.classList.toggle('modern-ui-editor-tab-group-active', this._isActive);
 		applySessionViewThemeColors(this.element, this.themeService.getColorTheme(), this._isActive);
+	}
+
+	override dispose(): void {
+		this._lastLayout = undefined;
+		this._lastContentLayout = undefined;
+		this._isVisibleObs.set(false, undefined);
+		super.dispose();
 	}
 }

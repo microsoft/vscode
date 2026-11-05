@@ -9,17 +9,17 @@ import { createHash, createHmac, timingSafeEqual } from 'crypto';
  * Result of matching a presented host key against the entries in the user's
  * `known_hosts` files.
  *
- * `mismatch` is deliberately scoped to entries of the *same* key type: a host
- * that has an `ssh-rsa` entry on file but presents an `ssh-ed25519` key is
- * `unknown` (we simply have never seen that key type for it), not evidence of
- * an attack. Treating that as a mismatch would fire a false alarm for every
- * user with an RSA-only entry, since ssh2 negotiates ed25519 first.
+ * `mismatch` is deliberately scoped to entries of the *same* key type.
+ * `other-key-type` preserves the weaker evidence that the host is known under
+ * a different algorithm, so policy can distinguish it from a first contact.
  */
 export type KnownHostsMatch =
 	/** An entry for this host and key type matches the presented key exactly. */
 	| 'match'
 	/** An entry for this host and key type exists but holds a *different* key. */
 	| 'mismatch'
+	/** This host has ordinary entries, but none use the presented key type. */
+	| 'other-key-type'
 	/** The presented key is explicitly marked `@revoked`. */
 	| 'revoked'
 	/**
@@ -31,7 +31,7 @@ export type KnownHostsMatch =
 	 * CA precisely to avoid one.
 	 */
 	| 'ca-only'
-	/** No entry for this host and key type. */
+	/** No ordinary entry applies to this host. */
 	| 'unknown';
 
 /**
@@ -247,6 +247,7 @@ export function matchKnownHosts(
 
 	let sawSameTypeEntry = false;
 	let sawCertAuthority = false;
+	let sawOtherKeyType = false;
 
 	for (const entry of applicable) {
 		if (entry.marker === 'revoked') {
@@ -259,6 +260,7 @@ export function matchKnownHosts(
 		}
 
 		if (entry.keyType !== keyType) {
+			sawOtherKeyType = true;
 			continue;
 		}
 		if (entry.key.equals(keyBlob)) {
@@ -269,6 +271,9 @@ export function matchKnownHosts(
 
 	if (sawSameTypeEntry) {
 		return 'mismatch';
+	}
+	if (sawOtherKeyType) {
+		return 'other-key-type';
 	}
 	return sawCertAuthority ? 'ca-only' : 'unknown';
 }

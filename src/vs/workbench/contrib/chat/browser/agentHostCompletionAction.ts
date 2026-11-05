@@ -7,10 +7,27 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { isAutoApprovePolicyRestricted } from '../common/agentHostConfigPolicy.js';
+import { isAutoApprovePolicyRestricted, usesHostApprovalPolicy } from '../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../common/chatPermissionWarnings.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../common/constants.js';
+import { localize } from '../../../../nls.js';
+
+function getCompletionConfig(action: IAgentHostCompletionAction, sessionConfig: ResolveSessionConfigResult | undefined): Readonly<Record<string, string>> | undefined {
+	const config = action.applyConfig;
+	const approval = getSessionApprovalProperty(sessionConfig?.schema);
+	if (!config || approval?.key !== 'approvalMode' || config[SessionConfigKey.AutoApprove] === undefined) {
+		return config;
+	}
+	const { autoApprove, ...rest } = config;
+	const value = rest.approvalMode ?? writeSessionApprovalLevel(approval, autoApprove);
+	if (value === undefined) {
+		throw new Error(localize('chat.approvalModeUnavailable', "The selected permission mode is not available."));
+	}
+	return { ...rest, approvalMode: value };
+}
 
 /**
  * Applies a Copilot agent-host completion {@link IAgentHostCompletionAction}
@@ -32,13 +49,19 @@ export async function applyAgentHostCompletionAction(
 	dialogService: IDialogService,
 	storageService: IStorageService,
 	apply: (config: Readonly<Record<string, string>>) => void | Promise<void>,
+	sessionConfig?: ResolveSessionConfigResult,
 ): Promise<boolean> {
-	const config = action.applyConfig;
+	const config = getCompletionConfig(action, sessionConfig);
 	if (!config || Object.keys(config).length === 0) {
 		return true;
 	}
 
-	const elevatedLevel = getElevatedAutoApproveLevel(config[SessionConfigKey.AutoApprove]);
+	const approval = getSessionApprovalProperty(sessionConfig?.schema);
+	const value = approval && config[approval.key];
+	if (approval && sessionConfig && value !== undefined && !getAvailableSessionApprovalValues(approval, sessionConfig.schema, sessionConfig.values).includes(value)) {
+		throw new Error(localize('chat.approvalModeUnavailable', "The selected permission mode is not available."));
+	}
+	const elevatedLevel = getElevatedAutoApproveLevel(approval && value !== undefined ? readSessionApprovalLevel(approval, value) : config[SessionConfigKey.AutoApprove]);
 	if (elevatedLevel !== undefined) {
 		const confirmed = await maybeConfirmElevatedPermissionLevel(elevatedLevel, dialogService, storageService, {
 			defaultSettingKey: ChatConfiguration.DefaultConfiguration,
@@ -68,15 +91,16 @@ function getElevatedAutoApproveLevel(value: string | undefined): ChatPermissionL
 }
 
 /**
- * Whether a completion {@link IAgentHostCompletionAction} would set an elevated
- * `autoApprove` level (Allow all / Assisted) that enterprise policy currently
- * blocks. Completion consumers use this to omit such items entirely when global
- * auto-approval is policy-disabled — rather than offering an item that would
- * show an elevated-permission warning and then be silently clamped to Default.
- * The node producer cannot see the (client-side) policy, so this gating lives on
- * the client, mirroring how the permission pickers disable elevated levels.
+ * Filters permission changes against the advertised approval binding and available modes.
+ * Hosts without a policy report retain the legacy client-policy guard.
  */
-export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService): boolean {
-	return getElevatedAutoApproveLevel(action.applyConfig?.[SessionConfigKey.AutoApprove]) !== undefined
+export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, config?: ResolveSessionConfigResult): boolean {
+	const mode = action.applyConfig?.[SessionConfigKey.AutoApprove];
+	const approval = getSessionApprovalProperty(config?.schema);
+	const value = approval && (action.applyConfig?.[approval.key] ?? (mode !== undefined ? writeSessionApprovalLevel(approval, mode) : undefined));
+	if (usesHostApprovalPolicy(config?.schema) && (mode !== undefined || value !== undefined)) {
+		return !config || !approval || value === undefined || !getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(value);
+	}
+	return getElevatedAutoApproveLevel(approval && value !== undefined ? readSessionApprovalLevel(approval, value) : mode) !== undefined
 		&& isAutoApprovePolicyRestricted(configurationService);
 }

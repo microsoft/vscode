@@ -30,6 +30,7 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { createActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../services/progress/browser/progressIndicator.js';
 import { WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { IToolBarResponsiveBehaviorOptions } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IBoundarySashes } from '../../../base/browser/ui/sash/sash.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -426,11 +427,16 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 			telemetrySource: this.nameForTelemetry,
 			hoverDelegate: this.toolbarHoverDelegate,
 			trailingSeparator: this.trailingSeparator,
+			responsiveBehavior: this.getToolbarResponsiveBehavior(),
 		}));
 
 		this.collectCompositeActions()();
 
 		return titleArea;
+	}
+
+	protected getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions | undefined {
+		return undefined;
 	}
 
 	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {

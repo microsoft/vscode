@@ -8,7 +8,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
-import { reviveSessionAccountIcon } from '../../browser/mainThreadAuthentication.js';
+import { reviveAuthenticationSession } from '../../browser/mainThreadAuthentication.js';
 
 suite('MainThreadAuthentication', () => {
 
@@ -16,12 +16,16 @@ suite('MainThreadAuthentication', () => {
 
 	const iconComponents: UriComponents = { scheme: 'https', authority: 'example.com', path: '/avatar.png', query: '', fragment: '' };
 
-	test('reviveSessionAccountIcon revives a session\'s account icon into a URI and leaves a missing icon undefined', () => {
+	test('revives session URIs and preserves optional session fields', () => {
+		const authorizationServer = URI.parse('https://enterprise.example.com/login/oauth');
 		const withIcon: Dto<AuthenticationSession> = {
 			id: 'session-with-icon',
 			accessToken: 'token',
 			scopes: ['scope'],
-			account: { id: 'account-with-icon', label: 'Has Icon', icon: iconComponents }
+			account: { id: 'account-with-icon', label: 'Has Icon', icon: iconComponents },
+			authorizationServer: authorizationServer.toJSON(),
+			idToken: 'id-token',
+			expiresAfter: 3600
 		};
 		const withoutIcon: Dto<AuthenticationSession> = {
 			id: 'session-without-icon',
@@ -31,10 +35,10 @@ suite('MainThreadAuthentication', () => {
 		};
 
 		assert.deepStrictEqual(
-			[reviveSessionAccountIcon(withIcon), reviveSessionAccountIcon(withoutIcon)],
+			[reviveAuthenticationSession(withIcon), reviveAuthenticationSession(withoutIcon)],
 			[
-				{ ...withIcon, account: { ...withIcon.account, icon: URI.from(iconComponents) } },
-				{ ...withoutIcon, account: { ...withoutIcon.account, icon: undefined } }
+				{ ...withIcon, account: { ...withIcon.account, icon: URI.from(iconComponents) }, authorizationServer },
+				{ ...withoutIcon, account: { ...withoutIcon.account, icon: undefined }, authorizationServer: undefined }
 			]
 		);
 	});

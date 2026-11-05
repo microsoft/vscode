@@ -7,7 +7,7 @@ import { Widget } from '../widget.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { Emitter } from '../../../common/event.js';
 import './radio.css';
-import { $, addDisposableListener, EventHelper, EventType } from '../../dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -32,6 +32,8 @@ export interface IRadioOptionItem {
 	readonly ariaLabel?: string;
 	readonly isActive?: boolean;
 	readonly disabled?: boolean;
+	/** Starts a new row of a segmented radio, for items that don't fit beside the ones before them. */
+	readonly startsRow?: boolean;
 }
 
 export interface IRadioOptions {
@@ -40,8 +42,10 @@ export interface IRadioOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	/** Accessible name of the radio group. */
 	readonly ariaLabel?: string;
-	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for the pill appearance. */
+	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for rounded-rectangle segments. */
 	readonly className?: string;
+	/** Leaves every item unchecked when none is marked active, without removing the group from the tab order. */
+	readonly allowNoSelection?: boolean;
 	/**
 	 * How arrow keys behave. `select` (default) moves focus and selects, matching the
 	 * ARIA radiogroup pattern. `focus` only moves focus, and Enter or Space selects —
@@ -63,10 +67,14 @@ export class Radio extends Widget {
 
 	private readonly hoverDelegate: IHoverDelegate;
 	private readonly arrowKeyBehavior: 'select' | 'focus';
+	private readonly allowNoSelection: boolean;
 
 	private items: ReadonlyArray<IRadioOptionItem> = [];
 	private activeItem: IRadioOptionItem | undefined;
 	private orderedButtons: Button[] = [];
+	private readonly selectionIndicator: HTMLElement | undefined;
+	private readonly resizeObserver: DisposableResizeObserver | undefined;
+	private selectionIndicatorBounds: { left: number; top: number; width: number; height: number } | undefined;
 
 	private readonly buttons = this._register(new DisposableMap<Button, { item: IRadioOptionItem; dispose(): void }>());
 
@@ -75,6 +83,7 @@ export class Radio extends Widget {
 
 		this.hoverDelegate = opts.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this.arrowKeyBehavior = opts.arrowKeyBehavior ?? 'select';
+		this.allowNoSelection = opts.allowNoSelection ?? false;
 
 		this.domNode = $('.monaco-custom-radio');
 		if (opts.className) {
@@ -83,6 +92,18 @@ export class Radio extends Widget {
 		this.domNode.setAttribute('role', 'radiogroup');
 		if (opts.ariaLabel) {
 			this.domNode.setAttribute('aria-label', opts.ariaLabel);
+		}
+
+		if (this.domNode.classList.contains('segmented')) {
+			this.selectionIndicator = $('.monaco-radio-selection', { 'aria-hidden': 'true' });
+			this.domNode.appendChild(this.selectionIndicator);
+			this.resizeObserver = this._register(new DisposableResizeObserver('Radio.selection', () => this.layoutSelectionIndicator(), getWindow(this.domNode)));
+			this._register(this.resizeObserver.observe(this.domNode));
+			this._register(toDisposable(() => {
+				for (const animation of this.selectionIndicator?.getAnimations() ?? []) {
+					animation.cancel();
+				}
+			}));
 		}
 
 		this.setItems(opts.items);
@@ -106,11 +127,19 @@ export class Radio extends Widget {
 	setItems(items: ReadonlyArray<IRadioOptionItem>): void {
 		this.buttons.clearAndDisposeAll();
 		this.orderedButtons = [];
+		this.selectionIndicatorBounds = undefined;
+		this.domNode.classList.remove('selection-indicator-ready', 'animate-selection');
 		this.items = items;
-		this.activeItem = this.items.find(item => item.isActive) ?? this.items[0];
+		this.activeItem = this.items.find(item => item.isActive) ?? (this.allowNoSelection ? undefined : this.items[0]);
+		const segmented = this.domNode.classList.contains('segmented');
+		this.domNode.classList.toggle('multi-row', segmented && this.items.some((item, index) => index > 0 && item.startsRow));
 		for (let index = 0; index < this.items.length; index++) {
 			const item = this.items[index];
 			const disposables = new DisposableStore();
+			if (segmented && index > 0 && item.startsRow) {
+				const rowBreak = this.domNode.appendChild($('.monaco-radio-row-break', { 'aria-hidden': 'true' }));
+				disposables.add(toDisposable(() => rowBreak.remove()));
+			}
 			const button = disposables.add(new Button(this.domNode, {
 				hoverDelegate: this.hoverDelegate,
 				title: item.tooltip,
@@ -133,6 +162,9 @@ export class Radio extends Widget {
 				EventHelper.stop(e, true);
 				this.navigate(index, delta);
 			}));
+			if (this.resizeObserver) {
+				disposables.add(this.resizeObserver.observe(button.element));
+			}
 			this.orderedButtons.push(button);
 			this.buttons.set(button, { item, dispose: () => disposables.dispose() });
 		}
@@ -143,8 +175,31 @@ export class Radio extends Widget {
 		if (index < 0 || index >= this.items.length) {
 			throw new Error('Invalid Index');
 		}
+		if (!this.selectionIndicatorBounds) {
+			this.layoutSelectionIndicator();
+		}
+		const changed = this.activeItem !== this.items[index];
 		this.activeItem = this.items[index];
-		this.updateButtons();
+		this.updateButtons(changed);
+	}
+
+	/** Waits for selection motion, including a newer selection that interrupts it. */
+	async whenSelectionAnimationSettles(): Promise<void> {
+		while (!this._store.isDisposed && this.selectionIndicator) {
+			const animations = this.selectionIndicator.getAnimations().filter(animation => animation.playState !== 'finished' && animation.playState !== 'idle');
+			if (!animations.length) {
+				return;
+			}
+			await Promise.all(animations.map(async animation => {
+				try {
+					await animation.finished;
+				} catch (error) {
+					if (!(error instanceof getWindow(this.domNode).DOMException) || error.name !== 'AbortError') {
+						throw error;
+					}
+				}
+			}));
+		}
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -156,7 +211,7 @@ export class Radio extends Widget {
 
 	/** Moves focus to the active item, for callers that rebuild the row after a selection. */
 	focusActiveItem(): void {
-		const index = this.activeItem ? this.items.indexOf(this.activeItem) : -1;
+		const index = this.activeItem ? this.items.indexOf(this.activeItem) : this.orderedButtons.findIndex(button => button.enabled);
 		if (index !== -1) {
 			this.focusItem(index);
 		}
@@ -178,8 +233,7 @@ export class Radio extends Widget {
 		if (!item || this.activeItem === item) {
 			return;
 		}
-		this.activeItem = item;
-		this.updateButtons();
+		this.setActiveItem(index);
 		this._onDidSelect.fire(index);
 	}
 
@@ -210,17 +264,42 @@ export class Radio extends Widget {
 		}
 	}
 
-	private updateButtons(): void {
+	private updateButtons(animate = false): void {
 		let isActive = false;
+		const tabStop = this.activeItem ?? this.items.find(item => !item.disabled);
 		for (const [button, { item }] of this.buttons) {
 			const isPreviousActive = isActive;
 			isActive = item === this.activeItem;
 			button.element.classList.toggle('active', isActive);
 			button.element.classList.toggle('previous-active', isPreviousActive);
 			button.element.setAttribute('aria-checked', String(isActive));
-			button.element.tabIndex = isActive ? 0 : -1;
+			button.element.tabIndex = item === tabStop ? 0 : -1;
 			this.setButtonLabel(button, item.text);
 		}
+		this.layoutSelectionIndicator(animate);
+	}
+
+	private layoutSelectionIndicator(animate = false): void {
+		const indicator = this.selectionIndicator;
+		const button = this.orderedButtons.find((_, index) => this.items[index] === this.activeItem)?.element;
+		if (!indicator || !button) {
+			return;
+		}
+		const bounds = { left: button.offsetLeft, top: button.offsetTop, width: button.offsetWidth, height: button.offsetHeight };
+		if (!bounds.width || !bounds.height) {
+			return;
+		}
+		const previous = this.selectionIndicatorBounds;
+		if (previous && previous.left === bounds.left && previous.top === bounds.top && previous.width === bounds.width && previous.height === bounds.height) {
+			return;
+		}
+		// Sliding diagonally between rows reads poorly, so a move to another row jumps.
+		this.domNode.classList.toggle('animate-selection', animate && !!previous && previous.top === bounds.top);
+		this.domNode.classList.add('selection-indicator-ready');
+		indicator.style.width = `${bounds.width}px`;
+		indicator.style.height = `${bounds.height}px`;
+		indicator.style.transform = `translate(${bounds.left}px, ${bounds.top}px)`;
+		this.selectionIndicatorBounds = bounds;
 	}
 
 }

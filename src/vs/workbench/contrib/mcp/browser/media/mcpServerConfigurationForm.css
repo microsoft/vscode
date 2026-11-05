@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mcp-config-form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	max-width: 720px;
+}
+
+.mcp-config-form .mcp-config-form-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+}
+
+.mcp-config-form .mcp-config-form-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.mcp-config-form .mcp-config-form-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.mcp-config-form .mcp-config-form-optional {
+	margin-inline-start: var(--vscode-spacing-size40);
+	font-weight: var(--vscode-fontWeight-regular);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-config-form .mcp-config-form-hint {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-config-form .mcp-config-form-error {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-errorForeground);
+}
+
+.mcp-config-form .monaco-custom-radio {
+	align-self: flex-start;
+}
+
+.mcp-config-form .mcp-config-form-kv-header,
+.mcp-config-form .mcp-config-form-kv-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22px;
+	gap: var(--vscode-spacing-size80);
+	align-items: center;
+}
+
+.mcp-config-form .mcp-config-form-kv-header {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-config-form .mcp-config-form-kv-rows {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.mcp-config-form .mcp-config-form-kv-add {
+	align-self: flex-start;
+}
+
+.mcp-config-form .mcp-config-form-kv-add .monaco-button {
+	width: auto;
+}
+
+.mcp-config-form .mcp-config-form-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
+}
+
+.mcp-config-form .mcp-config-form-footer .monaco-button {
+	width: auto;
+	padding-inline: var(--vscode-spacing-size120);
+}
+
+.mcp-config-form .mcp-config-form-footer .mcp-config-form-other-properties {
+	margin-inline-end: auto;
+}

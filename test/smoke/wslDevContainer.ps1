@@ -1,0 +1,392 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
+param(
+	[ValidateSet('Setup', 'Cleanup', 'AddServer')]
+	[string] $Operation = 'Setup',
+	[ValidateSet('GitHub', 'AzureDevOps')]
+	[string] $CI = 'GitHub',
+	[string] $Distribution,
+	[string] $Root,
+	# AddServer: a compilation artifact's builds.tar.gz with the Linux server to add to the distribution.
+	[string] $Archive
+)
+
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
+Import-Module (Join-Path $PSScriptRoot '..\..\build\azure-pipelines\common\wsl.psm1') -Force
+$wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
+$workspace = if ($CI -eq 'AzureDevOps') { $env:BUILD_SOURCESDIRECTORY } else { $env:GITHUB_WORKSPACE }
+$runId = if ($CI -eq 'AzureDevOps') { $env:BUILD_BUILDID } else { $env:GITHUB_RUN_ID }
+$runAttempt = if ($CI -eq 'AzureDevOps') { $env:SYSTEM_JOBATTEMPT } else { $env:GITHUB_RUN_ATTEMPT }
+if (-not $workspace -or $runId -notmatch '^\d+$' -or $runAttempt -notmatch '^\d+$') {
+	throw "Missing workspace, run ID, or attempt for $CI WSL smoke setup."
+}
+
+function Write-SmokeOutput([string] $Name, [string] $Value) {
+	if ($CI -eq 'AzureDevOps') {
+		$variable = switch ($Name) {
+			'root' { 'WSL_SMOKE_ROOT' }
+			'distro' { 'WSL_SMOKE_DISTRO' }
+			'serverPath' { 'WSL_SMOKE_SERVER_PATH' }
+			'buildServerPath' { 'WSL_SMOKE_BUILD_SERVER_PATH' }
+			default { throw "Unknown WSL smoke output: $Name" }
+		}
+		$escaped = $Value.Replace('%', '%AZP25').Replace("`r", '%0D').Replace("`n", '%0A')
+		Write-Host "##vso[task.setvariable variable=$variable]$escaped"
+	} else {
+		"$Name=$Value" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+	}
+}
+
+function Invoke-Wsl([string] $Command, [int] $TimeoutSeconds = 300) {
+	$Command = $Command -replace "`r`n", "`n"
+	$result = Invoke-WslExe -ArgumentList @('--distribution', $Distribution, '--user', 'root', '--exec', '/bin/bash', '-euc', $Command) -TimeoutSeconds $TimeoutSeconds -Stream
+	if ($result.TimedOut) {
+		throw "WSL smoke command timed out after $TimeoutSeconds seconds."
+	}
+	if ($result.ExitCode -ne 0) {
+		throw "WSL smoke command failed with exit code $($result.ExitCode)."
+	}
+}
+
+function Format-WslResult($Result) {
+	if ($Result.TimedOut) { 'timed out' } else { "exit code $($Result.ExitCode)" }
+}
+
+function Save-Download([string] $Url, [string] $Destination) {
+	# curl only retries until --retry-max-time has passed, so it is longer than --max-time, or a transfer that runs until
+	# --max-time would never be retried. Below 1 MiB/s, the 210-325 MiB downloads can't finish within --max-time, so such
+	# a transfer is stopped after 30 seconds and retried on a fresh connection.
+	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 300 --connect-timeout 30 --max-time 180 --speed-limit 1048576 --speed-time 30 --output $Destination $Url
+	if ($LASTEXITCODE -ne 0) {
+		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
+	}
+}
+
+function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
+	"--- $Name ---"
+	try {
+		$output = & $Action 2>&1 | Out-String -Width 4096
+		$output.TrimEnd()
+	} catch {
+		"WARNING: Failed to collect ${Name}: $_"
+	}
+}
+
+function Write-WslDiagnostics([datetime] $ImportStartTime, [string] $InstallPath) {
+	'=== WSL diagnostics after failed import ==='
+	"Import started (UTC): $($ImportStartTime.ToUniversalTime().ToString('o'))"
+	# After a hang, wsl.exe may not respond at all, so every call here has a short timeout.
+	Write-DiagnosticSection 'Windows and WSL versions' {
+		Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
+		"wsl.exe file version: $((Get-Item -LiteralPath $wsl).VersionInfo.FileVersion)"
+		$result = Invoke-WslExe -ArgumentList '--version' -TimeoutSeconds 30
+		$result.Output.TrimEnd()
+		"wsl --version: $(Format-WslResult $result)"
+	}
+	Write-DiagnosticSection 'wsl --status' {
+		$result = Invoke-WslExe -ArgumentList '--status' -TimeoutSeconds 30
+		$result.Output.TrimEnd()
+		"Result: $(Format-WslResult $result)"
+	}
+	Write-DiagnosticSection 'wsl --list --verbose' {
+		$result = Invoke-WslExe -ArgumentList '--list', '--verbose' -TimeoutSeconds 30
+		$result.Output.TrimEnd()
+		"Result: $(Format-WslResult $result)"
+	}
+	Write-DiagnosticSection 'Partial import files' {
+		$files = @(Get-ChildItem -LiteralPath $InstallPath -Force)
+		if ($files.Count) {
+			$files | Select-Object Name, Length, LastWriteTimeUtc | Format-List
+		} else {
+			'No files created.'
+		}
+	}
+	Write-DiagnosticSection 'Virtualization' {
+		Get-CimInstance -ClassName Win32_ComputerSystem |
+			Select-Object Manufacturer, Model, HypervisorPresent
+	}
+	Write-DiagnosticSection 'Windows optional features' {
+		foreach ($featureName in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+			Get-WindowsOptionalFeature -Online -FeatureName $featureName |
+				Select-Object FeatureName, State
+		}
+	}
+	Write-DiagnosticSection 'WSL services' {
+		foreach ($serviceName in @('LxssManager', 'WslService', 'vmcompute', 'hns')) {
+			$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+			if ($service) {
+				$service | Select-Object Name, Status, StartType
+			} else {
+				[pscustomobject]@{ Name = $serviceName; Status = 'NotFound'; StartType = $null }
+			}
+		}
+	}
+	Write-DiagnosticSection 'Pending reboot indicators' {
+		$pendingFileRenames = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue).PendingFileRenameOperations
+		[pscustomobject]@{
+			ComponentBasedServicing = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+			WindowsUpdate           = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+			PendingFileRenames      = $null -ne $pendingFileRenames
+		}
+	}
+
+	$eventStartTime = $ImportStartTime.AddMinutes(-1)
+	$eventEndTime = Get-Date
+	$wslEventLogs = @()
+	try {
+		$wslEventLogs = @(Get-WinEvent -ListLog '*Lxss*' -ErrorAction Stop | Select-Object -ExpandProperty LogName)
+	} catch {
+		"WARNING: Failed to discover WSL event logs: $_"
+	}
+	Write-DiagnosticSection 'Available WSL event logs' {
+		if ($wslEventLogs.Count) { $wslEventLogs } else { 'No Lxss event logs available.' }
+	}
+	foreach ($eventLogName in @($wslEventLogs + @('Microsoft-Windows-Host-Compute-Service-Admin', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin', 'Microsoft-Windows-Hyper-V-VMMS-Admin') | Select-Object -Unique)) {
+		$action = {
+			Get-WinEvent -FilterHashtable @{ LogName = $eventLogName; StartTime = $eventStartTime; EndTime = $eventEndTime } -MaxEvents 20 -ErrorAction Stop |
+				Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-List
+		}.GetNewClosure()
+		Write-DiagnosticSection "Recent events: $eventLogName" $action
+	}
+}
+
+if ($Operation -eq 'Cleanup') {
+	if ($Distribution -notmatch '^vscode-wsl-smoke-\d+-\d+-[0-9a-f]{32}$') {
+		throw 'Refusing cleanup of an unexpected WSL distribution.'
+	}
+	$Root = [IO.Path]::GetFullPath($Root)
+	if ([IO.Path]::GetDirectoryName($Root) -ne [IO.Path]::GetFullPath((Join-Path $workspace '.build')) -or [IO.Path]::GetFileName($Root) -ne $Distribution) {
+		throw 'Refusing cleanup of an unexpected WSL smoke directory.'
+	}
+	try {
+		Get-NetFirewallRule -Name $Distribution -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+		$registered = Invoke-WslExe -ArgumentList '--list', '--quiet' -TimeoutSeconds 60
+		if ($registered.TimedOut) {
+			throw "WSL is not responding; leaving $Distribution and its files intact."
+		}
+		$names = @($registered.Output -split "`r?`n" | ForEach-Object { $_.Trim() })
+		if ($registered.ExitCode -ne 0 -or $names -contains $Distribution) {
+			$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
+			New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+			(Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--user', 'root', '--exec', '/bin/sh', '-c', 'docker info; cat /var/log/docker.log 2>/dev/null' -TimeoutSeconds 60).Output |
+				Out-File -FilePath (Join-Path $logDirectory 'docker.log') -Encoding utf8
+			Invoke-WslExe -ArgumentList '--terminate', $Distribution -TimeoutSeconds 60 | Out-Null
+			$unregister = Invoke-WslExe -ArgumentList '--unregister', $Distribution -TimeoutSeconds 120
+			if ($unregister.ExitCode -ne 0) {
+				throw "Failed to unregister $Distribution ($(Format-WslResult $unregister)); leaving its files intact."
+			}
+		}
+		Remove-Item -LiteralPath $Root -Recurse -Force
+	} catch {
+		throw "WSL smoke cleanup failed: $_"
+	}
+	exit 0
+}
+
+if ($Operation -eq 'AddServer') {
+	if ($Distribution -notmatch '^vscode-wsl-smoke-\d+-\d+-[0-9a-f]{32}$') {
+		throw 'Refusing to change an unexpected WSL distribution.'
+	}
+	$wslPath = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'wslpath', '-u', ([IO.Path]::GetFullPath($Archive))
+	$linuxArchive = $wslPath.Output.Trim()
+	if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
+		throw 'Cannot safely resolve the compilation archive path.'
+	}
+	# The server of the same build accepts the packaged client, unlike the pinned server.
+	Invoke-Wsl @"
+mkdir /opt/vscode-smoke-build-server
+tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-build-server vscode-server-linux-x64
+/opt/vscode-smoke-build-server/node --version
+test -f /opt/vscode-smoke-build-server/out/server-main.js
+"@ 600
+	Write-SmokeOutput 'buildServerPath' '/opt/vscode-smoke-build-server'
+	exit 0
+}
+
+if (-not (Test-Path -LiteralPath $wsl)) {
+	throw 'WSL is unavailable. This job requires WSL and VirtualMachinePlatform enabled without a pending reboot.'
+}
+$installerCache = if ($env:WSL_INSTALLER_CACHE_DIR) { $env:WSL_INSTALLER_CACHE_DIR } else { Join-Path $workspace '.build\wsl-installer' }
+Install-Wsl -CacheDirectory $installerCache
+
+$Distribution = "vscode-wsl-smoke-$runId-$runAttempt-$([guid]::NewGuid().ToString('N'))"
+$Root = Join-Path $workspace ".build\$Distribution"
+New-Item -ItemType Directory -Path $Root | Out-Null
+Write-SmokeOutput 'root' $Root
+Write-SmokeOutput 'distro' $Distribution
+
+$archive = Join-Path $Root 'ubuntu-rootfs.tar.gz'
+Save-Download 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz' $archive
+if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dce13064f774834cbffdff226559fd522a67a381a8ea77d63fb4109') {
+	throw 'Ubuntu WSL rootfs SHA256 mismatch.'
+}
+$install = Join-Path $Root 'distro'
+New-Item -ItemType Directory -Path $install | Out-Null
+# The WSL2 utility VM sometimes stops right after boot or hangs, failing or blocking the import, so the import has
+# a timeout (a healthy one takes about 15 seconds) and is retried on a fresh utility VM.
+$maxImportAttempts = 3
+$importTimeoutSeconds = 120
+for ($importAttempt = 1; ; $importAttempt++) {
+	$importStartTime = Get-Date
+	$import = Invoke-WslExe -ArgumentList '--import', $Distribution, $install, $archive, '--version', '2' -TimeoutSeconds $importTimeoutSeconds
+	if ($import.ExitCode -eq 0) {
+		break
+	}
+	$importResult = Format-WslResult $import
+	$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
+	New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+	$diagnosticsPath = Join-Path $logDirectory "import-$Distribution-attempt-$importAttempt.log"
+	@("Import attempt: $importAttempt of $maxImportAttempts", "Import result: $importResult", 'Import output:', $import.Output) |
+		Tee-Object -FilePath $diagnosticsPath
+	Write-WslDiagnostics $importStartTime $install | Tee-Object -FilePath $diagnosticsPath -Append
+	if ($importAttempt -ge $maxImportAttempts) {
+		throw "Explicit WSL2 import failed ($importResult) after $importAttempt attempts. WSL1 is not supported by this test."
+	}
+	Write-Warning "Explicit WSL2 import attempt $importAttempt failed ($importResult). Resetting WSL before retrying."
+	# Drop any partial registration and stop the utility VM before starting again from an empty directory.
+	Write-Host (Invoke-WslExe -ArgumentList '--unregister', $Distribution -TimeoutSeconds 60).Output
+	$shutdown = Invoke-WslExe -ArgumentList '--shutdown', '--force' -TimeoutSeconds 60
+	Write-Host "$($shutdown.Output)wsl --shutdown --force: $(Format-WslResult $shutdown)"
+	Remove-Item -LiteralPath $install -Recurse -Force
+	New-Item -ItemType Directory -Path $install | Out-Null
+	Start-Sleep -Seconds (10 * $importAttempt)
+}
+Write-Host $import.Output
+Invoke-Wsl 'uname -a; cat /etc/os-release' 120
+
+# The frontend is built from this PR; the unchanged backend uses a pinned published server. The WSL Kerberos proxy smoke
+# tests need a server with the agent host's client proxy, Kerberos and certificate support.
+$serverCommit = '67710841ad061a9e253214f87bf5415a185ab2ff'
+$metadata = Invoke-RestMethod "https://update.code.visualstudio.com/api/versions/commit:$serverCommit/server-linux-x64/insider"
+if (-not $metadata.url -or $metadata.sha256hash -notmatch '^[0-9a-fA-F]{64}$') {
+	throw 'The pinned Linux server download metadata is incomplete.'
+}
+$serverArchive = Join-Path $Root 'server.tar.gz'
+Save-Download $metadata.url $serverArchive
+if ((Get-FileHash -LiteralPath $serverArchive -Algorithm SHA256).Hash -ne $metadata.sha256hash) {
+	throw 'Linux server SHA256 mismatch.'
+}
+$wslPath = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'wslpath', '-u', $serverArchive
+$linuxArchive = $wslPath.Output.Trim()
+if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
+	throw 'Cannot safely resolve the Linux server archive path.'
+}
+# From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
+# command's timeout, so apt uses the Azure Ubuntu mirror. apt only warns about index files it could not fetch, so the
+# index update fails on any fetch error and is retried. The WSL Kerberos proxy smoke tests run their own KDC and Squid,
+# so policy-rc.d keeps the packages from starting theirs.
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
+$linuxRoot = $linuxArchive.Substring(0, $linuxArchive.LastIndexOf('/'))
+$debDirectory = Join-Path $Root 'debs'
+New-Item -ItemType Directory -Force -Path $debDirectory | Out-Null
+Invoke-Wsl @"
+export DEBIAN_FRONTEND=noninteractive
+sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
+printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+for attempt in 1 2 3; do
+	if timeout --kill-after=10 45 apt-get update --error-on=any; then
+		break
+	fi
+	if [ "`$attempt" = 3 ]; then
+		exit 1
+	fi
+	echo "Attempt `$attempt of 3 failed: apt-get update" >&2
+done
+apt-get install -y -qq --print-uris --no-install-recommends $aptPackages > '$linuxRoot/apt-uris.txt'
+"@ 180
+
+# The packages are downloaded by the host rather than by apt in the distribution. The Azure mirror at times serves
+# package files to the distribution at about 120 KB/s for minutes while its index files stay fast, and apt keeps such
+# a connection rather than giving up on it. Here a transfer that stays below 1 MB/s for 15 seconds is abandoned and
+# retried on a fresh connection, then on the main Ubuntu archive. apt checks each file against the index when it installs.
+# The host gives up after 4 minutes in total, leaving the packages it did not get to apt, within the step's timeout.
+$debCount = 0
+$hostDownloadDeadline = [DateTime]::UtcNow.AddMinutes(4)
+foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
+	if ($line -notmatch "^'(https?://[^']+)' ([A-Za-z0-9_.+~%-]+\.deb) (\d+) (SHA512|SHA256|SHA1|MD5Sum):([0-9a-f]+)") {
+		continue
+	}
+	$url, $name, $size, $hash = $Matches[1], $Matches[2], [long]$Matches[3], $Matches[5]
+	$algorithm = @{ SHA512 = 'SHA512'; SHA256 = 'SHA256'; SHA1 = 'SHA1'; MD5Sum = 'MD5' }[$Matches[4]]
+	$destination = Join-Path $debDirectory $name
+	$downloaded = $false
+	# Each attempt opens a fresh connection: the Azure mirror twice, then the main Ubuntu archive.
+	$fallback = $url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'
+	foreach ($candidate in @($url, $url, $fallback)) {
+		$remainingSeconds = [int]($hostDownloadDeadline - [DateTime]::UtcNow).TotalSeconds
+		if ($remainingSeconds -lt 10) {
+			break
+		}
+		curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
+		if ($LASTEXITCODE -eq 0 -and (Get-Item -LiteralPath $destination).Length -eq $size -and (Get-FileHash -LiteralPath $destination -Algorithm $algorithm).Hash -eq $hash.ToUpperInvariant()) {
+			$downloaded = $true
+			break
+		}
+		Write-Host "Download of $name from $candidate failed (curl exit code $LASTEXITCODE)."
+	}
+	if (-not $downloaded) {
+		Remove-Item -LiteralPath $destination -ErrorAction SilentlyContinue
+		Write-Host "Leaving $name for apt to download."
+		continue
+	}
+	$debCount++
+}
+Write-Host "Downloaded $debCount packages on the host."
+# A failed curl above must not become the exit code of this script.
+$global:LASTEXITCODE = 0
+
+Invoke-Wsl @"
+export DEBIAN_FRONTEND=noninteractive
+cp '$linuxRoot'/debs/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+chmod +x /usr/sbin/policy-rc.d
+apt-get install -y --no-install-recommends $aptPackages
+rm /usr/sbin/policy-rc.d
+mkdir -p /opt/vscode-smoke-server
+tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
+/opt/vscode-smoke-server/node --version
+test -f /opt/vscode-smoke-server/out/bootstrap-fork.js
+useradd --create-home --shell /bin/bash vscode-smoke
+usermod -aG docker vscode-smoke
+printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
+"@ 720
+if ((Invoke-WslExe -ArgumentList '--terminate', $Distribution).ExitCode -ne 0) {
+	throw 'Failed to restart the owned distribution to apply its non-root default user.'
+}
+# Docker's default nftables backend needs matches that older WSL2 kernels lack; legacy iptables works with all of them.
+Invoke-Wsl @"
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+start-stop-daemon --start --background --make-pidfile --pidfile /run/vscode-smoke-docker.pid --startas /bin/sh -- -c 'exec /usr/bin/dockerd > /var/log/docker.log 2>&1'
+for attempt in `$(seq 1 60); do
+	if docker info > /dev/null 2>&1; then break; fi
+	sleep 1
+done
+if ! docker info; then
+	cat /var/log/docker.log
+	exit 1
+fi
+test "`$(docker info --format '{{.OSType}}')" = linux
+docker pull mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+mkdir -p /tmp/vscode-smoke-bind-check
+printf smoke > /tmp/vscode-smoke-bind-check/marker
+docker run --rm --mount type=bind,source=/tmp/vscode-smoke-bind-check,target=/check mcr.microsoft.com/devcontainers/base:ubuntu-24.04 sh -c 'test "`$(cat /check/marker)" = smoke'
+rm /tmp/vscode-smoke-bind-check/marker
+rmdir /tmp/vscode-smoke-bind-check
+"@
+if ((Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', '/bin/sh', '-ec', 'test "$(id -u)" -ne 0; docker info --format "{{.OSType}}"' -Stream).ExitCode -ne 0) {
+	throw 'The default WSL smoke user cannot access Docker.'
+}
+$addresses = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'hostname', '-I'
+if ($addresses.ExitCode -ne 0) {
+	throw 'Cannot determine the WSL guest address for mock-server access.'
+}
+$guestAddress = ($addresses.Output.Trim() -split '\s+')[0]
+if ($guestAddress -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+	throw "Unexpected WSL guest address: $guestAddress"
+}
+New-NetFirewallRule -Name $Distribution -DisplayName $Distribution -Direction Inbound -Action Allow -Protocol TCP -RemoteAddress $guestAddress | Out-Null
+Write-SmokeOutput 'serverPath' '/opt/vscode-smoke-server'
+Write-Host "WSL Docker is ready in $Distribution with Linux server $serverCommit."

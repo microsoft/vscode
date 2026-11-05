@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, hasFileFolderCopyCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileCloneCapability, hasFileCloneCapability, IFileAtomicReadOptions, IFileAtomicOptions } from '../../files/common/files.js';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, hasFileFolderCopyCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileCloneCapability, hasFileCloneCapability, IFileAtomicReadOptions, IFileAtomicOptions, hasFileAtomicRenameCapability, IFileSystemProviderWithFileAtomicRenameCapability } from '../../files/common/files.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ReadableStreamEvents } from '../../../base/common/stream.js';
@@ -27,6 +27,7 @@ export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileAtomicDeleteCapability,
+	IFileSystemProviderWithFileAtomicRenameCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities;
@@ -103,6 +104,13 @@ export class FileUserDataProvider extends Disposable implements
 
 	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.fileSystemProvider.rename(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
+	}
+
+	renameFileAtomic(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		if (!hasFileAtomicRenameCapability(this.fileSystemProvider)) {
+			throw new Error('Atomic rename not supported');
+		}
+		return this.fileSystemProvider.renameFileAtomic(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
 	}
 
 	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {

@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CATALOG_READY".
+    response:
+      content: CATALOG_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CATALOG_PEER_ONLY. Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CATALOG_PEER_ONLY. Reply exactly "PEER_READY".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: text
+              text: PEER_READY
+        - role: user
+          content: Reply exactly "PEER_CONTINUED". Do not use tools.
+    response:
+      content: PEER_CONTINUED
+      stopReason: end_turn

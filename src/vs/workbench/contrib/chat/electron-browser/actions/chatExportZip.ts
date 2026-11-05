@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -21,7 +22,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 
 export function registerChatExportZipAction() {
-	registerAction2(class ExportChatAsZipAction extends Action2 {
+	return registerAction2(class ExportChatAsZipAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.exportAsZip',
@@ -46,10 +47,11 @@ export function registerChatExportZipAction() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), 'chat.zip');
+			const defaultUri = joinPath(await fileDialogService.defaultFilePath(Schemas.file), 'chat.zip');
 			const result = await fileDialogService.showSaveDialog({
 				defaultUri,
-				filters: [{ name: 'Zip Archive', extensions: ['zip'] }]
+				filters: [{ name: 'Zip Archive', extensions: ['zip'] }],
+				availableFileSystems: [Schemas.file],
 			});
 
 			if (!result) {

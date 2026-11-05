@@ -21,13 +21,11 @@ import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/c
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
-import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 //#region Utilities
 
@@ -155,27 +153,27 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 // Context menu items (shown on right-click)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_FILE_ID, title: localize('open', "Open") },
-	group: '1_open',
+	group: 'navigation',
 	order: 1,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: RUN_PROMPT_FROM_VIEW_ID, title: localize('runPrompt', "Run Prompt"), icon: Codicon.play },
-	group: '2_run',
-	order: 1,
+	group: 'navigation',
+	order: 2,
 	when: ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.prompt),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path") },
-	group: '3_modify',
+	group: '3_copy',
 	order: 1,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
-	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('delete', "Delete") },
-	group: '3_modify',
-	order: 10,
+	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('deleteWithConfirmation', "Delete...") },
+	group: '4_manage',
+	order: 1,
 });
 
 // Disable item action
@@ -243,7 +241,7 @@ registerAction2(class extends Action2 {
 // Context menu: Disable (shown when builtin item is enabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable") },
-	group: '4_toggle',
+	group: '1_state',
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
@@ -255,7 +253,7 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 // Context menu: Enable (shown when builtin item is disabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable") },
-	group: '4_toggle',
+	group: '1_state',
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
@@ -296,23 +294,20 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FOCUS_AI_CUSTOMIZATION_VIEW_ID,
-			title: localize2('openCustomizations', "Open Chat Customizations"),
+			title: localize2('focusCustomizations', "Focus Chat Customizations"),
 			category: AI_CUSTOMIZATION_CATEGORY,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, TerminalContextKeys.focus.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), TerminalContextKeys.focus.negate()),
 			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		if (accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.CustomizationEntryPoints)) {
-			await accessor.get(ICommandService).executeCommand(OPEN_CUSTOMIZATIONS_COMMAND_ID);
-			return;
-		}
-		const sessionsView = await accessor.get(IViewsService).openView<SessionsView>(SessionsViewId, false);
+		const viewsService = accessor.get(IViewsService);
+		const sessionsView = await viewsService.openView<SessionsView>(SessionsViewId, false);
 		sessionsView?.focusCustomizations();
 	}
 });

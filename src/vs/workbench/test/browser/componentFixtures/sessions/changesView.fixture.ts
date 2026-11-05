@@ -33,11 +33,11 @@ import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SinglePaneChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -47,11 +47,15 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IFocusedSessionHostService } from '../../../../../sessions/services/sessions/browser/sessionHost.js';
+// eslint-disable-next-line local/code-import-patterns
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -74,6 +78,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
@@ -85,6 +90,27 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	getSessionChanges(): IChangesSessionObservables {
+		return {
+			resourceObs: this.activeSessionResourceObs,
+			typeObs: this.activeSessionTypeObs,
+			isVirtualWorkspaceObs: this.activeSessionIsVirtualWorkspaceObs,
+			hasGitRepositoryObs: this.activeSessionHasGitRepositoryObs,
+			reviewCommentCountByFileObs: this.activeSessionReviewCommentCountByFileObs,
+			agentFeedbackCountByFileObs: this.activeSessionAgentFeedbackCountByFileObs,
+			changesetsLoadingObs: this.activeSessionChangesetsLoadingObs,
+			changesetsObs: this.activeSessionChangesetsObs,
+			changesetObs: this.activeSessionChangesetObs,
+			changesetLoadingObs: this.activeSessionChangesetLoadingObs,
+			changesetOperationsObs: this.activeSessionChangesetOperationsObs,
+			changesObs: this.activeSessionChangesObs,
+			loadingObs: this.activeSessionLoadingObs,
+			changesSummaryObs: this.activeSessionChangesSummaryObs,
+			sectionCollapseStateObs: this.activeSessionSectionCollapseStateObs,
+			stateObs: this.activeSessionStateObs,
+		};
+	}
+
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
@@ -97,6 +123,11 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionTypeObs = constObservable(session.sessionType);
 		this.activeSessionIsVirtualWorkspaceObs = constObservable(false);
 		this.activeSessionChangesObs = constObservable(options.changes);
+		this.activeSessionChangesSummaryObs = constObservable(options.changes.length === 0 ? undefined : {
+			additions: options.changes.reduce((total, change) => total + change.insertions, 0),
+			deletions: options.changes.reduce((total, change) => total + change.deletions, 0),
+			files: options.changes.length,
+		});
 		this.activeSessionChangesetsObs = constObservable([changeset]);
 		this.activeSessionChangesetsLoadingObs = constObservable(false);
 		this.activeSessionChangesetObs = constObservable(changeset);
@@ -152,7 +183,7 @@ const changesViewContainer: ViewContainer = {
 const changesViewDescriptor: IViewDescriptor = {
 	id: CHANGES_VIEW_ID,
 	name: localize2('fixtureChangesView', 'Changes'),
-	ctorDescriptor: new SyncDescriptor(SinglePaneChangesViewPane),
+	ctorDescriptor: new SyncDescriptor(DesktopChangesViewPane),
 	containerIcon: Codicon.gitCompare,
 };
 
@@ -268,7 +299,13 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		supportsRename: true,
 	};
 	const changesets = [createChangeset(options.changes)];
-	const chat = new class extends mock<IChat>() { }();
+	// A chat without its own folders shares the session's workspace.
+	const workspace = constObservable(createWorkspace());
+	const chat = new class extends mock<IChat>() {
+		override readonly changes = constObservable(options.changes);
+		override readonly changesets = constObservable(changesets);
+		override readonly workspace = workspace;
+	}();
 
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'fixture:changes-view';
@@ -277,12 +314,10 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		override readonly sessionType = 'fixture';
 		override readonly icon = Codicon.account;
 		override readonly createdAt = new Date('2026-05-14T12:00:00Z');
-		override readonly workspace = constObservable(createWorkspace());
+		override readonly workspace = workspace;
 		override readonly title = constObservable('Changes view fixture');
 		override readonly updatedAt = constObservable(new Date('2026-05-14T12:30:00Z'));
 		override readonly status = constObservable(SessionStatus.Completed);
-		override readonly changes = constObservable(options.changes);
-		override readonly changesets = constObservable(changesets);
 		override readonly modelId = constObservable(undefined);
 		override readonly mode = constObservable(undefined);
 		override readonly loading = constObservable(false);
@@ -354,7 +389,6 @@ function createGitHubService(checks: readonly IGitHubCICheck[] | undefined): IGi
 		override readonly activeSessionPullRequestObs = constObservable(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable(createCIModel(checks));
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override createRepositoryModelReference(): ReturnType<IGitHubService['createRepositoryModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestModelReference(): ReturnType<IGitHubService['createPullRequestModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestReviewThreadsModelReference(): ReturnType<IGitHubService['createPullRequestReviewThreadsModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestCIModelReference(): ReturnType<IGitHubService['createPullRequestCIModelReference']> { throw new Error('Not implemented in fixture.'); }
@@ -397,7 +431,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IGitHubService, createGitHubService(options.checks));
 			reg.defineInstance(IViewDescriptorService, new FixtureViewDescriptorService());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 				override readonly visibleSessions = constObservable([session]);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
@@ -440,8 +474,10 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable<IActiveSession | undefined>(session) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)));
 
-	const view = disposableStore.add(instantiationService.createInstance(SinglePaneChangesViewPane, {
+	const view = disposableStore.add(instantiationService.createInstance(DesktopChangesViewPane, {
 		id: CHANGES_VIEW_ID,
 		title: 'Changes',
 		minimumBodySize: 0,

@@ -9,13 +9,17 @@
  * With the Modern UI floating-panel treatment the workbench parts read as
  * separate cards with a gap between them, which hides where one part ends and
  * the next begins. Sashes are invisible until hovered, so the resize boundary
- * is hard to find. This module gives every inter-panel sash a persistent,
+ * is hard to find. This module gives every inter-panel sash a
  * low-contrast grip — three small dots — so users can see where parts meet and
- * where to grab to resize. The grip is suppressed for sashes within a part
- * (editor splits, tree/view resizers) so only the boundaries between top-level
- * parts are marked. On hover/active the grip fades out in favour of the
+ * where to grab to resize. The grip is suppressed for modal editors and sashes
+ * within a part (editor splits, tree/view resizers) so only the boundaries
+ * between top-level parts are marked. On hover/active the grip fades out in favour of the
  * existing full-length highlight (see base sash.css), so behaviour while
- * dragging is unchanged.
+ * dragging is unchanged. With `workbench.sash.autoHideGrippers` enabled, grips also
+ * recede while the mouse is idle.
+ *
+ * The grip color is themeable through `modernSash.gripForeground`, which also
+ * carries the opaque high contrast default.
  *
  * All rules are gated behind the `.modern-ui` class, which the
  * ModernUIContribution toggles onto the workbench container(s) when the
@@ -23,7 +27,7 @@
  * Without that class these rules never apply.
  */
 
-/* Persistent grip handle, centered on the sash, drawn via the spare pseudo. */
+/* Grip handle, centered on the sash, drawn via the spare pseudo. */
 .modern-ui .monaco-sash:not(.disabled)::after {
 	content: '';
 	position: absolute;
@@ -31,12 +35,14 @@
 	width: 2px;
 	height: 2px;
 	border-radius: 50%;
-	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.75;
+	background: var(--vscode-modernSash-gripForeground);
+	/* The orientation rules below repeat the dot via `box-shadow`, which reads `currentColor`. */
+	color: var(--vscode-modernSash-gripForeground);
+	opacity: var(--sash-grip-opacity, 1);
 }
 
-.monaco-enable-motion .modern-ui .monaco-sash:not(.disabled)::after {
-	transition: opacity 0.1s ease-out;
+:is(.monaco-enable-motion .modern-ui, .monaco-enable-motion.modern-ui) .monaco-sash:not(.disabled)::after {
+	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
 }
 
 /* Vertical sash: three dots stacked vertically, centered. */
@@ -45,7 +51,6 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	box-shadow: 0 -5px currentColor, 0 5px currentColor;
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 
 /* Horizontal sash: three dots in a row, centered. */
@@ -54,13 +59,6 @@
 	top: 50%;
 	transform: translate(-50%, -50%);
 	box-shadow: -5px 0 currentColor, 5px 0 currentColor;
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-}
-
-:is(.hc-black, .hc-light).modern-ui .monaco-sash:not(.disabled)::after {
-	background: var(--vscode-foreground);
-	color: var(--vscode-foreground);
-	opacity: 1;
 }
 
 /* While hovering/dragging, defer to the base full-length highlight. */
@@ -74,9 +72,9 @@
 	content: none;
 }
 
-/* Only mark boundaries between top-level parts. Sashes inside a part (editor
- * splits, tree/view resizers) live within `.part`, so suppress their grip. */
-.modern-ui .part .monaco-sash::after {
+/* Keep grips on top-level part boundaries, not modal frames or nested resizers. */
+.modern-ui .part .monaco-sash::after,
+.modern-ui .monaco-modal-editor-block .monaco-sash::after {
 	content: none;
 }
 
@@ -91,11 +89,8 @@
 }
 
 @media (forced-colors: active) {
-	.modern-ui .monaco-sash:not(.disabled)::after,
-	.modern-ui .monaco-sash.vertical:not(.disabled)::after,
-	.modern-ui .monaco-sash.horizontal:not(.disabled)::after {
+	.modern-ui .monaco-sash:not(.disabled)::after {
 		background: CanvasText;
 		color: CanvasText;
-		opacity: 1;
 	}
 }

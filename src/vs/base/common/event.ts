@@ -1293,7 +1293,7 @@ export class Emitter<T> {
 			let stack: Stacktrace | undefined;
 			if (this._leakWarningThreshold !== undefined && this._size >= Math.ceil(this._leakWarningThreshold * 0.2)) {
 				const leakageMon = this._getLeakageMonitor();
-				if (leakageMon) {
+				if (leakageMon && this._size + 1 >= leakageMon.threshold) {
 					// check and record this emitter for potential leakage
 					contained.stack = Stacktrace.create();
 					removeMonitor = leakageMon.check(contained.stack, this._size + 1);

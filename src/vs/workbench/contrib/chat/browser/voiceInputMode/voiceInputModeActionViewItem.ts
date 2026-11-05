@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import '../../../../../base/browser/ui/segmentedIconToggle/segmentedIconToggle.css';
 import './media/voiceInputMode.css';
 import { getActiveWindow, getWindow } from '../../../../../base/browser/dom.js';
@@ -42,17 +43,14 @@ import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToT
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
-import { AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_ENABLED, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
 const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
 
-/**
- * Stable command the Voice Mode "Configure Keybinding" context-menu entry targets.
- * The rendered voice affordance swaps between states, but the keybinding lives on
- * the start command, so target it in every state.
- */
+/** Command that starts Voice Mode from the segmented voice control. */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
+const VOICE_DISCONNECT_COMMAND_ID = 'agentsVoice.disconnect';
 
 async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
 	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
@@ -350,21 +348,28 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		return this.keybindingService.appendKeybinding(label, commandId);
 	}
 
+	private _getVoicePowerCommandId(): string {
+		const ownsVoice = this._options?.isVoiceActive?.get() ?? true;
+		return ownsVoice && (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get())
+			? VOICE_DISCONNECT_COMMAND_ID
+			: VOICE_START_COMMAND_ID;
+	}
+
 	private _updateAriaLabels(): void {
 		this._dictationCell?.setAttribute('aria-label', this._dictationCell.classList.contains('preparing')
 			? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
 			: this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID));
 		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('connecting')
-			? localize('voiceInputMode.connecting', "Connecting to Voice Mode…")
+			? this._getLabelWithKeybinding(localize('voiceInputMode.connecting', "Connecting to Voice Mode…"), VOICE_DISCONNECT_COMMAND_ID)
 			: this._voiceCell.classList.contains('on')
-				? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+				? this._getLabelWithKeybinding(localize('voiceInputMode.disconnect', "Turn Off Voice Mode"), VOICE_DISCONNECT_COMMAND_ID)
 				: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
 		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
 			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
 			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
 		this._muteCell?.setAttribute('aria-label', this._muteCell.classList.contains('active')
-			? localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone")
-			: localize('voiceInputMode.muteMicrophone', "Mute Microphone"));
+			? this._getLabelWithKeybinding(localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone"), AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID)
+			: this._getLabelWithKeybinding(localize('voiceInputMode.muteMicrophone', "Mute Microphone"), AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID));
 	}
 
 	constructor(
@@ -386,11 +391,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		super(undefined, action);
 	}
 
-	/** Set the per-state pill/waveform colors from the theme-derived voice accent. */
+	/** Set the shared pill/waveform color from the theme-derived voice accent. */
 	private _updateVoiceStateColors(container: HTMLElement): void {
 		const colors = resolveVoiceGlowColors(this.themeService.getColorTheme());
 		container.style.setProperty('--voice-color-listening', colors.listening.toString());
-		container.style.setProperty('--voice-color-speaking', colors.speaking.toString());
 	}
 
 	override render(container: HTMLElement): void {
@@ -408,6 +412,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// Connected    → the voice cell takes the dictation cell's place (now animated
 		//                + disconnect) and either listen or mute occupies the second slot.
 		const pill = dom.append(container, dom.$('.monaco-segmented-icon-toggle.chat-voice-input-mode'));
+		this._register(Gesture.ignoreTarget(pill));
 		this._reel = dom.append(pill, dom.$('.monaco-segmented-icon-toggle-reel.chat-voice-input-mode-reel'));
 
 		// --- Dictation cell ---
@@ -448,8 +453,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				const ownsVoice = this._options?.isVoiceActive?.get() ?? this._options?.isActive?.get() ?? true;
 				const connectedish = (ownsVoice && (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get())) || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
 				return getVoiceModeHoverContent(connectedish
-					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
+					? this._getLabelWithKeybinding(localize('voiceInputMode.disconnect', "Turn Off Voice Mode"), VOICE_DISCONNECT_COMMAND_ID)
+					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID), this.voiceSessionController.isUsingGptLive);
 			}));
 		// The voice button is a plain power toggle (connect / disconnect). Listening is
 		// driven by the separate listen cell in manual mode and by the auto-listen loop
@@ -461,7 +466,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._registerActivationKeys(this._voiceCell, () => this._onClickVoicePowerToggle());
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
-			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, this._getVoicePowerCommandId()),
 			this.contextMenuService,
 		));
 		// Pause the audio-reactive bars while hovering so the CSS "silent" preview shows.
@@ -483,7 +488,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateAriaLabels()));
 		this._register(addMicButtonContextMenuListener(
 			this._listenCell,
-			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, ChatVoiceInputModeToggleListenAction.ID),
 			this.contextMenuService,
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,
@@ -516,13 +521,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._muteIcon = dom.append(this._muteCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(addMicButtonContextMenuListener(
 			this._muteCell,
-			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID),
 			this.contextMenuService,
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._muteCell,
 			() => this.voiceSessionController.isMuted.get()
-				? localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone")
-				: localize('voiceInputMode.muteMicrophone', "Mute Microphone")));
+				? this._getLabelWithKeybinding(localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone"), AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID)
+				: this._getLabelWithKeybinding(localize('voiceInputMode.muteMicrophone', "Mute Microphone"), AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID)));
 		this._register(dom.addDisposableListener(this._muteCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._onClickMute();
@@ -647,9 +652,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)
-			//   connected/idle → darker bars, calm undulating wave
+			//   connected/idle → blue bars, calm undulating wave
 			//   listening → BLUE bars, audio-reactive to the user's voice
-			//   speaking → PURPLE bars, audio-reactive to the assistant
+			//   speaking → BLUE bars, audio-reactive to the assistant
 			//   hover-while-connected → short even "silent" bars (previews disconnect; CSS)
 			this._voiceCell!.classList.toggle('collapsed', !voicePresent);
 			this._voiceCell!.classList.toggle('on', voiceOn);

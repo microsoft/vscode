@@ -67,8 +67,26 @@ declare module 'vscode' {
 		provideKeywordRecognitionSession(token: CancellationToken): ProviderResult<KeywordRecognitionSession>;
 	}
 
+	export interface VoiceLiveSession {
+		readonly sessionId: string;
+		readonly sdp: string;
+	}
+
+	export interface VoiceLiveSessionResult {
+		/** Whether a live session can be created with the current provider configuration. */
+		readonly available: boolean;
+		/** The created session, present only when an SDP offer was supplied. */
+		readonly session?: VoiceLiveSession;
+	}
+
+	export interface VoiceLiveSessionProvider {
+		/** Checks availability without an SDP offer, or exchanges an offer for a live session. */
+		provideVoiceLiveSession(sdp: string | undefined, token: CancellationToken): ProviderResult<VoiceLiveSessionResult>;
+	}
+
 	export namespace speech {
 
 		export function registerSpeechProvider(id: string, provider: SpeechProvider): Disposable;
+		export function registerVoiceLiveSessionProvider(id: string, provider: VoiceLiveSessionProvider): Disposable;
 	}
 }

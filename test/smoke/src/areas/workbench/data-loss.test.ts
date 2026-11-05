@@ -84,6 +84,10 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 		});
 
 		it('verifies that auto save triggers on shutdown', function () {
+			// Quarantined on remote Linux/Windows: https://github.com/microsoft/vscode/issues/338154
+			if (this.defaultOptions.remote && (process.platform === 'linux' || process.platform === 'win32')) {
+				this.skip();
+			}
 			return testHotExit.call(this, 'test_verifies_that_auto_save_triggers_on_shutdown', undefined, true);
 		});
 

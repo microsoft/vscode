@@ -28,7 +28,6 @@ import { NotebookOptions } from '../notebookOptions.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { NotebookMultiDiffEditorInput, NotebookMultiDiffEditorWidgetInput } from './notebookMultiDiffEditorInput.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ResourceLabel } from '../../../../browser/labels.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { localize } from '../../../../../nls.js';
@@ -104,7 +103,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			{ variant: MultiDiffEditorVariant.Standard },
+			{ variant: 'noCardsNonCompact' },
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {

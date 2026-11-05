@@ -17,7 +17,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
@@ -62,6 +62,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 				agentFeedbackService.getFeedback(sessionResource),
 				codeReviewService.getPRReviewState(sessionResource).get(),
 				agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+				shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
 			);
 			if (comments.length > 0) {
 				return this.runWithSession(accessor, sessionResource, resource);
@@ -133,6 +134,7 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 			agentFeedbackService.getFeedback(sessionResource),
 			codeReviewService.getPRReviewState(sessionResource).get(),
 			agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+			shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
 		);
 
 		const comment = agentFeedbackService.getNextNavigableItem(sessionResource, comments, this._next);

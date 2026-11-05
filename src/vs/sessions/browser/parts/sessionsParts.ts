@@ -4,22 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionsPartService, IToggleMaximizeSessionEvent } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
- * variant based on viewport width at construction time. Registered as an eager
- * singleton so the part registers itself with the workbench layout service
+ * variant from the layout service's viewport class at construction time. Registered
+ * as an eager singleton so the part registers itself with the workbench layout service
  * before the workbench starts laying out parts.
  *
  * The part is a passive renderer: the {@link ISessionsService} drives the
@@ -35,24 +39,38 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
-	get onDidFocusSession(): Event<string> {
+	get onDidFocusSession(): Event<string | undefined> {
 		return this._mainPart.onDidFocusSession;
+	}
+
+	get shownChatCount() {
+		return this._mainPart.shownChatCount;
 	}
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 
-		const { width } = getClientArea(mainWindow.document.body);
-		const isPhoneLayout = width < 640;
+		const isPhoneLayout = layoutService.initialViewportClass
+			? layoutService.initialViewportClass === 'phone'
+			: getClientArea(mainWindow.document.body).width < 640;
 
-		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
+		const mainWindowInstantiationService = this._register(createMainWindowInstantiationService(instantiationService));
+		this._mainPart = this._register(mainWindowInstantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}
 
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
-		this._mainPart.updateVisibleSessions(visible, active);
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		this._mainPart.updateVisibleSessions(visible, active, slots, request);
 	}
+
+	getGridLayout() { return this._mainPart.getGridLayout(); }
+	getSessionAtPosition(index: number) { return this._mainPart.getSessionAtPosition(index); }
+	getNeighborSession(sessionId: string | undefined, direction: Direction) { return this._mainPart.getNeighborSession(sessionId, direction); }
+	getSessionPlacement(sessionId: string) { return this._mainPart.getSessionPlacement(sessionId); }
+	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void { this._mainPart.resizeSession(sessionId, direction, amount); }
+	get onDidInteractWithGrid(): Event<void> { return this._mainPart.onDidInteractWithGrid; }
 
 	setContentVisible(visible: boolean): void {
 		this._mainPart.setContentVisible(visible);
@@ -70,15 +88,35 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.focusSession(session?.sessionId);
+		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
 
-	getSessionView(sessionId: string | undefined): SessionView | undefined {
+	getSessionView(session: string | ISession | undefined): SessionView | undefined {
+		if (typeof session === 'object') {
+			const shown = this._mainPart.getViewOfSession(session);
+			if (shown) {
+				return shown;
+			}
+			// A session scoped to a chat that no part shows a view of, such as one of a chat window's editors: none, not the
+			// main window's view of another chat of its session.
+			if ((session as Partial<IActiveSession>).scopedChatResource) {
+				return undefined;
+			}
+		}
+		const sessionId = typeof session === 'object' ? session.sessionId : session;
 		return this._mainPart.getSessionView(sessionId);
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
 		return this._mainPart.getFocusedSessionView();
+	}
+
+	focusSessionView(session: ISession): void {
+		this._mainPart.focusSessionView(session);
+	}
+
+	getActiveSessionView(): SessionView | undefined {
+		return this._mainPart.getActiveSessionView();
 	}
 
 	getProgressIndicator(): IProgressIndicator {

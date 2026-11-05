@@ -239,10 +239,13 @@ declare module 'vscode' {
 		 */
 		readonly modeInstructions2?: ChatRequestModeInstructions;
 
+		/** Whether this request was initiated by the system rather than the user. */
+		readonly isSystemInitiated?: boolean;
+
 		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined, isSystemInitiated?: boolean);
 	}
 
 	export class ChatResponseTurn2 {

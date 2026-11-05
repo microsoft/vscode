@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isWeb } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
 import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
@@ -12,29 +13,29 @@ suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocking sign-in requires the opt-in and a provider that does not need GitHub', () => {
+	test('blocking sign-in allows native providers or initialization without GitHub', () => {
 		assert.deepStrictEqual({
-			featureDisabled: resolveSignedOutWindowGate(false, [SessionTypeAuthRequirement.None]),
-			providersUnresolved: resolveSignedOutWindowGate(true, []),
-			allRequireGitHub: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.GitHub]),
-			nativeProvider: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.None]),
-			nativeProviderInitializing: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.Unusable]),
+			initializesWithoutGitHub: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub], true),
+			initializationBeforeProviders: resolveSignedOutWindowGate([], true),
+			providersUnresolved: resolveSignedOutWindowGate([]),
+			allRequireGitHub: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.GitHub]),
+			nativeProvider: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.None]),
+			nativeProviderInitializing: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.Unusable]),
 		}, {
-			featureDisabled: SignedOutWindowGate.ForceGitHubSignIn,
-			providersUnresolved: SignedOutWindowGate.Unresolved,
+			initializesWithoutGitHub: SignedOutWindowGate.Proceed,
+			initializationBeforeProviders: SignedOutWindowGate.Unresolved,
+			providersUnresolved: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Unresolved,
 			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
-			nativeProvider: SignedOutWindowGate.Proceed,
-			nativeProviderInitializing: SignedOutWindowGate.Proceed,
+			nativeProvider: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Proceed,
+			nativeProviderInitializing: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Proceed,
 		});
 	});
 
-	test('GitHub workspace group offers sign-in only for signed-out opted-in users', () => {
+	test('GitHub workspace group offers sign-in only for signed-out users', () => {
 		assert.deepStrictEqual([
-			shouldShowGitHubWorkspaceGroupSignIn(false, false),
-			shouldShowGitHubWorkspaceGroupSignIn(false, true),
-			shouldShowGitHubWorkspaceGroupSignIn(true, false),
-			shouldShowGitHubWorkspaceGroupSignIn(true, true),
-		], [false, true, false, false]);
+			shouldShowGitHubWorkspaceGroupSignIn(false),
+			shouldShowGitHubWorkspaceGroupSignIn(true),
+		], [!isWeb, false]);
 	});
 
 	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {

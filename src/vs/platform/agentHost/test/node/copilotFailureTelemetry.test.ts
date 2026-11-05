@@ -7,36 +7,19 @@ import type { SessionEventPayload } from '@github/copilot-sdk';
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
-import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
+import { readAgentErrorTelemetryMeta } from '../../common/meta/errorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = true;
-	readonly events: { eventName: string; data: Record<string, unknown> | undefined }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<Record<string, unknown> | undefined> {
+	constructor() {
+		super({ captureErrors: true, sendErrorTelemetry: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite('CopilotFailureTelemetry', () => {
@@ -231,6 +214,27 @@ suite('CopilotFailureTelemetry', () => {
 				imagePartsMissingMediaType: undefined,
 			},
 		}]);
+	});
+
+	test('attributes a failed model call to the HydraFusion workflow and phase that made it', () => {
+		const telemetryService = new CapturingTelemetryService();
+		const session = AgentSession.uri('copilotcli', 'agent-session-id');
+		const correlation = createCopilotFailureCorrelation(session, URI.parse(buildChatUri(session, 'peer-chat-id')), 'turn-id', 'sdk-session-id');
+		const failure = (fusion: SessionEventPayload<'model.call_failure'>['data']['fusion']): SessionEventPayload<'model.call_failure'> => ({
+			type: 'model.call_failure', id: 'event-1', parentId: null, timestamp: '2026-01-01T00:00:00.000Z', ephemeral: true,
+			data: { source: 'top_level', failureKind: 'transport', model: 'claude-sonnet-5.5', isAuto: true, fusion },
+		});
+
+		reportCopilotModelCallFailure(telemetryService, failure({ fusionId: 'fusion-1', syntheticModel: 'hydrafusion-max', pattern: 'single', policy: 'max', phaseId: 'phase-1', phaseKind: 'primary' }), correlation);
+		reportCopilotModelCallFailure(telemetryService, failure({ fusionId: 'fusion-2', syntheticModel: 'not a fusion model', pattern: 'single', policy: 'max' }), correlation);
+
+		// An unknown synthetic model is not reported as a HydraFusion model.
+		assert.deepStrictEqual(telemetryService.events.map(({ data }) => ({
+			fusionId: data?.fusionId, fusionModel: data?.fusionModel, fusionPattern: data?.fusionPattern, fusionPhaseKind: data?.fusionPhaseKind,
+		})), [
+			{ fusionId: 'fusion-1', fusionModel: 'hydrafusion-max', fusionPattern: 'single', fusionPhaseKind: 'primary' },
+			{ fusionId: 'fusion-2', fusionModel: undefined, fusionPattern: 'single', fusionPhaseKind: undefined },
+		]);
 	});
 
 	test('drops empty provider request identifiers', () => {

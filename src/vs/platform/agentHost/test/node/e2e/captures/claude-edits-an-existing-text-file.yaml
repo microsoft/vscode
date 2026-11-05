@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Replace the complete contents of edit.txt with exactly AFTER_VALUE and no trailing newline. Use your file tools; do not run a shell command.
     response:
       content:
-        - type: text
-          text: I'll read the file first, then replace its contents.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -18,15 +16,13 @@ exchanges:
             file_path: ${workdir}/edit.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Replace the complete contents of edit.txt with exactly AFTER_VALUE and no trailing newline. Use your file tools; do not run a shell command.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file first, then replace its contents.
             - type: tool_use
               name: Read
               input:
@@ -46,15 +42,13 @@ exchanges:
             content: AFTER_VALUE
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Replace the complete contents of edit.txt with exactly AFTER_VALUE and no trailing newline. Use your file tools; do not run a shell command.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file first, then replace its contents.
             - type: tool_use
               name: Read
               input:
@@ -77,5 +71,5 @@ exchanges:
               tool_use_id: toolcall_1
               content: The file ${workdir}/edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
     response:
-      content: '`edit.txt` now contains exactly `AFTER_VALUE` with no trailing newline.'
+      content: 'I replaced the contents of `edit.txt`: it held `BEFORE_VALUE` and now contains exactly `AFTER_VALUE` with no trailing newline. I used the file tools only, with no shell commands.'
       stopReason: end_turn

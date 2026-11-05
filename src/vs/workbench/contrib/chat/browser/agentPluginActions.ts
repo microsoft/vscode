@@ -5,18 +5,20 @@
 
 import { Action, IAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICustomizationMarketplaceInstallService } from '../common/customizationMarketplaceInstallService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../common/enablement.js';
-import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { buildEnablementContextMenuGroup } from './enablementActions.js';
@@ -26,6 +28,7 @@ import { getCustomizationScopeEnablement } from '../../../../platform/agentHost/
 import { CustomizationEnablementKind, type PluginCustomization } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ICustomizationItemAction } from '../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from './agentSessions/agentHost/agentHostCustomizationService.js';
+import { IReader } from '../../../../base/common/observable.js';
 
 //#region Simple actions
 
@@ -50,8 +53,19 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(private readonly plugin: IAgentPlugin & { remove(): Promise<boolean> }) {
-		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true);
+	constructor(private readonly removePlugin: () => Promise<boolean>, readonly requiredByOrganization = false) {
+		// Without the `uninstall` class, extension action bars show the disabled action instead of hiding it.
+		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), requiredByOrganization ? 'extension-action label' : 'extension-action label uninstall', !requiredByOrganization);
+		if (requiredByOrganization) {
+			this.tooltip = getPluginManagedByOrganizationMessage();
+		}
+	}
+
+	/** The accessible name, which includes the reason when the organization requires the plugin. */
+	get ariaLabel(): string {
+		return this.requiredByOrganization
+			? localize('pluginUninstallUnavailableAria', "{0}. {1}", this.label, this.tooltip)
+			: this.label;
 	}
 
 	override async run(): Promise<void> {
@@ -59,7 +73,40 @@ export class UninstallPluginAction extends Action {
 	}
 
 	runAndGetResult(): Promise<boolean> {
-		return this.plugin.remove();
+		return this.enabled ? this.removePlugin() : Promise.resolve(false);
+	}
+}
+
+/**
+ * Renders the Uninstall action of a plugin the organization requires. It stays
+ * keyboard-reachable in action bars that skip disabled items, its accessible name
+ * includes the reason, and hovering or pressing Enter or Space shows the reason.
+ * The action itself stays disabled, so it never runs.
+ */
+export class OrganizationRequiredUninstallActionViewItem extends ActionViewItem {
+	constructor(
+		private readonly uninstallAction: UninstallPluginAction,
+		options: IActionViewItemOptions,
+		private readonly hoverService: IHoverService,
+	) {
+		super(undefined, uninstallAction, options);
+	}
+
+	override isEnabled(): boolean {
+		return true;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._register(this.hoverService.setupDelayedHover(container, { content: this.uninstallAction.tooltip }, { setupKeyboardEvents: true }));
+	}
+
+	protected override getHoverContents(): undefined {
+		return undefined;
+	}
+
+	protected override updateAriaLabel(): void {
+		this.label?.setAttribute('aria-label', this.uninstallAction.ariaLabel);
 	}
 }
 
@@ -67,8 +114,26 @@ function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & 
 	return plugin.remove !== undefined;
 }
 
-export function createUninstallPluginAction(plugin: IAgentPlugin): UninstallPluginAction | undefined {
-	return isRemovableAgentPlugin(plugin) ? new UninstallPluginAction(plugin) : undefined;
+/**
+ * Creates the Uninstall action for a removable plugin. A plugin that the
+ * organization requires keeps a visible but disabled action that explains why.
+ */
+export function createUninstallPluginAction(plugin: IAgentPlugin, removePlugin?: () => Promise<boolean>): UninstallPluginAction | undefined {
+	return isRemovableAgentPlugin(plugin)
+		? new UninstallPluginAction(removePlugin ?? (() => plugin.remove()), isPluginRequiredByPolicy(plugin))
+		: undefined;
+}
+
+export async function removePluginWithMarketplaceOwnership(
+	plugin: IAgentPlugin,
+	marketplaceInstallService: ICustomizationMarketplaceInstallService,
+): Promise<boolean> {
+	const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'plugin', uri: plugin.uri });
+	if (marketplace) {
+		await marketplaceInstallService.uninstall(marketplace.resource);
+		return true;
+	}
+	return await plugin.remove?.() ?? false;
 }
 
 export class OpenPluginFolderAction extends Action {
@@ -102,9 +167,28 @@ export class OpenPluginReadmeAction extends Action {
 
 //#region Context menu
 
+export function getPluginPolicyEnablement(plugin: IAgentPlugin, reader?: IReader): boolean | undefined {
+	return plugin.policyEnablement?.read(reader) ?? (plugin.policyBlocked?.read(reader) === true ? false : undefined);
+}
+
 /** Whether the plugin is blocked by enterprise policy and cannot be enabled by the user. */
 export function isPluginPolicyBlocked(plugin: IAgentPlugin): boolean {
-	return plugin.policyBlocked?.get() === true;
+	return getPluginPolicyEnablement(plugin) === false;
+}
+
+/** Whether the plugin is required by enterprise policy and cannot be disabled or uninstalled by the user. */
+export function isPluginRequiredByPolicy(plugin: IAgentPlugin, reader?: IReader): boolean {
+	return getPluginPolicyEnablement(plugin, reader) === true;
+}
+
+/** Whether the installed plugin at `uri`, or containing `uri`, is required by enterprise policy. */
+export function isPluginUriRequiredByPolicy(agentPluginService: Pick<IAgentPluginService, 'plugins'>, uri: URI): boolean {
+	return agentPluginService.plugins.get().some(plugin => isEqualOrParent(uri, plugin.uri) && isPluginRequiredByPolicy(plugin));
+}
+
+/** Explains that a plugin's state is controlled by the user's organization. */
+export function getPluginManagedByOrganizationMessage(): string {
+	return localize('pluginManagedByOrganizationMessage', "This plugin is managed by your organization.");
 }
 
 /** Notifies the user that a plugin is managed by their organization and cannot be enabled. */
@@ -121,16 +205,32 @@ export function createPolicyBlockedEnableAction(plugin: IAgentPlugin, notificati
 		() => { notifyPluginPolicyBlocked(notificationService, plugin.label); return Promise.resolve(); });
 }
 
+function createPolicyForceEnabledDisableAction(plugin: IAgentPlugin, notificationService: INotificationService): Action {
+	return new Action('agentPlugin.disableManaged', localize('disable', "Disable"), undefined, true, () => {
+		notificationService.warn(localize('pluginPolicyForceEnabled', "The plugin \"{0}\" has been enabled by your organization and cannot be disabled.", plugin.label));
+	});
+}
+
+export function createPolicyManagedEnablementAction(plugin: IAgentPlugin, notificationService: INotificationService): Action | undefined {
+	const policyEnablement = getPluginPolicyEnablement(plugin);
+	return policyEnablement === true
+		? createPolicyForceEnabledDisableAction(plugin, notificationService)
+		: policyEnablement === false
+			? createPolicyBlockedEnableAction(plugin, notificationService)
+			: undefined;
+}
+
 /**
  * Builds the standard context menu action groups for an installed plugin.
  */
-export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService): IAction[][] {
+export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, removePlugin?: () => Promise<boolean>): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const groups: IAction[][] = [];
-		if (isPluginPolicyBlocked(plugin)) {
-			groups.push([createPolicyBlockedEnableAction(plugin, accessor.get(INotificationService))]);
+		const policyAction = createPolicyManagedEnablementAction(plugin, accessor.get(INotificationService));
+		if (policyAction) {
+			groups.push([policyAction]);
 		} else {
 			groups.push(buildEnablementContextMenuGroup(
 				plugin.enablement.get(),
@@ -138,6 +238,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 				agentPluginService.enablementModel,
 				workspaceService,
 				'agentPlugin',
+				state => setAgentPluginEnablement(plugin, agentPluginService.enablementModel, state),
 			));
 		}
 
@@ -145,7 +246,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 			instantiationService.createInstance(OpenPluginFolderAction, plugin),
 			instantiationService.createInstance(OpenPluginReadmeAction, joinPath(plugin.uri, 'README.md')),
 		]);
-		const uninstallAction = createUninstallPluginAction(plugin);
+		const uninstallAction = createUninstallPluginAction(plugin, removePlugin);
 		if (uninstallAction) {
 			groups.push([uninstallAction]);
 		}
@@ -180,12 +281,17 @@ type AgentHostPluginEnablementTarget = {
  * Routes a plugin enablement change to the client that owns its global decision
  * or to the agent host for all other scopes.
  */
-export function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): void {
+export async function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): Promise<void> {
 	if (kind === CustomizationEnablementKind.Global && plugin.clientId !== undefined) {
 		if (agentPluginService === undefined) {
 			throw new Error('A client-published plugin requires its client enablement service');
 		}
-		agentPluginService.enablementModel.setEnabled(plugin.uri.toString(), enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		const clientUri = agentHostCustomizations.getClientPluginUri(sessionResource, plugin);
+		const installed = clientUri && agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, clientUri));
+		if (!installed) {
+			throw new Error(localize('pluginNotAvailable', "Plugin '{0}' is no longer available.", plugin.uri));
+		}
+		await setAgentPluginEnablement(installed, agentPluginService.enablementModel, enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		return;
 	}
 	agentHostCustomizations.setCustomizationEnablement(sessionResource, plugin.id, plugin.enablement, kind, enabled);
@@ -197,7 +303,7 @@ export function createAgentHostEnablePluginAction(agentHostCustomizations: IAgen
 		id: 'agentPlugin.agentHost.enableContainer',
 		label: localize('agentHostPluginEnableContainer', "Enable Plugin"),
 		run: () => {
-			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
+			return setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
 		},
 	};
 }
@@ -210,7 +316,7 @@ function createAgentHostPluginEnablementAction(agentHostCustomizations: IAgentHo
 		id: `agentPlugin.agentHost.${enabled ? 'enable' : 'disable'}.${scope}`,
 		label,
 		run: () => {
-			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
+			return setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
 		},
 	};
 }
@@ -344,16 +450,15 @@ export function createEnablePluginDropDown(
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
 ): EnablementDropDownAction {
-	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const enable = new EnablementSubAction('agentPlugin.enable', localize('enable', "Enable"), 'extension-action label prominent',
 		isContributionDisabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.EnabledProfile); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledProfile));
 
 	const enableWorkspace = new EnablementSubAction('agentPlugin.enableForWorkspace', localize('enableForWorkspace', "Enable (Workspace)"), 'extension-action label',
 		isContributionDisabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.EnabledWorkspace); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledWorkspace));
 
 	return new EnablementDropDownAction('agentPlugin.enableDropdown', [enable, enableWorkspace]);
 }
@@ -367,16 +472,15 @@ export function createDisablePluginDropDown(
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
 ): EnablementDropDownAction {
-	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledProfile); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledProfile));
 
 	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledWorkspace); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledWorkspace));
 
 	return new EnablementDropDownAction('agentPlugin.disableDropdown', [disable, disableWorkspace]);
 }

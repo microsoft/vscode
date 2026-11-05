@@ -13,6 +13,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -35,6 +36,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@IEditorService private readonly _editorService: IEditorService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
@@ -70,7 +72,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 				|| !this._isMostRecentChat(owner.session, owner.chat, reader)) {
 				stats = readRequestStats();
 			} else {
-				const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
+				const changeset = owner.chat.changesets.read(reader)
 					?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 				if (!changeset) {
 					stats = readRequestStats();
@@ -99,7 +101,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		if (context.isLastTurn) {
 			if (requestId === undefined) {
 				if (isAgentHostProviderId(owner.session.providerId)) {
-					void this._openSessionTurnChanges(owner.session);
+					void this._openSessionTurnChanges(owner.session, undefined, owner.chat);
 				} else {
 					const changes = owner.chat.lastTurnChanges;
 					if (changes) {
@@ -109,15 +111,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 				return;
 			}
 
-			if (this._isMostRecentChat(owner.session, owner.chat)) {
-				void this._openSessionTurnChanges(owner.session);
-				return;
-			}
-
-			const changes = this._getSessionFileChanges(owner.session, chatResource, requestId);
-			if (changes) {
-				this._openTransientLastTurnChanges(owner.session, requestId, changes);
-			}
+			void this._openSessionTurnChanges(owner.session, undefined, owner.chat);
 			return;
 		}
 
@@ -157,16 +151,19 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 	}
 
 	private _isMostRecentChat(session: ISession, chat: IChat, reader?: IReader): boolean {
-		const mostRecentChat = session.chats.read(reader).reduce<IChat | undefined>(
-			(latest, candidate) => !latest || candidate.updatedAt.read(reader).getTime() > latest.updatedAt.read(reader).getTime() ? candidate : latest,
-			undefined,
-		);
-		return isEqual(mostRecentChat?.resource ?? session.mainChat.read(reader).resource, chat.resource);
-	}
-
-	private _getSessionFileChanges(session: ISession, chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {
-		const changes = this.getChangesForRequest(chatResource, requestId);
-		return changes ? this._toSessionFileChanges(session, changes) : undefined;
+		let mostRecentChat: IChat | undefined;
+		let mostRecentTime = -Infinity;
+		for (const candidate of session.chats.read(reader)) {
+			const updatedAt = candidate.updatedAt.read(reader);
+			if (!updatedAt) {
+				return false;
+			}
+			if (updatedAt.getTime() > mostRecentTime) {
+				mostRecentChat = candidate;
+				mostRecentTime = updatedAt.getTime();
+			}
+		}
+		return isEqual(mostRecentChat?.resource, chat.resource);
 	}
 
 	private _toSessionFileChanges(session: ISession, changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {
@@ -195,8 +192,11 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		});
 	}
 
-	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
-		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges, chat?: IChat): Promise<void> {
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
+		if (chat && (!activeSession || !isEqual(activeSession.resource, session.resource) || !isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, chat.resource))) {
+			await this._sessionsService.openChat(session, chat.resource, { preserveFocus: true });
+		} else if (!isEqual(activeSession?.resource, session.resource)) {
 			this._sessionsService.showSession(session.resource, { preserveFocus: true });
 		}
 		this._layoutService.revealEditorPartExplicitly();

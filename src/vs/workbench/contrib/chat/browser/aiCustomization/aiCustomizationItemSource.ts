@@ -15,12 +15,15 @@ import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
@@ -31,6 +34,23 @@ import { sourceToIcon } from './aiCustomizationIcons.js';
 import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
+
+interface IAICustomizationMarketplaceMetadata {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
+
+/** Browser-only grouping for skills already enumerated by a host. */
+interface ICustomizationSkillBundle {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly namePrefix: string;
+}
+
+export interface ICustomizationSkillItem extends ICustomizationItem {
+	readonly skillBundle?: ICustomizationSkillBundle;
+}
 
 /**
  * Represents an AI customization item in the list widget.
@@ -49,6 +69,7 @@ export interface IAICustomizationListItem {
 	readonly groupKey?: string;
 	/** URI of the parent plugin, when this item comes from an installed plugin. */
 	readonly pluginUri?: URI;
+	readonly skillBundle?: ICustomizationSkillBundle;
 	/** When set, overrides the formatted name for display. */
 	readonly displayName?: string;
 	/** When set, shows a small inline badge next to the item name. */
@@ -57,6 +78,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Marketplace installation associated with this exact local item. */
+	readonly marketplace?: IAICustomizationMarketplaceMetadata;
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
@@ -70,7 +93,7 @@ export interface IAICustomizationListItem {
 	/** When true, this syncable item is currently selected for syncing. */
 	readonly synced?: boolean;
 	nameMatches?: IMatch[];
-	descriptionMatches?: IMatch[];
+	secondaryTextMatches?: IMatch[];
 }
 
 /**
@@ -135,6 +158,10 @@ export async function expandHookFileItems(
 	const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 	for (const item of hookFileItems) {
+		if (!hasReadableCustomizationContent(item.uri)) {
+			items.push(item);
+			continue;
+		}
 		let parsedHooks = false;
 		try {
 			const content = await fileService.readFile(item.uri);
@@ -197,7 +224,7 @@ export class AICustomizationItemNormalizer {
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
+	normalizeItem(item: ICustomizationSkillItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
 		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
@@ -208,7 +235,7 @@ export class AICustomizationItemNormalizer {
 			id: `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
-			filename: item.uri.scheme === Schemas.file
+			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
 				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,
@@ -217,7 +244,8 @@ export class AICustomizationItemNormalizer {
 			disabled: item.enabled === false,
 			groupKey,
 			pluginUri,
-			displayName: item.name,
+			skillBundle: item.skillBundle,
+			displayName: item.skillBundle && item.name.startsWith(item.skillBundle.namePrefix) ? item.name.slice(item.skillBundle.namePrefix.length) : item.name,
 			badge: item.badge,
 			badgeTooltip: item.badgeTooltip,
 			typeIcon: promptType === PromptsType.instructions && source ? sourceToIcon(source) : undefined,
