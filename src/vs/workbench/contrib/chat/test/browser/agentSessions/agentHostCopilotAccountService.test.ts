@@ -98,6 +98,31 @@ suite('Agent Host Copilot account setup', () => {
 		});
 	});
 
+	for (const operation of ['discover', 'select'] as const) {
+		for (const label of ['Updated Microsoft display', '']) {
+			test(`${operation} forwards the validated credential's ${label ? 'current' : 'omitted blank'} label without changing identity`, async () => {
+				const f = fixture();
+				if (operation === 'select') {
+					f.setContext(offered);
+				}
+				f.state.pending = new DeferredPromise<readonly AuthenticationSession[]>();
+				f.state.pending.complete([{
+					...f.identity,
+					account: { ...f.identity.account, label },
+					scopes: operation === 'discover' ? ['User.Read'] : [`${copilotEntraM365Audience}/.default`],
+				}]);
+				if (operation === 'discover') {
+					await f.service.discover(f.connection, f.identity.id);
+				} else {
+					await f.service.select(f.connection, 'opaque-flow', 'selection-A');
+				}
+				assert.deepStrictEqual(f.requests.map(readAuthenticationAccount), [{
+					providerId: 'microsoft', accountId: f.identity.account.id, ...(label ? { label } : {}),
+				}]);
+			});
+		}
+	}
+
 	test('returns the host-confirmed automatic context without requesting another selection', async () => {
 		const ready: CopilotAccountContext = {
 			kind: 'ready', discoveryId: 'opaque-flow', entraAccountId: 'account-id',

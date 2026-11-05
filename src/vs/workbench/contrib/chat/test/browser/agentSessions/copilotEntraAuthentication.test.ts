@@ -220,7 +220,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			authenticate: async request => { forwarded.push(request); },
 		}));
 		assert.deepStrictEqual(forwarded.map(request => ({ token: request.token, account: request._meta })), [{
-			token: selected.accessToken, account: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id }),
+			token: selected.accessToken, account: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }),
 		}]);
 	});
 

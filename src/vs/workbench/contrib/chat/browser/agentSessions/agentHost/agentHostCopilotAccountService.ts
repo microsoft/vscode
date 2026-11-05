@@ -182,7 +182,7 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 			resource: resource.resource, scopes: resource.scopes_supported, token: credential.accessToken,
 			expiresIn: credential.expiresAfter,
 			_meta: {
-				...authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id }),
+				...authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: credential.account.label }),
 				...copilotAccountOperationMeta(operation),
 			},
 		});
