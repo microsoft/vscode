@@ -462,7 +462,7 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		});
 
 		const processInfo = this.terminalProcessInfo.value = new DetachedProcessInfo({ initialCwd: cwd.value });
-		return this.terminal.value = await this.terminalService.createDetachedTerminal({
+		const terminal = await this.terminalService.createDetachedTerminal({
 			rows: 10,
 			cols: 80,
 			readonly: true,
@@ -484,6 +484,12 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 				},
 			}
 		});
+		if (this._store.isDisposed) {
+			terminal.dispose();
+			return undefined;
+		}
+
+		return this.terminal.value = terminal;
 	}
 
 	public async update(subject: InspectSubject): Promise<boolean> {
@@ -563,6 +569,10 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		}
 
 		const terminal = await this.makeTerminal();
+		if (!terminal || this._store.isDisposed) {
+			return;
+		}
+
 		// Only the selected message needs hidden output markers. Tracking every
 		// message makes xterm update thousands of unused markers as output scrolls.
 		const selectedMarker = opts.subject instanceof MessageSubject && opts.subject.message.type === TestMessageType.Output

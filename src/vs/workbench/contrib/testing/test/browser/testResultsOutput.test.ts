@@ -8,6 +8,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { importAMDNodeModule } from '../../../../../amdX.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -39,6 +40,8 @@ suite('Testing output terminal', () => {
 	let raw: Terminal;
 	let integration: ShellIntegrationAddon;
 	let selected: sinon.SinonSpy;
+	let terminal: IDetachedTerminalInstance;
+	let terminalCreation: DeferredPromise<IDetachedTerminalInstance> | undefined;
 
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
@@ -58,7 +61,8 @@ suite('Testing output terminal', () => {
 			override selectMarkedRange = selected;
 			override getFont = () => upcastPartial<ITerminalFont>({});
 		};
-		const terminal = new class extends mock<IDetachedTerminalInstance>() {
+		terminalCreation = undefined;
+		terminal = new class extends mock<IDetachedTerminalInstance>() {
 			override xterm = xterm;
 			override attachToElement = () => { };
 			override dispose = () => { };
@@ -67,7 +71,7 @@ suite('Testing output terminal', () => {
 			new class extends mock<ITerminalService>() {
 				override async createDetachedTerminal(options: IDetachedXTermOptions) {
 					store.add(options.capabilities!);
-					return terminal;
+					return terminalCreation ? terminalCreation.p : terminal;
 				}
 			},
 			new class extends mock<IViewDescriptorService>() { },
@@ -114,4 +118,31 @@ suite('Testing output terminal', () => {
 		await writeP(raw, '\x1b]633;SetMark;Id=after-disposal;Hidden\x07');
 		assert.ok(integration.capabilities.get(TerminalCapability.BufferMarkDetection)?.getMark('after-disposal'));
 	});
+
+	for (const scope of ['task', 'message'] as const) {
+		test(`disposes a terminal created after the ${scope} output view is disposed`, async () => {
+			terminalCreation = new DeferredPromise<IDetachedTerminalInstance>();
+			const dispose = sinon.spy(terminal, 'dispose');
+			const registerOscHandler = sinon.spy(xterm, 'registerOscHandler');
+			const write = sinon.spy(xterm, 'write');
+			const attach = sinon.spy(terminal, 'attachToElement');
+			const subject = scope === 'task'
+				? new TaskSubject(result, 0)
+				: new MessageSubject(result, result.getStateById('ctrl')!, 0, 0);
+			const update = peek.update(subject);
+			peek.dispose();
+			await terminalCreation.complete(terminal);
+			await update;
+
+			assert.strictEqual(dispose.callCount, 1);
+			assert.strictEqual(registerOscHandler.callCount, 0);
+			assert.strictEqual(write.callCount, 0);
+			assert.strictEqual(attach.callCount, 0);
+			assert.strictEqual(selected.callCount, 0);
+			result.appendOutput(VSBuffer.fromString('after disposal\r\n'), 'task', undefined, 'ctrl');
+			assert.strictEqual(write.callCount, 0);
+			await writeP(raw, '\x1b]633;SetMark;Id=after-disposal;Hidden\x07');
+			assert.ok(integration.capabilities.get(TerminalCapability.BufferMarkDetection)?.getMark('after-disposal'));
+		});
+	}
 });
