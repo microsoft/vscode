@@ -67,7 +67,6 @@ export interface IExtensionGalleryManifest {
 export const enum ExtensionGalleryManifestStatus {
 	Available = 'available',
 	RequiresSignIn = 'requiresSignIn',
-	RequiresConfiguration = 'requiresConfiguration',
 	AccessDenied = 'accessDenied',
 	Unavailable = 'unavailable'
 }

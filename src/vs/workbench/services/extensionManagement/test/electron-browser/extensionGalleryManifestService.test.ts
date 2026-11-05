@@ -117,6 +117,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let sharedAuthorizationError: Error | undefined;
 	let authorizationService: IExtensionGalleryManifestService;
 	let accountService: ExtensionGalleryAccountService;
+	let marketplaceErrors: string[];
 
 	setup(() => {
 		defaultAccount = null;
@@ -126,6 +127,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		storageData = new Map();
 		restartPrompts = [];
 		sharedAuthorizationError = undefined;
+		marketplaceErrors = [];
 
 		onDidChangeDefaultAccount = disposableStore.add(new Emitter<IDefaultAccount | null>());
 		onDidChangeSessions = disposableStore.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -206,7 +208,11 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			override async getDefaultAccount() { return defaultAccount; }
 		}());
 
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override error(message: string | Error): void {
+				marketplaceErrors.push(message.toString());
+			}
+		}());
 
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm(confirmation: IConfirmation) { restartPrompts.push(confirmation.message); return { confirmed: false }; }
@@ -1103,6 +1109,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	}
 
 	const MARKETPLACE_URL = 'https://marketplace.example.com';
+	const SCOPE_CONFIGURATION_ERROR = '[Marketplace] The marketplace requires authentication but its protected resource metadata does not advertise usable resource scopes. Contact the marketplace administrator to configure scopes_supported.';
 
 	const PROTECTED_RESOURCE_METADATA = {
 		resource: 'https://marketplace.example.com',
@@ -1184,6 +1191,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		gated: boolean,
 		expectedStatus = gated ? ExtensionGalleryManifestStatus.RequiresSignIn : ExtensionGalleryManifestStatus.Available,
 		statusCode = 401,
+		expectsScopeConfigurationError = false,
 	): Promise<void> {
 		const marketplace = gatedMarketplace('resource-token', metadata, statusCode);
 		requestHandler = options => !gated && options.url === MARKETPLACE_URL
@@ -1199,6 +1207,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			requests: marketplaceRequests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })),
 			channelCalls: calls,
 			accessToken: await authorizationService.getAccessToken(MARKETPLACE_URL),
+			scopeConfigurationErrors: marketplaceErrors.filter(message => message === SCOPE_CONFIGURATION_ERROR),
 		}, {
 			status: expectedStatus,
 			requests: [
@@ -1211,6 +1220,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				args: [manifest, undefined, gated ? undefined : MARKETPLACE_URL],
 			})),
 			accessToken: undefined,
+			scopeConfigurationErrors: expectsScopeConfigurationError ? [SCOPE_CONFIGURATION_ERROR] : [],
 		});
 	}
 
@@ -1283,9 +1293,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				const resourceRequests = stubResourceScopedAuthentication();
 
 				const status = gated
-					? requiresConfiguration ? ExtensionGalleryManifestStatus.RequiresConfiguration : ExtensionGalleryManifestStatus.RequiresSignIn
+					? ExtensionGalleryManifestStatus.RequiresSignIn
 					: ExtensionGalleryManifestStatus.Available;
-				await assertAnonymousMarketplace(metadata, gated, status);
+				await assertAnonymousMarketplace(metadata, gated, status, 401, gated && requiresConfiguration);
 				await accountService.signIn();
 
 				assert.deepStrictEqual(resourceRequests, []);
@@ -1300,8 +1310,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			const resourceRequests = stubResourceScopedAuthentication();
 
 			await assertAnonymousMarketplace({ ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, true,
-				statusCode === 401 ? ExtensionGalleryManifestStatus.RequiresConfiguration : ExtensionGalleryManifestStatus.AccessDenied,
-				statusCode);
+				statusCode === 401 ? ExtensionGalleryManifestStatus.RequiresSignIn : ExtensionGalleryManifestStatus.AccessDenied,
+				statusCode, statusCode === 401);
 
 			assert.deepStrictEqual(resourceRequests, []);
 		});
@@ -1318,14 +1328,16 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await published;
 
 		assert.deepStrictEqual({
-			requiresConfiguration: service.extensionGalleryManifestStatus === ExtensionGalleryManifestStatus.RequiresConfiguration,
+			status: service.extensionGalleryManifestStatus,
+			scopeConfigurationErrors: marketplaceErrors.filter(message => message === SCOPE_CONFIGURATION_ERROR),
 			manifest,
 			resourceRequests,
 			requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
 			channelCalls: calls,
 			accessToken: await service.getAccessToken(MARKETPLACE_URL),
 		}, {
-			requiresConfiguration: false,
+			status: ExtensionGalleryManifestStatus.AccessDenied,
+			scopeConfigurationErrors: [],
 			manifest: null,
 			resourceRequests: [],
 			requestAuthorizations: [undefined, undefined],
@@ -1375,21 +1387,19 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	}
 
-	test('Microsoft - reloading after corrected metadata clears the configuration diagnosis and publishes only the resource token', async () => {
+	test('Microsoft - reloading after corrected metadata publishes only the resource token', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		const resourceRequests = stubResourceScopedAuthentication();
 		requestHandler = gatedMarketplace('resource-token', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] });
 		const { calls, published } = recordManifestChannels();
-		const service = createService();
+		let service = createService();
 		await service.getExtensionGalleryManifest();
 		await published;
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresConfiguration);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 
 		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
-		const available = Event.toPromise(Event.filter(service.onDidChangeExtensionGalleryManifestStatus, status => status === ExtensionGalleryManifestStatus.Available));
-		accountService.setAccountProvider(disposableStore.add(instantiationService.createInstance(MicrosoftGalleryAccountProvider)));
-		await available;
+		service = createService();
 		const manifest = await service.getExtensionGalleryManifest();
 
 		assert.deepStrictEqual({
@@ -1418,10 +1428,10 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			const metadata = { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] };
 			requestHandler = gatedMarketplace('resource-token', metadata);
 			const { calls, published } = recordManifestChannels();
-			const service = createService();
+			let service = createService();
 			await service.getExtensionGalleryManifest();
 			await published;
-			assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresConfiguration);
+			assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 
 			const open = recovery === 'open marketplace';
 			requestHandler = options => {
@@ -1431,9 +1441,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				return open ? mockResponse(200, createGalleryManifest()) : mockResponse(401, {});
 			};
 			const expectedStatus = open ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.RequiresSignIn;
-			const updated = Event.toPromise(Event.filter(service.onDidChangeExtensionGalleryManifestStatus, status => status === expectedStatus));
-			accountService.setAccountProvider(disposableStore.add(instantiationService.createInstance(MicrosoftGalleryAccountProvider)));
-			await updated;
+			service = createService();
 			const manifest = await service.getExtensionGalleryManifest();
 
 			assert.deepStrictEqual({
@@ -1448,7 +1456,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				requestAuthorizations: [undefined, undefined, undefined, undefined],
 				channelCalls: [
 					...['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [null, undefined, undefined] })),
-					...(open ? ['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [manifest, undefined, MARKETPLACE_URL] })) : []),
+					...['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [manifest, undefined, open ? MARKETPLACE_URL : undefined] })),
 				],
 				accessToken: undefined,
 			});
