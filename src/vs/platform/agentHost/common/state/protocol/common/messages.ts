@@ -10,6 +10,7 @@ import type { InitializeParams, InitializeResult, PingParams, ReconnectParams, R
 import type { ListSessionsParams, ListSessionsResult, ResolveSessionConfigParams, ResolveSessionConfigResult, SessionConfigCompletionsParams, SessionConfigCompletionsResult } from '../channels-root/commands.js';
 import type { CreateSessionParams, DisposeSessionParams, FetchTurnsParams, FetchTurnsResult, CompletionsParams, CompletionsResult } from '../channels-session/commands.js';
 import type { CreateChatParams, MoveChatParams, MoveChatResult, DisposeChatParams } from '../channels-chat/commands.js';
+import type { DisposeCanvasParams, OpenCanvasParams } from '../channels-canvas/commands.js';
 import type { CreateTerminalParams, DisposeTerminalParams } from '../channels-terminal/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../channels-resource-watch/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
@@ -94,6 +95,8 @@ export interface CommandMap {
 	'createTcpConnection': { params: CreateTcpConnectionParams; result: null };
 	'moveChat': { params: MoveChatParams; result: MoveChatResult };
 	'disposeChat': { params: DisposeChatParams; result: null };
+	'openCanvas': { params: OpenCanvasParams; result: null };
+	'disposeCanvas': { params: DisposeCanvasParams; result: null };
 	'createTerminal': { params: CreateTerminalParams; result: null };
 	'disposeTerminal': { params: DisposeTerminalParams; result: null };
 	'createResourceWatch': { params: CreateResourceWatchParams; result: CreateResourceWatchResult };

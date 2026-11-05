@@ -903,7 +903,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			});
 			this.canvasContext = derived(this, reader => {
 				const reference = owner.read(reader);
-				return reference ? canvases.provider.createContext(reference, references, presentationChat, this._onDidChangeCanvasDefinitions.event) : undefined;
+				const supportsCommands = !this.isReadOnly.read(reader) && canvases.provider.supportsCommands(presentationChat.read(reader), reader);
+				return reference ? canvases.provider.createContext(reference, references, presentationChat, this._onDidChangeCanvasDefinitions.event, supportsCommands) : undefined;
 			});
 		}
 
@@ -1543,7 +1544,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
-			const provider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
+			const provider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection, config.provider));
 			this._canvases = { provider, available: config.supportsCanvasPresentation };
 		}
 		this._localModels = this._register(this._instantiationService.createInstance(AgentHostLocalModelSupport, config.connection, config.sessionType));

@@ -303,7 +303,7 @@ const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
 
 /** Produces the stable instance identifier used when directly opening a registered canvas type. */
 export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string {
-	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
+	const raw = `${canvas.extensionId}\u0000${canvas.canvasId}`;
 	const normalized = raw
 		.replace(/[^A-Za-z0-9._-]+/g, '-')
 		.replace(/^[._-]+/, '')
@@ -322,13 +322,7 @@ export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string
 
 /** Returns whether a registered extension canvas can be opened without another input flow. */
 export function isOpenableExtensionCanvasDefinition(canvas: ICanvasDefinition): boolean {
-	return !canvas.requiresInput && (
-		canvas.extensionSource !== 'unknown'
-		|| canvas.extensionId.startsWith('user:')
-		|| canvas.extensionId.startsWith('project:')
-		|| canvas.extensionId.startsWith('session:')
-		|| canvas.extensionId.startsWith('plugin:')
-	);
+	return !canvas.requiresInput;
 }
 
 /** Orders registered canvas types by extension and display name. */

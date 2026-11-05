@@ -42,6 +42,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { buildCanvasUri } from '../../common/canvasUri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
@@ -4269,7 +4270,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables, {
+			const { session, mockSession } = await createAgentSession(disposables, {
 				configureMockSession: mock => {
 					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
 					mock.canvases.push({
@@ -4309,20 +4310,18 @@ suite('CopilotAgentSession', () => {
 				afterGenerationChange: afterGenerationChange?.map(canvas => canvas.canvasId),
 				whileReloading,
 				afterSettledRemoval,
-				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
 			}, {
 				beforeReload: ['preview'],
 				duringGenerationChange: undefined,
 				afterGenerationChange: ['preview'],
 				whileReloading: undefined,
 				afterSettledRemoval: [],
-				membershipInvalidations: 3,
 			});
 			session.dispose();
 		});
 
 		test('republishes after concurrent callers observe unsettled and settled registries', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables, {
+			const { session, mockSession } = await createAgentSession(disposables, {
 				configureMockSession: mock => {
 					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
 					mock.canvases.push({
@@ -4367,11 +4366,9 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				unsettled,
 				settled: settled?.map(canvas => canvas.canvasId),
-				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
 			}, {
 				unsettled: undefined,
 				settled: ['preview'],
-				membershipInvalidations: 1,
 			});
 			session.dispose();
 		});
@@ -4415,15 +4412,21 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('republishes live canvas membership when the registry changes', async () => {
-		const { session, mockSession, signals } = await createAgentSession(disposables);
+	test('publishes the Canvas registry without changing live membership', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+		signals.length = 0;
+		const published = waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasRegistryChanged);
 
 		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+		await published;
 
-		assert.deepStrictEqual(
-			getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
-			[{ type: ActionType.ChatCanvasesChanged, canvases: undefined }],
-		);
+		assert.deepStrictEqual({
+			registry: getActions(signals).filter(action => action.type === ActionType.ChatCanvasRegistryChanged),
+			membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
+		}, {
+			registry: [{ type: ActionType.ChatCanvasRegistryChanged, canvasRegistry: { extensions: [] } }],
+			membership: [],
+		});
 		session.dispose();
 	});
 
@@ -4508,6 +4511,65 @@ suite('CopilotAgentSession', () => {
 		const restored = { ...preview, url: 'https://example.test/restored' };
 		const live = { ...preview, title: 'Preview', url: 'https://example.test/live' };
 		const other = { ...restored, instanceId: 'other' };
+
+		test('reuses the restored provider instance for a standard URI-addressed open', async () => {
+			const chat = URI.parse('ahp-chat:/owner/peer');
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				chatChannelUri: chat,
+				configureMockSession: mock => mock.openCanvases.push(restored),
+			});
+			const resource = buildCanvasUri(chat, 'client-lifetime').toString();
+
+			await session.openCanvas({
+				resource: URI.parse(resource),
+				resourceId: resource,
+				canvasId: preview.canvasId,
+				extensionId: preview.extensionId,
+			});
+
+			assert.deepStrictEqual({
+				openCalls: mockSession.canvasOpenCalls,
+				projected: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource, state: signal.state })),
+			}, {
+				openCalls: [preview],
+				projected: [{ resource, state: preview }],
+			});
+		});
+
+		test('does not reserve one restored provider instance for two concurrent resource opens', async () => {
+			const chat = URI.parse('ahp-chat:/owner/peer');
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				chatChannelUri: chat,
+				configureMockSession: mock => mock.openCanvases.push(restored),
+			});
+			const firstResponse = new DeferredPromise<typeof live>();
+			const secondResponse = new DeferredPromise<typeof live>();
+			mockSession.rpc.canvas.open = async request => {
+				mockSession.canvasOpenCalls.push(request);
+				return mockSession.canvasOpenCalls.length === 1 ? firstResponse.p : secondResponse.p;
+			};
+			const firstResource = buildCanvasUri(chat, 'first-lifetime').toString();
+			const secondResource = buildCanvasUri(chat, 'second-lifetime').toString();
+			const first = session.openCanvas({ resourceId: firstResource, extensionId: preview.extensionId, canvasId: preview.canvasId });
+			const second = session.openCanvas({ resourceId: secondResource, extensionId: preview.extensionId, canvasId: preview.canvasId });
+			assert.strictEqual(mockSession.canvasOpenCalls.length, 2);
+			const secondInstanceId = mockSession.canvasOpenCalls[1].instanceId;
+			assert.notStrictEqual(secondInstanceId, preview.instanceId);
+
+			firstResponse.complete(live);
+			secondResponse.complete({ ...live, instanceId: secondInstanceId });
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => ({
+				resource: signal.resource.toString(),
+				instanceId: signal.state.instanceId,
+			})), [
+				{ resource: firstResource, instanceId: preview.instanceId },
+				{ resource: secondResource, instanceId: secondInstanceId },
+			]);
+		});
 
 		for (const eventOrder of ['before response', 'after response', 'no event'] as const) {
 			test(`projects only the explicitly reopened canvas with ${eventOrder}`, async () => {
@@ -4673,6 +4735,34 @@ suite('CopilotAgentSession', () => {
 			});
 		}
 
+		test('refreshes an unavailable client-addressed canvas with its existing provider instance', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('session.canvas.opened', live);
+			const resource = signals.find(signal => signal.kind === 'canvas')?.resource;
+			assert.ok(resource);
+			mockSession.fire('session.canvas.unavailable', preview);
+			const { url: _url, ...unavailable } = live;
+			mockSession.rpc.canvas.open = async request => {
+				mockSession.canvasOpenCalls.push(request);
+				return live;
+			};
+
+			await session.openCanvas({
+				resource: URI.parse(resource),
+				resourceId: resource,
+				canvasId: preview.canvasId,
+				extensionId: preview.extensionId,
+			});
+
+			assert.deepStrictEqual({
+				openCalls: mockSession.canvasOpenCalls,
+				states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
+			}, {
+				openCalls: [preview],
+				states: [live, unavailable, live],
+			});
+		});
+
 		test('uses the latest suppressed opened event instead of an older response', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				resume: true,
@@ -4811,7 +4901,7 @@ suite('CopilotAgentSession', () => {
 			});
 			const resource = handoff.projections[0].resource;
 
-			await replacement.session.closeCanvas({ resource });
+			await replacement.session.closeCanvas({ resource: URI.parse(resource), resourceId: resource });
 			const membershipBeforeAdoption = summarizeCanvasSignals(replacement.signals).membership;
 			const adopted = replacement.session.adoptCanvasHandoff(handoff);
 
@@ -4990,7 +5080,7 @@ suite('CopilotAgentSession', () => {
 	test('closes a projected canvas lifetime once, ignoring stale and unprojected requests, whenever the runtime confirms', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const canvas = (instanceId: string) => ({ instanceId, extensionId: 'project:preview', canvasId: 'preview', url: `https://example.test/${instanceId}` });
-		const channel = (instanceId: string) => signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? URI.parse('ahp-canvas:/missing');
+		const channel = (instanceId: string) => URI.parse(signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? 'ahp-canvas:/missing');
 		mockSession.fire('session.canvas.opened', canvas('confirmed-first'));
 		mockSession.fire('session.canvas.opened', canvas('confirmed-later'));
 		const first = channel('confirmed-first');
@@ -5024,7 +5114,7 @@ suite('CopilotAgentSession', () => {
 	test('lets a closed event that lags its close response remove only a canvas the runtime no longer reports open', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const canvas = (instanceId: string) => ({ instanceId, extensionId: 'project:preview', canvasId: 'preview', url: `https://example.test/${instanceId}` });
-		const channel = (instanceId: string) => signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? URI.parse('ahp-canvas:/missing');
+		const channel = (instanceId: string) => URI.parse(signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? 'ahp-canvas:/missing');
 		let listOpenCalls = 0;
 		mockSession.onCanvasListOpen = () => listOpenCalls++;
 		mockSession.fire('session.canvas.opened', canvas('reopened'));

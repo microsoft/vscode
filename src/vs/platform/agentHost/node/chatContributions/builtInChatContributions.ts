@@ -13,6 +13,7 @@ import { ChatConfigContribution } from './chatConfig/chatConfigContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatInputContribution } from './chatInput/chatInputContribution.js';
 import { ChatReadContribution } from './chatRead/chatReadContribution.js';
+import { CanvasRegistryContribution } from './canvasRegistry/canvasRegistryContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { ChatUsageContribution } from './chatUsage/chatUsageContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
@@ -77,5 +78,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	registrations.add(contributions.registerContribution(ChatReadContribution));
+	registrations.add(contributions.registerContribution(CanvasRegistryContribution));
 	return registrations;
 }

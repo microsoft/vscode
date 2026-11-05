@@ -12,7 +12,7 @@ import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerm
 
 import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionChatsReorderedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionMcpServerBackgroundRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
-import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatTurnResumeAction, ChatActivityChangedAction, ChatBackgroundWorkSetAction, ChatBackgroundWorkRemovedAction, ChatMovableChangedAction, ChatChangesetsChangedAction, ChatCanvasesChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatIsReadChangedAction, ChatIsArchivedChangedAction, ChatConfigChangedAction, ChatMovedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
+import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatTurnResumeAction, ChatActivityChangedAction, ChatBackgroundWorkSetAction, ChatBackgroundWorkRemovedAction, ChatMovableChangedAction, ChatChangesetsChangedAction, ChatCanvasesChangedAction, ChatCanvasRegistryRequestedAction, ChatCanvasRegistryChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatIsReadChangedAction, ChatIsArchivedChangedAction, ChatConfigChangedAction, ChatMovedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
 
 import type { CanvasStateChangedAction } from '../channels-canvas/actions.js';
 
@@ -66,6 +66,8 @@ export const enum ActionType {
 	ChatMovableChanged = 'chat/movableChanged',
 	ChatChangesetsChanged = 'chat/changesetsChanged',
 	ChatCanvasesChanged = 'chat/canvasesChanged',
+	ChatCanvasRegistryRequested = 'chat/canvasRegistryRequested',
+	ChatCanvasRegistryChanged = 'chat/canvasRegistryChanged',
 	CanvasStateChanged = 'canvas/stateChanged',
 	ChatWorkingDirectorySet = 'chat/workingDirectorySet',
 	ChatWorkingDirectoryRemoved = 'chat/workingDirectoryRemoved',
@@ -235,6 +237,8 @@ export type StateAction =
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
 	| ChatCanvasesChangedAction
+	| ChatCanvasRegistryRequestedAction
+	| ChatCanvasRegistryChangedAction
 	| CanvasStateChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction

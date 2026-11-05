@@ -118,7 +118,6 @@ export function registerEditorCanvasActions(
 		if (context) {
 			const ownerKey = canvasOwnerKey(context.owner);
 			const definitionLabels = getCanvasDefinitionLabels(definitions);
-			const definitionInstanceIds = new Set(definitions.map(getCanvasDefinitionInstanceId));
 			for (let index = 0; index < definitions.length; index++) {
 				const canvas = definitions[index];
 				const label = definitionLabels[index];
@@ -140,9 +139,6 @@ export function registerEditorCanvasActions(
 			const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
 			for (let index = 0; index < targets.length; index++) {
 				const target = targets[index];
-				if (target.canvas.instanceId && definitionInstanceIds.has(target.canvas.instanceId)) {
-					continue;
-				}
 				const label = targetLabels[index];
 				const key = `reopen:${getCanvasReferenceKey(target.reference)}`;
 				activeKeys.add(key);
@@ -184,7 +180,7 @@ export function registerEditorCanvasActions(
 		}
 		try {
 			const instanceId = getCanvasDefinitionInstanceId(canvas);
-			const existing = context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
+			const existing = context.canvases.get()?.find(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
 			if (existing) {
 				await canvasService.revealCanvas({ ...context.owner, canvas: existing.resource });
 				if (existing.source) {

@@ -62,6 +62,7 @@ import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/c
 import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } from '../../common/clientArtifactIntegrations.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
+import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -389,12 +390,24 @@ class MockAgentService extends Disposable implements IAgentService {
 		return this.moveChatResult ?? session;
 	}
 	readonly movedSessions: { session: string; destination: string; after: string | undefined }[] = [];
+	readonly openedCanvases: OpenCanvasParams[] = [];
+	readonly disposedCanvases: string[] = [];
+	readonly canvasChats = new Map<string, string>();
 	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
 		if (this.moveChatResult instanceof Error) {
 			throw this.moveChatResult;
 		}
 		return destination;
+	}
+	async openCanvas(params: OpenCanvasParams): Promise<void> {
+		this.openedCanvases.push(params);
+	}
+	async disposeCanvas(canvas: URI): Promise<void> {
+		this.disposedCanvases.push(canvas.toString());
+	}
+	getCanvasChat(resourceId: string): string | undefined {
+		return this.canvasChats.get(resourceId);
 	}
 	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
 	readonly chatOwners = new Map<string, string>();
@@ -2320,6 +2333,54 @@ suite('ProtocolServerHandler', () => {
 			supported: true, legacy: false, malformed: false, uninitialized: false,
 			response: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/session-1' } },
 			imported: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('routes standard Canvas lifecycle commands with opaque resource identities', async () => {
+		const transport = connectClient('client-canvas-lifecycle');
+		const params = {
+			channel: 'ahp-canvas:/client.example-opaque-preview',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+			extensionId: 'opaque-provider-id',
+			canvasId: 'preview',
+		};
+		const open = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'openCanvas', params));
+		const dispose = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, 'disposeCanvas', { channel: params.channel }));
+
+		assert.deepStrictEqual({
+			open: await open,
+			opened: agentService.openedCanvases,
+			dispose: await dispose,
+			disposed: agentService.disposedCanvases,
+		}, {
+			open: { jsonrpc: '2.0', id: 20, result: null },
+			opened: [params],
+			dispose: { jsonrpc: '2.0', id: 21, result: null },
+			disposed: [params.channel],
+		});
+	});
+
+	test('a pending Canvas binding prevents disposal from a client that cannot see its chat', async () => {
+		const hiddenSession = 'ahp-session:/hidden';
+		const hiddenChat = buildDefaultChatUri(hiddenSession);
+		stateManager.createSession(makeSessionSummary(hiddenSession));
+		const transport = connectClient('client-canvas-pending-hidden', undefined, editorWindowAgentHostClientInfo);
+		const resource = 'ahp-canvas:/pending';
+		agentService.canvasChats.set(resource, hiddenChat);
+		const response = waitForResponse(transport, 20);
+
+		transport.simulateMessage(request(20, 'disposeCanvas', { channel: resource }));
+		const result = await response;
+
+		assert.ok(hasKey(result, { error: true }));
+		assert.deepStrictEqual({
+			code: result.error.code,
+			disposed: agentService.disposedCanvases,
+		}, {
+			code: AhpErrorCodes.PermissionDenied,
+			disposed: [],
 		});
 	});
 
@@ -9232,6 +9293,42 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('rejects canvas registry actions from protocol 1.0 and echoes the rejection to the sender', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: ['1.0.0'],
+				clientId: 'canvas-registry-older',
+				initialSubscriptions: [defaultChatUri],
+			}));
+			await initialized;
+			transport.sent.length = 0;
+
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: defaultChatUri,
+				clientSeq: 1,
+				action: { type: ActionType.ChatCanvasRegistryRequested },
+			}));
+			await handler.whenIdle();
+			const rejected = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+
+			assert.deepStrictEqual({
+				handledActions: agentService.handledActions,
+				rejected,
+			}, {
+				handledActions: [],
+				rejected: {
+					channel: defaultChatUri,
+					serverSeq: stateManager.serverSeq,
+					origin: { clientId: 'canvas-registry-older', clientSeq: 1 },
+					action: { type: ActionType.ChatCanvasRegistryRequested },
+					rejectionReason: `Action is unavailable in protocol version 1.0.0: ${ActionType.ChatCanvasRegistryRequested}`,
+				},
+			});
+		});
+
 		test('advertises multipleChatProviders only behind the setting and from protocol 1.1.0', () => {
 			const capability = (clientId: string, protocolVersions: readonly string[]) => {
 				const transport = disposables.add(new MockProtocolTransport());
@@ -9252,6 +9349,36 @@ suite('ProtocolServerHandler', () => {
 				on: { advertised: {}, hasKey: true },
 				older: { advertised: undefined, hasKey: false },
 			});
+		});
+
+		test('does not advertise canvas capability to protocol 1.0 clients', async () => {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{
+					provider: 'copilotcli',
+					displayName: 'Copilot',
+					description: '',
+					models: [],
+					capabilities: { canvases: {} },
+				}],
+			});
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: ['1.0.0'],
+				clientId: 'canvas-capability-older',
+				initialSubscriptions: [ROOT_STATE_URI],
+			}));
+			const response = await initialized;
+			assert.ok(hasKey(response, { result: true }));
+			const root = (response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state as RootState;
+			assert.deepStrictEqual(root.agents, [{
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: '',
+				models: [],
+			}]);
 		});
 
 		test('the offer a client makes advertises multipleChatProviders only with the client setting on (regression: the default offer never reached 1.1.0)', () => {

@@ -25,17 +25,19 @@ suite('Agent Host protocol compatibility', () => {
 		});
 	});
 
-	test('clients offer the current version only while chats may use their own agents', () => {
+	test('clients offer the current version while a current-protocol feature is enabled', () => {
 		assert.deepStrictEqual({
 			off: getAgentHostClientProtocolVersions(false),
-			on: getAgentHostClientProtocolVersions(true),
+			chatProviders: getAgentHostClientProtocolVersions(true),
+			canvases: getAgentHostClientProtocolVersions(false, true),
 			negotiatedOff: negotiateAgentHostProtocolVersion(getAgentHostClientProtocolVersions(false)),
-			negotiatedOn: negotiateAgentHostProtocolVersion(getAgentHostClientProtocolVersions(true)),
+			negotiatedCanvases: negotiateAgentHostProtocolVersion(getAgentHostClientProtocolVersions(false, true)),
 		}, {
 			off: ['1.0.0', '0.10.0', '0.9.0'],
-			on: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'],
+			chatProviders: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'],
+			canvases: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'],
 			negotiatedOff: '1.0.0',
-			negotiatedOn: PROTOCOL_VERSION,
+			negotiatedCanvases: PROTOCOL_VERSION,
 		});
 	});
 

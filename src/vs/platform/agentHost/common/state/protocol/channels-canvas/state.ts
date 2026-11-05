@@ -9,6 +9,58 @@
 import type { URI } from '../common/state.js';
 
 /**
+ * One namespace that declares canvas types for a chat.
+ *
+ * `extensionId` is opaque. Clients MUST NOT infer management behavior by
+ * parsing it.
+ *
+ * @category Canvas State
+ */
+export interface CanvasExtensionDeclaration {
+	/** Stable opaque declaration namespace. */
+	extensionId: string;
+	/** Human-readable namespace title, when available. */
+	extensionName?: string;
+	/**
+	 * Canvas types declared by this extension/provider. `canvasId` MUST be
+	 * unique within this array.
+	 */
+	canvases: CanvasTypeDeclaration[];
+}
+
+/**
+ * One canvas type currently available to open.
+ *
+ * This experimental object may gain optional discovery metadata. Clients
+ * SHOULD ignore fields they do not understand.
+ *
+ * @category Canvas State
+ */
+export interface CanvasTypeDeclaration {
+	/** Provider-local canvas type identifier. */
+	canvasId: string;
+	/** Human-readable canvas type title. */
+	title: string;
+	/** Description of what the canvas type does. */
+	description: string;
+	/** Whether opening this canvas requires an input flow. */
+	requiresInput: boolean;
+}
+
+/**
+ * Canvas types currently registered for one chat.
+ *
+ * @category Canvas State
+ */
+export interface CanvasRegistry {
+	/**
+	 * Declaring namespaces. `extensionId` MUST be unique within this
+	 * array. An empty array is an authoritative loaded registry with no types.
+	 */
+	extensions: CanvasExtensionDeclaration[];
+}
+
+/**
  * Stable reference to a subscribable canvas channel.
  *
  * Chat state intentionally carries only this reference so the experimental
@@ -18,7 +70,9 @@ import type { URI } from '../common/state.js';
  * @category Canvas State
  */
 export interface CanvasReference {
-	/** Canvas channel URI. Subscribe to this resource for the full state. */
+	/**
+	 * Canvas channel URI. Subscribe to this resource for the full state.
+	 */
 	resource: URI;
 }
 
@@ -32,11 +86,17 @@ export interface CanvasReference {
  * @category Canvas State
  */
 export interface CanvasState {
-	/** Stable caller-supplied instance identifier. */
+	/**
+	 * Provider-facing instance identifier.
+	 *
+	 * AHP clients address this instance by the subscribed `ahp-canvas:` channel
+	 * URI. They MUST NOT treat this provider identifier as a second resource
+	 * identity.
+	 */
 	instanceId: string;
-	/** Owning extension/provider identifier. */
+	/** Owning declaration namespace. */
 	extensionId: string;
-	/** Owning extension display name, when available. */
+	/** Owning namespace title, when available. */
 	extensionName?: string;
 	/** Provider-local canvas type identifier. */
 	canvasId: string;
@@ -45,10 +105,19 @@ export interface CanvasState {
 	/** Provider-supplied status text, when available. */
 	status?: string;
 	/**
-	 * Current absolute HTTP(S) source URL; absent when the live source is unavailable.
-	 * Hosts MUST clear this field when the provider becomes unavailable.
+	 * Absolute URI of the canvas's live content, typically an HTTP(S) URL;
+	 * absent when the live source is unavailable. Hosts MUST clear this field
+	 * when the provider becomes unavailable.
 	 *
-	 * Source URLs MUST be redacted from diagnostic logs and MUST NOT be reused
+	 * A client that can't load this URI directly, for example because it is a
+	 * loopback address in the host's environment or uses a scheme that the
+	 * client doesn't load, reads it with `resourceRead`. The client resolves the
+	 * relative references in its content and reads them the same way. Hosts
+	 * SHOULD serve reads of this URI, and of other URLs on its origin when it is
+	 * an HTTP(S) URL, to clients that can subscribe to the canvas. The provider
+	 * chooses the URI, so the host decides which sources it is willing to read.
+	 *
+	 * Source URIs MUST be redacted from diagnostic logs and MUST NOT be reused
 	 * from persisted state after a provider or host restart.
 	 */
 	url?: URI;
