@@ -593,6 +593,9 @@ export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedSe
 /** Host-persisted per-server decisions for loading and using MCP-served skills. */
 export const AgentHostMcpSkillsServerApprovalsConfigKey = 'mcpSkillsServerApprovals';
 
+/** Host-persisted per-extension-identity decisions for privileged capabilities. */
+export const AgentHostExtensionPermissionApprovalsConfigKey = 'extensionPermissionApprovals';
+
 /** Root config key forwarded from the renderer for Copilot connector discovery. */
 export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
 
@@ -966,6 +969,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.mcpSkillsServerApprovals.title', "MCP Skills Server Approvals"),
 		description: localize('agentHost.config.mcpSkillsServerApprovals.description', "Per-server-identity decisions for loading and using MCP-served skills in all sessions on this agent host. Identities include known server configuration and source, or the exact server name when no other identity is available. Remove an entry to ask again. This does not approve ordinary tool permission requests."),
 		additionalProperties: { type: 'string', title: localize('agentHost.config.mcpSkillsServerApprovals.entry', "MCP Server Skills Decision"), enum: ['allow', 'deny'] },
+		default: {},
+	}),
+	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
+		type: 'object',
+		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, in all sessions on this agent host. Identities include the extension name and requested capabilities. Remove an entry to ask again."),
+		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
 		default: {},
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
