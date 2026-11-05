@@ -9989,31 +9989,33 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!Array.isArray(parsed)) {
 			return;
 		}
-		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
-			const deserialized = deserializeMetadata(entry);
-			if (!deserialized) {
-				continue;
+		transaction(tx => this.batchBackendRegistrations(() => {
+			for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
+				const deserialized = deserializeMetadata(entry);
+				if (!deserialized) {
+					continue;
+				}
+				const meta = this._adoptCachedSessionMeta(deserialized);
+				if (!meta) {
+					this._cacheDirty = true;
+					continue;
+				}
+				const rawId = meta.session.toString();
+				if (this._sessionCache.has(rawId)) {
+					continue;
+				}
+				const cached = this.createAdapter(meta);
+				if (entry.titleIsExplicit === true) {
+					cached.setTitleFromUser(cached.title.get());
+				}
+				cached.discoveryMetadata = deserializeDiscoveryMetadata(entry.discovery, this._logService);
+				if (cached.discoveryMetadata?.workspaceless !== undefined) {
+					cached.setMeta(cached.sessionMeta);
+				}
+				this._sessionCache.set(rawId, cached);
+				this._backendSessionsChanged.trigger(tx);
 			}
-			const meta = this._adoptCachedSessionMeta(deserialized);
-			if (!meta) {
-				this._cacheDirty = true;
-				continue;
-			}
-			const rawId = meta.session.toString();
-			if (this._sessionCache.has(rawId)) {
-				continue;
-			}
-			const cached = this.createAdapter(meta);
-			if (entry.titleIsExplicit === true) {
-				cached.setTitleFromUser(cached.title.get());
-			}
-			cached.discoveryMetadata = deserializeDiscoveryMetadata(entry.discovery, this._logService);
-			if (cached.discoveryMetadata?.workspaceless !== undefined) {
-				cached.setMeta(cached.sessionMeta);
-			}
-			this._sessionCache.set(rawId, cached);
-			this._backendSessionsChanged.trigger(undefined);
-		}
+		}));
 	}
 
 	/**
