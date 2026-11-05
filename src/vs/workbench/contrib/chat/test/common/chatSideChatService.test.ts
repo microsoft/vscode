@@ -43,6 +43,40 @@ suite('ChatSideChatService', () => {
 		assert.deepStrictEqual([before, observed.get()], [undefined, origin]);
 	});
 
+	test('carries only explicit selection and attachments when source context is excluded', async () => {
+		const { store, service } = createService();
+		const calls: Parameters<IChatSideChatProvider['askInSideChat']>[] = [];
+		store.add(service.registerProvider({
+			...createProvider(constObservable(undefined)),
+			canAskInSideChat: () => true,
+			askInSideChat: async (...args) => { calls.push(args); },
+		}));
+		const options: IChatSideChatRequestOptions = {
+			includeSourceContext: false,
+			sourceTurnId: 'source-turn',
+			attachedContext: [{ id: 'explicit', name: 'explicit', kind: 'generic', value: 'attached' }],
+		};
+
+		await service.askInSideChat(resource, 'Explain this', { text: '  echo example  ' }, options);
+
+		assert.deepStrictEqual({
+			calls: calls.map(([resource, query, selection, options]) => ({
+				resource, query, selection,
+				sourceTurnId: options?.sourceTurnId,
+				includeSourceContext: options?.includeSourceContext,
+				attachments: options?.attachedContext?.map(({ kind, value }) => ({ kind, value })),
+			})),
+			originalAttachments: options.attachedContext,
+		}, {
+			calls: [{
+				resource, query: 'Explain this', selection: undefined,
+				sourceTurnId: 'source-turn', includeSourceContext: false,
+				attachments: [{ kind: 'generic', value: 'attached' }, { kind: 'paste', value: '  echo example  ' }],
+			}],
+			originalAttachments: [{ id: 'explicit', name: 'explicit', kind: 'generic', value: 'attached' }],
+		});
+	});
+
 	test('routes requests and attachments without inventing an origin', async () => {
 		const { store, service } = createService();
 		const calls: { resource: URI; query: string; selection?: IChatSideChatSelection; options?: IChatSideChatRequestOptions }[] = [];

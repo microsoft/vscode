@@ -660,8 +660,8 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
-	/** Creates a side chat anchored to the given source turn, without adding to the source conversation. */
-	createSideChat?: (turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) => Promise<IChatSessionItem>;
+	/** Creates a side chat, or a fresh peer when includeSourceContext is false, without adding to the source conversation. */
+	createSideChat?: (turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean) => Promise<IChatSessionItem>;
 	/**
 	 * Renames the session.
 	 * @param title The new title for the session.
@@ -1193,8 +1193,8 @@ export interface IChatSessionsService {
 	/** Observes a loaded session's origin, including subsequent loading and disposal. */
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;
 
-	/** Creates a side chat anchored to a turn in the source conversation. */
-	createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem>;
+	/** Creates a side chat anchored to a source turn, or a fresh peer when includeSourceContext is false. */
+	createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean): Promise<IChatSessionItem>;
 
 	/**
 	 * Forks a contributed chat session from the given request point.

@@ -61,6 +61,8 @@ suite('BtwSlashCommandContribution', () => {
 		let registration: { data: IChatSlashData; callback: IChatSlashCallback } | undefined;
 		const calls: object[] = [];
 		const selections: (IChatSideChatSelection | undefined)[] = [];
+		const sourceContextOptions: (boolean | undefined)[] = [];
+		const attachments: IChatSendRequestOptions['attachedContext'][] = [];
 		const warnings: string[] = [];
 		const errors: string[] = [];
 		const participants: string[] = [];
@@ -87,6 +89,7 @@ suite('BtwSlashCommandContribution', () => {
 			}),
 			sendRequest: async (resource, query, sendOptions): Promise<ChatSendResult> => {
 				calls.push({ send: resource, query, options: sendOptions });
+				attachments.push(sendOptions?.attachedContext);
 				participants.push(sendOptions?.agentIdSilent ?? 'default-extension');
 				return options?.fail === 'send'
 					? { kind: 'rejected', reason: 'Send rejected' }
@@ -112,9 +115,10 @@ suite('BtwSlashCommandContribution', () => {
 			upcastPartial<IChatSessionsService>({
 				sessionSupportsSideChat: () => options?.supported !== false,
 				observeSideChatOrigin: () => options?.origin ?? constObservable(undefined),
-				createSideChat: async (resource, turnId, _token, selection) => {
+				createSideChat: async (resource, turnId, _token, selection, includeSourceContext) => {
 					calls.push({ create: resource, turnId, selection });
 					selections.push(selection);
+					sourceContextOptions.push(includeSourceContext);
 					if (options?.fail === 'create') {
 						throw new Error('Create failed');
 					}
@@ -159,7 +163,7 @@ suite('BtwSlashCommandContribution', () => {
 		));
 
 		return {
-			registration, calls, selections, warnings, errors, participants, telemetryEvents, sourceGroup, splitGroup, sideChatService,
+			registration, calls, selections, sourceContextOptions, attachments, warnings, errors, participants, telemetryEvents, sourceGroup, splitGroup, sideChatService,
 			run: async (prompt = 'question', requestOptions?: IChatSendRequestOptions, input = `/btw ${prompt}`) => {
 				assert.ok(registration);
 				await registration.callback(prompt, { report: () => { } }, [], ChatAgentLocation.Chat, source, CancellationToken.None, requestOptions, { input });
@@ -276,6 +280,20 @@ suite('BtwSlashCommandContribution', () => {
 		const harness = setup({ sourceTurnIds: ['older-turn', 'latest-turn'] });
 		await harness.sideChatService.askInSideChat(source, 'Explain this', { text: 'Older answer' }, { sourceTurnId: 'older-turn' });
 		assert.deepStrictEqual(harness.calls[0], { create: source, turnId: 'older-turn', selection: { text: 'Older answer' } });
+	});
+
+	test('creates a fresh editor side chat and sends the selected text as an attachment', async () => {
+		const harness = setup();
+		await harness.sideChatService.askInSideChat(source, 'Explain this', { text: 'echo example' }, { includeSourceContext: false });
+		assert.deepStrictEqual({
+			creation: harness.calls[0],
+			sourceContextOptions: harness.sourceContextOptions,
+			attachments: harness.attachments.map(entries => entries?.map(({ kind, value }) => ({ kind, value }))),
+		}, {
+			creation: { create: source, turnId: 'active-turn', selection: undefined },
+			sourceContextOptions: [false],
+			attachments: [[{ kind: 'paste', value: 'echo example' }]],
+		});
 	});
 
 	test('rejects an explicit missing source turn without falling back to the latest turn', async () => {

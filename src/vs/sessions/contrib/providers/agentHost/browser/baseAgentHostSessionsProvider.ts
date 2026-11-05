@@ -8737,7 +8737,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return chat;
 	}
 
-	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext = true): Promise<IChat> {
 		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
@@ -8769,13 +8769,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
+		const sourceProvider = cached.getChatAgentProvider(sourceChat);
 		await connection.createChat(sessionUri, chatUri, {
 			model: selectedModel,
-			sideChat: {
-				source: sourceBackendUri,
-				turnId,
-				...(selection ? { selection } : {}),
-			},
+			...(includeSourceContext
+				? { sideChat: { source: sourceBackendUri, turnId, ...(selection ? { selection } : {}) } }
+				: sourceProvider !== cached.agentProvider ? { provider: sourceProvider } : {}),
 		});
 
 		const chat = await waitForState(

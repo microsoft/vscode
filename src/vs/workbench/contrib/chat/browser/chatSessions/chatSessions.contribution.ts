@@ -1762,13 +1762,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	public async createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+	public async createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean): Promise<IChatSessionItem> {
 		const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
 		if (!session?.session.createSideChat) {
 			this._logService.trace(`[ChatSessionsService] Cannot create a side chat for unsupported session '${sessionResource.toString()}'`);
 			throw new Error(localize('chatSessions.sideChatsUnsupported', "This conversation does not support side chats."));
 		}
-		return session.session.createSideChat(turnId, token, selection);
+		return session.session.createSideChat(turnId, token, selection, includeSourceContext);
 	}
 
 	public sessionSupportsRename(sessionResource: URI): boolean {
