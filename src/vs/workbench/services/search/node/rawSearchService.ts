@@ -306,11 +306,7 @@ export class SearchService implements IRawSearchService {
 		const cacheFilterSW = StopWatch.create(false);
 
 		const listener = cachedRow.event(progressCallback);
-		if (token) {
-			token.onCancellationRequested(() => {
-				listener.dispose();
-			});
-		}
+		const cancellationListener = token?.onCancellationRequested(() => listener.dispose());
 
 		return cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
 			if (token && token.isCancellationRequested) {
@@ -336,15 +332,18 @@ export class SearchService implements IRawSearchService {
 				cacheFilterTime: cacheFilterSW.elapsed(),
 				cacheEntryCount: cachedEntries.length
 			}];
+		}).finally(() => {
+			listener.dispose();
+			cancellationListener?.dispose();
 		});
 	}
 
 
 
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): Promise<ISearchEngineSuccess> {
+		const cancellationListener = token?.onCancellationRequested(() => engine.cancel());
 		return new Promise<ISearchEngineSuccess>((c, e) => {
 			let batch: IRawFileMatch[] = [];
-			token?.onCancellationRequested(() => engine.cancel());
 
 			engine.search((match) => {
 				if (match) {
@@ -373,7 +372,7 @@ export class SearchService implements IRawSearchService {
 					c(complete);
 				}
 			});
-		});
+		}).finally(() => cancellationListener?.dispose());
 	}
 
 	clearCache(cacheKey: string): Promise<void> {

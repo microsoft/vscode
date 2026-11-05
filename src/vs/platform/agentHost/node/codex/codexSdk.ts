@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/path.js';
+import { promises as fs } from 'fs';
+import { dirname, join } from '../../../../base/common/path.js';
 import { AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import type { IAgentSdkPackage } from '../agentSdkDownloader.js';
 
@@ -49,11 +50,48 @@ export function codexBinaryTriple(sdkTarget: string): string | undefined {
 }
 
 /**
+ * Returns the path of the native Codex binary for `sdkTarget` (see {@link codexPackageSuffix}) and
+ * its `triple` (see {@link codexBinaryTriple}) under `sdkRoot`, the folder that contains the
+ * `node_modules` with `@openai/codex`.
+ *
+ * The platform package `@openai/codex-${sdkTarget}` is an optional dependency of `@openai/codex`.
+ * The downloaded product SDK and a flat `node_modules` (npm, or pnpm's hoisted layout) put it next
+ * to `@openai/codex` in `sdkRoot/node_modules`. A symlinked `node_modules` (pnpm's isolated layout)
+ * only puts it next to the real folder of `@openai/codex`, which is where this falls back to.
+ * When neither folder has the binary, returns the path in `sdkRoot/node_modules`, so that callers
+ * report that path.
+ */
+export async function resolveCodexBinaryPath(sdkRoot: string, sdkTarget: string, triple: string, platform: NodeJS.Platform = process.platform): Promise<string> {
+	const binaryName = platform === 'win32' ? 'codex.exe' : 'codex';
+	const scopeDir = join(sdkRoot, 'node_modules', '@openai');
+	const candidates = [scopeDir];
+	try {
+		const realScopeDir = dirname(await fs.realpath(join(scopeDir, 'codex')));
+		if (realScopeDir !== scopeDir) {
+			candidates.push(realScopeDir);
+		}
+	} catch {
+		// No `@openai/codex` next to the platform package (for example a downloaded SDK that only
+		// has the platform package).
+	}
+	const paths = candidates.map(dir => join(dir, `codex-${sdkTarget}`, 'vendor', triple, 'bin', binaryName));
+	for (const path of paths) {
+		try {
+			// The real path: in pnpm's isolated layout the platform package folder is a link, and
+			// Codex's macOS sandbox can't read the link when its file helper starts the binary again.
+			return await fs.realpath(path);
+		} catch {
+			// Try the next folder.
+		}
+	}
+	return paths[0];
+}
+
+/**
  * Locate the SDK root for the dev (running-from-source) fallback by resolving
  * `@openai/codex` — a devDependency in source checkouts — out of this repo's
  * `node_modules`. Returns the directory that *contains* that `node_modules`
- * (i.e. the value `_startConnection` joins `node_modules/@openai/codex-<target>`
- * onto), or undefined when the package can't be resolved (e.g. a built product
+ * (the `sdkRoot` of {@link resolveCodexBinaryPath}), or undefined when the package can't be resolved (e.g. a built product
  * where it isn't shipped). `@openai/codex` declares no `exports` map, so its
  * `package.json` is resolvable.
  *

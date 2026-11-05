@@ -17,11 +17,12 @@ import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { IMatch, matchesContiguousSubString } from '../../../../base/common/filters.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -461,6 +462,12 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 	private readonly marketplaceRowRenderer: MarketplaceExtensionRowRenderer;
 	/** Why the current Marketplace extensions can't be installed, resolved once they are rendered, or `undefined` while resolving or when they can be. */
 	private readonly installBlockers = new Map<IExtension, IMarkdownString | undefined>();
+	/**
+	 * The manifests of the Marketplace extensions that were rendered, by identifier and version, read once they are rendered,
+	 * or `undefined` while reading them. Searches return new objects for the same extensions, which read them again.
+	 */
+	private readonly marketplaceManifests = new Map<string, IExtensionManifest | undefined>();
+	private readonly marketplaceManifestRequests = new CancellationTokenSource();
 	/** Extensions that uninstalling from the section removed, such as the extensions of a pack, that keep running until extensions restart. */
 	private readonly uninstalledExtensions = new Set<IExtension>();
 	private readonly collapsedGroups = new Set<AgentsWindowExtensionGroup>();
@@ -505,6 +512,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		this.updateDescription();
 
 		this.marketplaceSearch = this._register(instantiationService.createInstance(AgentsWindowMarketplaceSearch));
+		this._register(toDisposable(() => this.marketplaceManifestRequests.dispose(true)));
 
 		const searchContainer = DOM.append(this.element, $('.agents-window-extensions-search'));
 		// Its placeholder and accessible name depend on whether the Marketplace can be searched, which is tracked below.
@@ -524,6 +532,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		this.treeContainer = DOM.append(this.element, $('.agents-window-extensions-tree.customization-tree-container'));
 		this.marketplaceRowRenderer = instantiationService.createInstance(MarketplaceExtensionRowRenderer,
 			extension => this.getInstallBlocker(extension),
+			extension => this.getMarketplaceWarning(extension),
 			extension => this.onDidInstall(extension),
 		);
 		this.tree = this._register(instantiationService.createInstance(
@@ -871,9 +880,32 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 	 * Warns about extensions that haven't declared support for the Agents window and contribute things that it doesn't support.
 	 */
 	private getWarning(extension: IExtension): string | undefined {
-		return extension.local && !this.supportsAgentsWindow(extension)
-			? getMissingFeaturesWarning(getSessionsWindowMissingFeatures(extension.local.manifest))
-			: undefined;
+		return extension.local ? this.getManifestWarning(extension.local.manifest, extension.isBuiltin) : undefined;
+	}
+
+	/**
+	 * Warns about Marketplace extensions like about installed extensions. Reads the extension's manifest from the Marketplace
+	 * the first time it is needed, which is when the extension is rendered, and renders again once it is read.
+	 */
+	private getMarketplaceWarning(extension: IExtension): string | undefined {
+		const key = `${ExtensionIdentifier.toKey(extension.identifier.id)}@${extension.version}`;
+		if (!this.marketplaceManifests.has(key)) {
+			this.marketplaceManifests.set(key, undefined);
+			extension.getManifest(this.marketplaceManifestRequests.token).then(manifest => {
+				if (manifest) {
+					this.marketplaceManifests.set(key, manifest);
+					this.scheduleRender();
+				}
+			}, () => { /* reading it failed or was cancelled, so the extension has no warning */ });
+		}
+		const manifest = this.marketplaceManifests.get(key);
+		return manifest && this.getManifestWarning(manifest, extension.isBuiltin);
+	}
+
+	private getManifestWarning(manifest: IExtensionManifest, isBuiltin: boolean): string | undefined {
+		return this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(manifest, isBuiltin)
+			? undefined
+			: getMissingFeaturesWarning(getSessionsWindowMissingFeatures(manifest));
 	}
 
 	private isEnabled(extension: IExtension): boolean {
@@ -1056,7 +1088,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 			return entry.text;
 		}
 		if (entry.type === 'marketplace') {
-			return getMarketplaceExtensionAriaLabel(entry.extension, entry.extension.state === ExtensionState.Uninstalled ? this.getInstallBlocker(entry.extension) : undefined);
+			return getMarketplaceExtensionAriaLabel(entry.extension, entry.extension.state === ExtensionState.Uninstalled ? this.getInstallBlocker(entry.extension) : undefined, this.getMarketplaceWarning(entry.extension));
 		}
 		const { extension } = entry;
 		const state = this.isEnabled(extension)

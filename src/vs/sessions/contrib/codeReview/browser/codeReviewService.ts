@@ -18,7 +18,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { parsePRContentUri } from '../../github/common/utils.js';
 // --- Types -------------------------------------------------------------------
@@ -216,7 +216,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		@ILogService private readonly _logService: ILogService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 		this._registerSessionListeners();
@@ -229,11 +229,11 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				arrayEquals(a.pullRequests, b.pullRequests, (x, y) =>
 					x.owner === y.owner && x.repo === y.repo && x.number === y.number)
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
-			const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
+			const workspace = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			return {
 				sessionResource: activeSession.resource,
@@ -340,9 +340,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	private _getFocusedChat(sessionResource: URI): IChat | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
-			return activeSession.activeChat.get();
+			return this._focusedSessionHostService.focusedHost.get().chat.get();
 		}
 		return this._sessionsManagementService.getSession(sessionResource)?.mainChat.get();
 	}

@@ -13,6 +13,7 @@ export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
 
+	/** Signals refreshed live assignments, including periodic refreshes. Consumers should read their treatments again. */
 	readonly onDidRefetchAssignments: Event<void>;
 	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 }

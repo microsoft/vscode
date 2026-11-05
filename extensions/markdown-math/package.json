@@ -112,6 +112,7 @@
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",
+    "@types/node": "24.x",
     "@types/vscode-notebook-renderer": "^1.60.0"
   },
   "repository": {

@@ -44,6 +44,7 @@ import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/comm
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
+import type { SessionView } from '../../../../browser/parts/sessionView.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1246,14 +1247,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 			},
 		};
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
-				sessionId: 'judge',
-				resource: judgeResource,
-				activeChat: constObservable(upcastPartial<IChat>({ resource: judgeResource })),
-			}));
-			override readonly mainWindowActiveSession = this.activeSession;
+		// The grid's active pane shows the Judge.
+		const judgePane = upcastPartial<IActiveSession>({
+			sessionId: 'judge',
+			resource: judgeResource,
+			activeChat: constObservable(upcastPartial<IChat>({ resource: judgeResource })),
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => judgePane, focus: () => { } }); }
 		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override readonly comparisons = constObservable([comparison]);

@@ -54,7 +54,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -1839,6 +1839,48 @@ suite('ProtocolServerHandler', () => {
 			calls: [{ session: 'copilotcli:/session-1', chat }],
 		});
 	});
+
+	for (const { enabled, passive } of [{ enabled: true, passive: false }, { enabled: false, passive: false }, { enabled: true, passive: true }]) {
+		test(`relay chat state files with extension methods ${enabled ? 'enabled' : 'disabled'} on ${passive ? 'passive' : 'active'} connections`, async () => {
+			const relay = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { allowExtensionMethods: enabled, relayRootMeta: {} },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'state-file-relay', passive));
+			transport.relayAuthenticated = true;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'state-file-relay' }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const session = 'copilotcli:/session-1';
+			const chat = buildChatUri(session, 'peer-1');
+			agentService.chatOwners.set(chat, session);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/getAgentHostSessionStateFile', { session, chat }));
+
+			assert.deepStrictEqual({
+				supported: supportsAgentHostChatStateFile(initialized.result as InitializeResult),
+				response: await response,
+				calls: agentService.getSessionStateFileCalls,
+			}, {
+				supported: enabled && !passive,
+				response: enabled && !passive
+					? { jsonrpc: '2.0', id: 2, result: { resource: 'file:///state/sdk-session/events.jsonl' } }
+					: {
+						jsonrpc: '2.0', id: 2, error: {
+							code: passive ? JsonRpcErrorCodes.InvalidRequest : JsonRpcErrorCodes.MethodNotFound,
+							message: passive
+								? 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.'
+								: 'Method not found: vscode/getAgentHostSessionStateFile',
+						}
+					},
+				calls: enabled && !passive ? [{ session, chat }] : [],
+			});
+		});
+	}
 
 	test('advertises host wire-log resources without enabling host-management methods', async () => {
 		const localServer = disposables.add(new MockProtocolServer());

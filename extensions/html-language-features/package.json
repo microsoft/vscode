@@ -262,7 +262,8 @@
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "24.x",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

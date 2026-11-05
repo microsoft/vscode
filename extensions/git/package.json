@@ -4402,7 +4402,11 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "@types/picomatch": "^2.3.0",
-    "@types/which": "^3.0.0"
+    "@types/sinon": "^10.0.2",
+    "@types/which": "^3.0.0",
+    "mocha": "^10.8.2",
+    "sinon": "^12.0.1",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

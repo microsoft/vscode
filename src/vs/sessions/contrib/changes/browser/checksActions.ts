@@ -22,7 +22,7 @@ import { GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js'
 import { PullRequestCheck } from '../../../../platform/github/common/githubPullRequestService.js';
 import { getPullRequestCheckState, isUnreportedCheckSuite, RequiredPullRequestChecks } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionIsActiveContext } from '../../../common/contextkeys.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
@@ -211,7 +211,8 @@ class FixCIChecksAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
-		const session = resolveSessionActionTarget(accessor, sessionArg);
+		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+		const session = target?.session;
 		if (!session) {
 			return;
 		}
@@ -223,7 +224,7 @@ class FixCIChecksAction extends Action2 {
 
 		// The widget of the chat the session shows, which is the chat its model is for: for a chat other than the main one,
 		// not the widget of the main chat, which might show in another window or not at all.
-		const chatResource = session.activeChat.get().resource;
+		const chatResource = (target.chat ?? session.mainChat.get()).resource;
 		const chatWidget = await whenChatWidgetForSession(chatWidgetService, chatResource);
 		if (!chatWidget) {
 			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for chat', chatResource.toString());

@@ -89,20 +89,20 @@ suite('Chat window: moving editors', () => {
 		await chatPart.activeGroup.openEditor(chat, { pinned: true });
 		const split = chatPart.addGroup(chatPart.activeGroup, GroupDirection.RIGHT);
 		await split.openEditor(alpha, { pinned: true });
-		const captured = captureChatPart(chatPart, chat);
+		const captured = captureChatPart(chatPart, [chat]);
 		// Nothing to capture with the chat alone in its part
 		const single = parts.createEditorPart({ container: document.createElement('div') });
 		disposables.add({ dispose: () => single.close() });
-		const notSplit = captureChatPart(single, chat);
+		const notSplit = captureChatPart(single, [chat]);
 		// Nor with the chat alone in its group; with an editor beside it there, as a tab, it is captured too
 		const alone = parts.createEditorPart({ container: document.createElement('div') });
 		disposables.add({ dispose: () => alone.close() });
 		const aloneChat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput'));
 		await alone.activeGroup.openEditor(aloneChat, { pinned: true });
-		const chatAlone = captureChatPart(alone, aloneChat);
+		const chatAlone = captureChatPart(alone, [aloneChat]);
 		const beta = disposables.add(new TestFileEditorInput(URI.file('/beta'), 'chatWindowChatPartInput'));
 		await alone.activeGroup.openEditor(beta, { pinned: true });
-		const tabbed = captureChatPart(alone, aloneChat);
+		const tabbed = captureChatPart(alone, [aloneChat]);
 		const restoredTabbed = parts.createEditorPart({ container: document.createElement('div'), state: tabbed!.state });
 		disposables.add({ dispose: () => restoredTabbed.close() });
 		await getRestoredChatGroup(restoredTabbed, tabbed).openEditor(disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput')), { pinned: true, index: 0 });
@@ -175,6 +175,7 @@ suite('Chat window: moving editors', () => {
 		const events: string[] = [];
 		const window = new class extends mock<IChatWindow>() {
 			override readonly chat = constObservable(URI.parse('test:/chat'));
+			override readonly chats = constObservable([URI.parse('test:/chat')]);
 			override readonly terminalsVisible = constObservable(true);
 			override readonly mainPart = upcastPartial<IContentPart>({ groups: [upcastPartial<IEditorGroup>({ activeEditor: first, getEditors: () => [first, second, dirty] })] });
 			override readonly chatPart = upcastPartial<IContentPart>({ groups: [upcastPartial<IEditorGroup>({ activeEditor: null, getEditors: () => [] })] });
@@ -206,6 +207,7 @@ suite('Chat window: moving editors', () => {
 		const group = (...editors: EditorInput[]) => upcastPartial<IEditorGroup>({ activeEditor: editors[0], getEditors: () => editors });
 		const window = new class extends mock<IChatWindow>() {
 			override readonly chat = constObservable(URI.parse('test:/chat'));
+			override readonly chats = constObservable([URI.parse('test:/chat')]);
 			override readonly terminalsVisible = constObservable(false);
 			override readonly mainPart = upcastPartial<IContentPart>({ groups: [group(main)] });
 			override readonly chatPart = upcastPartial<IContentPart>({ groups: [group(chat, tab, dirty)] });

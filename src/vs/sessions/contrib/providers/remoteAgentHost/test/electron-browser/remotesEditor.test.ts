@@ -351,7 +351,10 @@ suite('RemotesEditor', () => {
 		const read = () => ({
 			hidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')?.hidden,
 			sections: container.querySelectorAll('.remotes-this-computer').length,
+			heading: container.querySelector<HTMLElement>('.remotes-heading:not([hidden])')?.textContent,
+			region: container.querySelector('.remotes-widget[role="region"]')?.getAttribute('aria-labelledby') === container.querySelector('.remotes-heading-title')?.id,
 			accessible: editor.getAccessibilityContent().startsWith('This Computer'),
+			accessibleHeading: editor.getAccessibilityContent().includes('\n\nOther Environments\n'),
 		});
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, enabled);
@@ -366,9 +369,9 @@ suite('RemotesEditor', () => {
 		const enabled = read();
 		await setEnabled(false);
 		assert.deepStrictEqual({ initial, enabled, disabled: read() }, {
-			initial: { hidden: true, sections: 0, accessible: false },
-			enabled: { hidden: false, sections: 1, accessible: true },
-			disabled: { hidden: true, sections: 0, accessible: false },
+			initial: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
+			enabled: { hidden: false, sections: 1, heading: 'Other Environments', region: true, accessible: true, accessibleHeading: true },
+			disabled: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
 		});
 	});
 

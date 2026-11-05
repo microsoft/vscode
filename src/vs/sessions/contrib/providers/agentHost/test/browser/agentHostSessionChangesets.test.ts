@@ -41,7 +41,7 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../common/contextkeys.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
-import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
+import { ISessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -52,6 +52,7 @@ import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDi
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 
 suite('AgentHostSessionChangesets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1743,9 +1744,8 @@ suite('AgentHostSessionChangesets', () => {
 				workspace,
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(session);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable(session);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable([session]);
 				override readonly visibleSessionPanes = constObservable([session]);
 			}();
@@ -1772,7 +1772,7 @@ suite('AgentHostSessionChangesets', () => {
 			const container = document.createElement('div');
 			const renderMenu = () => {
 				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
-				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService());
+				const viewItem = new SessionSyncChangesActionViewItem(action, {}, upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane, session: constObservable(session), chat: session.activeChat }), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService(), upcastPartial<IChatWidgetService>({}));
 				item.value = viewItem;
 				viewItem.actionRunner = actionRunner;
 				container.replaceChildren();

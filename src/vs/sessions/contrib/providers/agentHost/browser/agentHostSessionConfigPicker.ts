@@ -59,8 +59,8 @@ import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -83,7 +83,7 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
@@ -103,7 +103,7 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 	const anchor = dom.isHTMLElement(activeElement) ? activeElement : dom.getActiveDocument().body;
 	const picker = accessor.get(IInstantiationService).createInstance(
 		isPhoneLayout(accessor.get(IWorkbenchLayoutService)) ? MobileAgentHostModePicker : AgentHostModePicker,
-		accessor.get(ISessionsService).activeSession,
+		getFocusedSessionChatSource(accessor.get(IFocusedSessionHostService)),
 	);
 	if (!picker.showPicker(anchor, () => picker.dispose())) {
 		picker.dispose();
@@ -639,8 +639,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 */
 	private readonly _dynamicValueLabels = new Map<string, Map<string, string>>();
 
+	protected readonly _session: IObservable<IHostSession | undefined>;
+	/** The chat of {@link _session} whose config the picker shows and sets. */
+	protected readonly _chat: IObservable<IChat | undefined>;
+
 	constructor(
-		protected readonly _session: IObservable<IActiveSession | undefined>,
+		source: ISessionChatSource,
 		private readonly _property: string | undefined,
 		@IActionWidgetService protected readonly _actionWidgetService: IActionWidgetService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
@@ -660,10 +664,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IWorktreeSuggestionService private readonly _worktreeSuggestionService: IWorktreeSuggestionService,
 	) {
 		super();
+		this._session = source.session;
+		this._chat = source.chat;
 
 		this._register(autorun(reader => {
-			const session = this._session.read(reader);
-			for (const changeset of session?.activeChat.read(reader).changesets.read(reader) ?? []) {
+			this._session.read(reader);
+			for (const changeset of this._chat.read(reader)?.changesets.read(reader) ?? []) {
 				changeset.operations?.read(reader);
 			}
 			this._renderConfigPickers();
@@ -767,8 +773,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		this._evictDynamicValueLabelsForOtherSessions(session?.sessionId);
 		const provider = session ? this._getProvider(session.providerId) : undefined;
-		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId, session.activeChat.get().resource);
-		if (!session || !provider || !resolvedConfig) {
+		const chat = this._chat.get();
+		const resolvedConfig = session && chat && provider?.getSessionConfig(session.sessionId, chat.resource);
+		if (!session || !chat || !provider || !resolvedConfig) {
 			this._isolationCheckbox.clear();
 			return;
 		}
@@ -784,7 +791,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// preserved so chips stay visible. Not `session.loading` —
 		// that also covers the required-values-missing state where
 		// chips must remain interactive.
-		const isLoading = provider.isSessionConfigResolving(session.sessionId, session.activeChat.get().resource).get();
+		const isLoading = provider.isSessionConfigResolving(session.sessionId, chat.resource).get();
 
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 		let renderedIsolationCheckbox = false;
@@ -1003,11 +1010,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			&& config?.values[SessionConfigKey.Isolation] === 'folder';
 	}
 
-	/** The chat this picker configures for `sessionId`: the shown session's active chat, or the session's main chat. */
+	/** The chat this picker configures for `sessionId`: the chat its host shows of the session, or the session's main chat. */
 	protected _getChat(provider: IAgentHostSessionsProvider, sessionId: string): URI | undefined {
 		const session = this._session.get();
 		return session?.sessionId === sessionId
-			? session.activeChat.get().resource
+			? this._chat.get()?.resource
 			: provider.getSessions().find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
 	}
 
@@ -1035,7 +1042,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			return undefined;
 		}
 
-		return session.activeChat.get().changesets.get()?.find(changeset =>
+		return this._chat.get()?.changesets.get()?.find(changeset =>
 			changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
 			&& changeset.operations.get().some(operation => operation.id === AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
 		);
@@ -1647,7 +1654,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected _presentationProperty(sessionId: string, property: string): string {
 		const session = this._session.get();
-		const config = session?.sessionId === sessionId ? this._getProvider(session.providerId)?.getSessionConfig(sessionId, session.activeChat.get().resource) : undefined;
+		const chat = this._chat.get();
+		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId)?.getSessionConfig(sessionId, chat.resource) : undefined;
 		return config ? getSessionConfigPresentationKey(property, config.schema) : property;
 	}
 }
@@ -2064,13 +2072,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			Menus.NewSessionControl,
 			NEW_SESSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(
 					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
-					session,
+					host,
 				));
 			},
 		));
+		// The chat input's menus are the workbench's: their items show only in session host scopes (InSessionHostScopeContext).
 		const registerRunningSessionPicker = (actionId: string, factory: IActionViewItemFactory) => {
 			this._register(actionViewItemService.register(MenuId.ChatInput, actionId, factory));
 			this._register(actionViewItemService.register(MenuId.ChatInputSecondary, actionId, factory));
@@ -2078,10 +2087,10 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		registerRunningSessionPicker(
 			RUNNING_SESSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(
 					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
-					session,
+					host,
 				));
 			},
 		);
@@ -2094,16 +2103,16 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			Menus.NewSessionControl,
 			NEW_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, host));
 			},
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			NEW_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, host));
 			},
 		));
 		registerRunningSessionPicker(
@@ -2113,15 +2122,15 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		registerRunningSessionPicker(
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, host));
 			},
 		);
 		registerRunningSessionPicker(
 			RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, host));
 			},
 		);
 	}
@@ -2201,9 +2210,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			Menus.NewSessionRepositoryConfig,
 			commandId,
 			(action, options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
 				return new PickerActionViewItem(
-					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session, property),
+					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, host, property),
 					undefined,
 					true,
 					options,
@@ -2221,8 +2230,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 	 * pickers (font size, padding, icon size).
 	 */
 	private _createNewSessionPermissionPicker(instantiationService: IInstantiationService): PickerActionViewItem {
-		const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
+		const host = instantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, host);
 		const picker = instantiationService.createInstance(MobilePermissionPicker, delegate);
 		return new PickerActionViewItem(picker, delegate);
 	}
@@ -2237,7 +2246,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+			const host = instantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
 			const pickerOptions = {
 				compact: observableValue<boolean, void>(action, false),
 				listOptions: { minWidth: 255 },
@@ -2246,7 +2255,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				AgentHostPermissionPickerActionItem,
 				action,
 				pickerOptions,
-				session,
+				host,
 			);
 		};
 	}
@@ -2363,12 +2372,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2388,12 +2397,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2418,12 +2427,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2448,6 +2457,7 @@ registerAction2(class extends Action2 {
 				order: 0.1,
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
+					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
 					ExperimentalSessionComposerLayout,
 				),
@@ -2458,6 +2468,7 @@ registerAction2(class extends Action2 {
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
+					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
 					LegacySessionComposerLayout,
 				),

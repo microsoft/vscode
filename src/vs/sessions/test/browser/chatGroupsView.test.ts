@@ -14,7 +14,7 @@ import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -38,12 +38,13 @@ import { IWorkbenchLayoutService } from '../../../workbench/services/layout/brow
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
@@ -58,6 +59,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilitie
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
+import { ISessionHost, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
@@ -97,7 +99,10 @@ class TestChatView extends AbstractChatView {
 		this.onLayout?.();
 	}
 
+	focusCount = 0;
+
 	focus(): void {
+		this.focusCount++;
 		this._focusTarget.focus();
 	}
 
@@ -208,8 +213,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	override attachChat(): void { }
-	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-	override readonly mainWindowActiveSession = this.activeSession;
+	readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
 	readonly closedSessions: string[] = [];
@@ -298,7 +302,10 @@ interface IChatGroupsHarness {
 	readonly sessionsProvidersService: TestSessionsProvidersService;
 	readonly chatViewFactory: TestChatViewFactory;
 	readonly configurationService: TestConfigurationService;
+	readonly chatHostOpenerService: ChatHostOpenerService;
 	readonly view: ChatGroupsView;
+	/** Whether the document of the view's window has focus, as opposed to another window's, such as a new chat window whose activation is not reported yet, or none, while the app is in the background. */
+	readonly focus: { viewWindow: boolean };
 }
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true, desktop = false): IChatGroupsHarness {
@@ -332,6 +339,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
 	}());
 	instantiationService.stub(ISessionsService, sessionsService);
+	// The window host shows the active session, as the main window's does.
+	const windowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined, session: sessionsService.activeSession, chat: derived(reader => sessionsService.activeSession.read(reader)?.activeChat.read(reader)) });
+	instantiationService.stub(ISessionHost, windowHost);
+	const focus = { viewWindow: true };
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
@@ -340,12 +351,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
+	const chatHostOpenerService = new ChatHostOpenerService();
+	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
 
-	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined));
+	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined, targetWindow => targetWindow === mainWindow && focus.viewWindow));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, view };
+	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, chatHostOpenerService, view, focus };
 }
 
 function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
@@ -400,6 +413,27 @@ suite('Sessions - ChatGroupsView', () => {
 		states.push(liveChats().map(chat => chat.active));
 
 		assert.deepStrictEqual(states, [[true], [false, true], [false, false], [false, false], [true, false], [false, true]]);
+	});
+
+	test('a chat opened beside a reference chat is focused once open only while the document of the view\'s window still has focus, not once another window, such as a new one not reported active yet, or another application has it', async () => {
+		const focusedChatViews = async (viewWindowFocused: boolean) => {
+			const { view, sessionsService, focus } = createHarness(disposables);
+			const main = createChat('main');
+			const peer = createChat('peer');
+			const session = new TestActiveSession([main, peer]);
+			sessionsService.activeSession.set(session, undefined);
+			view.setSession(session, options);
+			view.layout(800, 600, 0, 0);
+			const opening = new DeferredPromise<void>();
+			sessionsService.openChatGate = opening.p;
+			const opened = view.openChatInNewGroup(peer.resource, main.resource);
+			focus.viewWindow = viewWindowFocused;
+			opening.complete();
+			await opened;
+			return view['_groups'].map(group => (group.view.chatView.get() as TestChatView | undefined)?.focusCount ?? 0).reduce((sum, count) => sum + count, 0);
+		};
+
+		assert.deepStrictEqual({ stays: await focusedChatViews(true), leaves: await focusedChatViews(false) }, { stays: 1, leaves: 0 });
 	});
 
 	test('a replaced session of a chat window keeps the groups it shows, with their active chats and the active group', async () => {
@@ -1278,6 +1312,68 @@ suite('Sessions - ChatGroupsView', () => {
 				activeChat: draggedPeer.resource.toString(),
 			});
 		});
+	}
+
+	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		for (const vetoed of [false, true]) {
+			test(`a chat of the session that a chat window shows, dropped beside its main chat in ${mode} mode, leaves its window and opens beside it, not revealed in its window; while its close is vetoed, it stays there (vetoed: ${vetoed})`, async () => {
+				const { configurationService, instantiationService, chatHostOpenerService, view } = createHarness(disposables);
+				const main = createChat('main');
+				const peer = createChat('peer');
+				const session = new TestActiveSession([main, peer], [main]);
+				view.setSession(session, options);
+				await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+					change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+					affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+				});
+				// A chat window shows the peer
+				let inWindow = true;
+				const calls: string[] = [];
+				disposables.add(chatHostOpenerService.register({
+					showsChat: shown => inWindow && shown.toString() === peer.resource.toString(),
+					reveal: async shown => { calls.push(`reveal ${shown.path}`); },
+					openBeside: async () => { },
+					close: async closed => {
+						calls.push(`close ${closed.path}`);
+						inWindow = vetoed;
+						return vetoed ? undefined : { restore: async () => { } };
+					},
+				}));
+
+				const container = mainWindow.document.createElement('div');
+				disposables.add(toDisposable(() => container.remove()));
+				mainWindow.document.body.appendChild(container);
+				container.appendChild(view.element);
+				view.layout(1200, 600, 0, 0);
+				disposables.add(instantiationService.createInstance(SessionDropTarget, container, {
+					findTargetView: child => container.contains(child) ? { sessionId: session.sessionId, element: container } : undefined,
+				}));
+				// As the header of the peer's chat editor in its window's title row drags it
+				const dataTransfer = new DataTransfer();
+				fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), session.sessionId, peer.resource);
+				const group = view.element.querySelector<HTMLElement>('.chat-group-view');
+				assert.ok(group);
+				const bounds = group.getBoundingClientRect();
+				const clientX = bounds.right - 1;
+				const clientY = bounds.top + bounds.height / 2;
+				group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const chatOverlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+				chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer, clientX, clientY }));
+				chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					calls,
+					groups: view['_groups'].map(group => group.activeResourceId.get()),
+				}, {
+					calls: [`close ${peer.resource.path}`],
+					groups: vetoed ? [main.resource.toString()] : [main.resource.toString(), peer.resource.toString()],
+				});
+			});
+		}
 	}
 
 	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {

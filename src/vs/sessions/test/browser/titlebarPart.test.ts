@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { getZoomFactor, isFullscreen, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
-import { $, append, registerWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -447,30 +447,42 @@ suite('Sessions - Titlebar Part', () => {
 		let hostFullscreen: boolean | undefined = undefined;
 		const { auxiliaryWindow, read, hasTrafficLightSpacer, hostQueries } = createAuxiliaryTitlebar({ createdBeforeInWindow: true, hostFullscreen: () => hostFullscreen });
 		const askedOnMove = hostQueries.length;
+		// The browser also resizes the frame as it lays it out, at times no test controls; each such resize may ask the host
+		// once more.
+		let browserResizes = 0;
+		store.add(addDisposableListener(auxiliaryWindow, EventType.RESIZE, e => {
+			if (e.isTrusted) {
+				browserResizes++;
+			}
+		}));
 		const resize = async () => {
+			const askedBefore = hostQueries.length;
+			const browserResizesBefore = browserResizes;
 			// Many resize events as the window animates: the host is asked once, after the last
 			for (let i = 0; i < 5; i++) {
 				auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
 				await timeout(50);
 			}
 			await timeout(1000);
+			const asked = hostQueries.length - askedBefore;
+			// Not counting a query each of those resizes may have added
+			return asked - Math.min(Math.max(asked - 1, 0), browserResizes - browserResizesBefore);
 		};
 
 		// Told it is in full screen, which it left without being told
 		setFullscreen(true, auxiliaryWindow);
 		const stale = read();
 		hostFullscreen = false;
-		await resize();
-		const corrected = { ...read(), asked: hostQueries.length - askedOnMove };
+		const corrected = { asked: await resize(), ...read() };
 		// And the other way
 		hostFullscreen = true;
-		await resize();
+		const enteredUntold = { asked: await resize(), ...read() };
 
-		assert.deepStrictEqual({ askedOnMove, stale, corrected, enteredUntold: { ...read(), asked: hostQueries.length - askedOnMove } }, {
+		assert.deepStrictEqual({ askedOnMove, stale, corrected, enteredUntold }, {
 			askedOnMove: 1,
 			stale: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
 			corrected: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent', asked: 1 },
-			enteredUntold: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent', asked: 2 },
+			enteredUntold: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent', asked: 1 },
 		});
 	}));
 

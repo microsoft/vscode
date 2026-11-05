@@ -51,7 +51,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getHarnessPresentationOrDefault, ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -289,10 +289,8 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget ? this._widget.applyDraft(draft, folderUri, options, token) : Promise.resolve('notReady');
 	}
 
-	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectNoWorkspace(undefined, options);
-		}
+	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return this._widget instanceof NewChatWidget ? this._widget.applyNoWorkspace(options) : 'notReady';
 	}
 
 	override prefillInput(text: string): void {
@@ -530,9 +528,10 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
+				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,
 				enableFind: true,
-				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				persistentContentHeight: this.chatBackgroundService.getBackground() ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
@@ -684,7 +683,7 @@ export class ChatView extends AbstractChatView {
 		}));
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {
@@ -1390,6 +1389,8 @@ export class ChatView extends AbstractChatView {
 
 	private _updateChatBackground(): void {
 		const background = this.chatBackgroundService.getBackground();
+		// Wallpaper cannot hide transcript content beneath floating controls.
+		this._widget.setPersistentContentHeight(background ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT);
 		this._updateChatItemHorizontalPadding(!!background);
 		this._stickyScrollBackgroundReplica.value?.setBackground(background);
 	}
@@ -1692,19 +1693,15 @@ export class ChatViewFactory implements IChatViewFactory {
 	declare readonly _serviceBrand: undefined;
 	protected readonly viewOptions: IChatViewOptions = {};
 
-	constructor(
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
-	) { }
-
 	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
 		return this.viewOptions.inputEditorOptions;
 	}
 
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView {
 		return instantiationService.createInstance(NewChatView, isNewChatInSession, { ...this.viewOptions, ...options });
 	}
 
-	createChatView(instantiationService = this.instantiationService, options: IChatViewOptions = {}): AbstractChatView {
+	createChatView(instantiationService: IInstantiationService, options: IChatViewOptions = {}): AbstractChatView {
 		return instantiationService.createInstance(ChatView, { ...this.viewOptions, ...options });
 	}
 }

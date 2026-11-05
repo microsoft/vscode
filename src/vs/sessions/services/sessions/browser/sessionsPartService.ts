@@ -11,7 +11,6 @@ import { IProgressIndicator } from '../../../../platform/progress/common/progres
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
 import { IObservable } from '../../../../base/common/observable.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -24,12 +23,6 @@ export interface ISessionGridSlot {
 }
 
 export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
-
-/** The window of a session view registered with {@link ISessionsPartService.registerWindowSessionView}. */
-export interface IWindowSessionViewHost {
-	/** Brings the window to the front, and focuses the view in it. */
-	focus(): void;
-}
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -90,16 +83,6 @@ export interface ISessionsPartService {
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent>;
 
 	/**
-	 * Registers a session view that shows a window session (see `ISessionsService.showSessionInWindow`) outside the
-	 * grid, in a window of its own. While registered, looking up, focusing and finding the focused session view cover
-	 * it.
-	 */
-	registerWindowSessionView(view: SessionView, host: IWindowSessionViewHost): IDisposable;
-
-	/** Fires with the session of a registered window session view when the view gets focus or is clicked. */
-	readonly onDidFocusWindowSession: Event<IActiveSession>;
-
-	/**
 	 * Moves keyboard focus into the chat input of the session view hosting the
 	 * given session, or into the placeholder (new-session) view when `session`
 	 * is `undefined`. No-op if no matching slot is currently mounted.
@@ -121,6 +104,18 @@ export interface ISessionsPartService {
 	 * Returns the session view that currently contains DOM focus.
 	 */
 	getFocusedSessionView(): SessionView | undefined;
+
+	/**
+	 * Moves keyboard focus into the view that shows exactly `session`, such as a pane's session, first revealing it in the
+	 * grid when it is only partially visible. No-op when the grid does not show it.
+	 */
+	focusSessionView(session: ISession): void;
+
+	/**
+	 * The view of the grid's active pane: the pane commands without arguments act on while the main window is the
+	 * focused host.
+	 */
+	getActiveSessionView(): SessionView | undefined;
 
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the

@@ -4,16 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
-import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { isModelComparisonSupported } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { localize } from '../../../../nls.js';
 import { ISessionType } from '../common/session.js';
 import { ISessionComparisonHarness } from '../common/sessionComparison.js';
 import { ISessionPermissionOption } from '../common/sessionsProvider.js';
-
-export function isFixedSessionComparisonModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-	return !isAutoModel(model) && !isHydraFusionModel(model);
-}
 
 export function createSessionComparisonHarness(
 	providerId: string,
@@ -25,8 +21,8 @@ export function createSessionComparisonHarness(
 	if (!permission || permission.locked) {
 		throw new Error(localize('comparison.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the source chat permissions and try again."));
 	}
-	if (!isFixedSessionComparisonModel(model)) {
-		throw new Error(localize('comparison.fixedModelRequired', "Comparison attempts require a fixed model, not an Auto or routing model."));
+	if (!isModelComparisonSupported(model)) {
+		throw new Error(localize('comparison.fixedModelRequired', "Comparison attempts require a fixed model or Copilot Fusion."));
 	}
 	const filtered = filterConfigurationToSchema(configuration, model.metadata.configurationSchema);
 	if (Object.entries(configuration).some(([key, value]) => {

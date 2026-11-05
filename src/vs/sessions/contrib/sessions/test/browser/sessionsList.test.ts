@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ExtUri } from '../../../../../base/common/resources.js';
+import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -85,7 +85,7 @@ import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, Sessio
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -179,6 +179,74 @@ suite('Sessions - SessionsList', () => {
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
+
+	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
+		const harness = createListHarness(disposables, []);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setExcludeArchived(false);
+		list.refresh();
+		const before = harness.managementService.archiveRequests;
+		const expanded = list.setItemCollapsed({ section: 'archived' }, false);
+		const after = harness.managementService.archiveRequests;
+		const emptyCount = list.getItemRow({ section: 'archived' })?.getAttribute('aria-label')?.split(', ')[1];
+		const hasLoadingPlaceholder = list.getItemRow({ section: 'archived' })?.parentElement?.textContent?.includes('Loading sessions...') ?? false;
+		list.refresh();
+		const afterRefresh = harness.managementService.archiveRequests;
+		list.setItemCollapsed({ section: 'archived' }, true);
+		const collapsed = harness.managementService.archiveRequests;
+		list.setItemCollapsed({ section: 'archived' }, false);
+		list.setVisible(false);
+		const hidden = harness.managementService.archiveRequests;
+		list.setVisible(true);
+		const restored = harness.managementService.archiveRequests;
+		list.dispose();
+		assert.deepStrictEqual({ before, expanded, after, emptyCount, hasLoadingPlaceholder, afterRefresh, collapsed, hidden, restored, disposed: harness.managementService.archiveRequests }, {
+			before: 0, expanded: true, after: 1, emptyCount: '0', hasLoadingPlaceholder: false, afterRefresh: 1, collapsed: 0, hidden: 0, restored: 1, disposed: 0,
+		});
+	});
+
+	test('lazy archive discovery shows local rows immediately and adds cloud rows without loading UI', () => {
+		const local = createTestSession('Local archive', { isArchived: true }).session;
+		const cloud = createTestSession('Cloud archive', { isArchived: true }).session;
+		const harness = createListHarness(disposables, [local]);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setExcludeArchived(false);
+		list.setItemCollapsed({ section: 'archived' }, false);
+		const snapshot = () => {
+			const header = list.getItemRow({ section: 'archived' });
+			return {
+				local: !!list.getItemRow({ session: local.resource }),
+				cloud: !!list.getItemRow({ session: cloud.resource }),
+				count: header?.getAttribute('aria-label')?.split(', ')[1],
+				busy: !!header?.querySelector('[aria-busy="true"]'),
+				loadingLabel: /loading|expand to load|unable to load/i.test(header?.getAttribute('aria-label') ?? ''),
+			};
+		};
+		const initial = snapshot();
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'loading' }, undefined);
+		list.update();
+		const loading = snapshot();
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'error' }, undefined);
+		list.update();
+		const failed = snapshot();
+		harness.managementService.sessions.push(cloud);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'loaded' }, undefined);
+		list.refresh();
+		assert.deepStrictEqual([initial, loading, failed, snapshot()], [
+			{ local: true, cloud: false, count: '1', busy: false, loadingLabel: false },
+			{ local: true, cloud: false, count: '1', busy: false, loadingLabel: false },
+			{ local: true, cloud: false, count: '1', busy: false, loadingLabel: false },
+			{ local: true, cloud: true, count: '2', busy: false, loadingLabel: false },
+		]);
+	});
 
 	suite('catalogue refresh scheduling', () => {
 		async function nextFrame(): Promise<void> {
@@ -800,8 +868,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = activeCustomView;
 				});
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = activeSession;
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			});
@@ -1851,6 +1918,64 @@ suite('Sessions - SessionsList', () => {
 				managementCalls: [],
 			});
 		});
+
+		for (const sessionCount of [128, 256]) {
+			test(`resolves automation badge sessions in linear work for ${sessionCount} runs`, () => {
+				const sessions = Array.from({ length: sessionCount }, (_, index) => createSession(`automation-${index}`, {
+					resource: URI.parse(`test-session:/Workspace/Automation-${index}`),
+					isRead: index !== 0,
+				}));
+				const duplicate = createSession('duplicate', {
+					resource: URI.parse('test-session:/workspace/automation-0'),
+					isRead: true,
+				});
+				const automationSessions = observableValue<readonly ISession[]>('automationSessions', [...sessions, duplicate]);
+				const runs: readonly IAutomationRun[] = sessions.map((session, index) => ({
+					id: `run-${index}`,
+					automationId: 'automation',
+					status: 'completed',
+					trigger: 'schedule',
+					sessionResource: session.resource.with({ path: session.resource.path.toLowerCase() }),
+					startedAt: '2026-08-10T00:00:00.000Z',
+				}));
+				let comparisonKeys = 0;
+				const extUri = new class extends ExtUri {
+					override getComparisonKey(resource: URI, ignoreFragment = false): string {
+						comparisonKeys++;
+						return super.getComparisonKey(resource, ignoreFragment);
+					}
+				}(() => true);
+				const renderer = new SessionSectionRenderer(
+					true,
+					() => { },
+					constObservable(true),
+					constObservable(new Set<string>()),
+					noHeaderStatusTrigger,
+					new class extends mock<IInstantiationService>() { },
+					NullHoverService,
+					new class extends mock<IContextKeyService>() { },
+					new class extends mock<IAutomationService>() {
+						override readonly automations = constObservable([automationDefinition('automation')]);
+						override readonly runs = constObservable(runs);
+					},
+					automationSessions,
+					new class extends mock<IUriIdentityService>() { override readonly extUri = extUri; },
+					new class extends mock<ICustomViewService>() { },
+					new class extends mock<IMenuService>() { },
+					noKeybindingService,
+				);
+				const status = renderer.automationStatus.get();
+				const initialComparisonKeys = comparisonKeys;
+				automationSessions.set([duplicate, ...sessions], undefined);
+				const reorderedStatus = renderer.automationStatus.get();
+
+				assert.deepStrictEqual({ status, initialComparisonKeys, reorderedStatus }, {
+					status: SessionStatus.Completed,
+					initialComparisonKeys: sessions.length * 2 + 1,
+					reorderedStatus: undefined,
+				});
+			});
+		}
 
 		test('needs-input automation status takes priority over other running runs', () => {
 			const runningSession = createSession('automation-running', {
@@ -4232,7 +4357,7 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('repository and environment grouping', () => {
-		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true, grouping = SessionsGrouping.Repository) {
+		function render(sessions: ISession[], options: Parameters<typeof createListHarness>[2] = {}, hostConnected = true, grouping = SessionsGrouping.Repository) {
 			const providers = [
 				{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 				{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
@@ -4446,6 +4571,42 @@ suite('Sessions - SessionsList', () => {
 						: ['New Session on This Computer', 'New Session in Cloud'],
 					singleEnvironment: { newSession: true, entries: [] },
 					started: [['vscode', 'cloud']],
+				});
+			}));
+		}
+
+		for (const available of [true, false]) {
+			test(`New Session dropdown offers a repository-only cloud session only when its creation target is available (${available})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const cloud = createTestSession('Cloud session', {
+					providerId: 'cloud-provider',
+					environment: 'cloud',
+					repository: 'microsoft/vscode',
+					workspaceResource: URI.parse('https://github.com/microsoft/vscode'),
+				}).session;
+				const target = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/microsoft/vscode/HEAD') };
+				const { harness, list, contextMenus, rowOf } = render([
+					cloud, repositorySession('Local session', 'local', 1),
+				], instantiationService => {
+					instantiationService.stub(ISessionsManagementService, 'getNewSessionTarget',
+						(providerId: string, resource: URI) => providerId === cloud.providerId && isEqual(resource, cloud.resource) ? target : undefined);
+					instantiationService.stub(ISessionsManagementService, 'isNewSessionTargetAvailable',
+						(folder: URI, options?: ICreateNewSessionOptions) => available && isEqual(folder, target.folderUri) && options?.providerId === target.providerId);
+				});
+				await timeout(100);
+				const menuCount = contextMenus.length;
+				rowOf('vscode').querySelector('.monaco-dropdown .dropdown-label')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				const actions = (contextMenus[menuCount] ?? []).filter(action => action.id.startsWith(`${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.`));
+				await actions.find(action => action.label === 'New Session in Cloud')?.run();
+				list.dispose();
+
+				assert.deepStrictEqual({
+					entries: actions.map(action => action.label),
+					started: harness.commandService.calls
+						.filter(call => call.commandId === NEW_SESSION_IN_ENVIRONMENT_ACTION_ID)
+						.map(call => [(call.args[0] as ISessionSection).label, call.args[1]]),
+				}, {
+					entries: available ? ['New Session on This Computer', 'New Session in Cloud'] : [],
+					started: available ? [['vscode', 'cloud']] : [],
 				});
 			}));
 		}
@@ -9747,8 +9908,7 @@ suite('Sessions - SessionsList', () => {
 			const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = activeSession;
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = activeSession;
 					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 				});
 			}).container;
@@ -9808,8 +9968,7 @@ suite('Sessions - SessionsList', () => {
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
 					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-						override readonly activeSession = activeSession;
-						override readonly mainWindowActiveSession = this.activeSession;
+						readonly activeSession = activeSession;
 						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
 					});
 					instantiationService.stub(IHoverService, {
@@ -11536,8 +11695,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = constObservable(activeSession);
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = constObservable(activeSession);
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11634,8 +11792,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = constObservable(activeSession);
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = constObservable(activeSession);
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11669,8 +11826,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = constObservable(activeSession);
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = constObservable(activeSession);
 					override readonly visibleSessions = constObservable([activeSession]);
 				});
 			});
@@ -11990,8 +12146,7 @@ suite('Sessions - SessionsList', () => {
 				const harness = createListHarness(disposables, [session, other], instantiationService => {
 					if (activePeer) {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-							override readonly activeSession = constObservable(activeSession);
-							override readonly mainWindowActiveSession = this.activeSession;
+							readonly activeSession = constObservable(activeSession);
 							override readonly visibleSessions = constObservable([activeSession]);
 						});
 					}
@@ -13415,8 +13570,7 @@ suite('Sessions - SessionsList', () => {
 					}) : undefined;
 					const harness = createListHarness(disposables, [session], instantiationService => {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-							override readonly activeSession = constObservable(activeSession);
-							override readonly mainWindowActiveSession = this.activeSession;
+							readonly activeSession = constObservable(activeSession);
 							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
 						});
 					});

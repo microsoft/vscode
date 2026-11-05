@@ -8,7 +8,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -35,13 +35,14 @@ export function createSessionActionsInstantiationService(instantiationService: I
  */
 export function bindSessionScopeContextKeys(instantiationService: IInstantiationService, scope: IChangesSessionScope, contextKeyService: IContextKeyService): IDisposable {
 	const store = new DisposableStore();
-	store.add(autorun(reader => setActiveSessionContextKeys(scope.session.read(reader), contextKeyService, reader)));
+	store.add(autorun(reader => setHostSessionContextKeys(scope.session.read(reader), scope.chat.read(reader), contextKeyService, reader)));
 	// Every key the host's menus read must be bound for the scoped session, or it is inherited from the active one.
 	store.add(bindHasWorktreeAndRepositoryContextKey(contextKeyService, scope.session));
 	store.add(instantiationService.invokeFunction(accessor => bindIsAgentHostSessionContextKey(contextKeyService, scope.session, accessor.get(ISessionsProvidersService))));
 	store.add(bindChangesetContextKeys(scope.changes, contextKeyService));
 	store.add(instantiationService.invokeFunction(accessor => bindSessionActionContextKeys(instantiationService, {
 		session: scope.session,
+		chat: scope.chat,
 		changes: scope.changes,
 		pullRequest: accessor.get(IGitHubService).getSessionPullRequest(scope.session),
 	}, contextKeyService)));

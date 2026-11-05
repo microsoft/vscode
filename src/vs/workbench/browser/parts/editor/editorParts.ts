@@ -423,7 +423,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	/**
 	 * Focus moving out of a part to elsewhere in the grid of the parts of a
 	 * window, such as its title row, changes the active group of the window
-	 * to its main part: announce it as for focus moving into a part.
+	 * to its main part: announce it as for focus moving into a part. Focus
+	 * arriving in a window outside its parts, from another window, changes
+	 * the active group to that of the window: announce that too.
 	 */
 	private registerWindowFocusListener(windowId: number): void {
 		const targetWindow = getWindowById(windowId)?.window;
@@ -435,24 +437,31 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private lastActiveGroup: IEditorGroupView | undefined;
 
 	private onDidFocusInWindow(document: Document, e: FocusEvent): void {
-		const documentParts = this.parts.filter(part => part.element?.ownerDocument === document && (part as IEditorPart) !== this.modalEditorPart);
-		if (documentParts.length < 2 || !isHTMLElement(e.target)) {
-			return; // only windows with several parts
+		if (!isHTMLElement(e.target)) {
+			return;
 		}
 
 		const target = e.target;
+		const documentParts = this.parts.filter(part => part.element?.ownerDocument === document && (part as IEditorPart) !== this.modalEditorPart);
 		if (documentParts.some(part => { const container = part.getContainer(); return !!container && isAncestor(target, container); })) {
 			return; // focus moving into a part is announced by the part
 		}
 
-		if (!isInPartGrid(target)) {
-			return; // focus in an overlay, such as a quick input, keeps the active part
+		const activeGroup = this.activeGroup;
+		if (activeGroup === this.lastActiveGroup) {
+			return;
 		}
 
-		const activeGroup = this.activeGroup;
-		if (activeGroup !== this.lastActiveGroup) {
-			this._onDidActiveGroupChange.fire(activeGroup);
+		// Focus arriving from another window, such as by a click outside the editors of
+		// this window, changes the active group wherever it lands. Within a window,
+		// only focus in the grid of its parts does, and focus in an overlay, such as
+		// a quick input, keeps the active part.
+		const fromOtherWindow = !!this.lastActiveGroup && activeGroup.windowId !== this.lastActiveGroup.windowId;
+		if (!fromOtherWindow && (documentParts.length < 2 || !isInPartGrid(target))) {
+			return;
 		}
+
+		this._onDidActiveGroupChange.fire(activeGroup);
 	}
 
 	private doUpdateMostRecentActive(part: EditorPart, makeMostRecentlyActive?: boolean): void {

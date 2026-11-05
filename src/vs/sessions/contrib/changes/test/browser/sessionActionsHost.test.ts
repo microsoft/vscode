@@ -37,6 +37,7 @@ suite('Session Actions Host', () => {
 		});
 		const scope = upcastPartial<IChangesSessionScope>({
 			session: constObservable(undefined),
+			chat: constObservable(undefined),
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),
@@ -68,6 +69,7 @@ suite('Session Actions Host', () => {
 		}));
 		const scope = upcastPartial<IChangesSessionScope>({
 			session: constObservable(undefined),
+			chat: constObservable(undefined),
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),

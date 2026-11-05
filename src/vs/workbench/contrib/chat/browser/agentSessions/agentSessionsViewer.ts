@@ -1281,6 +1281,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
 		private readonly repositoryGroupLimit?: number,
+		private readonly archivesAvailable?: () => boolean,
 	) {
 		super();
 
@@ -1316,10 +1317,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
-			return element.sessions.length > 0;
+			return element.sessions.length > 0 || element.section === AgentSessionSection.Archived && this.hasLoadableArchiveSection;
 		}
 
 		return isAgentSession(element) && this.getSessionChildren(element).length > 0;
+	}
+
+	get hasLoadableArchiveSection(): boolean {
+		const grouping = this.filter?.groupResults?.();
+		return grouping !== undefined && grouping !== AgentSessionsGrouping.Capped && this.archivesAvailable?.() === true;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1342,7 +1348,21 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			// Group sessions into sections if enabled
 			if (this.filter?.groupResults?.()) {
-				return this.groupSessionsIntoSections(filteredSessions);
+				const sections = this.groupSessionsIntoSections(filteredSessions);
+				if (this.hasLoadableArchiveSection) {
+					const existing = sections.find((section): section is IAgentSessionSection => isAgentSessionSection(section) && section.section === AgentSessionSection.Archived);
+					const section: IAgentSessionSection = {
+						section: AgentSessionSection.Archived,
+						label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+						sessions: existing?.sessions ?? [],
+					};
+					if (existing) {
+						sections[sections.indexOf(existing)] = section;
+					} else {
+						sections.push(section);
+					}
+				}
+				return sections;
 			}
 
 			// Otherwise return flat sorted list

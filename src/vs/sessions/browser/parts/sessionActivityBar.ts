@@ -6,15 +6,13 @@
 import './media/sessionActivityBar.css';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
+import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Action, ActionRunner, IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
@@ -31,7 +29,7 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
-import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
+import { WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -43,6 +41,7 @@ import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBarHost.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
 /**
@@ -58,10 +57,6 @@ export class SessionActivityBar extends Disposable {
 	private readonly _visible = observableValue(this, false);
 	/** Whether the strip is enabled and has entries. */
 	readonly visible: IObservable<boolean> = this._visible;
-
-	private readonly _itemCount = observableValue(this, 0);
-	/** The number of entries, which determines the strip's height. */
-	readonly itemCount: IObservable<number> = this._itemCount;
 
 	private readonly chatActions = observableValue<IObservable<readonly IAction[]> | undefined>(this, undefined);
 
@@ -114,13 +109,9 @@ export class SessionActivityBar extends Disposable {
 		}));
 
 		const update = () => {
-			const itemCount = toolbar.getItemsLength();
-			const visible = !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING) && itemCount > 0;
+			const visible = !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING) && toolbar.getItemsLength() > 0;
 			this.element.classList.toggle('hidden', !visible);
-			transaction(tx => {
-				this._itemCount.set(itemCount, tx);
-				this._visible.set(visible, tx);
-			});
+			this._visible.set(visible, undefined);
 		};
 		update();
 		this._register(toolbar.onDidChangeMenuItems(update));
@@ -202,24 +193,8 @@ class SessionActivityBarActionRunner extends ActionRunner {
 	}
 }
 
-/** Default distance from the top of the chat area to the strip. */
-const DEFAULT_TOP_OFFSET = 4;
-
-/** Keeps the strip's bottom level with the chat input's: the composer's 22px footer controls, 4px gap, and 4px bottom padding. */
-const BOTTOM_CLEARANCE = 30;
-
-/** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
-const STRIP_WIDTH = 30;
-
-/** Space kept on either side of the strip in its column, matching `sessionActivityBar.css`. */
-const COLUMN_GAP = 2;
-
-/**
- * The width of the column the strip takes at the right edge of the chat area, which the chat is laid out to the left of:
- * the strip with an equal gap on either side, between it and the chat and between it and the edge. See
- * {@link ChatViewSessionActivityBar.reservedWidth}.
- */
-export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
+/** Distance from the top of the chat area to the strip. In a host outside the chat, its top is level with the top of the host, and so of the cards beside it. */
+const TOP_OFFSET = 4;
 
 /** Shows or hides the editor parts of a window with layout modes: `workbench.action.chatWindow.toggleEditor` of the chat window feature. */
 const TOGGLE_WINDOW_EDITOR_COMMAND_ID = 'workbench.action.chatWindow.toggleEditor';
@@ -228,80 +203,13 @@ const TOGGLE_WINDOW_EDITOR_COMMAND_ID = 'workbench.action.chatWindow.toggleEdito
 const MAX_PROBE_RETRIES = 3;
 
 /**
- * A place outside the chat where the active strip shows instead, such as a column of its own beside the editor while the
- * chat is below the editor or hidden. See {@link registerSessionActivityBarExternalHost}.
- */
-export interface ISessionActivityBarExternalHost {
-	/** The element the strip moves into: {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH} wide. */
-	readonly element: HTMLElement;
-	/** Whether the active strip shows in the host rather than beside its chat. */
-	readonly active: IObservable<boolean>;
-	/** The height of the area the strip moves up and down in, from the top of {@link element}. */
-	readonly height: IObservable<number>;
-	/**
-	 * Whether `occupant`, a shown strip, is in the host, for the host to keep room for it while any strip is. A strip can
-	 * enter before another leaves; see {@link SessionActivityBarHostOccupancy}.
-	 */
-	setOccupied(occupant: object, occupied: boolean): void;
-}
-
-/** Whether any strip is in an {@link ISessionActivityBarExternalHost}, whatever order they enter and leave it in. */
-export class SessionActivityBarHostOccupancy {
-
-	private readonly occupants = new Set<object>();
-	private readonly _occupied = observableValue<boolean>(this, false);
-	readonly occupied: IObservable<boolean> = this._occupied;
-
-	set(occupant: object, occupied: boolean): void {
-		if (occupied) {
-			this.occupants.add(occupant);
-		} else {
-			this.occupants.delete(occupant);
-		}
-		this._occupied.set(this.occupants.size > 0, undefined);
-	}
-}
-
-const externalHosts = new Map<HTMLElement, ISessionActivityBarExternalHost>();
-
-/** Registers `host` for the strips of the chat views within `scope`, such as a window. The host of the nearest registered scope applies. */
-export function registerSessionActivityBarExternalHost(scope: HTMLElement, host: ISessionActivityBarExternalHost): IDisposable {
-	externalHosts.set(scope, host);
-	return toDisposable(() => {
-		if (externalHosts.get(scope) === host) {
-			externalHosts.delete(scope);
-		}
-	});
-}
-
-/** The host registered for the nearest scope among `element` and its ancestors, which the strip of a chat in it shows in. */
-export function findSessionActivityBarExternalHost(element: HTMLElement): ISessionActivityBarExternalHost | undefined {
-	for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
-		const host = externalHosts.get(candidate);
-		if (host) {
-			return host;
-		}
-	}
-	return undefined;
-}
-
-/** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
-interface IActivityBarPosition {
-	readonly edge: 'top' | 'bottom';
-	readonly distance: number;
-}
-
-const DEFAULT_POSITION: IActivityBarPosition = { edge: 'top', distance: DEFAULT_TOP_OFFSET };
-
-/**
  * Docks the {@link SessionActivityBar} strip at the right edge of a chat area in the
  * desktop layout, in a column of its own: hosts lay the chat out to the left of the
  * {@link reservedWidth} they keep at the right edge, so that the strip never covers the
  * chat or its scrollbar, call {@link setActive} so that only the active chat
- * view shows it, and call {@link layout} with the area's top offset and height.
- * Users can drag the strip up and down by its grip within that area;
- * double-clicking the grip restores the default position. Each host keeps its own
- * position.
+ * view shows it, and call {@link layout} with the area's top offset. The strip
+ * sits at a fixed distance below the top of that area, or level with the top of
+ * the host outside the chat that it shows in.
  */
 export class ChatViewSessionActivityBar extends Disposable {
 
@@ -314,11 +222,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 	readonly reservedWidth: IObservable<number>;
 
 	private readonly activityBar: SessionActivityBar | undefined;
-	private position = DEFAULT_POSITION;
-	private area = { top: 0, height: 0 };
+	private areaTop = 0;
 	private active = false;
-	/** The measured height of the strip, cached so layout passes do not force a reflow. */
-	private height: number | undefined;
 	/** Whether the chat is hidden while it is active, such as while its window shows only its editor. */
 	private surfaceHidden = false;
 	/** The host outside the chat that the strip can show in, found among the ancestors of the chat. */
@@ -338,7 +243,6 @@ export class ChatViewSessionActivityBar extends Disposable {
 		private readonly container: HTMLElement,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -351,31 +255,14 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const activityBar = this.activityBar = this._register(instantiationService.createInstance(SessionActivityBar, container));
 		activityBar.element.classList.add('docked', 'inactive');
 
-		const dragHandle = $('.session-activity-bar-drag-handle');
-		// A pointer-only affordance; the strip's entries carry its accessible semantics.
-		dragHandle.setAttribute('aria-hidden', 'true');
-		append(dragHandle, $('span.session-activity-bar-drag-handle-icon')).classList.add(...ThemeIcon.asClassNameArray(Codicon.gripper));
-		activityBar.element.prepend(dragHandle);
-		this._register(this.registerDragListeners(dragHandle));
-
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
 		// While the strip shows in a host outside the chat, the host keeps the column for it.
 		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) && !this.externalHost.read(reader)?.active.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 
 		this._register(autorun(reader => {
-			activityBar.itemCount.read(reader);
 			activityBar.visible.read(reader);
 			this.externalHost.read(reader)?.active.read(reader);
-			this.height = undefined;
 			this.relocate();
-		}));
-		// Only the strip in a host moves within the host's height, which does not change the strip's own height.
-		this._register(autorun(reader => {
-			const hostedIn = this.hostedIn.read(reader);
-			if (hostedIn) {
-				hostedIn.height.read(reader);
-				this.applyPosition();
-			}
 		}));
 		this._register(toDisposable(() => {
 			this.hostedIn.get()?.setOccupied(this, false);
@@ -459,81 +346,17 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this.activityBar?.setChatActions(actions);
 	}
 
-	/** Positions the strip within the chat area at `top` with the given `height` in the host. */
-	layout(top: number, height: number): void {
-		this.area = { top, height };
+	/** Positions the strip within the chat area, whose top is at `top` in the host. */
+	layout(top: number): void {
+		this.areaTop = top;
 		this.probeExternalHost();
 		this.applyPosition();
 	}
 
-	/** The area the strip moves up and down in: beside the chat, or in the host it shows in. */
-	private getArea(): { readonly top: number; readonly height: number } {
-		const hostedIn = this.hostedIn.get();
-		return hostedIn ? { top: 0, height: hostedIn.height.get() } : this.area;
-	}
-
-	private getHeight(): number {
-		if (this.height === undefined) {
-			const height = this.element?.offsetHeight ?? 0;
-			// A hidden strip measures 0; measure again once it is shown.
-			if (height === 0) {
-				return 0;
-			}
-			this.height = height;
-		}
-		return this.height;
-	}
-
-	/** The largest offset from the top of the chat area that keeps the strip inside it. */
-	private getMaximumOffset(): number {
-		return Math.max(0, this.getArea().height - this.getHeight() - BOTTOM_CLEARANCE);
-	}
-
-	private getOffset(): number {
-		const maximum = this.getMaximumOffset();
-		const offset = this.position.edge === 'top' ? this.position.distance : maximum - this.position.distance;
-		return Math.round(Math.max(0, Math.min(offset, maximum)));
-	}
-
 	private applyPosition(): void {
 		if (this.element?.isConnected && this.isShown(this.hostedIn.get()) && this.activityBar?.visible.get()) {
-			this.element.style.top = `${this.getArea().top + this.getOffset()}px`;
+			this.element.style.top = `${this.hostedIn.get() ? 0 : this.areaTop + TOP_OFFSET}px`;
 		}
-	}
-
-	private registerDragListeners(dragHandle: HTMLElement): IDisposable {
-		const store = new DisposableStore();
-		const monitor = store.add(new GlobalPointerMoveMonitor());
-		store.add(this.hoverService.setupDelayedHover(dragHandle, {
-			content: localize('sessionActivityBar.dragHandle', "Drag to move. Double-click to reset the position."),
-			appearance: { showPointer: true },
-			position: { hoverPosition: HoverPosition.LEFT },
-		}));
-		store.add(addDisposableListener(dragHandle, EventType.DBLCLICK, () => {
-			this.position = DEFAULT_POSITION;
-			this.applyPosition();
-		}));
-		store.add(addDisposableListener(dragHandle, EventType.POINTER_DOWN, (e: PointerEvent) => {
-			if (e.button !== 0) {
-				return;
-			}
-			EventHelper.stop(e, true);
-			// Measure afresh so the drag uses the strip's current height.
-			this.height = undefined;
-			const origin = { y: e.clientY, offset: this.getOffset() };
-			dragHandle.classList.add('dragging');
-			monitor.startMonitoring(dragHandle, e.pointerId, e.buttons, e => {
-				this.position = { edge: 'top', distance: origin.offset + e.clientY - origin.y };
-				this.applyPosition();
-			}, () => {
-				dragHandle.classList.remove('dragging');
-				// Anchor to the nearer edge, so a strip parked by the input stays there as the area grows.
-				const offset = this.getOffset();
-				const maximum = this.getMaximumOffset();
-				this.position = offset > maximum / 2 ? { edge: 'bottom', distance: maximum - offset } : { edge: 'top', distance: offset };
-			});
-		}));
-		return store;
 	}
 }
 

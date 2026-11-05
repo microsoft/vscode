@@ -24,7 +24,6 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { DockedEditorInput } from '../../../../browser/dockedEditorInput.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
@@ -127,7 +126,6 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 	constructor(
 		private readonly _ctx: IDesktopLayoutContext,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
@@ -276,12 +274,12 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 	}
 
 	private _ownerKeyString(): string | undefined {
-		const session = this._sessionsService.mainWindowActiveSession.get();
-		if (!session) {
+		const shown = this._ctx.shownByMainWindow();
+		if (!shown) {
 			return undefined;
 		}
-		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(session) : undefined;
-		return (ownerKey ?? session.resource).toString();
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(shown) : undefined;
+		return (ownerKey ?? shown.session.resource).toString();
 	}
 
 	prepareWorkingSetRestore(hasSavedWorkingSet: boolean): void {
@@ -311,7 +309,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	private _readTarget(reader: IReader | undefined): IManagedTabsTarget {
 		const read = <T>(obs: IObservable<T>): T => reader ? obs.read(reader) : obs.get();
-		const session = read(this._sessionsService.mainWindowActiveSession);
+		const session = read(this._ctx.mainWindowSession);
 		const isQuickChat = session?.isQuickChat ? read(session.isQuickChat) : false;
 		const workspace = session ? read(session.workspace) : undefined;
 		if (!session || isQuickChat || !workspace) {
@@ -413,7 +411,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 			// [2] Decide which docked inputs to open, from the trigger + group state. A created
 			// session leaves an empty group empty so it offers the Add Tab actions instead.
-			const isCreated = this._sessionsService.mainWindowActiveSession.get()?.isCreated.get() ?? false;
+			const isCreated = this._ctx.mainWindowSession.get()?.isCreated.get() ?? false;
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);

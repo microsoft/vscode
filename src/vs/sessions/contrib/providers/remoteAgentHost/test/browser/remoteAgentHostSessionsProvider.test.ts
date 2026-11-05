@@ -21,6 +21,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -88,6 +90,8 @@ import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHo
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -414,11 +418,12 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
-		override readonly mainWindowActiveSession = this.activeSession;
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
+	instantiationService.stub(ISessionHostService, sessionHostServiceOf(disposables, instantiationService.get(ISessionsService)));
+	stubFocusedSessionHostFromSessionsService(instantiationService);
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
 		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
@@ -4221,6 +4226,42 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		loading.push(session!.loading.get());
 
 		assert.deepStrictEqual(loading, [false, true, true, false, false, true]);
+	});
+
+	test('hydrates cached backend identities in one session-resolution batch without connecting', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const entries = Array.from({ length: 150 }, (_, index) => ({
+			session: `ahp-session:/cached-${index}`,
+			provider: index % 2 ? 'codex' : 'copilotcli',
+			startTime: 1000, modifiedTime: 2000, summary: `Cached ${index}`,
+		}));
+		storageService.store('remoteAgentHost.cachedSessions.v5.localhost__4321', JSON.stringify(entries), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const resolutions = disposables.add(new AgentHostConnectionsService(
+			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
+			new NullRemoteAgentHostService(),
+			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
+			new NullLogService(),
+		));
+		let notifications = 0;
+		disposables.add(resolutions.onDidChangeSessionResolution(() => notifications++));
+		class CachedProvider extends RemoteAgentHostSessionsProvider {
+			protected override batchBackendRegistrations<T>(fn: () => T): T {
+				return resolutions.batchSessionResolutionChanges(fn);
+			}
+			protected override registerBackendSession(backend: URI, provider: string): void {
+				resolutions.registerSessionResource(backend, 'localhost__4321', provider);
+			}
+		}
+		const provider = createProvider(disposables, connection, { noConnection: true, storageService, ctor: CachedProvider });
+		assert.deepStrictEqual({
+			notifications,
+			sessions: provider.getSessions().length,
+			identities: entries.every(entry => {
+				const frontend = resolutions.findSessionResource(URI.parse(entry.session), 'localhost__4321');
+				const identity = frontend && resolutions.resolveSessionResourceIdentity(frontend);
+				return frontend?.scheme === `remote-localhost__4321-${entry.provider}` && identity?.backendSession.toString() === entry.session;
+			}),
+		}, { notifications: 1, sessions: 150, identities: true });
 	});
 
 	test('stable remote summaries cannot register a conflicting backend identity on re-upgrade', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

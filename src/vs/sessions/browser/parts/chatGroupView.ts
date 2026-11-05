@@ -419,7 +419,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input })
+					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
@@ -517,8 +517,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.selectWorkspace(folderUri, options) ?? 'notReady';
 	}
 
-	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
-		this._currentView.value?.selectNoWorkspace(options);
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return this._currentView.value?.selectNoWorkspace(options) ?? 'notReady';
 	}
 
 	prefillInput(text: string): void {
@@ -583,7 +583,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
 		this._chatViewTop.set(barHeight, undefined);
-		this._sessionActivityBar?.layout(barHeight, height - barHeight);
+		this._sessionActivityBar?.layout(barHeight);
 		this._currentView.value?.layout(Math.max(0, width - columnWidth), height - barHeight, top + barHeight, left);
 	}
 
