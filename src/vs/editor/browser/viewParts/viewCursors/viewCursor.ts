@@ -166,8 +166,9 @@ export class ViewCursor {
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
-		const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
-		const fontSize = this._context.viewModel.getFontSizeAtPosition(modelPosition) ?? `${this._context.configuration.options.get(EditorOption.fontInfo).fontSize}px`;
+		const viewModel = this._context.viewModel;
+		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
+		const fontSize = viewModel.getFontSizeAtPosition(modelPosition);
 		const lineCursorHeight = (
 			this._lineCursorHeight === 0
 				? lineHeight // 0 indicates that the cursor should take the full line height

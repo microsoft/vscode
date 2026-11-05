@@ -7,6 +7,7 @@ import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNod
 import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { Position } from '../../common/core/position.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -629,6 +630,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _lineFontSizeForLineNumber(lineNumber: number): string {
-		return this._viewContext.viewModel.getLineFontSize(lineNumber);
+		const viewModel = this._viewContext.viewModel;
+		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1));
+		return viewModel.getLineFontSize(modelPosition.lineNumber);
 	}
 }

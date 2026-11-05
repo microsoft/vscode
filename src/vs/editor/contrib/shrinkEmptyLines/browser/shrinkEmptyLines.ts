@@ -53,8 +53,8 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			return;
 		}
 		const previousOptions = this._decorationOptions;
-		const regularFontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
-		const fontSize = `${regularFontSize}px`;
+		const editorFontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
+		const fontSize = `${editorFontSize}px`;
 		let whitespaceOptions = previousOptions?.whitespaceFontSize;
 		if (!whitespaceOptions || whitespaceOptions.fontSize !== fontSize) {
 			const fontSizeRule = this._ruleFactory.createClassNameRef({ fontSize, verticalAlign: 'top' });
@@ -66,7 +66,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 				inlineClassName: fontSizeRule.className
 			});
 		}
-		const lineFontSize = `${regularFontSize * multiplier}px`;
+		const lineFontSize = `${editorFontSize * multiplier}px`;
 		let lineOptions = previousOptions?.lineHeight;
 		if (!lineOptions || lineOptions.lineHeight !== multiplier || lineOptions.fontSize !== lineFontSize) {
 			lineOptions = ModelDecorationOptions.createDynamic({
@@ -111,8 +111,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		if (!this._decorationOptions) {
 			return decorations;
 		}
-		const nonShrinkingContentPattern = this.editor.getOption(EditorOption.shrinkEmptyLinesKind) === 'blank'
-			? /\S/ : /[\p{L}\p{N}]/u;
+		const nonShrinkingContentPattern = this.editor.getOption(EditorOption.shrinkEmptyLinesKind) === 'blank' ? /\S/ : /[\p{L}\p{N}]/u;
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber < range.endLineNumberExclusive; lineNumber++) {
 				const lineContent = model.getLineContent(lineNumber);

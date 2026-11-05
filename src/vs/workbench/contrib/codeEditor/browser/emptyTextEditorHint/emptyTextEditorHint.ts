@@ -154,14 +154,15 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		super();
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)
+			if (this.domNode && e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
-				|| e.hasChanged(EditorOption.allowVariableFonts)) {
-				this.updateFontInfo();
+				|| e.hasChanged(EditorOption.allowVariableFonts)
+				|| e.hasChanged(EditorOption.allowVariableLineHeights)) {
+				this.applyFontInfo();
 			}
 		}));
-		this._register(this.editor.onDidChangeLineHeight(() => this.updateFontInfo()));
-		this._register(this.editor.onDidChangeFont(() => this.updateFontInfo()));
+		this._register(this.editor.onDidChangeLineHeight(() => this.applyFontInfo()));
+		this._register(this.editor.onDidChangeFont(() => this.applyFontInfo()));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
 			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
@@ -280,17 +281,18 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		return { hintElement, ariaLabel };
 	}
 
-	private updateFontInfo(): void {
+	private applyFontInfo(): void {
 		if (!this.domNode) {
 			return;
 		}
-		// Reuse the editor's full font styling, then override only size and line height to match the shrunk first line.
+		// Reuse the editor's full font styling, then override only size and line height to match the first line if it is shrunk
 		this.editor.applyFontInfo(this.domNode);
 		const fontSize = this.editor.getLineFontSize(1);
 		if (fontSize) {
 			this.domNode.style.fontSize = fontSize;
 		}
-		this.domNode.style.lineHeight = `${this.editor.getLineHeightForPosition(new Position(1, 1))}px`;
+		const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
+		this.domNode.style.lineHeight = `${lineHeight}px`;
 	}
 
 	getDomNode(): HTMLElement {
@@ -307,7 +309,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 				this.editor.focus();
 			}));
 
-			this.updateFontInfo();
+			this.applyFontInfo();
 		}
 
 		return this.domNode;

@@ -481,11 +481,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
 						const { decorationId, lineNumber, lineHeightMultiplier } = change;
+						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 						if (lineHeightMultiplier !== null) {
-							if (!this.coordinatesConverter.modelPositionIsVisible(new Position(lineNumber, 1))) {
-								continue;
-							}
-							const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
@@ -579,7 +576,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getLineFontSize(lineNumber: number): string {
-		return this._getFontSizeAtPosition(this.model.validatePosition(new Position(lineNumber, 1)), true);
+		return this._getFontSizeAtPosition(new Position(lineNumber, 1), true);
 	}
 
 	private _getFontSizeAtPosition(position: IPosition, wholeLine: boolean): string {
@@ -588,10 +585,13 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (!allowVariableFonts) {
 			return fontSize;
 		}
-		const fontDecorations = this.model.getFontDecorationsInRange(
-			wholeLine ? new Range(position.lineNumber, 1, position.lineNumber, this.model.getLineMaxColumn(position.lineNumber)) : Range.fromPositions(position),
-			this._editorId
-		);
+		let range: Range;
+		if (wholeLine) {
+			range = new Range(position.lineNumber, 1, position.lineNumber, this.model.getLineMaxColumn(position.lineNumber));
+		} else {
+			range = Range.fromPositions(position);
+		}
+		const fontDecorations = this.model.getFontDecorationsInRange(range, this._editorId);
 		for (const fontDecoration of fontDecorations) {
 			if (wholeLine && !fontDecoration.options.isWholeLine) {
 				continue;
