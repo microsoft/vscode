@@ -27,10 +27,10 @@ import { IChatPetService } from '../../../../../../workbench/contrib/chat/browse
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IHostSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
@@ -42,7 +42,8 @@ const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputCo
 
 interface IMobileConfigContext {
 	readonly provider: IAgentHostSessionsProvider;
-	readonly session: IActiveSession;
+	readonly session: IHostSession;
+	readonly chat: IChat;
 	readonly modeItems: readonly { value: string; label: string; description?: string }[];
 	readonly currentMode: string | undefined;
 	readonly modelItems: readonly ILanguageModelChatMetadataAndIdentifier[];
@@ -76,8 +77,11 @@ class MobileChatInputConfigPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
+	private readonly _session: IObservable<IHostSession | undefined>;
+	private readonly _chat: IObservable<IChat | undefined>;
+
 	constructor(
-		private readonly _session: IObservable<IActiveSession | undefined>,
+		source: ISessionChatSource,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
@@ -87,6 +91,8 @@ class MobileChatInputConfigPicker extends Disposable {
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
+		this._session = source.session;
+		this._chat = source.chat;
 		this._register(this._newChatModelPickerService.registerModelPicker({
 			getDomNode: () => this._triggerElement,
 			open: () => { void this._showSheet(); },
@@ -98,7 +104,8 @@ class MobileChatInputConfigPicker extends Disposable {
 		// The input-scoped selection model owns model initialization even when
 		// the desktop picker is gated off, so this surface only renders it.
 		this._register(autorun(reader => {
-			this._session.read(reader)?.activeChat.read(reader);
+			this._session.read(reader);
+			this._chat.read(reader);
 			this._selectionModel.state.read(reader);
 			this._updateTrigger();
 		}));
@@ -163,7 +170,8 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	private _getContext(): IMobileConfigContext | undefined {
 		const session = this._session.get();
-		if (!session) {
+		const chat = this._chat.get();
+		if (!session || !chat) {
 			return undefined;
 		}
 		const provider = this._sessionsProvidersService.getProvider(session.providerId);
@@ -172,7 +180,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		}
 
 		// Mode (optional — agent may not advertise a well-known schema)
-		const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
+		const config = provider.getSessionConfig(session.sessionId, chat.resource);
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
@@ -192,7 +200,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		const currentModelId = selectionState.currentModel?.identifier;
 		const showAutoModel = selectionState.options.showAutoModel;
 
-		return { provider, session, modeItems, currentMode, modelItems, currentModelId, showAutoModel };
+		return { provider, session, chat, modeItems, currentMode, modelItems, currentModelId, showAutoModel };
 	}
 
 	private _updateTrigger(): void {
@@ -256,7 +264,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 		// Sheet's mode row writes through `setSessionConfigValue`, so
 		// disable the button while a resolve is in flight.
-		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.session.activeChat.get().resource).get();
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.chat.resource).get();
 		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
@@ -278,7 +286,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// button retains its tap target while visually disabled, so
 		// guard explicitly.
 		const ctx = this._getContext();
-		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.session.activeChat.get().resource).get()) {
+		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.chat.resource).get()) {
 			return;
 		}
 		// Delegate sheet construction to the shared phone presenter so
@@ -287,7 +295,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// reads the active session's provider-owned config and models.
 		const trigger = this._triggerElement;
 		const beforeCtx = ctx;
-		const target = createChatPhoneInputTarget(createChatPhoneInputSessionContext(beforeCtx?.session), this._uriIdentityService);
+		const target = createChatPhoneInputTarget(createChatPhoneInputSessionContext(beforeCtx?.session, beforeCtx?.chat), this._uriIdentityService);
 		const beforeMode = beforeCtx?.currentMode;
 		const beforeModeItem = beforeCtx?.modeItems.find(i => i.value === beforeMode);
 		const beforeModelId = beforeCtx?.currentModelId;
@@ -296,11 +304,11 @@ class MobileChatInputConfigPicker extends Disposable {
 		try {
 			await this._phonePresenter.showCombinedModeAndModelSheet(trigger, {
 				kind: 'session',
-				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get()),
+				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get(), this._chat.get()),
 				selectModel: modelIdentifier => this._switchToModel(modelIdentifier),
 			});
 			const afterCtx = this._getContext();
-			if (beforeCtx && afterCtx && matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(afterCtx.session), this._uriIdentityService)) {
+			if (beforeCtx && afterCtx && matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(afterCtx.session, afterCtx.chat), this._uriIdentityService)) {
 				if (beforeCtx.modeItems.length > 0) {
 					const afterMode = afterCtx.currentMode;
 					const afterModeItem = afterCtx.modeItems.find(i => i.value === afterMode);
@@ -378,7 +386,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -392,7 +400,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		const providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
@@ -401,8 +409,8 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 				menu,
 				MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
 				(_action, _options, scopedInstantiationService) => {
-					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-					const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
+					const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+					const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, host);
 					return new MobileChatInputConfigPickerActionViewItem(picker);
 				},
 			));

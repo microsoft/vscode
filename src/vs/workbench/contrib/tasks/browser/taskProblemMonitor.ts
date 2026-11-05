@@ -17,7 +17,7 @@ interface ITerminalMarkerData {
 export class TaskProblemMonitor extends Disposable {
 
 	private readonly terminalMarkerMap: Map<number, ITerminalMarkerData> = new Map();
-	private readonly terminalDisposables = new DisposableMap<number>();
+	private readonly terminalDisposables = this._register(new DisposableMap<number>());
 
 	constructor() {
 		super();
@@ -47,14 +47,15 @@ export class TaskProblemMonitor extends Disposable {
 
 				for (const marker of markers) {
 					if (marker.severity === MarkerSeverity.Error) {
-						markerData.resources.set(marker.resource.toString(), marker.resource);
+						const key = JSON.stringify([marker.resource.toString(), IMarkerData.makeKey(marker)]);
+						markerData.resources.set(key, marker.resource);
 						const markersForOwner = markerData.markers.get(marker.owner);
 						let markerMap = markersForOwner;
 						if (!markerMap) {
 							markerMap = new Map();
 							markerData.markers.set(marker.owner, markerMap);
 						}
-						markerMap.set(marker.resource.toString(), marker);
+						markerMap.set(key, marker);
 						this.terminalMarkerMap.set(terminal.instanceId, markerData);
 					}
 				}

@@ -133,7 +133,7 @@ suite('Detect missing caches', () => {
 				'node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
 			],
 			electron: [
-				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'.npmrc\', \'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
+				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
 				'echo "ELECTRON_CACHE_PATH=$HOME/Library/Caches/electron" >> "$GITHUB_ENV"',
 				'echo "ELECTRON_CACHE_PATH=${XDG_CACHE_HOME:-$HOME/.cache}/electron" >> "$GITHUB_ENV"',

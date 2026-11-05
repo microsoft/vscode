@@ -8,7 +8,7 @@ overrides:
   path-scurry>lru-cache: 11.2.1
   yauzl: ^3.3.1
 
-pnpmfileChecksum: sha256-U9XTMSbyHywYYrZkLQjq7b97emv44Pa0P3GZnVPXX/o=
+pnpmfileChecksum: sha256-vhnkxbkSyljpOgsYHrY12x0Uc3lC0ISlZv7SyUu7uqY=
 
 importers:
 

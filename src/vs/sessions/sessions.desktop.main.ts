@@ -28,6 +28,7 @@ registerOpenAgentsWindowCommand();
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
 import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
+import './contrib/chatWindow/electron-browser/chatWindowTitleDoubleClick.contribution.js';
 import './contrib/inboxOne/electron-browser/inboxCanvasHost.js';
 import './contrib/sessionInputBanners/electron-browser/sessionDiskSpace.contribution.js';
 
@@ -259,6 +260,7 @@ import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js
 import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
+import './contrib/providers/remoteAgentHost/browser/remoteWorkspaceHandoffService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
 import './contrib/providers/remoteAgentHost/electron-browser/remotes.contribution.js';
 // Change Preferred Remote Agent Location (Chat: ... command)

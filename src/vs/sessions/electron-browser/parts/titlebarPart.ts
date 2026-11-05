@@ -57,6 +57,10 @@ export class NativeTitlebarPart extends TitlebarPart {
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
 	}
 
+	protected override queryWindowFullscreen(targetWindow: CodeWindow): Promise<boolean | undefined> {
+		return this.nativeHostService.isFullScreen({ targetWindowId: targetWindow.vscodeWindowId });
+	}
+
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Workaround for macOS/Electron bug where the window does not
@@ -256,6 +260,10 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, environmentService);
 	}
 
+	protected override get showsWindowLayoutActions(): boolean {
+		return true;
+	}
+
 	override get preventZoom(): boolean {
 		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
@@ -264,7 +272,7 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 export class NativeTitleService extends TitleService {
 
 	protected override createMainTitlebarPart(): MainNativeTitlebarPart {
-		return this.instantiationService.createInstance(MainNativeTitlebarPart);
+		return this.mainWindowInstantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {

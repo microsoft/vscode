@@ -35,7 +35,8 @@ export class ViewEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton;
+		const providesTitle = Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).get(this.viewType)?.providesTitle;
+		return EditorInputCapabilities.Singleton | (providesTitle ? EditorInputCapabilities.ProvidesTitle : 0);
 	}
 
 	override getName(): string {
